@@ -137,7 +137,19 @@ def without_stavelle_open_with(reg):
     for k, v in reg.items():
         if k.endswith("\\OpenWithProgids"):
             v = {n: d for n, d in v.items() if not n.startswith("Stavelle.")}
+            if not v:
+                continue  # an "Open with" list holding only Stavelle's entry belongs to Stavelle
         out[k] = v
+    return out
+
+
+def default_handlers(reg):
+    """The program each score type opens with on double-click (the file type's default value)."""
+    out = {}
+    for k, v in reg.items():
+        for ext in (".mscz", ".mscx", ".mscs"):
+            if k.endswith("\\Classes\\" + ext):
+                out[k] = v.get("", "(none)")
     return out
 
 
@@ -152,8 +164,7 @@ def musescore_data_dirs():
 def snapshot(ms_install):
     return {"install": hash_tree(ms_install),
             "data": {k: hash_tree(p) for k, p in musescore_data_dirs().items()},
-            "registry": musescore_registry(),
-            "assoc": subprocess.run("assoc .mscz", shell=True, capture_output=True, text=True).stdout.strip()}
+            "registry": musescore_registry()}
 
 
 def diff(a, b):
@@ -188,7 +199,7 @@ def main():
     # 2. Snapshot MuseScore
     s0 = snapshot(ms_install)
     check("MuseScore registry entries captured", len(s0["registry"]) > 0, f"{len(s0['registry'])} keys")
-    print("MuseScore file association before Stavelle:", s0["assoc"])
+    print("Score file types before Stavelle:", default_handlers(s0["registry"]))
 
     # 3. Install Stavelle and use it
     rc = msiexec(["/i", str(st_msi)], work / "stavelle_install.log")
@@ -208,7 +219,8 @@ def main():
         check(f"MuseScore {name} (settings, recovery, plugins) unchanged", not d, ", ".join(d[:5]))
     d = diff(without_stavelle_open_with(s0["registry"]), without_stavelle_open_with(s1["registry"]))
     check("MuseScore registry entries unchanged (only Stavelle's own 'Open with' entry added)", not d, ", ".join(d[:5]))
-    check("Double-clicking .mscz still opens what it did before", s0["assoc"] == s1["assoc"], s1["assoc"])
+    check("Double-clicking score files still opens what it did before",
+          default_handlers(s0["registry"]) == default_handlers(s1["registry"]), str(default_handlers(s1["registry"])))
     check("Stavelle offered in 'Open with' for .mscz",
           any(n.startswith("Stavelle.") for k, v in s1["registry"].items() if k.endswith(".mscz\\OpenWithProgids") for n in v))
     check("MuseScore still works with Stavelle installed", run_converter(ms_exe, score, work / "musescore_2.pdf"))
