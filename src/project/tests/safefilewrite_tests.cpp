@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <cstdlib>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -28,7 +29,12 @@
 #include <thread>
 #include <vector>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
 #include <csignal>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -71,7 +77,8 @@ bool isUniform(const std::vector<uint8_t>& data, uint8_t value)
 //! Mirrors the order of operations in NotationProject::doSave.
 bool safeSave(const fs::path& target, const std::vector<uint8_t>& data)
 {
-    const fs::path temp = fs::path(target.u8string() + u8"_saving");
+    fs::path temp = target;
+    temp += "_saving";
     if (!writeFileDurably(utf8(temp), data.data(), data.size())) {
         return false;
     }
@@ -233,6 +240,12 @@ TEST_F(Project_SafeFileWriteTests, ConcurrentReaderNeverSeesPartialFile)
                 ++badReads;
             }
             ++reads;
+#ifdef _WIN32
+            // Windows cannot swap a file while another program holds it open, so give
+            // the writer realistic gaps (as a real reader, e.g. a sync client, would).
+            in.close();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+#endif
         }
     });
 
@@ -247,7 +260,64 @@ TEST_F(Project_SafeFileWriteTests, ConcurrentReaderNeverSeesPartialFile)
     EXPECT_EQ(badReads.load(), 0);
 }
 
-#ifndef _WIN32
+//! Helper run in a separate process by the Windows crash test below: saves the
+//! file named in STAVELLE_SAVE_LOOP_TARGET forever, until it is killed.
+TEST(Project_SafeFileWriteChild, DISABLED_SaveLoop)
+{
+    const char* target = std::getenv("STAVELLE_SAVE_LOOP_TARGET");
+    if (!target) {
+        return;
+    }
+    const fs::path path = fs::u8path(target);
+    const auto versionA = filled(2 * 1024 * 1024, 'A');
+    const auto versionB = filled(3 * 1024 * 1024, 'B');
+    for (int i = 0;; ++i) {
+        safeSave(path, (i % 2) ? versionA : versionB);
+    }
+}
+
+#ifdef _WIN32
+//! Simulates the application crashing at random moments during saving: a child
+//! process saves continuously and is terminated without warning (like "End task").
+//! After every termination the score on disk must be a complete version.
+TEST_F(Project_SafeFileWriteTests, CrashDuringSaveNeverCorruptsScore)
+{
+    const fs::path target = m_dir / "score.mscz";
+    const auto versionA = filled(2 * 1024 * 1024, 'A');
+    const auto versionB = filled(3 * 1024 * 1024, 'B');
+    ASSERT_TRUE(safeSave(target, versionA));
+
+    wchar_t self[MAX_PATH * 4] = {};
+    ASSERT_GT(GetModuleFileNameW(nullptr, self, MAX_PATH * 4), 0u);
+    ASSERT_TRUE(SetEnvironmentVariableW(L"STAVELLE_SAVE_LOOP_TARGET", target.wstring().c_str()));
+
+    std::mt19937 rng(12345);
+    std::uniform_int_distribution<int> delayMs(50, 400);
+
+    for (int round = 0; round < 25; ++round) {
+        std::wstring cmd = L"\"" + std::wstring(self) + L"\" --gtest_also_run_disabled_tests "
+                                                        L"--gtest_filter=Project_SafeFileWriteChild.DISABLED_SaveLoop";
+        STARTUPINFOW si = {};
+        si.cb = sizeof(si);
+        PROCESS_INFORMATION pi = {};
+        ASSERT_TRUE(CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi));
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(delayMs(rng)));
+        TerminateProcess(pi.hProcess, 1);
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+
+        const auto data = readAll(target);
+        const bool ok = (data.size() == versionA.size() && isUniform(data, 'A'))
+                        || (data.size() == versionB.size() && isUniform(data, 'B'));
+        ASSERT_TRUE(ok) << "score corrupted after simulated crash in round " << round << " (size " << data.size() << ")";
+    }
+
+    SetEnvironmentVariableW(L"STAVELLE_SAVE_LOOP_TARGET", nullptr);
+}
+
+#else
 //! Simulates the application crashing at random moments during saving: a child
 //! process saves continuously and is killed without warning. After every kill
 //! the score on disk must be a complete version.
