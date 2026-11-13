@@ -50,8 +50,8 @@
         <WixVariable Id="WixUIDialogBmp" Value="$(var.CPACK_WIX_UI_DIALOG)" />
         <?endif?>
 
-        <Property Id='ARPHELPLINK'>https://musescore.org</Property>
-        <Property Id='ARPURLINFOABOUT'>https://musescore.org</Property>
+        <Property Id='ARPHELPLINK'>https://github.com/nlinemusic/stavelle</Property>
+        <Property Id='ARPURLINFOABOUT'>https://github.com/nlinemusic/stavelle</Property>
         <!-- Properties from CMake -->
         <?include "properties.wxi"?>
 
@@ -68,7 +68,14 @@
         <Property Id="WixShellExecTarget" Value="[INSTALL_ROOT]bin\$(var.ExeName)" />
         <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
 
-        <Component Id="RegisterTypes" Directory="TARGETDIR" Guid="76707452-ee26-4f9a-9650-2cf2c70a6448">
+        <!--
+            Stavelle: registers Stavelle as an application that CAN open score files ("Open with" and
+            Windows Default Apps) without taking over the file types from MuseScore. Every registry key
+            and value written here belongs to Stavelle alone, so installing or uninstalling Stavelle
+            never changes MuseScore's registrations. The musescore:// URL scheme is left to MuseScore.
+            The component GUID is Stavelle's own (it must never equal MuseScore's).
+        -->
+        <Component Id="RegisterTypes" Directory="TARGETDIR" Guid="2eff8e86-704c-45be-99b0-e4bfa12cb0ca">
             <!-- In order to work with Default Programs -->
             <?define CapabilitiesKey="SOFTWARE\$(var.ShortProdName)\Capabilities"?>
             <RegistryKey Root="$(var.RegistryRoot)" Key="$(var.CapabilitiesKey)">
@@ -78,40 +85,24 @@
                 <RegistryValue Name="ApplicationName" Value="$(var.ProdName)" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
 
-                <!-- File associations -->
+                <!-- File associations offered to Windows Default Apps -->
                 <RegistryKey Key="FileAssociations">
-                    <RegistryValue Name=".mscz" Value="MuseScore.mscz.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name=".mscx" Value="MuseScore.mscx.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name=".mscs" Value="MuseScore.mscs.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name=".mscz~" Value="MuseScore.mscz.$(var.ProgIdSuffix)" Type="string" />
-                    <!-- TODO: Add other file types here too? -->
+                    <RegistryValue Name=".mscz" Value="Stavelle.mscz.$(var.ProgIdSuffix)" Type="string" />
+                    <RegistryValue Name=".mscx" Value="Stavelle.mscx.$(var.ProgIdSuffix)" Type="string" />
+                    <RegistryValue Name=".mscs" Value="Stavelle.mscs.$(var.ProgIdSuffix)" Type="string" />
                 </RegistryKey>
-
-                <!-- MIME associations -->
-                <RegistryKey Key="MIMEAssociations">
-                    <RegistryValue Name="application/x-musescore" Value="MuseScore.mscz.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name="application/x-musescore+xml" Value="MuseScore.mscx.$(var.ProgIdSuffix)" Type="string" />
-                </RegistryKey>
-
-                <!-- URL associations -->
-                <RegistryKey Key="UrlAssociations">
-                    <RegistryValue Name="musescore" Value="MuseScore.Url.musescore.$(var.ProgIdSuffix)" Type="string" />
-                </RegistryKey>
-
-                <!-- Open verb (TODO: this entry does not seem to be mentioned anywhere in the documentation, so does it make sense?) -->
-                <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
 
             <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\RegisteredApplications" Name="$(var.ProdName)" Value="$(var.CapabilitiesKey)" Type="string" />
 
-            <!-- App Paths to support Start,Run -> "myapp" -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$(var.ExeKey)">
+            <!-- App Paths to support Start,Run -> "Stavelle" -->
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$(var.ExeName)">
                 <RegistryValue Value="[INSTALL_ROOT]bin\$(var.ExeName)" Type="string" />
                 <RegistryValue Name="Path" Value="[INSTALL_ROOT]bin" Type="string" />
             </RegistryKey>
 
-            <!-- Extend to the "open with" list + Win7 jump menu pinning  -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Applications\$(var.ExeKey)">
+            <!-- "Open with" list for supported file types -->
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Applications\$(var.ExeName)">
                 <RegistryKey Key="SupportedTypes">
                     <RegistryValue Name=".mscz" Value="" Type="string" />
                     <RegistryValue Name=".mscx" Value="" Type="string" />
@@ -149,90 +140,28 @@
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
 
-            <!-- Register ProgIDs -->
-            <!-- Instead of using WiX's/MSI's ProgId functionality, we use the registry directly for more control -->
-            <!-- MSCZ -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscz.$(var.ProgIdSuffix)">
-                <RegistryValue Value="MuseScore File" Type="string" />
+            <!-- Stavelle's own ProgIDs -->
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscz.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Stavelle Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
-            <?ifndef MUSE_APP_IS_PRERELEASE?>
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscz\CurVer" Value="MuseScore.mscz.$(var.ProgIdSuffix)" Type="string" />
-            <?endif?>
-
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscz">
-                <?ifndef MUSE_APP_IS_PRERELEASE?>
-                <RegistryValue Value="MuseScore.mscz.$(var.ProgIdSuffix)" Type="string" />
-                <?endif?>
-                <RegistryValue Name="Content Type" Value="application/x-musescore" Type="string" />
-            </RegistryKey>
-
-            <!-- MSCX -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscx.$(var.ProgIdSuffix)">
-                <RegistryValue Value="MuseScore Uncompressed File" Type="string" />
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscx.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Stavelle Uncompressed Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),2" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
-            <?ifndef MUSE_APP_IS_PRERELEASE?>
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscx\CurVer" Value="MuseScore.mscx.$(var.ProgIdSuffix)" Type="string" />
-            <?endif?>
-
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscx">
-                <?ifndef MUSE_APP_IS_PRERELEASE?>
-                <RegistryValue Value="MuseScore.mscx.$(var.ProgIdSuffix)" Type="string" />
-                <?endif?>
-                <RegistryValue Name="Content Type" Value="application/x-musescore+xml" Type="string" />
-            </RegistryKey>
-
-            <!-- MSCS -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscs.$(var.ProgIdSuffix)">
-                <RegistryValue Value="MuseScore Uncompressed File" Type="string" />
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscs.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Stavelle Stand-alone Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
-            <?ifndef MUSE_APP_IS_PRERELEASE?>
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscs\CurVer" Value="MuseScore.mscs.$(var.ProgIdSuffix)" Type="string" />
-            <?endif?>
 
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscs">
-                <?ifndef MUSE_APP_IS_PRERELEASE?>
-                <RegistryValue Value="MuseScore.mscs.$(var.ProgIdSuffix)" Type="string" />
-                <?endif?>
-                <RegistryValue Name="Content Type" Value="application/x-musescore+xml" Type="string" />
-            </RegistryKey>
-
-            <!-- MSCZ~ -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscz~.$(var.ProgIdSuffix)">
-                <RegistryValue Value="MuseScore Backup File" Type="string" />
-                <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
-                <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
-            </RegistryKey>
-            <?ifndef MUSE_APP_IS_PRERELEASE?>
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.mscz~\CurVer" Value="MuseScore.mscz~.$(var.ProgIdSuffix)" Type="string" />
-            <?endif?>
-
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscz~">
-                <?ifndef MUSE_APP_IS_PRERELEASE?>
-                <RegistryValue Value="MuseScore.mscz~.$(var.ProgIdSuffix)" Type="string" />
-                <?endif?>
-                <RegistryValue Name="Content Type" Value="application/x-musescore+xml" Type="string" />
-            </RegistryKey>
-
-            <!-- musescore URL scheme -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.Url.musescore.$(var.ProgIdSuffix)">
-                <RegistryValue Value="MuseScore URL" Type="string" />
-                <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
-                <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
-            </RegistryKey>
-            <?ifndef MUSE_APP_IS_PRERELEASE?>
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\MuseScore.Url.musescore\CurVer" Value="MuseScore.Url.musescore.$(var.ProgIdSuffix)" Type="string" />
-            <?endif?>
-
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\musescore">
-                <RegistryValue Name="URL Protocol" Value="" Type="string" />
-                <RegistryValue Value="URL:MuseScore URL" Type="string" />
-            </RegistryKey>
+            <!-- Add Stavelle to each file type's "Open with" list. Only a value named after Stavelle's
+                 ProgID is written, so the file type's default program (e.g. MuseScore) is untouched. -->
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscz\OpenWithProgids" Name="Stavelle.mscz.$(var.ProgIdSuffix)" Value="" Type="string" />
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscx\OpenWithProgids" Name="Stavelle.mscx.$(var.ProgIdSuffix)" Value="" Type="string" />
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscs\OpenWithProgids" Name="Stavelle.mscs.$(var.ProgIdSuffix)" Value="" Type="string" />
         </Component>
 
         <FeatureRef Id="ProductFeature">

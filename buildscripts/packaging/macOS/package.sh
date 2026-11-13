@@ -3,8 +3,8 @@
 echo "Package"
 trap 'echo Package failed; exit 1' ERR
 
-APP_NAME="MuseScore Studio"
-VOL_NAME="MuseScore-Studio"
+APP_NAME="Stavelle"
+VOL_NAME="Stavelle"
 DO_SIGN=false
 APPLE_TEAM_ID=""
 APPLE_USERNAME=""

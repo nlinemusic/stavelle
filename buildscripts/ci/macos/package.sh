@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-only
-# MuseScore-Studio-CLA-applies
+# Stavelle-CLA-applies
 #
 # MuseScore Studio
 # Music Composition & Notation
@@ -77,23 +77,11 @@ VERSION_MAJOR="$(cut -d'.' -f1 <<<"$BUILD_VERSION")"
 VERSION_MINOR="$(cut -d'.' -f2 <<<"$BUILD_VERSION")"
 VERSION_PATCH="$(cut -d'.' -f3 <<<"$BUILD_VERSION")"
 
-# TODO: rename to MuseScore Studio (https://github.com/musescore/MuseScore/issues/32235)
-APP_NAME="MuseScore $VERSION_MAJOR"
-if [ "$BUILD_MODE" == "devel" ]; then
-    APP_NAME="MuseScore $BUILD_VERSION Development"
-    VOL_NAME="MuseScore-Studio-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${BUILD_NUMBER}-${BUILD_REVISION}"
-fi
-if [ "$BUILD_MODE" == "nightly" ]; then
-    APP_NAME="MuseScore $BUILD_VERSION Nightly"
-    VOL_NAME="MuseScore-Studio-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${BUILD_NUMBER}-${BUILD_REVISION}"
-fi
-if [ "$BUILD_MODE" == "testing" ]; then
-    APP_NAME="MuseScore $BUILD_VERSION Testing"
-    VOL_NAME="MuseScore-Studio-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${BUILD_NUMBER}-${BUILD_REVISION}"
-fi
+# Stavelle: the app is "Stavelle.app", so it installs next to (never over) "MuseScore 4.app".
+APP_NAME="Stavelle"
+VOL_NAME="Stavelle-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${BUILD_NUMBER}-${BUILD_REVISION}"
 if [ "$BUILD_MODE" == "stable" ]; then
-    APP_NAME="MuseScore $VERSION_MAJOR"
-    VOL_NAME="MuseScore-Studio-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}"
+    VOL_NAME="Stavelle-${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH}.${BUILD_NUMBER}"
 fi
 
 buildscripts/packaging/macOS/package.sh --app-name "$APP_NAME" --vol-name "$VOL_NAME" --user "$APPLE_USERNAME" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" $SIGN_ARGS
@@ -103,9 +91,9 @@ echo "DMGFILE: $DMGFILE"
 
 if [ "$BUILD_MODE" == "nightly" ]; then
     BUILD_BRANCH=$(cat $ARTIFACTS_DIR/env/build_branch.env)
-    ARTIFACT_NAME=MuseScore-Studio-Nightly-${BUILD_NUMBER}-${BUILD_BRANCH}-${BUILD_REVISION}.dmg
+    ARTIFACT_NAME=Stavelle-Nightly-${BUILD_NUMBER}-${BUILD_BRANCH}-${BUILD_REVISION}.dmg
 else
-    ARTIFACT_NAME=MuseScore-Studio-${BUILD_VERSION}.dmg
+    ARTIFACT_NAME=Stavelle-${BUILD_VERSION}.dmg
 fi
 
 mv $DMGFILE $ARTIFACTS_DIR/$ARTIFACT_NAME

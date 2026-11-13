@@ -7,7 +7,10 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 
-	<key>UTExportedTypeDeclarations</key>
+	<!-- Stavelle: MuseScore owns these document types, so Stavelle declares them as imported
+	     (it can open them) rather than exported (it owns them). Two apps exporting the same type
+	     conflict in macOS. -->
+	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<!-- MuseScore documents -->
 		<dict>
@@ -123,7 +126,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSTypeIsPackage</key>
 			<false/>
 		</dict>
@@ -143,7 +146,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSTypeIsPackage</key>
 			<false/>
 		</dict>
@@ -161,7 +164,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSTypeIsPackage</key>
 			<false/>
 		</dict>
@@ -181,7 +184,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSTypeIsPackage</key>
 			<false/>
 		</dict>
@@ -201,7 +204,7 @@
 			<key>CFBundleTypeRole</key>
 			<string>Editor</string>
 			<key>LSHandlerRank</key>
-			<string>Owner</string>
+			<string>Alternate</string>
 			<key>LSTypeIsPackage</key>
 			<false/>
 		</dict>
@@ -560,19 +563,7 @@
 		</dict>
 	</array>
 
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLName</key>
-			<string>org.musescore.musescore.musescoreurl</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>musescore</string>
-			</array>
-		</dict>
-	</array>
+	<!-- Stavelle: the musescore:// URL scheme is left to MuseScore. -->
 
 	<key>CFBundleExecutable</key>
 	<string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>
