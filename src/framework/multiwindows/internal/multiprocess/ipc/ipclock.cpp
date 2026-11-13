@@ -23,11 +23,15 @@
 
 #include <QSystemSemaphore>
 
+#include "muse_framework_config.h"
+
 using namespace muse::ipc;
 
 IpcLock::IpcLock(const QString& name)
 {
-    m_locker = new QSystemSemaphore("musescore-" + name, 1 /*allowed lock count*/, QSystemSemaphore::Open);
+    // Stavelle: prefix with the application name so locks are never shared with MuseScore.
+    m_locker = new QSystemSemaphore(QStringLiteral(MUSE_APP_NAME_MACHINE_READABLE "-") + name, 1 /*allowed lock count*/,
+                                    QSystemSemaphore::Open);
 }
 
 IpcLock::~IpcLock()

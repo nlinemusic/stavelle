@@ -34,11 +34,10 @@
 class QLocalSocket;
 
 namespace muse::ipc {
-#ifdef MUSE_APP_UNSTABLE
-static const QString SERVER_NAME("musescore-app-ipc-" MUSE_APP_VERSION_MAJOR "-development");
-#else
-static const QString SERVER_NAME("musescore-app-ipc-" MUSE_APP_VERSION_MAJOR);
-#endif
+// Stavelle: named after the application so that Stavelle and an installed MuseScore
+// never connect to each other (they would otherwise share "score already open" and
+// settings-change messages).
+static const QString SERVER_NAME(MUSE_APP_NAME_MACHINE_READABLE "-app-ipc-" MUSE_APP_VERSION_MAJOR);
 
 using ID = QString;
 

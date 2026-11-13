@@ -18,13 +18,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 
-set(MUSE_APP_NAME_HUMAN_READABLE "MuseScore Studio")
-set(MUSE_APP_NAME_MACHINE_READABLE "MuseScoreStudio")
+# Stavelle: the application has its own identity, so it never shares settings,
+# autosave, crash recovery, installation folders or file registrations with an
+# installed MuseScore. The version numbers below stay those of the MuseScore
+# release Stavelle is based on, because they are written into score files and
+# used for file-format compatibility.
+set(MUSE_APP_NAME_HUMAN_READABLE "Stavelle")
+set(MUSE_APP_NAME_MACHINE_READABLE "Stavelle")
 
-set(MUSE_APP_NAME_HUMAN_READABLE_COMPAT "MuseScore")
-set(MUSE_APP_NAME_MACHINE_READABLE_COMPAT "MuseScore")
+set(MUSE_APP_NAME_HUMAN_READABLE_COMPAT "Stavelle")
+set(MUSE_APP_NAME_MACHINE_READABLE_COMPAT "Stavelle")
 
-set(MUSE_APP_GUI_IDENTIFIER org.musescore.${MUSE_APP_NAME_MACHINE_READABLE_COMPAT})
+set(MUSE_APP_GUI_IDENTIFIER org.stavelle.${MUSE_APP_NAME_MACHINE_READABLE})
 
 set(MUSE_APP_VERSION_MAJOR "4")
 set(MUSE_APP_VERSION_MINOR "7")
@@ -41,8 +46,8 @@ endif()
 # TODO: Remove
 set(MUSE_APP_TITLE "${MUSE_APP_NAME_HUMAN_READABLE}")
 set(MUSE_APP_NAME "${MUSE_APP_NAME_MACHINE_READABLE_COMPAT}")
-set(MUSE_APP_TITLE_VERSION "${MUSE_APP_TITLE} ${MUSE_APP_VERSION_MAJOR}")
-set(MUSE_APP_NAME_VERSION "${MUSE_APP_NAME} ${MUSE_APP_VERSION_MAJOR}")
+set(MUSE_APP_TITLE_VERSION "${MUSE_APP_TITLE}")
+set(MUSE_APP_NAME_VERSION "${MUSE_APP_NAME}")
 # ---
 
 set(MUSE_APP_UNSTABLE ON)

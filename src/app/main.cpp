@@ -113,15 +113,14 @@ int main(int argc, char** argv)
 
     QGuiApplication::styleHints()->setMousePressAndHoldInterval(250);
 
-// Can't use MUSE_APP_TITLE until next major release, because this "application name" is used to determine
-// where user settings are stored. Changing it would result in all user settings being lost.
-#ifdef MUSE_APP_UNSTABLE
-    QCoreApplication::setApplicationName("MuseScore4Development");
-#else
-    QCoreApplication::setApplicationName("MuseScore4");
-#endif
-    QCoreApplication::setOrganizationName("MuseScore");
-    QCoreApplication::setOrganizationDomain("musescore.org");
+    // Stavelle: these names determine where settings, preferences, autosave and crash-recovery
+    // files, plugins and the Documents folder are stored (via QStandardPaths and QSettings).
+    // They are Stavelle's own, so Stavelle never reads or writes an installed MuseScore's data:
+    //   Windows: %LOCALAPPDATA%\Stavelle\Stavelle and Documents\Stavelle
+    //   macOS:   ~/Library/Application Support/Stavelle/Stavelle and ~/Documents/Stavelle
+    QCoreApplication::setApplicationName(MUSE_APP_NAME_MACHINE_READABLE);
+    QCoreApplication::setOrganizationName(MUSE_APP_NAME_MACHINE_READABLE);
+    QCoreApplication::setOrganizationDomain("stavelle.org");
     QCoreApplication::setApplicationVersion(MUSE_APP_VERSION);
 
 #if !defined(Q_OS_WIN) && !defined(Q_OS_DARWIN) && !defined(Q_OS_WASM)
@@ -129,7 +128,7 @@ int main(int argc, char** argv)
 #ifndef MUSE_APP_INSTALL_SUFFIX
 #define MUSE_APP_INSTALL_SUFFIX ""
 #endif
-    QGuiApplication::setDesktopFileName("org.musescore.MuseScore" MUSE_APP_INSTALL_SUFFIX);
+    QGuiApplication::setDesktopFileName("org.stavelle.Stavelle" MUSE_APP_INSTALL_SUFFIX);
 #endif
 
     using namespace muse;
