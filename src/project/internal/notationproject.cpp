@@ -26,6 +26,7 @@
 #include <QBuffer>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 
 #include "global/io/buffer.h"
 #include "global/io/file.h"
@@ -50,6 +51,7 @@
 #include "projectaudiosettings.h"
 #include "projectfileinfoprovider.h"
 #include "projecterrors.h"
+#include "safefilewrite.h"
 
 #include "defer.h"
 #include "log.h"
@@ -662,6 +664,19 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
     QString targetContainerPath = engraving::containerPath(path).toQString();
     muse::io::path_t targetMainFilePath = engraving::mainFilePath(path);
     muse::io::path_t targetMainFileName = engraving::mainFileName(path);
+
+    // Stavelle: if the score is a symbolic link, save to the real file so that the
+    // temporary file below lives on the same volume and can be swapped in atomically.
+    if (ioMode != engraving::MscIoMode::Dir) {
+        const QFileInfo targetInfo(targetContainerPath);
+        if (targetInfo.isSymLink()) {
+            const QString resolved = targetInfo.canonicalFilePath();
+            if (!resolved.isEmpty()) {
+                targetContainerPath = resolved;
+            }
+        }
+    }
+
     QString savePath = targetContainerPath + "_saving";
 
     // Step 1: check writable
@@ -724,18 +739,52 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
         }
 
         if (maybeOutBuf) {
-            ret = fileSystem()->writeFile(savePath, maybeOutBuf->data());
-            if (!ret) {
-                LOGE() << "Failed to write project file";
-                return ret;
+            // Stavelle: write the temporary file and force it to physical storage,
+            // detecting short writes (e.g. disk full).
+            const ByteArray& bytes = maybeOutBuf->data();
+            std::string errorText;
+            if (!safefilewrite::writeFileDurably(savePath.toStdString(), bytes.constData(), bytes.size(), &errorText)) {
+                LOGE() << "Failed to write project file: " << errorText;
+                fileSystem()->remove(savePath);
+                Ret writeErr = make_ret(io::Err::FSWriteError);
+                writeErr.setText(errorText);
+                return writeErr;
             }
+
+            // Read the file back and make sure the disk holds exactly what was written.
+            if (!isAutosave) {
+                ByteArray readBack;
+                Ret readRet = fileSystem()->readFile(savePath, readBack);
+                if (!readRet || readBack != bytes) {
+                    LOGE() << "Read-back verification failed, the existing score was not modified";
+                    fileSystem()->remove(savePath);
+                    return Ret(static_cast<int>(Err::CorruptionUponSavingError),
+                               muse::mtrc("project/save", "“%1” is corrupted or damaged.")
+                               .arg(String::fromQString(savePath))
+                               .toStdString());
+                }
+            }
+        }
+    }
+
+    // Stavelle Step 2b: validate the temporary file BEFORE the existing score is touched.
+    // If validation fails, the previously saved score remains exactly as it was.
+    if (ioMode != MscIoMode::Dir && !isAutosave) {
+        Ret ret = checkSavedFileForCorruption(ioMode, savePath, targetMainFileName.toQString());
+        if (!ret) {
+            LOGE() << "Validation of the newly written file failed, the existing score was not modified: " << ret.toString();
+            fileSystem()->remove(savePath);
+            return ret;
         }
     }
 
     // Step 3: create backup if need
     {
         if (generateBackup) {
-            makeBackup(targetContainerPath);
+            Ret backupRet = makeBackup(targetContainerPath);
+            if (!backupRet) {
+                LOGW() << "Backup could not be created, continuing with a safe save: " << backupRet.toString();
+            }
         }
     }
 
@@ -765,29 +814,19 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
                 LOGW() << ret.toString();
             }
         } else {
-            Ret ret = muse::make_ok();
-
-            ret = fileSystem()->copy(savePath, targetContainerPath, true);
-            if (!ret) {
-                return ret;
+            // Stavelle: atomically swap the validated file into place. Previously the
+            // existing score was deleted and then overwritten by a copy, so a crash, power
+            // loss or full disk at that moment could destroy the last good version.
+            // Now the score on disk is always either the complete old or the complete new
+            // version. If the swap fails, the old version is untouched and the validated
+            // "_saving" file is kept next to it as an additional safety copy.
+            std::string errorText;
+            if (!safefilewrite::replaceFileAtomically(savePath.toStdString(), targetContainerPath.toStdString(), &errorText)) {
+                LOGE() << "Atomic replace failed: " << errorText;
+                Ret moveErr = make_ret(io::Err::FSMoveErrors);
+                moveErr.setText(errorText);
+                return moveErr;
             }
-
-            if (!isAutosave) {
-                ret = checkSavedFileForCorruption(ioMode, targetContainerPath, targetMainFileName.toQString());
-                if (!ret) {
-                    if (ret.code() == (int)Err::CorruptionUponSavingError) {
-                        // Validate the temporary "saving" file too.
-                        Ret ret2 = checkSavedFileForCorruption(ioMode, savePath, targetMainFileName.toQString());
-                        if (!ret2) {
-                            return ret2;
-                        }
-                    }
-                    return ret;
-                }
-            }
-
-            // Remove the temp save file (not problematic if fails)
-            fileSystem()->remove(savePath);
         }
     }
 

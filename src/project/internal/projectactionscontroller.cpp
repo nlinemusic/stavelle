@@ -1010,10 +1010,9 @@ bool ProjectActionsController::saveProjectLocally(const muse::io::path_t& filePa
             switch (warnScoreHasBecomeCorruptedAfterSave(ret)) {
             case RETRY_SAVE_BTN_ID:
                 async::Async::call(this, [this, filePath, saveMode]() {
-                    // Retry the save. Do not create a backup this time because the target file has been corrupted
-                    // already. Creating a backup file of a corrupted file now makes no sense and will corrupt
-                    // the healthy backup file created on the first save attempt.
-                    saveProjectLocally(filePath, saveMode, false /*createBackup*/);
+                    // Retry the save. Stavelle validates the new file before it replaces the existing
+                    // score, so the existing score is still the last good version and may be backed up.
+                    saveProjectLocally(filePath, saveMode, true /*createBackup*/);
                 });
                 break;
 
@@ -1685,7 +1684,8 @@ int ProjectActionsController::warnScoreHasBecomeCorruptedAfterSave(const Ret& re
     const std::string title = muse::trc("project/save", "An error occurred while saving your score");
 
     const std::string body = muse::qtrc("project/save",
-                                        "To preserve your score, try saving it again. "
+                                        "Your previously saved version has not been changed. "
+                                        "To preserve your latest changes, try saving again. "
                                         "If this message still appears, please save your score as new copy. "
                                         "You can also get help for this issue on %1.<br/><br/>"
                                         "Error details (please cite when asking for support): %2")

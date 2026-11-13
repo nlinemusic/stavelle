@@ -53,6 +53,8 @@ target_sources(project PRIVATE
     internal/iprojectmigrator.h
     internal/notationproject.cpp
     internal/notationproject.h
+    internal/safefilewrite.cpp
+    internal/safefilewrite.h
     internal/projectcreator.cpp
     internal/projectcreator.h
     internal/projectaudiosettings.cpp
@@ -119,6 +121,15 @@ elseif (OS_IS_WIN)
         internal/platform/windows/windowsrecentfilescontroller.h
     )
 endif()
+
+# Contains platform-native (Win32 / POSIX) file code; keep it out of unity
+# batches so system headers cannot affect neighbouring sources.
+set_source_files_properties(
+    internal/safefilewrite.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+    SKIP_PRECOMPILE_HEADERS ON
+)
 
 target_link_libraries(project PRIVATE notation)
 
