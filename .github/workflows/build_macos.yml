@@ -209,6 +209,19 @@ jobs:
 
     # Must run before Package: macdeployqt strips the binary and package.sh
     # deletes the dSYM bundles
+    - name: "Stavelle: app check (open, save, reopen, identity, timing)"
+      shell: bash
+      run: |
+        mkdir -p smoke_scores
+        cp demos/*.mscz demos/Dawn.mscx smoke_scores/
+        python3 -X utf8 tools/stavelle_smoke/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15
+        python3 -X utf8 tools/stavelle_smoke/smoke_test.py "applebuild/mscore.app/Contents/MacOS/mscore" smoke_scores smoke_work --runs 3
+    - name: "Stavelle: upload app check results"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: stavelle-app-check-${{ runner.os }}
+        path: smoke_work/smoke_results.json
     - name: Generate dSYM
       if: env.DO_UPLOAD_SYMBOLS == 'true'
       run: |

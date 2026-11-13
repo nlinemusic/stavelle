@@ -201,13 +201,44 @@ jobs:
     - name: Show ccache stats
       run: |
         ccache -sv
+    - name: "Stavelle: app check (open, save, reopen, identity, timing)"
+      shell: bash
+      run: |
+        mkdir -p smoke_scores
+        cp demos/*.mscz demos/Dawn.mscx smoke_scores/
+        python -X utf8 tools/stavelle_smoke/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15
+        python -X utf8 tools/stavelle_smoke/smoke_test.py "build.install/bin/Stavelle.exe" smoke_scores smoke_work --runs 3
+    - name: "Stavelle: upload app check results"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: stavelle-app-check-${{ runner.os }}
+        path: smoke_work/smoke_results.json
     - name: Package
       shell: cmd
       run: |
-        IF ${{ secrets.WIN_SIGN_S3_SECRET != 0 }} == true ( SET S_S=${{ secrets.WIN_SIGN_S3_SECRET }} ) ELSE ( SET S_S="''" )
-        IF ${{ secrets.WIN_SIGN_S3_KEY != 0 }} == true ( SET S_K=${{ secrets.WIN_SIGN_S3_KEY }} ) ELSE ( SET S_K="''" )
-        IF ${{ env.BUILD_MODE }} == stable ( SET GUID=${{ secrets.WIN_MSI_STABLE_MU4_GUID }} ) ELSE ( SET GUID=${{ secrets.WIN_MSI_TESTING_MU4_GUID }} )
-        buildscripts\ci\windows\package.bat --signsecret %S_S% --signkey %S_K% --guid %GUID%
+        :: Stavelle: no code-signing certificate, and the installer uses Stavelle's own
+        :: upgrade code (set in package.bat), never MuseScore's.
+        buildscripts\ci\windows\package.bat
+    - name: "Stavelle: coexistence test with an installed MuseScore"
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        STAVELLE_MSI=$(ls build.artifacts/*.msi | head -1)
+        echo "Stavelle installer: $STAVELLE_MSI"
+        mkdir -p musescore_msi
+        gh release download v4.7.7 --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi \
+          || gh release download --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi
+        MUSESCORE_MSI=$(ls musescore_msi/*.msi | head -1)
+        echo "MuseScore installer: $MUSESCORE_MSI"
+        python -X utf8 tools/stavelle_smoke/coexistence_test_windows.py "$MUSESCORE_MSI" "$STAVELLE_MSI" demos/Amazing_grace.mscz coexistence_work
+    - name: "Stavelle: upload coexistence test results"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: stavelle-coexistence-windows
+        path: coexistence_work/
     - name: Checksum
       run: |
         bash ./buildscripts/ci/tools/checksum.sh
