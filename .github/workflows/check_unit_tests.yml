@@ -12,6 +12,12 @@ on:
         type: boolean
         default: false
 
+# Stavelle: new repositories give workflows read-only tokens by default; the
+# "Cancel Previous Runs" step needs to manage runs.
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   run_tests:
     runs-on: ubuntu-22.04

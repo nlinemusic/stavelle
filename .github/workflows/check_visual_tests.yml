@@ -4,6 +4,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Stavelle: new repositories give workflows read-only tokens by default; the
+# "Cancel Previous Runs" step needs to manage runs.
+permissions:
+  contents: write # commit comment with visual test results
+  actions: write
+
 jobs:
   setup:
     name: "Setup VTests workflow"

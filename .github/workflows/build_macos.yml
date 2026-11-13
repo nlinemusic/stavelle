@@ -47,6 +47,12 @@ env:
   # This information is public and can be extracted by anyone from the final .app file
   APPLE_TEAM_ID: 6EPAF2X3PR
 
+# Stavelle: new repositories give workflows read-only tokens by default; the
+# "Cancel Previous Runs" step needs to manage runs.
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   macos_universal:
     runs-on: macos-26
