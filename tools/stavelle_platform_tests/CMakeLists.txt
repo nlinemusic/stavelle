@@ -24,6 +24,7 @@ target_link_libraries(stavelle_platform_tests PRIVATE gtest_main)
 
 if (MSVC)
     target_compile_options(stavelle_platform_tests PRIVATE /W4 /utf-8)
+    target_compile_definitions(stavelle_platform_tests PRIVATE _CRT_SECURE_NO_WARNINGS)
 else()
     target_compile_options(stavelle_platform_tests PRIVATE -Wall -Wextra -Werror)
 endif()

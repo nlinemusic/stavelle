@@ -125,12 +125,13 @@ TEST_F(Project_SafeFileWriteTests, WriteDurably_WritesExactBytes)
 TEST_F(Project_SafeFileWriteTests, WriteDurably_TruncatesLongerExistingFile)
 {
     const fs::path file = m_dir / "score.mscz";
-    const auto big = filled(5000, 'x');
-    const auto small = filled(10, 'y');
+    // Note: "small" is a macro in Windows headers, so avoid it as a name.
+    const auto longData = filled(5000, 'x');
+    const auto shortData = filled(10, 'y');
 
-    ASSERT_TRUE(writeFileDurably(utf8(file), big.data(), big.size()));
-    ASSERT_TRUE(writeFileDurably(utf8(file), small.data(), small.size()));
-    EXPECT_EQ(readAll(file), small);
+    ASSERT_TRUE(writeFileDurably(utf8(file), longData.data(), longData.size()));
+    ASSERT_TRUE(writeFileDurably(utf8(file), shortData.data(), shortData.size()));
+    EXPECT_EQ(readAll(file), shortData);
 }
 
 TEST_F(Project_SafeFileWriteTests, WriteDurably_EmptyData)
