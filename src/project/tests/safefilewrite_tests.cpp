@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <chrono>
@@ -230,11 +231,20 @@ TEST_F(Project_SafeFileWriteTests, ConcurrentReaderNeverSeesPartialFile)
 
     std::thread reader([&]() {
         while (!stop) {
-            std::ifstream in(target, std::ios::binary);
-            if (!in) {
-                continue; // Windows: briefly unopenable during the swap; never partial.
+            // Read the whole file in one call and close it at once, as real programs
+            // (sync clients, antivirus, backup tools) do.
+            std::vector<uint8_t> data;
+            {
+                std::ifstream in(target, std::ios::binary | std::ios::ate);
+                if (!in) {
+                    continue; // Windows: briefly unopenable during the swap; never partial.
+                }
+                const std::streamsize size = in.tellg();
+                data.resize(static_cast<size_t>(std::max<std::streamsize>(size, 0)));
+                in.seekg(0);
+                in.read(reinterpret_cast<char*>(data.data()), size);
+                data.resize(static_cast<size_t>(std::max<std::streamsize>(in.gcount(), 0)));
             }
-            std::vector<uint8_t> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
             const bool ok = (data.size() == versionA.size() && isUniform(data, 'A'))
                             || (data.size() == versionB.size() && isUniform(data, 'B'));
             if (!ok) {
@@ -242,10 +252,9 @@ TEST_F(Project_SafeFileWriteTests, ConcurrentReaderNeverSeesPartialFile)
             }
             ++reads;
 #ifdef _WIN32
-            // Windows cannot swap a file while another program holds it open, so give
-            // the writer realistic gaps (as a real reader, e.g. a sync client, would).
-            in.close();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            // Windows cannot swap a file while another program holds it open; leave
+            // realistic gaps between reads, as a real reader would.
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
 #endif
         }
     });
