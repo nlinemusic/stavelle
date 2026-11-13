@@ -1,0 +1,27 @@
+name: 'Stavelle: Platform Reliability Tests'
+
+# Fast (a few minutes) native tests of Stavelle's reliability code on Windows,
+# macOS and Linux. Runs alongside the full application builds, which take ~1 hour.
+
+on:
+  push:
+    branches: [ main, 'stavelle/**' ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  platform_tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-2025, macos-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v6
+    - name: Configure
+      run: cmake -S tools/stavelle_platform_tests -B build-platform-tests -DCMAKE_BUILD_TYPE=Release
+    - name: Build
+      run: cmake --build build-platform-tests --config Release --parallel
+    - name: Run tests
+      run: ctest --test-dir build-platform-tests -C Release --output-on-failure

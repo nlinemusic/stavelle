@@ -1,6 +1,8 @@
 name: 'Check: Unit Tests (utest)'
 
 on:
+  push:
+    branches: [ main, 'stavelle/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -9,8 +11,6 @@ on:
         required: false
         type: boolean
         default: false
-  schedule:
-    - cron: "0 3 * * 4" # Every Thursday night at 03:00 for master branch
 
 jobs:
   run_tests:

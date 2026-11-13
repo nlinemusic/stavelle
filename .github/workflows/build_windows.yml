@@ -1,6 +1,8 @@
 name: 'Build: Windows'
 
 on:
+  push:
+    branches: [ main, 'stavelle/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -248,10 +250,9 @@ jobs:
 
 
   windows_portable:
-    # Disable on pull_request
+    # Stavelle: portable build only when explicitly requested (saves build minutes)
     if: |
-      github.event_name != 'pull_request' &&
-      (github.event_name != 'workflow_dispatch' || contains(inputs.platforms, 'windows_portable'))
+      github.event_name == 'workflow_dispatch' && contains(inputs.platforms, 'windows_portable')
     runs-on: windows-2025
     steps:
     - name: Cancel Previous Runs
