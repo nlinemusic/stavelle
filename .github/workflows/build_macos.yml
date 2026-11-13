@@ -1,8 +1,9 @@
 name: 'Build: macOS'
 
+# Stavelle: the repository is private and macOS build minutes count 10x, so the
+# full macOS build runs on request (Actions > Build: macOS > Run workflow) and on
+# pull requests. Quick macOS reliability tests still run on every push.
 on:
-  push:
-    branches: [ main, 'stavelle/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
