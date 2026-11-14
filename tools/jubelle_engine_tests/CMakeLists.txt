@@ -1,0 +1,77 @@
+# Jubelle: run engraving (notation engine) tests without Qt, on any machine,
+# without GitHub Actions minutes. Builds MuseScore's engine the same way as
+# tools/check_build_without_qt and links the chosen engraving test files.
+#
+#   cmake -S tools/jubelle_engine_tests -B build-engine-tests -GNinja
+#   cmake --build build-engine-tests
+#   build-engine-tests/jubelle_engine_tests
+#
+# Only tests that don't compare against reference files can run here
+# (those comparisons need Qt). The full suite still runs in "Check: Unit Tests".
+cmake_minimum_required(VERSION 3.16)
+project(jubelle_engine_tests LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+set(MU_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+get_filename_component(MU_ROOT ${MU_ROOT} ABSOLUTE)
+set(MUSE_FRAMEWORK_PATH ${MU_ROOT})
+set(CMAKE_MODULE_PATH ${MU_ROOT}/buildscripts ${MU_ROOT}/buildscripts/cmake ${MU_ROOT}/src/framework/cmake ${CMAKE_MODULE_PATH})
+
+include(SetupBuildEnvironment)
+include(GetPlatformInfo)
+include_directories(${MU_ROOT}/thirdparty/dtl)
+set(THIRDPARTY_DIR ${MU_ROOT}/thirdparty)
+
+set(MUSE_QT_SUPPORT OFF)
+include(${MU_ROOT}/src/framework/cmake/MuseSetupConfiguration.cmake)
+
+set(GLOBAL_NO_INTERNAL ON)
+add_subdirectory(${MU_ROOT}/src/framework/global global)
+set(DRAW_NO_INTERNAL ON)
+add_subdirectory(${MU_ROOT}/src/framework/draw draw)
+set(ENGRAVING_NO_INTERNAL ON)
+set(ENGRAVING_NO_ACCESSIBILITY ON)
+add_subdirectory(${MU_ROOT}/src/engraving engraving)
+
+set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+add_subdirectory(${MU_ROOT}/src/framework/testing/thirdparty/googletest googletest EXCLUDE_FROM_ALL)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(QRC_MAP ${CMAKE_CURRENT_BINARY_DIR}/qrcmap.h)
+add_custom_command(OUTPUT ${QRC_MAP}
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_LIST_DIR}/make_qrc_map.py ${MU_ROOT} ${QRC_MAP}
+    DEPENDS ${CMAKE_CURRENT_LIST_DIR}/make_qrc_map.py)
+
+# The real fonts provider; its addInternalFont uses a Qt-only call, so a copy
+# with that one line made Qt-free is generated.
+set(EFP_COPY ${CMAKE_CURRENT_BINARY_DIR}/engravingfontsprovider_noqt.cpp)
+file(READ ${MU_ROOT}/src/engraving/internal/engravingfontsprovider.cpp EFP_TEXT)
+string(REPLACE "muse::io::dirpath(filePath.toQString())" "muse::io::dirpath(filePath)" EFP_TEXT "${EFP_TEXT}")
+string(REPLACE "#include \"engravingfontsprovider.h\"" "#include \"engraving/internal/engravingfontsprovider.h\"" EFP_TEXT "${EFP_TEXT}")
+file(WRITE ${EFP_COPY} "${EFP_TEXT}")
+
+add_executable(jubelle_engine_tests
+    main.cpp
+    stdfs.h
+    fontproviderstub.cpp
+    fontproviderstub.h
+    ${QRC_MAP}
+    ${EFP_COPY}
+    ${MU_ROOT}/src/engraving/internal/engravingfont.cpp
+    ${MU_ROOT}/src/engraving/tests/utils/scorerw.cpp
+    # Engraving tests that run here:
+    ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
+)
+target_compile_definitions(jubelle_engine_tests PRIVATE MU_ROOT_DIR="${MU_ROOT}")
+target_include_directories(jubelle_engine_tests PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR}
+    ${MU_ROOT} ${MU_ROOT}/src ${MU_ROOT}/src/framework ${MU_ROOT}/src/framework/global
+    ${MU_ROOT}/src/engraving ${MU_ROOT}/src/engraving/internal ${MU_ROOT}/src/engraving/infrastructure
+    ${MU_ROOT}/src/engraving/tests)
+target_link_libraries(jubelle_engine_tests muse::global muse::draw engraving gmock gtest)
+
+enable_testing()
+add_test(NAME jubelle_engine_tests COMMAND jubelle_engine_tests)
