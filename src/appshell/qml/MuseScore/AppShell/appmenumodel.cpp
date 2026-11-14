@@ -364,6 +364,7 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("reset-beammode"),
         makeMenuItem("reset"),
         makeMenuItem("reset-to-default-layout"),
+        makeMenuItem("jubelle-apply-part-layout"),
         makeSeparator(),
         makeMenuItem("jubelle-articulation-playback"),
         makeMenuItem("jubelle-swing"),

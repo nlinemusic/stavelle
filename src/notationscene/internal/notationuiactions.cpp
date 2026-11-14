@@ -486,6 +486,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "&Repeats…"),
              TranslatableString("action", "Choose which repeated sections playback repeats; the repeat signs stay in the score")
              ),
+    //! Jubelle Phase 5E: copy one part's layout to other parts
+    UiAction("jubelle-apply-part-layout",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Apply &Part Layout…"),
+             TranslatableString("action", "Copy one part's system and page breaks and other layout to other parts, without changing any music")
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
