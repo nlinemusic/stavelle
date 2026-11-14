@@ -22,6 +22,8 @@
 
 #include "windowview.h"
 
+#include <QWindow>
+
 #include <QQmlEngine>
 #include <QQuickView>
 #include <QScreen>

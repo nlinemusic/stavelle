@@ -22,6 +22,8 @@
 
 #include "popupviewclosecontroller.h"
 
+#include <QWindow>
+
 #include <QApplication>
 #include <QQuickWindow>
 

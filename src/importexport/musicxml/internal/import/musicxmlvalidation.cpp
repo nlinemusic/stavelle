@@ -22,6 +22,8 @@
 
 #include "musicxmlvalidation.h"
 
+#include <QElapsedTimer>
+
 #ifdef MUSICXML_NO_VALIDATION
 using namespace mu;
 using namespace mu::iex::musicxml;

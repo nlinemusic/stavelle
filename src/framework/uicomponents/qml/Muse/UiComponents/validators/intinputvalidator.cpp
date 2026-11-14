@@ -20,6 +20,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "intinputvalidator.h"
+
+#include <QRegularExpression>
 #include "global/realfn.h"
 #include <qvalidator.h>
 
