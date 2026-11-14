@@ -97,7 +97,17 @@ if $DO_SIGN; then
         rm -f "$APP_ZIP"
     fi
 else
-    echo "Skipping code signing"
+    # Stavelle: there is no Apple Developer ID certificate, so sign ad hoc. Packaging has
+    # modified the binaries above, which invalidates their build-time signatures, and Apple
+    # Silicon Macs refuse to start code without a valid signature. Ad-hoc signing makes the
+    # app runnable; Gatekeeper will still ask the user to confirm opening it the first time.
+    echo "No Developer ID certificate: signing ad hoc"
+    codesign --force --sign - \
+        "${APP_PATH}/Contents/PlugIns/MuseScoreQuickLookPreviewExtension.appex"
+    codesign --force --deep --sign - "${APP_PATH}"
+
+    echo "Codesign verify (ad hoc)"
+    codesign --verify --deep --strict --verbose=2 "${APP_PATH}"
 fi
 
 ################################################################
