@@ -96,6 +96,7 @@ qt_add_qml_module(project_qml
         internal/NewScore/KeySignatureListView.qml
         internal/NewScore/KeySignatureSettings.qml
         internal/NewScore/MeasuresSettings.qml
+        internal/NewScore/ProjectSetupRow.qml
         internal/NewScore/ScoreInfoPage.qml
         internal/NewScore/TemplatePreview.qml
         internal/NewScore/TempoSettings.qml

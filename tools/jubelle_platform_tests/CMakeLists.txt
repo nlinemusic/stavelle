@@ -24,6 +24,10 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/project/internal/projectinfo.cpp
     ${ROOT}/src/project/internal/projectinfo.h
     ${ROOT}/src/project/tests/projectinfo_tests.cpp
+    ${ROOT}/src/project/internal/templatesuggestions.cpp
+    ${ROOT}/src/project/internal/templatesuggestions.h
+    ${ROOT}/src/project/tests/templatesuggestions_tests.cpp
+    ${ROOT}/src/project/tests/newproject_tests.cpp
 )
 target_include_directories(jubelle_platform_tests PRIVATE ${ROOT}/src)
 target_link_libraries(jubelle_platform_tests PRIVATE gtest_main)

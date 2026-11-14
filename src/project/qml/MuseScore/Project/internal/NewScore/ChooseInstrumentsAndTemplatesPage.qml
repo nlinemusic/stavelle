@@ -35,6 +35,8 @@ Item {
     property string preferredScoreCreationMode: ""
     //! Jubelle: set when the dialog is opened from the Template Library.
     property string initialTemplatePath: ""
+    //! Jubelle: the project category chosen in the New Score dialog; its templates are suggested first.
+    property string projectCategory: ""
 
     readonly property Item currentPage: pageLoader.item as Item
     property string description: Boolean(currentPage) ? currentPage.description : ""
@@ -192,6 +194,7 @@ Item {
 
             navigationSection: root.navigationSection
             initialTemplatePath: root.initialTemplatePath
+            projectCategory: root.projectCategory
 
             onDone: {
                 root.done()

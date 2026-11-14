@@ -697,13 +697,20 @@ void ProjectActionsController::newProject(const QString& templatePath)
     }
 
     auto promise = interactive()->open(newScoreQuery);
-    promise.onResolve(this, [this](const Val&) {
+    promise.onResolve(this, [this](const Val& val) {
         extensionsProvider()->performPointAsync(EXEC_ONPOST_PROJECT_CREATED);
 
         Ret ret = doFinishOpenProject();
 
         if (!ret) {
             LOGE() << ret.toString();
+        }
+
+        //! Jubelle: the New Score dialog made a project folder for this score;
+        //! save the new score into it straight away (normal, crash-safe save).
+        const QString scorePath = val.toQVariant().toMap().value("scorePath").toString();
+        if (!scorePath.isEmpty()) {
+            saveProjectLocally(muse::io::path_t(scorePath), SaveMode::Save, false /*createBackup*/);
         }
     });
 }

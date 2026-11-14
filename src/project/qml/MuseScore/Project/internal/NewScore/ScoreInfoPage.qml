@@ -32,6 +32,9 @@ Item {
     property NavigationSection navigationSection: null
     property var popupsAnchorItem: null
 
+    //! Jubelle: the title as typed, used for the composition name when none is given.
+    readonly property string title: generalInfo.title
+
     function result() {
         var result = {
             title: generalInfo.title,

@@ -38,6 +38,17 @@ Item {
     //! Jubelle: a template chosen in the Template Library, selected when the page opens.
     property string initialTemplatePath: ""
 
+    //! Jubelle: templates suiting this project category are listed first
+    //! ("Suggested for …"); every other category stays available.
+    property string projectCategory: ""
+    property bool modelLoaded: false
+
+    onProjectCategoryChanged: {
+        if (root.modelLoaded) {
+            model.setProjectCategory(root.projectCategory, true)
+        }
+    }
+
     property alias navigation: templatesView.navigationPanel
 
     signal done
@@ -52,6 +63,8 @@ Item {
 
     Component.onCompleted: {
         model.load()
+        model.setProjectCategory(root.projectCategory, root.initialTemplatePath === "")
+        root.modelLoaded = true
 
         if (root.initialTemplatePath !== "") {
             model.selectTemplateByPath(root.initialTemplatePath)

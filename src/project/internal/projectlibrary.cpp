@@ -455,6 +455,52 @@ std::vector<std::string> projects(const std::string& mainFolder, const std::stri
     return result;
 }
 
+std::string availableProjectName(const std::string& mainFolder, const std::string& category, const std::string& name)
+{
+    const fs::path categoryDir = toPath(mainFolder) / toPath(category);
+    std::string finalName = name;
+    for (int n = 2; pathExists(categoryDir / toPath(finalName)); ++n) {
+        finalName = name + " (" + std::to_string(n) + ")";
+    }
+    return finalName;
+}
+
+Result removeUnusedProject(const std::string& projectFolder)
+{
+    const fs::path dir = toPath(projectFolder);
+    if (!isProjectFolder(projectFolder)) {
+        return fail("This is not a project folder.");
+    }
+
+    std::error_code ec;
+    std::vector<fs::path> folders;
+    for (fs::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+        if (it->is_symlink(ec) || !it->is_directory(ec)) {
+            return fail("The project folder contains files, so it was kept.");
+        }
+        folders.push_back(it->path());
+    }
+    if (ec) {
+        return fail("The project folder could not be checked (" + ec.message() + ").");
+    }
+
+    // Deepest first, and only empty folders: fs::remove never deletes a non-empty folder.
+    std::sort(folders.begin(), folders.end(), [](const fs::path& a, const fs::path& b) {
+        return a.native().size() > b.native().size();
+    });
+    for (const fs::path& f : folders) {
+        fs::remove(f, ec);
+        if (ec) {
+            return fail("The project folder could not be removed (" + ec.message() + ").");
+        }
+    }
+    fs::remove(dir, ec);
+    if (ec) {
+        return fail("The project folder could not be removed (" + ec.message() + ").");
+    }
+    return success(dir);
+}
+
 Result createProject(const std::string& mainFolder, const std::string& category, const std::string& name)
 {
     std::string problem = validateName(name);
@@ -468,10 +514,7 @@ Result createProject(const std::string& mainFolder, const std::string& category,
     }
 
     // Never reuse an existing folder: number the new one instead.
-    std::string finalName = name;
-    for (int n = 2; pathExists(categoryDir / toPath(finalName)); ++n) {
-        finalName = name + " (" + std::to_string(n) + ")";
-    }
+    const std::string finalName = availableProjectName(mainFolder, category, name);
 
     const fs::path projectDir = categoryDir / toPath(finalName);
     std::error_code ec;

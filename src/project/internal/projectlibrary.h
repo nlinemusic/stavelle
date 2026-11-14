@@ -92,6 +92,15 @@ std::vector<std::string> projects(const std::string& mainFolder, const std::stri
 //! The score file itself is not created. On success `path` is the project folder.
 Result createProject(const std::string& mainFolder, const std::string& category, const std::string& name);
 
+//! The name createProject() would give a new project called `name` in this
+//! category: `name` itself, or `name (2)`, `name (3)`... if it is already taken.
+std::string availableProjectName(const std::string& mainFolder, const std::string& category, const std::string& name);
+
+//! Removes a project folder that was just created but holds no files at all
+//! (only its empty subfolders). Refuses, and removes nothing, if any file exists
+//! anywhere inside it. Used to undo createProject() when making the score fails.
+Result removeUnusedProject(const std::string& projectFolder);
+
 //! True if `folder` has the Jubelle project structure.
 bool isProjectFolder(const std::string& folder);
 
