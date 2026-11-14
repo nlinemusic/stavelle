@@ -102,7 +102,9 @@ else
     # Silicon Macs refuse to start code without a valid signature. Ad-hoc signing makes the
     # app runnable; Gatekeeper will still ask the user to confirm opening it the first time.
     echo "No Developer ID certificate: signing ad hoc"
-    codesign --force --sign - \
+    # --deep: the extension contains nested code (e.g. platforms/libqcocoa.dylib)
+    # that must be signed before the extension itself.
+    codesign --force --deep --sign - \
         "${APP_PATH}/Contents/PlugIns/MuseScoreQuickLookPreviewExtension.appex"
     codesign --force --deep --sign - "${APP_PATH}"
 
