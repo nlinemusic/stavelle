@@ -297,20 +297,10 @@ void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
 
 bool StartupScenario::shouldShowWelcomeDialog(StartupModeType modeType) const
 {
-    if (!configuration()->welcomeDialogShowOnStartup()) {
-        return false;
-    }
-
-    if (multiwindowsProvider()->windowCount() != 1) {
-        return false;
-    }
-
-    if (museSoundsUpdateScenario() && museSoundsUpdateScenario()->hasUpdate()) {
-        return false;
-    }
-
-    const Uri& startupUri = startupPageUri(modeType);
-    return interactive()->currentUri().val == startupUri;
+    //! Jubelle: the startup welcome dialog (promotions for MuseScore.com, MuseSounds and tutorials)
+    //! is never shown. MuseSounds update checks that normally follow it still run.
+    UNUSED(modeType);
+    return false;
 }
 
 void StartupScenario::checkAndShowMuseSamplerStatusIfNeed()
