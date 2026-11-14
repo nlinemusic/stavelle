@@ -92,7 +92,7 @@ namespace mu::engraving::rendering::score {
 static void markCourtesyAccidentals(const Measure* measure, staff_idx_t staffIdx, const Staff* staff, AccidentalState& as)
 {
     const Score* score = measure->score();
-    if (!score->styleB(Sid::jubelleCourtesyAccidentals)) {
+    if (!score->style().styleB(Sid::jubelleCourtesyAccidentals)) {
         return;
     }
 
@@ -156,7 +156,7 @@ static void markCourtesyAccidentals(const Measure* measure, staff_idx_t staffIdx
         }
     }
 
-    const bool allOctaves = score->styleB(Sid::jubelleCourtesyAccidentalsAllOctaves);
+    const bool allOctaves = score->style().styleB(Sid::jubelleCourtesyAccidentalsAllOctaves);
     for (int line = MIN_ACC_STATE; line < MAX_ACC_STATE; ++line) {
         if (!alteredByNote[line]) {
             continue;

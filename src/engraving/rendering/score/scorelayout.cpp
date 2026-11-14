@@ -80,7 +80,7 @@ void ScoreLayout::layoutRange(Score* score, const Fraction& st, const Fraction& 
 
     // Jubelle: a courtesy accidental depends on the measure before it, so when
     // they are switched on, an edit also re-lays out the following measure.
-    if (!isLayoutAll && score->styleB(Sid::jubelleCourtesyAccidentals)) {
+    if (!isLayoutAll && score->style().styleB(Sid::jubelleCourtesyAccidentals)) {
         Measure* next = score->tick2measure(etick);
         if (next && next->tick() < etick) {
             next = next->nextMeasure();
