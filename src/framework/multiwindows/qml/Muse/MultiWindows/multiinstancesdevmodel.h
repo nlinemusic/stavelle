@@ -23,6 +23,9 @@
 #pragma once
 
 #include <QObject>
+#include <QVariant>
+#include <QVariantList>
+#include <QVariantMap>
 #include <qqmlintegration.h>
 
 #include "modularity/ioc.h"
