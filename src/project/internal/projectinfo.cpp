@@ -1006,4 +1006,36 @@ std::vector<RecentScore> recentScores(const std::string& mainFolder, size_t limi
     }
     return all;
 }
+
+std::vector<VideoFile> videoExports(const std::string& projectFolder)
+{
+    std::vector<VideoFile> result;
+    const fs::path folder = toPath(projectFolder) / toPath("Video Exports");
+    if (!isDir(folder)) {
+        return result;
+    }
+
+    std::error_code ec;
+    for (fs::directory_iterator it(folder, ec), end; !ec && it != end; it.increment(ec)) {
+        const fs::path p = it->path();
+        if (!isFile(p)) {
+            continue;
+        }
+        const std::string ext = lower(toUtf8(p.extension()));
+        if (ext != ".mp4" && ext != ".mov" && ext != ".m4v" && ext != ".webm") {
+            continue;
+        }
+        bool ok = false;
+        int64_t t = fileTimeSeconds(p, ok);
+        result.push_back(VideoFile { toUtf8(p), ok ? t : 0 });
+    }
+
+    std::stable_sort(result.begin(), result.end(), [](const VideoFile& a, const VideoFile& b) {
+        if (a.modifiedTime != b.modifiedTime) {
+            return a.modifiedTime > b.modifiedTime;
+        }
+        return lower(a.path) < lower(b.path);
+    });
+    return result;
+}
 }

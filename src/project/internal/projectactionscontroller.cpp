@@ -52,6 +52,7 @@ using namespace muse::actions;
 static const muse::Uri NOTATION_PAGE_URI("musescore://notation");
 static const muse::Uri HOME_PAGE_URI("musescore://home");
 static const muse::Uri NEW_SCORE_URI("musescore://project/newscore");
+static const muse::Uri YOUTUBE_PUBLISH_URI("musescore://project/jubelle/youtube");
 static const muse::Uri PROJECT_PROPERTIES_URI("musescore://project/properties");
 static const muse::Uri UPLOAD_PROGRESS_URI("musescore://project/upload/progress");
 
@@ -87,6 +88,9 @@ void ProjectActionsController::init()
     dispatcher()->reg(this, "file-save-a-copy", [this]() { saveProject(SaveMode::SaveCopy); });
     dispatcher()->reg(this, "file-save-selection", [this]() { saveProject(SaveMode::SaveSelection, SaveLocationType::Local); });
     dispatcher()->reg(this, "file-save-to-cloud", [this]() { saveProject(SaveMode::Save, SaveLocationType::Cloud); });
+    dispatcher()->reg(this, "jubelle-publish-youtube", [this]() {
+        interactive()->open(YOUTUBE_PUBLISH_URI);
+    });
     dispatcher()->reg(this, "file-save-at", [this](const ActionData& args) { saveProjectAt(args); });
 
     dispatcher()->reg(this, "file-publish", this, &ProjectActionsController::publish);

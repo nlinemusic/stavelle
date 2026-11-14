@@ -399,3 +399,24 @@ TEST_F(ProjectInfoTests, ProjectsWithoutAScoreAreNotRecent)
     ASSERT_TRUE(projectlibrary::createProject(m_main, "Other", "Empty").ok);
     EXPECT_TRUE(recentScores(m_main).empty());
 }
+
+TEST_F(ProjectInfoTests, VideoExportsAreListedNewestFirstWithoutChangingAnything)
+{
+    const std::string p = makeProject("Other", "Film", "s", 5);
+    EXPECT_TRUE(videoExports(p).empty()); // folder may be missing or empty: no crash, no list
+
+    const fs::path videos = fs::u8path(projectlibrary::exportFolder(p, projectlibrary::ExportKind::Video));
+    writeFile(videos / "old.mp4", "v1");
+    setAge(videos / "old.mp4", 30);
+    writeFile(videos / "new.MP4", "v2");
+    setAge(videos / "new.MP4", 1);
+    writeFile(videos / "notes.txt", "not a video");
+
+    const Snapshot before = snapshot(p);
+    std::vector<VideoFile> list = videoExports(p);
+    ASSERT_EQ(list.size(), 2u);
+    EXPECT_EQ(fs::u8path(list[0].path).filename().u8string(), "new.MP4");
+    EXPECT_EQ(fs::u8path(list[1].path).filename().u8string(), "old.mp4");
+    EXPECT_TRUE(snapshot(p) == before);
+    EXPECT_EQ(readFile(videos / "old.mp4"), "v1");
+}

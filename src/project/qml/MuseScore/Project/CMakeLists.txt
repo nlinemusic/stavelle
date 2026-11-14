@@ -54,6 +54,8 @@ qt_add_qml_module(project_qml
         internal/ScoresPage/scorespagemodel.h
         internal/ScoresPage/scorethumbnailloader.cpp
         internal/ScoresPage/scorethumbnailloader.h
+        internal/YouTube/youtubepublishmodel.cpp
+        internal/YouTube/youtubepublishmodel.h
     QML_FILES
         AlsoShareAudioComDialog.qml
         AskSaveLocationTypeDialog.qml
@@ -129,6 +131,7 @@ qt_add_qml_module(project_qml
         TagFilterBar.qml
         TemplateLibraryPage.qml
         UploadProgressDialog.qml
+        YouTubePublishDialog.qml
     RESOURCES
         internal/Migration/migration.png
         internal/SaveToCloud/images/Cloud.png
@@ -162,6 +165,7 @@ target_include_directories(project_qml PRIVATE
     internal/ProjectsPage
     internal/Properties
     internal/ScoresPage
+    internal/YouTube
 )
 
 if (MUE_BUILD_PROJECT_TESTS)

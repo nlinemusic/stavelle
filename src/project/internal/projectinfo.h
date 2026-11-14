@@ -56,6 +56,11 @@ struct RecentScore {
     int64_t savedTime = 0; //!< seconds since the epoch, from the score file itself
 };
 
+struct VideoFile {
+    std::string path;
+    int64_t modifiedTime = 0; //!< seconds since the epoch
+};
+
 //! Reads `<project>/.jubelle/project.json`. A missing or damaged file gives empty information.
 ProjectInfo read(const std::string& projectFolder);
 Result write(const std::string& projectFolder, const ProjectInfo& info);
@@ -111,4 +116,8 @@ std::string cardImagePath(const std::string& projectFolder);
 //! The `limit` most recently saved project scores, newest first, judged by the
 //! score file's own last-modified time. Each project appears at most once.
 std::vector<RecentScore> recentScores(const std::string& mainFolder, size_t limit = 10);
+
+//! Video files (.mp4, .mov, .m4v, .webm) in the project's "Video Exports" folder,
+//! newest first. Nothing is created or changed; a missing folder gives an empty list.
+std::vector<VideoFile> videoExports(const std::string& projectFolder);
 }

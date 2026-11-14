@@ -104,6 +104,15 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Export"),
              IconCode::Code::SHARE_FILE
              ),
+    //! Jubelle: an extra Publish destination. It opens YouTube Studio in the browser
+    //! with the chosen video ready to drag in; nothing is uploaded by Jubelle itself.
+    UiAction("jubelle-publish-youtube",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Publish to &YouTube…"),
+             TranslatableString("action", "Publish to YouTube"),
+             IconCode::Code::VIDEO
+             ),
     UiAction("project-properties",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,

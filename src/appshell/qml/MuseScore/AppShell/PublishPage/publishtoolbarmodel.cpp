@@ -48,6 +48,8 @@ void PublishToolBarModel::load()
     addItem("file-publish", muse::TranslatableString("project/save", "Share this score and its audio on MuseScore.com"));
     addItem("file-share-audio", muse::TranslatableString("project/save", "Share the audio from this score on Audio.com"));
     addItem("file-export");
+    //! Jubelle: YouTube is an extra destination; the four actions above are unchanged.
+    addItem("jubelle-publish-youtube", muse::TranslatableString("project/save", "Open YouTube Studio with an exported video ready to upload"));
 
     setItems(items);
 }
