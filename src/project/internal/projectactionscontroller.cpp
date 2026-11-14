@@ -1010,7 +1010,7 @@ bool ProjectActionsController::saveProjectLocally(const muse::io::path_t& filePa
             switch (warnScoreHasBecomeCorruptedAfterSave(ret)) {
             case RETRY_SAVE_BTN_ID:
                 async::Async::call(this, [this, filePath, saveMode]() {
-                    // Retry the save. Stavelle validates the new file before it replaces the existing
+                    // Retry the save. Jubelle validates the new file before it replaces the existing
                     // score, so the existing score is still the last good version and may be backed up.
                     saveProjectLocally(filePath, saveMode, true /*createBackup*/);
                 });

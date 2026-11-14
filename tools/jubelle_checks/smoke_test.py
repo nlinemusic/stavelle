@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 #
-# Stavelle: end-to-end check of a built application, run on Windows and macOS CI.
+# Jubelle: end-to-end check of a built application, run on Windows and macOS CI.
 #
 # Uses the application's own command-line converter (the real app, no window) to:
 #   1. open real scores, lay them out, and save them through the normal save routine
 #      (new file, overwrite of an existing file, non-ASCII file name);
 #   2. reopen every saved file and export it to PDF, proving the saved file is valid;
 #   3. confirm that no temporary "_saving" files are left behind;
-#   4. confirm Stavelle keeps its settings/data in its own folders and creates nothing
+#   4. confirm Jubelle keeps its settings/data in its own folders and creates nothing
 #      in MuseScore's folders (separate application identity);
 #   5. measure how long opening + laying out + saving takes (median of several runs).
 #
-# Usage: smoke_test.py <path-to-Stavelle-executable> <scores-dir> <work-dir> [--runs N]
+# Usage: smoke_test.py <path-to-Jubelle-executable> <scores-dir> <work-dir> [--runs N]
 
 import argparse
 import json
@@ -66,12 +66,12 @@ def data_dirs():
     home = Path.home()
     if sys.platform == "win32":
         base = Path(os.environ["LOCALAPPDATA"])
-        return base / "Stavelle" / "Stavelle", base / "MuseScore"
+        return base / "Jubelle" / "Jubelle", base / "MuseScore"
     if sys.platform == "darwin":
         base = home / "Library" / "Application Support"
-        return base / "Stavelle" / "Stavelle", base / "MuseScore"
+        return base / "Jubelle" / "Jubelle", base / "MuseScore"
     base = Path(os.environ.get("XDG_DATA_HOME", home / ".local" / "share"))
-    return base / "Stavelle" / "Stavelle", base / "MuseScore"
+    return base / "Jubelle" / "Jubelle", base / "MuseScore"
 
 
 def convert(exe, src, dst, label, keep_output=None):
@@ -97,11 +97,11 @@ def main():
 
     exe, scores, work = Path(a.exe).resolve(), Path(a.scores).resolve(), Path(a.work).resolve()
     work.mkdir(parents=True, exist_ok=True)
-    check("Stavelle executable exists", exe.exists(), str(exe))
+    check("Jubelle executable exists", exe.exists(), str(exe))
     if not exe.exists():
         return finish(work)
 
-    stavelle_dir, musescore_dir = data_dirs()
+    jubelle_dir, musescore_dir = data_dirs()
     musescore_existed = musescore_dir.exists()
 
     sources = sorted([p for p in scores.iterdir() if p.suffix in (".mscz", ".mscx")])
@@ -151,9 +151,9 @@ def main():
     check("No temporary _saving files left behind", not leftovers, ", ".join(leftovers))
 
     # Separate application identity
-    check("Stavelle data folder was created", stavelle_dir.exists(), str(stavelle_dir))
-    contents = sorted(p.name for p in stavelle_dir.iterdir()) if stavelle_dir.exists() else []
-    check("Stavelle data folder is in use", len(contents) > 0, ", ".join(contents[:8]))
+    check("Jubelle data folder was created", jubelle_dir.exists(), str(jubelle_dir))
+    contents = sorted(p.name for p in jubelle_dir.iterdir()) if jubelle_dir.exists() else []
+    check("Jubelle data folder is in use", len(contents) > 0, ", ".join(contents[:8]))
     if musescore_existed:
         check("MuseScore data folder untouched (pre-existing, not checked further)", True, str(musescore_dir))
     else:
@@ -163,7 +163,7 @@ def main():
 
 
 def format_checks(exe, sources, work):
-    """Scores, MusicXML and MIDI written by Stavelle must be exactly what MuseScore writes."""
+    """Scores, MusicXML and MIDI written by Jubelle must be exactly what MuseScore writes."""
     import re
     import zipfile
 
@@ -177,7 +177,7 @@ def format_checks(exe, sources, work):
             check(f"{f.stem}: saved score has MuseScore's version stamp",
                   version is not None and version.group(1) == EXPECTED_PROGRAM_VERSION,
                   version.group(1) if version else "missing")
-            check(f"{f.stem}: saved score contains nothing Stavelle-specific", "Stavelle" not in xml)
+            check(f"{f.stem}: saved score contains nothing Jubelle-specific", "Jubelle" not in xml)
         except Exception as e:  # noqa: BLE001
             check(f"{f.stem}: saved score is a readable MuseScore file", False, repr(e))
 
@@ -212,7 +212,7 @@ EXPECTED_PROGRAM_VERSION = _expected_version()
 
 def finish(work):
     (work / "smoke_results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    lines = ["## Stavelle app check: " + results["platform"], "",
+    lines = ["## Jubelle app check: " + results["platform"], "",
              f"**{sum(c['ok'] for c in results['checks'])} passed, {len(failures)} failed**", ""]
     if failures:
         lines += ["Failed:"] + [f"- {f}" for f in failures] + [""]

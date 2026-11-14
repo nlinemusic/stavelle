@@ -45,7 +45,7 @@ MUSESCORE_DOWNLOAD_SOUNDFONT=${MUSESCORE_DOWNLOAD_SOUNDFONT:-"ON"}
 MUSESCORE_BUILD_UNIT_TESTS=${MUSESCORE_BUILD_UNIT_TESTS:-"OFF"}
 MUSESCORE_ENABLE_CODE_COVERAGE=${MUSESCORE_UNIT_TESTS_ENABLE_CODE_COVERAGE:-"OFF"}
 MUSESCORE_NO_RPATH=${MUSESCORE_NO_RPATH:-"OFF"}
-# Stavelle: MuseScore's app updater would install MuseScore over Stavelle, so it is off by default
+# Jubelle: MuseScore's app updater would install MuseScore over Jubelle, so it is off by default
 MUSESCORE_MODULE_UPDATE=${MUSESCORE_MODULE_UPDATE:-"OFF"}
 MUSESCORE_BUILD_VST_MODULE=${MUSESCORE_BUILD_VST_MODULE:-"OFF"}
 MUSESCORE_BUILD_WEBSOCKET=${MUSESCORE_BUILD_WEBSOCKET:-"OFF"}
@@ -107,7 +107,7 @@ function do_build() {
         -DCMAKE_SKIP_RPATH="${MUSESCORE_NO_RPATH}" \
         -DMUSE_COMPILE_USE_UNITY="${MUSESCORE_COMPILE_USE_UNITY}"
 
-    # Stavelle: NINJA_EXTRA_ARGS lets CI pass e.g. "-k 0" to report all compile errors in one build
+    # Jubelle: NINJA_EXTRA_ARGS lets CI pass e.g. "-k 0" to report all compile errors in one build
     ninja -j $JOBS ${NINJA_EXTRA_ARGS}
 }
 

@@ -36,7 +36,7 @@ if (CMAKE_GENERATOR MATCHES "Make" OR CMAKE_GENERATOR MATCHES "Ninja")
     set(ENV{CCACHE_CPP2} true)
     set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
 
-    # Stavelle: the compiler cache cannot cache MSVC compilations that write debug
+    # Jubelle: the compiler cache cannot cache MSVC compilations that write debug
     # information to a shared PDB file (/Zi) or use precompiled headers (/Yc, /Yu); every
     # Windows compile was rejected as "unsupported compiler option". Embed debug
     # information in the object files instead (/Z7; the linker still produces a PDB) and

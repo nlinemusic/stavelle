@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 #
-# Stavelle: builds a large test score for performance measurement by repeating the
+# Jubelle: builds a large test score for performance measurement by repeating the
 # instruments and the music of an existing MuseScore 4 score (e.g. demos/Dawn.mscx).
 #
 # Usage: make_large_score.py <source.mscx> <output.mscx> --instruments N --measures M
@@ -57,7 +57,7 @@ def main():
 
     meta = score.find("metaTag[@name='workTitle']")
     if meta is not None:
-        meta.text = "Stavelle large score test"
+        meta.text = "Jubelle large score test"
     tree.write(a.output, encoding="UTF-8", xml_declaration=True)
 
     total_staves = len(score.findall("Staff"))

@@ -18,18 +18,18 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>. 
 
-# Stavelle: the application has its own identity, so it never shares settings,
+# Jubelle: the application has its own identity, so it never shares settings,
 # autosave, crash recovery, installation folders or file registrations with an
 # installed MuseScore. The version numbers below stay those of the MuseScore
-# release Stavelle is based on, because they are written into score files and
+# release Jubelle is based on, because they are written into score files and
 # used for file-format compatibility.
-set(MUSE_APP_NAME_HUMAN_READABLE "Stavelle")
-set(MUSE_APP_NAME_MACHINE_READABLE "Stavelle")
+set(MUSE_APP_NAME_HUMAN_READABLE "Jubelle")
+set(MUSE_APP_NAME_MACHINE_READABLE "Jubelle")
 
-set(MUSE_APP_NAME_HUMAN_READABLE_COMPAT "Stavelle")
-set(MUSE_APP_NAME_MACHINE_READABLE_COMPAT "Stavelle")
+set(MUSE_APP_NAME_HUMAN_READABLE_COMPAT "Jubelle")
+set(MUSE_APP_NAME_MACHINE_READABLE_COMPAT "Jubelle")
 
-set(MUSE_APP_GUI_IDENTIFIER org.stavelle.${MUSE_APP_NAME_MACHINE_READABLE})
+set(MUSE_APP_GUI_IDENTIFIER org.jubelle.${MUSE_APP_NAME_MACHINE_READABLE})
 
 set(MUSE_APP_VERSION_MAJOR "4")
 set(MUSE_APP_VERSION_MINOR "7")

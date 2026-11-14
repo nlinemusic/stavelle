@@ -29,7 +29,7 @@ set(EXECUTABLE_NAME mscore)
 ###########################################
 include(GetPlatformInfo)
 if (OS_IS_WIN)
-    set(EXECUTABLE_NAME ${MUSE_APP_NAME}) # Stavelle.exe
+    set(EXECUTABLE_NAME ${MUSE_APP_NAME}) # Jubelle.exe
 
     include(GetCompilerInfo)
 

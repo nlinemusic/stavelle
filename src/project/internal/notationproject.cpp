@@ -665,7 +665,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
     muse::io::path_t targetMainFilePath = engraving::mainFilePath(path);
     muse::io::path_t targetMainFileName = engraving::mainFileName(path);
 
-    // Stavelle: if the score is a symbolic link, save to the real file so that the
+    // Jubelle: if the score is a symbolic link, save to the real file so that the
     // temporary file below lives on the same volume and can be swapped in atomically.
     if (ioMode != engraving::MscIoMode::Dir) {
         const QFileInfo targetInfo(targetContainerPath);
@@ -739,7 +739,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
         }
 
         if (maybeOutBuf) {
-            // Stavelle: write the temporary file and force it to physical storage,
+            // Jubelle: write the temporary file and force it to physical storage,
             // detecting short writes (e.g. disk full).
             const ByteArray& bytes = maybeOutBuf->data();
             std::string errorText;
@@ -767,7 +767,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
         }
     }
 
-    // Stavelle Step 2b: validate the temporary file BEFORE the existing score is touched.
+    // Jubelle Step 2b: validate the temporary file BEFORE the existing score is touched.
     // If validation fails, the previously saved score remains exactly as it was.
     if (ioMode != MscIoMode::Dir && !isAutosave) {
         Ret ret = checkSavedFileForCorruption(ioMode, savePath, targetMainFileName.toQString());
@@ -814,7 +814,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
                 LOGW() << ret.toString();
             }
         } else {
-            // Stavelle: atomically swap the validated file into place. Previously the
+            // Jubelle: atomically swap the validated file into place. Previously the
             // existing score was deleted and then overwritten by a copy, so a crash, power
             // loss or full disk at that moment could destroy the last good version.
             // Now the score on disk is always either the complete old or the complete new

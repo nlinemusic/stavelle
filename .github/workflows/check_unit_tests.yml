@@ -2,7 +2,7 @@ name: 'Check: Unit Tests (utest)'
 
 on:
   push:
-    branches: [ main, 'stavelle/**' ]
+    branches: [ main, 'stavelle/**', 'jubelle/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
 
-# Stavelle: new repositories give workflows read-only tokens by default; the
+# Jubelle: new repositories give workflows read-only tokens by default; the
 # "Cancel Previous Runs" step needs to manage runs.
 permissions:
   contents: read

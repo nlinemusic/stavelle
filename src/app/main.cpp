@@ -113,14 +113,14 @@ int main(int argc, char** argv)
 
     QGuiApplication::styleHints()->setMousePressAndHoldInterval(250);
 
-    // Stavelle: these names determine where settings, preferences, autosave and crash-recovery
+    // Jubelle: these names determine where settings, preferences, autosave and crash-recovery
     // files, plugins and the Documents folder are stored (via QStandardPaths and QSettings).
-    // They are Stavelle's own, so Stavelle never reads or writes an installed MuseScore's data:
-    //   Windows: %LOCALAPPDATA%\Stavelle\Stavelle and Documents\Stavelle
-    //   macOS:   ~/Library/Application Support/Stavelle/Stavelle and ~/Documents/Stavelle
+    // They are Jubelle's own, so Jubelle never reads or writes an installed MuseScore's data:
+    //   Windows: %LOCALAPPDATA%\Jubelle\Jubelle and Documents\Jubelle
+    //   macOS:   ~/Library/Application Support/Jubelle/Jubelle and ~/Documents/Jubelle
     QCoreApplication::setApplicationName(MUSE_APP_NAME_MACHINE_READABLE);
     QCoreApplication::setOrganizationName(MUSE_APP_NAME_MACHINE_READABLE);
-    QCoreApplication::setOrganizationDomain("stavelle.org");
+    QCoreApplication::setOrganizationDomain("jubelle.org");
     QCoreApplication::setApplicationVersion(MUSE_APP_VERSION);
 
 #if !defined(Q_OS_WIN) && !defined(Q_OS_DARWIN) && !defined(Q_OS_WASM)
@@ -128,7 +128,7 @@ int main(int argc, char** argv)
 #ifndef MUSE_APP_INSTALL_SUFFIX
 #define MUSE_APP_INSTALL_SUFFIX ""
 #endif
-    QGuiApplication::setDesktopFileName("org.stavelle.Stavelle" MUSE_APP_INSTALL_SUFFIX);
+    QGuiApplication::setDesktopFileName("org.jubelle.Jubelle" MUSE_APP_INSTALL_SUFFIX);
 #endif
 
     using namespace muse;

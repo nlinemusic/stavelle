@@ -3,8 +3,8 @@
 echo "Package"
 trap 'echo Package failed; exit 1' ERR
 
-APP_NAME="Stavelle"
-VOL_NAME="Stavelle"
+APP_NAME="Jubelle"
+VOL_NAME="Jubelle"
 DO_SIGN=false
 APPLE_TEAM_ID=""
 APPLE_USERNAME=""
@@ -97,7 +97,7 @@ if $DO_SIGN; then
         rm -f "$APP_ZIP"
     fi
 else
-    # Stavelle: there is no Apple Developer ID certificate, so sign ad hoc. Packaging has
+    # Jubelle: there is no Apple Developer ID certificate, so sign ad hoc. Packaging has
     # modified the binaries above, which invalidates their build-time signatures, and Apple
     # Silicon Macs refuse to start code without a valid signature. Ad-hoc signing makes the
     # app runnable; Gatekeeper will still ask the user to confirm opening it the first time.

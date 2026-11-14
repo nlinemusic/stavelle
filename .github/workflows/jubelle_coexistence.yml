@@ -1,6 +1,6 @@
-name: 'Stavelle: Coexistence Test (Windows)'
+name: 'Jubelle: Coexistence Test (Windows)'
 
-# Installs the official MuseScore, then a Stavelle installer produced by an earlier
+# Installs the official MuseScore, then a Jubelle installer produced by an earlier
 # "Build: Windows" run, and checks that the two coexist independently. It reuses the
 # saved installer, so it takes minutes instead of rebuilding the application (~75 min).
 #
@@ -28,7 +28,7 @@ jobs:
     steps:
     - name: Clone repository
       uses: actions/checkout@v6
-    - name: Download the Stavelle installer from the build run
+    - name: Download the Jubelle installer from the build run
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
@@ -36,11 +36,11 @@ jobs:
       timeout-minutes: 10
       run: |
         echo "Using installer from Build: Windows run $BUILD_RUN_ID"
-        mkdir -p stavelle_artifact
+        mkdir -p jubelle_artifact
         ART=$(gh api "repos/${{ github.repository }}/actions/runs/$BUILD_RUN_ID/artifacts" --jq '[.artifacts[] | select(.name | startswith("MU4_"))][0].name')
         echo "Artifact: $ART"
-        gh run download "$BUILD_RUN_ID" --repo "${{ github.repository }}" --name "$ART" --dir stavelle_artifact
-        ls -la stavelle_artifact
+        gh run download "$BUILD_RUN_ID" --repo "${{ github.repository }}" --name "$ART" --dir jubelle_artifact
+        ls -la jubelle_artifact
     - name: Download the official MuseScore installer
       shell: bash
       env:
@@ -55,14 +55,14 @@ jobs:
       shell: bash
       timeout-minutes: 20
       run: |
-        STAVELLE_MSI=$(ls stavelle_artifact/*.msi | head -1)
+        JUBELLE_MSI=$(ls jubelle_artifact/*.msi | head -1)
         MUSESCORE_MSI=$(ls musescore_msi/*.msi | head -1)
-        echo "Stavelle installer:  $STAVELLE_MSI"
+        echo "Jubelle installer:  $JUBELLE_MSI"
         echo "MuseScore installer: $MUSESCORE_MSI"
-        python -X utf8 -u tools/stavelle_smoke/coexistence_test_windows.py "$MUSESCORE_MSI" "$STAVELLE_MSI" demos/Amazing_grace.mscz coexistence_work
+        python -X utf8 -u tools/jubelle_checks/coexistence_test_windows.py "$MUSESCORE_MSI" "$JUBELLE_MSI" demos/Amazing_grace.mscz coexistence_work
     - name: Upload results and installer logs
       if: always()
       uses: actions/upload-artifact@v6
       with:
-        name: stavelle-coexistence-windows
+        name: jubelle-coexistence-windows
         path: coexistence_work/

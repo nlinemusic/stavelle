@@ -1,11 +1,11 @@
-name: 'Stavelle: Platform Reliability Tests'
+name: 'Jubelle: Platform Reliability Tests'
 
-# Fast (a few minutes) native tests of Stavelle's reliability code on Windows,
+# Fast (a few minutes) native tests of Jubelle's reliability code on Windows,
 # macOS and Linux. Runs alongside the full application builds, which take ~1 hour.
 
 on:
   push:
-    branches: [ main, 'stavelle/**' ]
+    branches: [ main, 'stavelle/**', 'jubelle/**' ]
   pull_request:
   workflow_dispatch:
 
@@ -20,7 +20,7 @@ jobs:
     - name: Clone repository
       uses: actions/checkout@v6
     - name: Configure
-      run: cmake -S tools/stavelle_platform_tests -B build-platform-tests -DCMAKE_BUILD_TYPE=Release
+      run: cmake -S tools/jubelle_platform_tests -B build-platform-tests -DCMAKE_BUILD_TYPE=Release
     - name: Build
       run: cmake --build build-platform-tests --config Release --parallel
     - name: Run tests
