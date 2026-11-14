@@ -1816,7 +1816,7 @@ bool ProjectActionsController::askIfUserAgreesToOpenCorruptedProject(const Strin
 {
     std::string title = muse::mtrc("project", "File “%1” is corrupted").arg(projectName).toStdString();
     IInteractive::Text text;
-    text.text = muse::trc("project", "This file contains errors that could cause MuseScore Studio to malfunction.");
+    text.text = muse::trc("project", "This file contains errors that could cause Jubelle to malfunction.");
     text.detailedText = errorText;
 
     IInteractive::ButtonData openAnywayBtn(IInteractive::Button::CustomButton, muse::trc("project", "Open anyway"), true /*accent*/);
