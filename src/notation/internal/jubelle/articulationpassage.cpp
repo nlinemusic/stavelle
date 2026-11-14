@@ -283,4 +283,195 @@ void clearPassage(Score* score, const PassageRange& range)
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Properties panel
+// ---------------------------------------------------------------------------
+
+namespace {
+struct Wording {
+    ArtParam param;
+    const char* group;
+    const char* title;
+    const char* unit;
+};
+
+const std::vector<Wording>& wordings()
+{
+    static const std::vector<Wording> w = {
+        { ArtParam::StaccatoLength,      "Note length",      "Staccato", "%" },
+        { ArtParam::StaccatissimoLength, "Note length",      "Staccatissimo", "%" },
+        { ArtParam::TenutoLength,        "Note length",      "Tenuto", "%" },
+        { ArtParam::MarcatoLength,       "Note length",      "Marcato (rooftop accent)", "%" },
+        { ArtParam::AccentLoudness,      "Loudness",         "Accent: louder by", "%" },
+        { ArtParam::MarcatoLoudness,     "Loudness",         "Marcato: louder by", "%" },
+        { ArtParam::FallStart,           "Falls and doits",  "Starts at", "%" },
+        { ArtParam::FallRange,           "Falls and doits",  "Range", "semitones" },
+        { ArtParam::FallCurve,           "Falls and doits",  "Speed", "curve" },
+        { ArtParam::ScoopLength,         "Scoops and plops", "Length before the note", "%" },
+        { ArtParam::ScoopRange,          "Scoops and plops", "Range", "semitones" },
+        { ArtParam::GlissandoStart,      "Glissandos",       "Slide starts at", "%" },
+        { ArtParam::GlissandoCurve,      "Glissandos",       "Speed", "curve" },
+        { ArtParam::TurnSpeed,           "Jazz turn",        "Speed", "% of normal" },
+    };
+    return w;
+}
+
+const Wording& wording(ArtParam p)
+{
+    for (const Wording& w : wordings()) {
+        if (w.param == p) {
+            return w;
+        }
+    }
+    return wordings().front();
+}
+}
+
+const char* paramGroup(ArtParam p) { return wording(p).group; }
+const char* paramTitle(ArtParam p) { return wording(p).title; }
+const char* paramUnit(ArtParam p) { return wording(p).unit; }
+
+PassageRange passageForItems(const Score* score, const std::vector<EngravingItem*>& items)
+{
+    PassageRange r;
+    if (!score || !score->masterScore()) {
+        return r;
+    }
+    int start = INT_MAX;
+    int end = 0;
+    for (const EngravingItem* e : items) {
+        const EngravingItem* p = e ? e->parentItem() : nullptr;
+        if (!p || !p->isChordRest()) {
+            continue;
+        }
+        const ChordRest* cr = toChordRest(p);
+        start = std::min(start, cr->tick().ticks());
+        end = std::max(end, (cr->tick() + cr->actualTicks()).ticks());
+        addPart(r.parts, masterPart(score->masterScore(), cr->part()));
+    }
+    if (start < end) {
+        r.startTick = start;
+        r.endTick = end;
+    }
+    return r;
+}
+
+std::vector<ArtParam> paramsForItems(const std::vector<EngravingItem*>& items)
+{
+    std::set<ArtParam> found;
+    for (const EngravingItem* e : items) {
+        if (!e || !e->isArticulationFamily()) {
+            continue;
+        }
+        const Articulation* a = toArticulation(e);
+        const std::string name(SymNames::nameForSymId(a->symId()).ascii());
+        if (name.find("Staccatissimo") != std::string::npos) {
+            found.insert(ArtParam::StaccatissimoLength);
+        } else if (name.find("Staccato") != std::string::npos) {
+            found.insert(ArtParam::StaccatoLength);
+        }
+        if (name.find("Tenuto") != std::string::npos) {
+            found.insert(ArtParam::TenutoLength);
+        }
+        if (name.find("Marcato") != std::string::npos) {
+            found.insert({ ArtParam::MarcatoLength, ArtParam::MarcatoLoudness });
+        }
+        if (name.find("Accent") != std::string::npos) {
+            found.insert(ArtParam::AccentLoudness);
+        }
+        if (a->symId() == SymId::brassJazzTurn) {
+            found.insert(ArtParam::TurnSpeed);
+        }
+    }
+    std::vector<ArtParam> out;
+    for (const Wording& w : wordings()) {
+        if (found.count(w.param)) {
+            out.push_back(w.param);
+        }
+    }
+    return out;
+}
+
+static PassageRow instrumentOrScoreRow(const ArticulationPlaybackSettings& settings, const Part* part, ArtParam param, EditLevel level)
+{
+    PassageRow row;
+    row.param = param;
+    row.value = artParamInfo(param).defaultValue;
+    auto inst = settings.partValues.find(part->id().toUint64());
+    if (level == EditLevel::Instrument && inst != settings.partValues.end() && inst->second.get(param)) {
+        row.value = *inst->second.get(param);
+        row.source = ValueSource::Here;
+        row.sourceName = part->partName();
+    } else if (settings.scoreValues.get(param)) {
+        row.value = *settings.scoreValues.get(param);
+        row.source = level == EditLevel::WholeScore ? ValueSource::Here : ValueSource::WholeScore;
+    }
+    return row;
+}
+
+std::vector<PassageRow> levelRows(const Score* score, const PassageRange& range, EditLevel level, const std::vector<ArtParam>& params)
+{
+    std::vector<PassageRow> rows;
+    if (!score || !range.isValid()) {
+        return rows;
+    }
+    const MasterScore* master = score->masterScore();
+    const ArticulationPlaybackSettings settings = ArticulationPlaybackSettings::read(master);
+
+    for (ArtParam p : params) {
+        PassageRow first;
+        bool haveFirst = false;
+        bool varies = false;
+        for (Part* part : range.parts) {
+            PassageRow row;
+            if (level == EditLevel::Passage) {
+                PassageRange one = range;
+                one.parts = { part };
+                for (const PassageRow& r : passageRows(master, one)) {
+                    if (r.param == p) {
+                        row = r;
+                    }
+                }
+            } else {
+                row = instrumentOrScoreRow(settings, part, p, level);
+            }
+            if (!haveFirst) {
+                first = row;
+                haveFirst = true;
+            } else if (row.value != first.value || row.source != first.source) {
+                varies = true;
+            }
+        }
+        first.param = p;
+        first.inSelection = true;
+        first.varies = varies;
+        rows.push_back(first);
+    }
+    return rows;
+}
+
+void setLevelValue(Score* score, const PassageRange& range, EditLevel level, ArtParam param, std::optional<int> value)
+{
+    if (!score || !range.isValid()) {
+        return;
+    }
+    if (level == EditLevel::Passage) {
+        setPassageValue(score, range, param, value);
+        return;
+    }
+    ArticulationPlaybackSettings settings = ArticulationPlaybackSettings::read(score);
+    if (level == EditLevel::WholeScore) {
+        settings.scoreValues.set(param, value);
+    } else {
+        for (const Part* part : range.parts) {
+            ArticulationPlaybackValues& v = settings.partValues[part->id().toUint64()];
+            v.set(param, value);
+            if (v.isEmpty()) {
+                settings.partValues.erase(part->id().toUint64());
+            }
+        }
+    }
+    settings.write(score);
+}
 }

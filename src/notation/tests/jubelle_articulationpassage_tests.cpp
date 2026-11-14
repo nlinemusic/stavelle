@@ -334,3 +334,78 @@ TEST(Jubelle_ArticulationPassageText, TextRoundTrip)
     EXPECT_EQ(parsePassageText(text), v);
     EXPECT_FALSE(parsePassageText(u"cresc."));
 }
+
+//! The Properties panel: the selected articulations' playback values, at
+//! each of the three levels
+TEST_F(Jubelle_ArticulationPassage, PropertiesPanelLevels)
+{
+    // Select the staccatos of the first two trumpet notes in bar 2 and the
+    // first sax note in bar 2
+    std::vector<EngravingItem*> selected;
+    for (Segment* s = score->firstSegment(SegmentType::ChordRest); s; s = s->next1(SegmentType::ChordRest)) {
+        const int tick = s->tick().ticks();
+        for (track_idx_t tr : { track_idx_t(0), track_idx_t(4) }) {
+            if (!s->element(tr) || !s->element(tr)->isChord()) {
+                continue;
+            }
+            const bool wanted = (tr == 0 && (tick == BAR_TICKS || tick == BAR_TICKS + 240)) || (tr == 4 && tick == BAR_TICKS);
+            if (wanted) {
+                for (Articulation* a : toChord(s->element(tr))->articulations()) {
+                    selected.push_back(a);
+                }
+            }
+        }
+    }
+    const jap::PassageRange range = jap::passageForItems(score, selected);
+    EXPECT_EQ(range.startTick, BAR_TICKS);
+    EXPECT_EQ(range.endTick, BAR_TICKS + 480);
+    EXPECT_EQ(range.parts.size(), 2u);
+    // Staccato and accent were selected: those two settings, in order
+    EXPECT_EQ(jap::paramsForItems(selected), (std::vector<ArtParam> { ArtParam::StaccatoLength, ArtParam::AccentLoudness }));
+
+    auto row = [&](jap::EditLevel level, ArtParam p) {
+        for (const jap::PassageRow& r : jap::levelRows(score, range, level, { p })) {
+            return r;
+        }
+        return jap::PassageRow();
+    };
+    auto set = [&](jap::EditLevel level, ArtParam p, std::optional<int> v) {
+        score->startCmd(muse::TranslatableString::untranslatable("properties"));
+        jap::setLevelValue(score, range, level, p, v);
+        score->endCmd();
+    };
+
+    // Whole score
+    set(jap::EditLevel::WholeScore, ArtParam::StaccatoLength, 50);
+    EXPECT_EQ(row(jap::EditLevel::WholeScore, ArtParam::StaccatoLength).source, jap::ValueSource::Here);
+    EXPECT_EQ(row(jap::EditLevel::Instrument, ArtParam::StaccatoLength).source, jap::ValueSource::WholeScore);
+    // Instrument: both selected instruments
+    set(jap::EditLevel::Instrument, ArtParam::StaccatoLength, 40);
+    EXPECT_EQ(row(jap::EditLevel::Instrument, ArtParam::StaccatoLength).value, 40);
+    EXPECT_FALSE(row(jap::EditLevel::Instrument, ArtParam::StaccatoLength).varies);
+    // Passage: only the selected notes
+    set(jap::EditLevel::Passage, ArtParam::StaccatoLength, 25);
+    const jap::PassageRow here = row(jap::EditLevel::Passage, ArtParam::StaccatoLength);
+    EXPECT_EQ(here.value, 25);
+    EXPECT_EQ(here.source, jap::ValueSource::Here);
+    std::vector<int> expectedSax = concat({ repeat(40, 8), repeat(25, 2), repeat(40, 22) });
+    EXPECT_EQ(lengths(sax), expectedSax);
+
+    // The accent is untouched at every level
+    EXPECT_EQ(row(jap::EditLevel::Passage, ArtParam::AccentLoudness).source, jap::ValueSource::MuseScore);
+
+    // Different values for the two instruments show as "varies"
+    ArticulationPlaybackSettings s = ArticulationPlaybackSettings::read(score);
+    s.partValues[sax->id().toUint64()].set(ArtParam::StaccatoLength, 45);
+    score->startCmd(muse::TranslatableString::untranslatable("settings"));
+    s.write(score);
+    score->endCmd();
+    EXPECT_TRUE(row(jap::EditLevel::Instrument, ArtParam::StaccatoLength).varies);
+
+    // Clearing at passage level returns to each instrument's own value
+    set(jap::EditLevel::Passage, ArtParam::StaccatoLength, std::nullopt);
+    EXPECT_EQ(lengths(sax), repeat(45, 32));
+    // Clearing at instrument level returns to the whole score's 50%
+    set(jap::EditLevel::Instrument, ArtParam::StaccatoLength, std::nullopt);
+    EXPECT_EQ(lengths(sax), repeat(50, 32));
+}

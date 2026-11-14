@@ -23,6 +23,7 @@
 #include "engraving/playback/jubelle/articulationplayback.h"
 
 namespace mu::engraving {
+class EngravingItem;
 class Part;
 class Score;
 }
@@ -52,6 +53,7 @@ struct PassageRow {
     ValueSource source = ValueSource::MuseScore;
     muse::String sourceName;   // instrument name, or "bars 33–40"
     bool inSelection = false;  // the articulation occurs in the passage
+    bool varies = false;       // differs between the selected instruments
 };
 
 //! One row per setting, as it applies at the start of the passage for its
@@ -65,4 +67,30 @@ void setPassageValue(engraving::Score* score, const PassageRange& range, engravi
 
 //! Clears every value for the passage (removes its lines)
 void clearPassage(engraving::Score* score, const PassageRange& range);
+
+// --- Properties panel (selected articulations) ------------------------------
+
+//! The level a Properties-panel change is made at
+enum class EditLevel {
+    Passage = 0,     // the selected notes' passage (a playback line per instrument)
+    Instrument = 1,  // the selected notes' instruments
+    WholeScore = 2,
+};
+
+//! The passage (first to last selected articulation) and instruments of
+//! the selected articulations, in the main score
+PassageRange passageForItems(const engraving::Score* score, const std::vector<engraving::EngravingItem*>& items);
+//! The settings that matter for these articulations, in display order
+std::vector<engraving::jubelle::ArtParam> paramsForItems(const std::vector<engraving::EngravingItem*>& items);
+//! Rows for `params` as seen at `level` (value, where it comes from, varies)
+std::vector<PassageRow> levelRows(const engraving::Score* score, const PassageRange& range, EditLevel level,
+                                  const std::vector<engraving::jubelle::ArtParam>& params);
+//! Sets or (nullopt) clears a value at a level. Undoable: inside a command.
+void setLevelValue(engraving::Score* score, const PassageRange& range, EditLevel level, engraving::jubelle::ArtParam param,
+                   std::optional<int> value);
+
+//! Untranslated English wording for a setting (translate in context "notation")
+const char* paramGroup(engraving::jubelle::ArtParam param);
+const char* paramTitle(engraving::jubelle::ArtParam param);
+const char* paramUnit(engraving::jubelle::ArtParam param);   // "%", "semitones", "curve", "% of normal"
 }

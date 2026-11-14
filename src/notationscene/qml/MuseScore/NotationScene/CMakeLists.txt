@@ -327,3 +327,15 @@ target_link_libraries(notationscene_qml PRIVATE
 if(MUE_BUILD_NOTATIONSCENE_TESTS)
     add_subdirectory(tests)
 endif()
+
+# Jubelle: keep these out of unity batches so their file-local helpers and
+# using-directives can't clash with neighbouring sources.
+set_source_files_properties(
+    articulationplaybackmodel.cpp
+    swingmodel.cpp
+    repeatsmodel.cpp
+    applypartlayoutmodel.cpp
+    passageplaybackmodel.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+)

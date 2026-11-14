@@ -21,6 +21,9 @@
  */
 #pragma once
 
+#include <optional>
+
+#include <QVariantList>
 #include <qqmlintegration.h>
 
 #include "abstractinspectormodel.h"
@@ -35,6 +38,12 @@ class ArticulationSettingsModel : public AbstractInspectorModel
     Q_PROPERTY(mu::inspector::PropertyItem * placement READ placement CONSTANT)
     Q_PROPERTY(bool isPlacementAvailable READ isPlacementAvailable NOTIFY isPlacementAvailableChanged FINAL)
 
+    // Jubelle: articulation playback for the selected articulations
+    Q_PROPERTY(QVariantList playbackRows READ playbackRows NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(int playbackLevel READ playbackLevel WRITE setPlaybackLevel NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(QVariantList playbackLevels READ playbackLevels NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(QString playbackNote READ playbackNote NOTIFY playbackChanged FINAL)
+
 public:
     explicit ArticulationSettingsModel(QObject* parent, const muse::modularity::ContextPtr& iocCtx, IElementRepositoryService* repository,
                                        InspectorModelType type = InspectorModelType::TYPE_ARTICULATION);
@@ -42,8 +51,17 @@ public:
     PropertyItem* placement() const;
     bool isPlacementAvailable() const;
 
+    QVariantList playbackRows() const;
+    int playbackLevel() const;
+    void setPlaybackLevel(int level);
+    QVariantList playbackLevels() const;
+    QString playbackNote() const;
+    Q_INVOKABLE void setPlaybackValue(const QString& key, int value);
+    Q_INVOKABLE void clearPlaybackValue(const QString& key);
+
 signals:
     void isPlacementAvailableChanged(bool available);
+    void playbackChanged();
 
 private:
     void createProperties() override;
@@ -52,6 +70,14 @@ private:
     void resetProperties() override;
 
     void updateIsPlacementAvailable();
+    void onNotationChanged(const mu::engraving::PropertyIdSet& changedPropertyIdSet,
+                           const mu::engraving::StyleIdSet& changedStyleIdSet) override;
+    void updatePlayback();
+    void changePlayback(const QString& key, std::optional<int> value);
+    QVariantList m_playbackRows;
+    QVariantList m_playbackLevels;
+    QString m_playbackNote;
+    int m_playbackLevel = 0;   // jubelle::EditLevel
 
     PropertyItem* m_direction = nullptr;
     PropertyItem* m_placement = nullptr;
