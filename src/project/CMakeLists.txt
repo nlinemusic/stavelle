@@ -55,6 +55,8 @@ target_sources(project PRIVATE
     internal/notationproject.h
     internal/safefilewrite.cpp
     internal/safefilewrite.h
+    internal/projectlibrary.cpp
+    internal/projectlibrary.h
     internal/projectcreator.cpp
     internal/projectcreator.h
     internal/projectaudiosettings.cpp
@@ -126,6 +128,7 @@ endif()
 # batches so system headers cannot affect neighbouring sources.
 set_source_files_properties(
     internal/safefilewrite.cpp
+    internal/projectlibrary.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
     SKIP_PRECOMPILE_HEADERS ON

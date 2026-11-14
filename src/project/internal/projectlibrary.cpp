@@ -677,4 +677,32 @@ std::string backupFolder(const std::string& projectFolder)
     fs::create_directories(dir, ec);
     return toUtf8(dir);
 }
+
+ExportKind exportKindFor(const std::string& suffix, bool combinedIntoOneFile, bool includesParts)
+{
+    const std::string s = lower(suffix);
+    if (s == "pdf") {
+        if (combinedIntoOneFile) {
+            return ExportKind::CombinedPartsPdf;
+        }
+        return includesParts ? ExportKind::IndividualPartsPdf : ExportKind::FullScorePdf;
+    }
+    if (s == "wav" || s == "mp3" || s == "ogg" || s == "flac") {
+        return ExportKind::Audio;
+    }
+    if (s == "mp4") {
+        return ExportKind::Video;
+    }
+    return ExportKind::Other;
+}
+
+bool isSameFolder(const std::string& a, const std::string& b)
+{
+    if (a.empty() || b.empty()) {
+        return false;
+    }
+    const fs::path pa = toPath(a);
+    const fs::path pb = toPath(b);
+    return isDir(pa) && isDir(pb) && sameEntry(pa, pb);
+}
 }

@@ -25,11 +25,14 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
+#include <QDir>
+#include <QStandardPaths>
 
 #include "settings.h"
 
 #include "engraving/infrastructure/mscio.h"
 #include "project/internal/notationproject.h"
+#include "project/internal/projectlibrary.h"
 
 #include "log.h"
 
@@ -39,6 +42,36 @@ using namespace mu::notation;
 using namespace muse;
 
 static const std::string module_name("project");
+
+//! Jubelle: paths coming from the project library use the platform's own
+//! separators; the rest of the app expects forward slashes.
+static muse::io::path_t configFromLibraryPath(const std::string& path)
+{
+    return muse::io::path_t(QDir::fromNativeSeparators(QString::fromStdString(path)));
+}
+
+//! Jubelle: the main project folder, "Jubelle Projects", on the Desktop by default.
+static muse::io::path_t defaultJubelleProjectsPath()
+{
+    QString base = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    if (base.isEmpty()) {
+        base = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    }
+    return muse::io::path_t(QDir::fromNativeSeparators(base) + "/" + QString::fromStdString(projectlibrary::mainFolderName()));
+}
+
+//! Jubelle: creates the main project folder (with the default categories)
+//! if it does not exist yet. An existing folder is never changed.
+static void ensureJubelleProjectsFolder(const muse::io::path_t& path)
+{
+    if (path.empty()) {
+        return;
+    }
+    projectlibrary::Result r = projectlibrary::ensureMainFolder(path.toStdString());
+    if (!r.ok) {
+        LOGE() << r.error;
+    }
+}
 
 static const Settings::Key COMPAT_RECENT_FILES_DATA(module_name, "project/recentList");
 static const Settings::Key USER_TEMPLATES_PATH(module_name, "application/paths/myTemplates");
@@ -84,9 +117,11 @@ void ProjectConfiguration::init()
         m_userTemplatesPathChanged.send(val.toPath());
     });
 
-    settings()->setDefaultValue(USER_PROJECTS_PATH, Val(globalConfiguration()->userDataPath() + "/Scores"));
+    // Jubelle: MuseScore's "Scores" folder setting is the main project folder.
+    settings()->setDefaultValue(USER_PROJECTS_PATH, Val(defaultJubelleProjectsPath()));
 
     settings()->valueChanged(USER_PROJECTS_PATH).onReceive(nullptr, [this](const Val& val) {
+        ensureJubelleProjectsFolder(val.toPath());
         m_userScoresPathChanged.send(val.toPath());
     });
 
@@ -147,9 +182,7 @@ void ProjectConfiguration::init()
         fileSystem()->makePath(userTemplatesPath());
     }
 
-    if (!userProjectsPath().empty()) {
-        fileSystem()->makePath(userProjectsPath());
-    }
+    ensureJubelleProjectsFolder(userProjectsPath());
 
     fileSystem()->makePath(cloudProjectsPath());
 }
@@ -770,6 +803,12 @@ muse::io::path_t ProjectConfiguration::projectBackupPath(const muse::io::path_t&
 {
     muse::io::path_t projectDir = io::absoluteDirpath(projectPath);
     muse::io::path_t projectName = io::filename(projectPath);
+
+    // Jubelle: a project's backup goes, visibly, into its own Backups folder.
+    const std::string projectFolder = projectlibrary::projectFolderForScore(projectPath.toStdString());
+    if (!projectFolder.empty()) {
+        return configFromLibraryPath(projectlibrary::backupFolder(projectFolder)) + "/" + projectName + "~";
+    }
 
     return projectDir + "/.mscbackup/." + projectName + "~";
 }

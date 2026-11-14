@@ -249,3 +249,28 @@ TEST_F(ProjectLibraryTests, ScoresOutsideProjectsAreNotTreatedAsProjects)
     writeFile(m_root / "Loose" / "Loose.mscz", "x");
     EXPECT_EQ(projectFolderForScore((m_root / "Loose" / "Loose.mscz").u8string()), "");
 }
+
+TEST_F(ProjectLibraryTests, ExportsAreSortedIntoTheRightFolder)
+{
+    EXPECT_EQ(exportKindFor("pdf", false, false), ExportKind::FullScorePdf);
+    EXPECT_EQ(exportKindFor("PDF", false, true), ExportKind::IndividualPartsPdf);
+    EXPECT_EQ(exportKindFor("pdf", true, true), ExportKind::CombinedPartsPdf);
+    for (const char* audio : { "wav", "mp3", "ogg", "flac" }) {
+        EXPECT_EQ(exportKindFor(audio, false, true), ExportKind::Audio) << audio;
+    }
+    EXPECT_EQ(exportKindFor("mp4", false, false), ExportKind::Video);
+    for (const char* other : { "png", "svg", "musicxml", "mxl", "mid", "brf", "mei" }) {
+        EXPECT_EQ(exportKindFor(other, false, false), ExportKind::Other) << other;
+    }
+}
+
+TEST_F(ProjectLibraryTests, SameFolderIsRecognised)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    Result r = createProject(m_main, "Other", "Piece");
+    const std::string parts = exportFolder(r.path, ExportKind::IndividualPartsPdf);
+    EXPECT_TRUE(isSameFolder(parts, (P(r.path) / "PDF Exports" / "Individual Parts").u8string()));
+    EXPECT_TRUE(isSameFolder(parts, (P(r.path) / "PDF Exports" / "." / "Individual Parts").u8string()));
+    EXPECT_FALSE(isSameFolder(parts, exportFolder(r.path, ExportKind::FullScorePdf)));
+    EXPECT_FALSE(isSameFolder(parts, ""));
+}

@@ -117,4 +117,12 @@ std::string exportFolder(const std::string& projectFolder, ExportKind kind);
 
 //! `<project>/Backups` (created if missing).
 std::string backupFolder(const std::string& projectFolder);
+
+//! Which export folder a file with this suffix ("pdf", "mp3", "musicxml"...) belongs in.
+//! For PDFs: `combinedIntoOneFile` means several scores/parts written into a single PDF;
+//! otherwise `includesParts` means at least one part (not only the full score) is exported.
+ExportKind exportKindFor(const std::string& suffix, bool combinedIntoOneFile, bool includesParts);
+
+//! True if both paths name the same existing folder.
+bool isSameFolder(const std::string& a, const std::string& b);
 }

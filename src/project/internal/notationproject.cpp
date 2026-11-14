@@ -51,6 +51,7 @@
 #include "projectaudiosettings.h"
 #include "projectfileinfoprovider.h"
 #include "projecterrors.h"
+#include "projectlibrary.h"
 #include "safefilewrite.h"
 
 #include "defer.h"
@@ -863,7 +864,13 @@ Ret NotationProject::makeBackup(muse::io::path_t filePath)
         return ret;
     }
 
-    fileSystem()->setAttribute(backupDir, io::IFileSystem::Attribute::Hidden);
+    // Jubelle: backups in a project's Backups folder are meant to be seen; only
+    // MuseScore's own .mscbackup folder (scores outside projects) is hidden.
+    const bool hideBackup = projectlibrary::projectFolderForScore(filePath.toStdString()).empty();
+
+    if (hideBackup) {
+        fileSystem()->setAttribute(backupDir, io::IFileSystem::Attribute::Hidden);
+    }
 
     ret = fileSystem()->copy(filePath, backupPath, true);
     if (!ret) {
@@ -871,7 +878,9 @@ Ret NotationProject::makeBackup(muse::io::path_t filePath)
         return ret;
     }
 
-    fileSystem()->setAttribute(backupPath, io::IFileSystem::Attribute::Hidden);
+    if (hideBackup) {
+        fileSystem()->setAttribute(backupPath, io::IFileSystem::Attribute::Hidden);
+    }
 
     return ret;
 }

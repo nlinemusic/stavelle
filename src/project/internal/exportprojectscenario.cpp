@@ -22,6 +22,11 @@
 #include "exportprojectscenario.h"
 
 #include "project/types/filecategory.h"
+#include "projectlibrary.h"
+
+#include <algorithm>
+
+#include <QDir>
 
 #include "global/io/fileinfo.h"
 #include "global/io/filestream.h"
@@ -34,6 +39,21 @@ using namespace muse;
 using namespace muse::io;
 using namespace mu::project;
 using namespace mu::notation;
+
+//! Jubelle: paths coming from the project library use the platform's own separators.
+static muse::io::path_t exportFromLibraryPath(const std::string& path)
+{
+    return muse::io::path_t(QDir::fromNativeSeparators(QString::fromStdString(path)));
+}
+
+//! Jubelle: the project folder of the open score, or "" if it is not in a project.
+static std::string jubelleProjectFolderOf(const INotationProjectPtr& project)
+{
+    if (!project || project->isCloudProject() || project->isNewlyCreated()) {
+        return {};
+    }
+    return projectlibrary::projectFolderForScore(project->path().toStdString());
+}
 
 std::vector<INotationWriter::UnitType> ExportProjectScenario::supportedUnitTypes(const ExportType& exportType) const
 {
@@ -83,6 +103,20 @@ RetVal<muse::io::path_t> ExportProjectScenario::askExportPath(const INotationPtr
             // So there is only one page
             filenameAddition += "-1";
         }
+    }
+
+    // Jubelle: a score that belongs to a project is exported into the project's
+    // matching export folder by default (the user can still pick any folder).
+    const std::string projectFolder = jubelleProjectFolderOf(project);
+    if (!projectFolder.empty()) {
+        const std::string suffix = exportType.suffixes.front().toStdString();
+        const bool combinedIntoOneFile = unitType == INotationWriter::UnitType::MULTI_PART && !isExportingOnlyOneScore;
+        const bool includesParts = std::any_of(notations.cbegin(), notations.cend(), [this](INotationPtr notation) {
+            return !isMainNotation(notation);
+        });
+        const projectlibrary::ExportKind kind = projectlibrary::exportKindFor(suffix, combinedIntoOneFile, includesParts);
+        defaultPath = exportFromLibraryPath(projectlibrary::exportFolder(projectFolder, kind)) + "/"
+                      + io::filename(project->path(), false) + muse::io::path_t(filenameAddition) + "." + muse::io::path_t(suffix);
     }
 
     if (defaultPath == "") {
@@ -209,11 +243,31 @@ bool ExportProjectScenario::exportScores(notation::INotationPtrList notations, c
         }
     } break;
     case INotationWriter::UnitType::PER_PART: {
+        // Jubelle: when the full score and parts are exported as separate PDFs into the
+        // project's "Individual Parts" folder (the suggested one), the full score goes
+        // into "Full Score" instead. Any other folder the user picked is used as is.
+        std::string partsFolder;
+        std::string fullScoreFolder;
+        const std::string projectFolder = jubelleProjectFolderOf(context()->currentProject());
+        if (!isCreatingOnlyOneFile && !projectFolder.empty() && io::suffix(destinationPath) == "pdf") {
+            const std::string suggestedParts = projectlibrary::exportFolder(projectFolder,
+                                                                            projectlibrary::ExportKind::IndividualPartsPdf);
+            if (projectlibrary::isSameFolder(io::dirpath(destinationPath).toStdString(), suggestedParts)) {
+                partsFolder = suggestedParts;
+                fullScoreFolder = projectlibrary::exportFolder(projectFolder, projectlibrary::ExportKind::FullScorePdf);
+            }
+        }
+
         for (const INotationPtr& notation : notations) {
             muse::io::path_t definitivePath = isCreatingOnlyOneFile
                                               ? destinationPath
                                               : completeExportPath(destinationPath, notation, isMainNotation(
                                                                        notation), isExportingOnlyOneScore);
+
+            if (!fullScoreFolder.empty()) {
+                const std::string& folder = isMainNotation(notation) ? fullScoreFolder : partsFolder;
+                definitivePath = exportFromLibraryPath(folder) + "/" + io::filename(definitivePath);
+            }
 
             auto exportFunction = [writer, notation, options](IODevice& destinationDevice) {
                     return writer->write(notation, destinationDevice, options);
