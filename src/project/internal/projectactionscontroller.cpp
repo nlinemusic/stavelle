@@ -63,7 +63,11 @@ static constexpr int SAVE_AS_BTN_ID    = RETRY_SAVE_BTN_ID + 1;
 
 void ProjectActionsController::init()
 {
-    dispatcher()->reg(this, "file-new", this, &ProjectActionsController::newProject);
+    //! Jubelle: "file-new" may carry a template path (from the Template Library),
+    //! which is then preselected in the New Score dialog.
+    dispatcher()->reg(this, "file-new", [this](const ActionData& args) {
+        newProject(!args.empty() ? args.arg<QString>(0) : QString());
+    });
     dispatcher()->reg(this, "file-open", this, &ProjectActionsController::openProject);
 
     dispatcher()->reg(this, "file-close", [this]() {
@@ -655,7 +659,7 @@ bool ProjectActionsController::isAnyProjectOpened() const
     return false;
 }
 
-void ProjectActionsController::newProject()
+void ProjectActionsController::newProject(const QString& templatePath)
 {
     //! NOTE This method is synchronous,
     //! but inside `multiwindowsProvider` there can be an event loop
@@ -683,7 +687,12 @@ void ProjectActionsController::newProject()
         return;
     }
 
-    auto promise = interactive()->open(NEW_SCORE_URI);
+    UriQuery newScoreQuery(NEW_SCORE_URI);
+    if (!templatePath.isEmpty()) {
+        newScoreQuery.addParam("templatePath", Val(templatePath));
+    }
+
+    auto promise = interactive()->open(newScoreQuery);
     promise.onResolve(this, [this](const Val&) {
         extensionsProvider()->performPointAsync(EXEC_ONPOST_PROJECT_CREATED);
 

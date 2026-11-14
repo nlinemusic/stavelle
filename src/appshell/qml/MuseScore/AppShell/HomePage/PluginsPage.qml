@@ -61,7 +61,7 @@ FocusScope {
         name: "PluginsTopPanel"
         section: navSec
         order: 1
-        accessible.name: qsTrc("appshell", "Plugins")
+        accessible.name: qsTrc("appshell", "Extensions")
     }
 
     Column {
@@ -85,7 +85,7 @@ FocusScope {
                 id: pageTitle
                 Layout.fillWidth: true
 
-                text: qsTrc("appshell", "Plugins")
+                text: qsTrc("appshell", "Extensions")
                 font: ui.theme.titleBoldFont
                 horizontalAlignment: Text.AlignLeft
             }
@@ -98,7 +98,7 @@ FocusScope {
                 navigation.name: "PluginsSearch"
                 navigation.panel: navTopPanel
                 navigation.order: 1
-                accessible.name: qsTrc("appshell", "Plugins search")
+                accessible.name: qsTrc("appshell", "Extensions search")
 
                 onSearchTextChanged: {
                     categoryDropdown.selectedCategory = ""

@@ -66,7 +66,9 @@ qt_add_qml_module(appshell_qml
         FirstLaunchSetup/ThemesPage.qml
         HomePage/HomeMenu.qml
         HomePage/HomePage.qml
+        HomePage/LearningCenterPage.qml
         HomePage/PluginsPage.qml
+        HomePage/SettingsPage.qml
         MainToolBar.qml
         NotationPage/NotationPage.qml
         NotationPage/NotationStatusBar.qml

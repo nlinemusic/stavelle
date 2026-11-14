@@ -71,6 +71,7 @@ qt_add_qml_module(preferences_qml
         MidiDeviceMappingPreferencesPage.qml
         NoteInputPreferencesPage.qml
         PercussionPreferencesPage.qml
+        PreferencesContent.qml
         PreferencesDialog.qml
         PreferencesPage.qml
         SaveAndPublishPreferencesPage.qml

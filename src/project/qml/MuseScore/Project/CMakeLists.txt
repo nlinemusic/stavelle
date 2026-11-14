@@ -38,6 +38,8 @@ qt_add_qml_module(project_qml
         internal/NewScore/templatepaintview.h
         internal/NewScore/templatesmodel.cpp
         internal/NewScore/templatesmodel.h
+        internal/ProjectsPage/projectspagemodel.cpp
+        internal/ProjectsPage/projectspagemodel.h
         internal/Properties/projectpropertiesmodel.cpp
         internal/Properties/projectpropertiesmodel.h
         internal/ScoresPage/abstractscoresmodel.cpp
@@ -57,6 +59,9 @@ qt_add_qml_module(project_qml
         AskSaveLocationTypeDialog.qml
         AudioGenerationSettings.qml
         AudioGenerationSettingsDialog.qml
+        CardImageDialog.qml
+        CardImageView.qml
+        CategoriesList.qml
         ExportDialog.qml
         DeleteCloudScoreDialog.qml
         internal/Export/AudioSettings.qml
@@ -110,6 +115,10 @@ qt_add_qml_module(project_qml
         Message.qml
         MigrationDialog.qml
         NewScoreDialog.qml
+        ProjectCard.qml
+        ProjectCategoriesTagsDialog.qml
+        ProjectMoveDialog.qml
+        ProjectNameDialog.qml
         ProjectPropertiesDialog.qml
         ProjectUploadedDialog.qml
         SaveToCloudDialog.qml
@@ -117,6 +126,8 @@ qt_add_qml_module(project_qml
         ScoresListView.qml
         ScoresPage.qml
         ScoresView.qml
+        TagFilterBar.qml
+        TemplateLibraryPage.qml
         UploadProgressDialog.qml
     RESOURCES
         internal/Migration/migration.png
@@ -148,6 +159,7 @@ target_include_directories(project_qml PRIVATE
     internal
     internal/Export
     internal/NewScore
+    internal/ProjectsPage
     internal/Properties
     internal/ScoresPage
 )

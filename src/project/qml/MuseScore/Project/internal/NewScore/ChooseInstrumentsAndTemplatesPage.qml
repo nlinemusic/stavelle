@@ -33,6 +33,8 @@ Item {
     id: root
 
     property string preferredScoreCreationMode: ""
+    //! Jubelle: set when the dialog is opened from the Template Library.
+    property string initialTemplatePath: ""
 
     readonly property Item currentPage: pageLoader.item as Item
     property string description: Boolean(currentPage) ? currentPage.description : ""
@@ -137,7 +139,7 @@ Item {
         }
 
         Component.onCompleted: {
-            switch(root.preferredScoreCreationMode) {
+            switch(root.initialTemplatePath !== "" ? "FromTemplate" : root.preferredScoreCreationMode) {
             case "FromInstruments":
                 currentIndex = 0
                 break
@@ -189,6 +191,7 @@ Item {
             property string description: ""
 
             navigationSection: root.navigationSection
+            initialTemplatePath: root.initialTemplatePath
 
             onDone: {
                 root.done()

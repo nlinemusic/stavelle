@@ -70,6 +70,9 @@ DockPage {
         case "scores": root.central = scoresComp; break
         case "plugins": root.central = extensionsComp; break // backward compatibility
         case "extensions": root.central = extensionsComp; break
+        case "templates": root.central = templatesComp; break
+        case "learning": root.central = learningComp; break
+        case "settings": root.central = settingsComp; break
         }
     }
 
@@ -79,7 +82,7 @@ DockPage {
 
             objectName: "homeMenu"
 
-            readonly property int maxFixedWidth: 260
+            readonly property int maxFixedWidth: 232
             readonly property int minFixedWidth: 76
             readonly property bool iconsOnly: root.window
                                                 ? root.window.width < (root.window.minimumWidth + maxFixedWidth - minFixedWidth)
@@ -123,6 +126,24 @@ DockPage {
         id: extensionsComp
 
         PluginsPage {}
+    }
+
+    Component {
+        id: templatesComp
+
+        TemplateLibraryPage {}
+    }
+
+    Component {
+        id: learningComp
+
+        LearningCenterPage {}
+    }
+
+    Component {
+        id: settingsComp
+
+        SettingsPage {}
     }
 
 }

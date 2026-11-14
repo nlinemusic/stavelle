@@ -35,6 +35,9 @@ Item {
 
     property NavigationSection navigationSection: null
 
+    //! Jubelle: a template chosen in the Template Library, selected when the page opens.
+    property string initialTemplatePath: ""
+
     property alias navigation: templatesView.navigationPanel
 
     signal done
@@ -49,6 +52,10 @@ Item {
 
     Component.onCompleted: {
         model.load()
+
+        if (root.initialTemplatePath !== "") {
+            model.selectTemplateByPath(root.initialTemplatePath)
+        }
     }
 
     RowLayout {

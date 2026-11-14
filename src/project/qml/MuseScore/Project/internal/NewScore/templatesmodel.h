@@ -60,6 +60,10 @@ public:
     Q_INVOKABLE void saveCurrentCategory();
     Q_INVOKABLE void setSearchText(const QString& text);
 
+    //! Jubelle: selects the template with this file path (and its category).
+    //! Returns false if no such template exists; the selection is then unchanged.
+    Q_INVOKABLE bool selectTemplateByPath(const QString& path);
+
 public slots:
     void setCurrentCategoryIndex(int index);
     void setCurrentTemplateIndex(int index);

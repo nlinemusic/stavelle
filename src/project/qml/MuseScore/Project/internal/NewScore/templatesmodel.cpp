@@ -190,6 +190,25 @@ void TemplatesModel::setCurrentTemplateIndex(int index)
     }
 }
 
+bool TemplatesModel::selectTemplateByPath(const QString& path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const muse::io::path_t wanted(path);
+    for (const Template& templ : m_allTemplates) {
+        if (templ.meta.filePath == wanted) {
+            setCurrentCategory(templ.categoryTitle);
+            updateTemplatesByCurrentCategory();
+            setCurrentTemplate(templ);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void TemplatesModel::saveCurrentCategory()
 {
     m_saveCurrentCategory = true;

@@ -107,6 +107,11 @@ void ProjectModule::resolveImports()
     auto ir = ioc()->resolve<muse::ui::IInteractiveUriRegister>(moduleName());
     if (ir) {
         ir->registerQmlUri(Uri("musescore://project/newscore"), "MuseScore.Project", "NewScoreDialog");
+        // Jubelle: Projects page dialogs
+        ir->registerQmlUri(Uri("musescore://project/jubelle/name"), "MuseScore.Project", "ProjectNameDialog");
+        ir->registerQmlUri(Uri("musescore://project/jubelle/move"), "MuseScore.Project", "ProjectMoveDialog");
+        ir->registerQmlUri(Uri("musescore://project/jubelle/categoriestags"), "MuseScore.Project", "ProjectCategoriesTagsDialog");
+        ir->registerQmlUri(Uri("musescore://project/jubelle/cardimage"), "MuseScore.Project", "CardImageDialog");
         ir->registerQmlUri(Uri("musescore://project/asksavelocationtype"), "MuseScore.Project", "AskSaveLocationTypeDialog");
         ir->registerQmlUri(Uri("musescore://project/savetocloud"), "MuseScore.Project", "SaveToCloudDialog");
         ir->registerQmlUri(Uri("musescore://project/alsoshareaudiocom"), "MuseScore.Project", "AlsoShareAudioComDialog");

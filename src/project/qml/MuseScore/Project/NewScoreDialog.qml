@@ -39,6 +39,10 @@ StyledDialogView {
 
     objectName: "NewScoreDialog"
 
+    //! Jubelle: opened from the Template Library with a template already chosen
+    //! (musescore://project/newscore?templatePath=...).
+    property string templatePath: ""
+
     function onDone() {
         var result = {}
 
@@ -88,6 +92,7 @@ StyledDialogView {
             id: chooseInstrumentsAndTemplatePage
 
             navigationSection: root.navigationSection
+            initialTemplatePath: root.templatePath
 
             Component.onCompleted: {
                 preferredScoreCreationMode = newScoreModel.preferredScoreCreationMode()
