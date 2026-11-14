@@ -136,3 +136,30 @@ TEST(PassageLinkPlannerTests, RestsFollowTheSource)
     Passage back = propagate(after, before, out, SyncOptions::all());
     EXPECT_EQ(pitchesOf(back), (std::vector<int> { 64, 66 }));
 }
+
+TEST(PassageLinkPlannerTests, DurationsCanStayIndependent)
+{
+    auto rest = [](int tick, int dur) { Event e; e.tick = tick; e.duration = dur; return e; };
+    // Source: two quarter notes; target plays the first one short (an eighth
+    // and an eighth rest). The source changes its second note's rhythm.
+    Passage sourceBefore { note(0, 480, 72), note(480, 480, 74) };
+    Passage sourceAfter { note(0, 480, 72), note(480, 240, 74), note(720, 240, 76) };
+    Passage target { note(0, 240, 67), rest(240, 240), note(480, 480, 69) };
+
+    SyncOptions o;
+    o.durations = false;
+    const Passage out = propagate(sourceBefore, sourceAfter, target, o);
+    // The first note keeps its own short length (with its rest); the new
+    // rhythm arrives for the rest of the passage
+    ASSERT_EQ(out.size(), 4u);
+    EXPECT_EQ(out[0].duration, 240);
+    EXPECT_TRUE(out[1].pitches.empty());
+    EXPECT_EQ(out[1].tick, 240);
+    EXPECT_EQ(out[2].tick, 480);
+    EXPECT_EQ(out[2].duration, 240);
+    EXPECT_EQ(out[3].tick, 720);
+
+    // With durations on, the source's lengths win
+    const Passage all = propagate(sourceBefore, sourceAfter, target, SyncOptions::all());
+    EXPECT_EQ(all[0].duration, 480);
+}

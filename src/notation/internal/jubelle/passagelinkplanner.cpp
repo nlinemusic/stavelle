@@ -153,6 +153,17 @@ Passage propagate(const Passage& sourceBefore, const Passage& sourceAfter, const
         if (!isRest(e)) {
             copyCategories(e, &s, oldTarget, options);
         }
+        // Durations not synchronised: a note keeps its own length, as long as
+        // it fits before the source's next note; the rest of the time is a rest
+        if (!options.durations && !isRest(e) && oldTarget && !isRest(*oldTarget) && oldTarget->duration < s.duration) {
+            e.duration = oldTarget->duration;
+            out.push_back(e);
+            Event filler;
+            filler.tick = s.tick + oldTarget->duration;
+            filler.duration = s.duration - oldTarget->duration;
+            out.push_back(filler);
+            continue;
+        }
         out.push_back(e);
     }
     for (const Event* d : detached) {

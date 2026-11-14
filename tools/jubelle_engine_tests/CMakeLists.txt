@@ -87,6 +87,8 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/internal/jubelle/partlayout.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/articulationpassage.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/pagealignment.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/linkedpassages.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/passagelinkplanner.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
@@ -97,6 +99,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_articulationpassage_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_pagealignment_tests.cpp
+    ${MU_ROOT}/src/notation/tests/jubelle_linkedpassages_tests.cpp
     # MuseScore's own tests for the code Jubelle touches, to show its
     # behaviour is unchanged (copies with u"" string literals, see below):
     ${MUSE_TEST_COPIES}

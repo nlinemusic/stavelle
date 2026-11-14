@@ -45,7 +45,8 @@ struct Event {
 using Passage = std::vector<Event>; //!< in time order
 
 struct SyncOptions {
-    bool rhythm = true;         //!< note positions, rhythms and durations
+    bool rhythm = true;         //!< note positions and rhythms
+    bool durations = true;      //!< note durations (off: a note keeps its own length where it can)
     bool articulations = true;
     bool dynamics = true;       //!< dynamics and expression markings
     bool markings = true;       //!< slurs, ties and other markings

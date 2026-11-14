@@ -363,6 +363,10 @@ void Score::startCmd(const TranslatableString& actionName)
     // Start collecting low-level undo operations for a
     // user-visible undo action.
     undoStack()->beginMacro(this, actionName);
+
+    if (jubelleCmdHook) {
+        jubelleCmdHook->beforeCmd(this);
+    }
 }
 
 //---------------------------------------------------------
@@ -421,6 +425,9 @@ void Score::endCmd(bool rollback, bool layoutAllParts)
 
     if (rollback) {
         undoStack()->activeCommand()->unwind();
+    } else if (jubelleCmdHook) {
+        // Jubelle: linked passages follow the edit, in this same undo step
+        jubelleCmdHook->afterCmd(this);
     }
 
     update(false, layoutAllParts);

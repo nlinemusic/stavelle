@@ -591,6 +591,15 @@ public:
     std::pair<Note*, Note*> repitchReplaceNote(Chord*, const NoteVal&, bool forceAccidental = false);   // returns new note and last tied note
     void regroupNotesAndRests(const Fraction& startTick, const Fraction& endTick, track_idx_t track);
 
+    //! Jubelle: called at the start and end of every undoable command, so
+    //! linked passages can follow edits in the same undo step. None by default.
+    struct JubelleCmdHook {
+        virtual ~JubelleCmdHook() = default;
+        virtual void beforeCmd(Score* score) = 0;
+        virtual void afterCmd(Score* score) = 0;   // still inside the command
+    };
+    static inline JubelleCmdHook* jubelleCmdHook = nullptr;
+
     void startCmd(const TranslatableString& actionName);             // start undoable command
     void endCmd(bool rollback = false, bool layoutAllParts = false); // end undoable command
     void update() { update(true); }
