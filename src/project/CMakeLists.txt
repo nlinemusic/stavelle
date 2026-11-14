@@ -54,6 +54,8 @@ target_sources(project PRIVATE
     internal/safefilewrite.h
     internal/projectlibrary.cpp
     internal/projectlibrary.h
+    internal/projectinfo.cpp
+    internal/projectinfo.h
     internal/projectcreator.cpp
     internal/projectcreator.h
     internal/projectaudiosettings.cpp
@@ -122,6 +124,7 @@ endif()
 set_source_files_properties(
     internal/safefilewrite.cpp
     internal/projectlibrary.cpp
+    internal/projectinfo.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
     SKIP_PRECOMPILE_HEADERS ON
