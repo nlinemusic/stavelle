@@ -243,3 +243,14 @@ TEST(ChordIdentifierTests, RomanNumeralExtensions)
     EXPECT_EQ(roman({ { 43, G }, { 59, B }, { 62, D }, { 65, F }, { 76, E } }, 0, false), "V7(13)");
     EXPECT_EQ(roman({ { 48, C }, { 55, G } }, 0, false), "I(5)");
 }
+
+TEST(ChordIdentifierTests, EleventhChordsWithTheirThird)
+{
+    // From Yamaha's chord guide: C11 (C D E F G Bb) and C11(b9/b13) (C Db E F G Ab Bb).
+    EXPECT_EQ(name({ { 48, C }, { 62, D }, { 64, E }, { 65, F }, { 67, G }, { 70, Bb } }), "C11");
+    EXPECT_EQ(name({ { 48, C }, { 61, Db }, { 64, E }, { 65, F }, { 67, G }, { 68, Ab }, { 70, Bb } }), "C11b9b13");
+    Result r = identify({ { 48, C }, { 61, Db }, { 64, E }, { 65, F }, { 67, G }, { 68, Ab }, { 70, Bb } });
+    EXPECT_EQ(roleOf(r, 65), ToneRole::Extension);
+    EXPECT_EQ(roleOf(r, 64), ToneRole::Third);
+    EXPECT_EQ(romanNumeral(r, keyFromSignature(-1, false), false), "V7(b9,11,b13)"); // in F major
+}

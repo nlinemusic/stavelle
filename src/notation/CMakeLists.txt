@@ -70,6 +70,8 @@ target_sources(notation PRIVATE
     internal/notationinteraction.cpp
     internal/jubelle/chordidentifier.cpp
     internal/jubelle/chordidentifier.h
+    internal/jubelle/chordidentifierrunner.cpp
+    internal/jubelle/chordidentifierrunner.h
     internal/jubelle/condensingplanner.cpp
     internal/jubelle/condensingplanner.h
     internal/jubelle/passagelinkplanner.cpp

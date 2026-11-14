@@ -80,6 +80,7 @@ const std::vector<ChordType>& chordTypes()
         { "13",       { 0, 4, 7, 9, 10 },       "R35x7" }, // dominant 13 (no 9)
         // elevenths and thirteenths
         { "m11",      { 0, 2, 3, 5, 7, 10 },    "Rx3x57" },
+        { "11",       { 0, 2, 4, 5, 7, 10 },    "Rx3x57" }, // dominant 11 with its 3rd
         { "maj9#11",  { 0, 2, 4, 6, 7, 11 },    "Rx3x57" },
         { "9#11",     { 0, 2, 4, 6, 7, 10 },    "Rx3x57" },
         { "13",       { 0, 2, 4, 7, 9, 10 },    "Rx35x7" },
@@ -100,6 +101,7 @@ const std::vector<ChordType>& chordTypes()
         { "7b5b9",    { 0, 1, 4, 6, 10 },       "Rx357" },
         { "7b5#9",    { 0, 3, 4, 6, 10 },       "Rx357" },
         { "7alt",     { 0, 1, 3, 4, 6, 8, 10 }, "Rxx35x7" },
+        { "11b9b13",  { 0, 1, 4, 5, 7, 8, 10 }, "Rx3x5x7" },
     };
     return types;
 }
