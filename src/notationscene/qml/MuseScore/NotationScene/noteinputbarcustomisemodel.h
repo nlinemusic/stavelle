@@ -23,6 +23,7 @@
 #pragma once
 
 #include <qqmlintegration.h>
+#include <QItemSelectionModel>
 
 #include "async/asyncable.h"
 #include "uicomponents/qml/Muse/UiComponents/selectableitemlistmodel.h"

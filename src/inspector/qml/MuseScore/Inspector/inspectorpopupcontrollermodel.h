@@ -25,6 +25,7 @@
 #include <QObject>
 #include <qqmlintegration.h>
 #include <QQmlParserStatus>
+#include <QQuickItem>
 
 #include "modularity/ioc.h"
 #include "internal/iinspectorpopupcontroller.h"

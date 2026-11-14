@@ -56,6 +56,7 @@
 #include <QtCore/qabstractitemmodel.h>
 #include <QtCore/qitemselectionmodel.h>
 #include <qqmlintegration.h>
+#include <QAbstractItemModel>
 
 QT_BEGIN_NAMESPACE
 

@@ -27,6 +27,7 @@
 #include <QVariant>
 #include <QtQml/qqmlparserstatus.h>
 #include <qqmlintegration.h>
+#include <QItemSelectionModel>
 
 #include "abstractlayoutpaneltreeitem.h"
 #include "modularity/ioc.h"

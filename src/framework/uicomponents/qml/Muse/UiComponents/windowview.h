@@ -26,6 +26,7 @@
 #include <QQmlParserStatus>
 #include <QQuickItem>
 #include <QQuickView>
+#include <QWindow>
 
 #include "async/asyncable.h"
 
