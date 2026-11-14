@@ -154,7 +154,14 @@ void TripletFeel::setTripletProperty()
         break;
     }
 
-    setXmlText(tupletSymbols.at(m_tripletFeelType).arg(String(u"<sym>staffPosLower3</sym><sym>"), String(u"</sym>")));
+    setXmlText(equationXmlText(m_tripletFeelType));
+}
+
+//! The rhythmic equation shown for a feel type (also used by Jubelle's
+//! automatic swing marking)
+String TripletFeel::equationXmlText(TripletFeelType type)
+{
+    return tupletSymbols.at(type).arg(String(u"<sym>staffPosLower3</sym><sym>"), String(u"</sym>"));
 }
 
 //---------------------------------------------------------

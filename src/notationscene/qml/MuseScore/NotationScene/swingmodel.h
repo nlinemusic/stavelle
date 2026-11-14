@@ -35,6 +35,9 @@ class SwingModel : public QObject, public muse::Contextable
     Q_PROPERTY(int editedFeelIndex READ editedFeelIndex WRITE setEditedFeelIndex NOTIFY changed)
     Q_PROPERTY(QVariantMap editedFeel READ editedFeel NOTIFY changed)
 
+    Q_PROPERTY(int markingStyle READ markingStyle WRITE setMarkingStyle NOTIFY changed)
+    Q_PROPERTY(QString markingText READ markingText WRITE setMarkingText NOTIFY changed)
+
     Q_PROPERTY(bool hasChanges READ hasChanges NOTIFY changed)
     Q_PROPERTY(QString resultText READ resultText NOTIFY resultChanged)
 
@@ -64,6 +67,11 @@ public:
     int editedFeelIndex() const;
     void setEditedFeelIndex(int index);
     QVariantMap editedFeel() const;
+    int markingStyle() const;
+    void setMarkingStyle(int style);
+    QString markingText() const;
+    void setMarkingText(const QString& text);
+
     bool hasChanges() const;
     QString resultText() const;
 

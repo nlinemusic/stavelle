@@ -68,8 +68,20 @@ struct SwingFeel {
 //! Straight, Light, Medium, Heavy, 2:1, 3:1, Basie
 const std::vector<SwingFeel>& builtInFeels();
 
+//! Jubelle Phase 5C: the automatic swing marking near the first tempo marking
+enum class SwingMarkingStyle {
+    Off = 0,           // no automatic marking
+    Text,              // e.g. "Basie swing"
+    TextAndEquation,   // the text and the rhythmic equation (default)
+    Custom,            // your own description
+};
+
 struct SwingSettings {
     static constexpr const char16_t* META_TAG = u"jubelleSwing";
+
+    SwingMarkingStyle markingStyle = SwingMarkingStyle::TextAndEquation;
+    muse::String markingText;      // for Custom
+    muse::String markingEid;       // the marking Jubelle placed (its element id), if any
 
     muse::String scoreFeel;                       // empty = not set (MuseScore's style swing applies)
     std::map<uint64_t, muse::String> partFeels;   // key: Part::id(); per-instrument choice

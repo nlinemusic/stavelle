@@ -19,6 +19,7 @@
 #include "notation/inotation.h"
 #include "notation/inotationelements.h"
 #include "notation/internal/inotationundostack.h"
+#include "notation/internal/jubelle/swingmarking.h"
 
 using namespace mu::notation;
 using namespace mu::engraving;
@@ -286,6 +287,31 @@ void SwingModel::restoreEditedFeel()
     touch();
 }
 
+int SwingModel::markingStyle() const
+{
+    return int(m_settings.markingStyle);
+}
+
+void SwingModel::setMarkingStyle(int style)
+{
+    if (style < 0 || style > int(SwingMarkingStyle::Custom)) {
+        return;
+    }
+    m_settings.markingStyle = SwingMarkingStyle(style);
+    touch();
+}
+
+QString SwingModel::markingText() const
+{
+    return m_settings.markingText.toQString();
+}
+
+void SwingModel::setMarkingText(const QString& text)
+{
+    m_settings.markingText = muse::String::fromQString(text.trimmed());
+    touch();
+}
+
 bool SwingModel::hasChanges() const
 {
     return m_settings.toText() != m_original.toText();
@@ -311,7 +337,13 @@ bool SwingModel::apply()
     if (!notation || !s || !hasChanges()) {
         return false;
     }
+    // The marking near the tempo marking (Phase 5C) changes in the same step
+    QString feelName;
+    if (const SwingFeel* feel = m_settings.feel(m_settings.scoreFeel)) {
+        feelName = displayName(*feel);
+    }
     notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Change swing"));
+    mu::notation::jubelle::updateSwingMarking(s, m_settings, muse::String::fromQString(feelName));
     m_settings.write(s);
     notation->undoStack()->commitChanges();
 

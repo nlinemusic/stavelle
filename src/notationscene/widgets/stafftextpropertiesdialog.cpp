@@ -92,9 +92,9 @@ StaffTextPropertiesDialog::StaffTextPropertiesDialog(QWidget* parent)
         auto* label = new QLabel(muse::qtrc("notation", "Feel:"), this);
         m_jubelleFeel = new QComboBox(this);
         m_jubelleFeel->addItem(muse::qtrc("notation", "None (use the swing ratio above)"), QString());
-        const jubelle::SwingSettings settings = jubelle::SwingSettings::read(st->score());
+        const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(st->score());
         int current = 0;
-        for (const jubelle::SwingFeel& f : settings.allFeels()) {
+        for (const mu::engraving::jubelle::SwingFeel& f : settings.allFeels()) {
             const QString name = f.builtIn ? muse::qtrc("notation", f.name.toStdString().c_str()) : f.name.toQString();
             m_jubelleFeel->addItem(name, f.id.toQString());
             if (m_staffText->swing() && f.id == m_staffText->swingParameters().jubelleFeel) {
@@ -173,10 +173,10 @@ void StaffTextPropertiesDialog::saveValues()
         const QString feelId = m_jubelleFeel ? m_jubelleFeel->currentData().toString() : QString();
         m_staffText->setJubelleSwingFeel(muse::String::fromQString(feelId));
         if (!feelId.isEmpty() && !swingOff->isChecked()) {
-            const jubelle::SwingSettings settings = jubelle::SwingSettings::read(m_originStaffText->score());
-            if (const jubelle::SwingFeel* feel = settings.feel(muse::String::fromQString(feelId))) {
+            const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(m_originStaffText->score());
+            if (const mu::engraving::jubelle::SwingFeel* feel = settings.feel(muse::String::fromQString(feelId))) {
                 const double bpm = m_originStaffText->score()->tempomap()->tempo(m_originStaffText->tick().ticks()).val * 60.0;
-                const int ratio = int(std::lround(jubelle::SwingFeel::ratioToPercent(feel->ratioAt(bpm))));
+                const int ratio = int(std::lround(mu::engraving::jubelle::SwingFeel::ratioToPercent(feel->ratioAt(bpm))));
                 const int unit = feel->unit == 16 ? Constants::DIVISION / 4 : Constants::DIVISION / 2;
                 m_staffText->setSwingParameters(unit, std::max(ratio, 50));
             }

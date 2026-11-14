@@ -55,6 +55,8 @@ public:
     TranslatableString subtypeUserName() const override;
     String accessibleInfo() const override;
 
+    static String equationXmlText(TripletFeelType type);
+
 private:
 
     constexpr static int eightDivision = 2;

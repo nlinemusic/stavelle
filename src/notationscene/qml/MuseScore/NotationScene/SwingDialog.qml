@@ -135,6 +135,33 @@ StyledDialogView {
             text: qsTrc("notation", "To change the feel from a point in the score, add a Swing text there and choose a feel in its Staff text properties.")
         }
 
+        // ---- The marking near the tempo marking ----
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+            RowLabel { text: qsTrc("notation", "Marking above the tempo:") }
+            StyledDropdown {
+                Layout.fillWidth: true
+                model: [
+                    { text: qsTrc("notation", "None") },
+                    { text: qsTrc("notation", "Feel name, e.g. “Basie swing”") },
+                    { text: qsTrc("notation", "Feel name and rhythmic equation") },
+                    { text: qsTrc("notation", "My own description") }
+                ]
+                currentIndex: swingModel.markingStyle
+                navigation.panel: panel
+                onActivated: function(index, value) { swingModel.markingStyle = index }
+            }
+        }
+        TextInputField {
+            Layout.fillWidth: true
+            visible: swingModel.markingStyle === 3
+            currentText: swingModel.markingText
+            hint: qsTrc("notation", "e.g. Relaxed swing")
+            navigation.panel: panel
+            onTextEditingFinished: function(newTextValue) { swingModel.markingText = newTextValue }
+        }
+
         SeparatorLine { Layout.fillWidth: true }
 
         // ---- Editing a feel ----

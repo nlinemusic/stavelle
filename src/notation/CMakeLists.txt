@@ -76,6 +76,8 @@ target_sources(notation PRIVATE
     internal/jubelle/condensingplanner.h
     internal/jubelle/passagelinkplanner.cpp
     internal/jubelle/passagelinkplanner.h
+    internal/jubelle/swingmarking.cpp
+    internal/jubelle/swingmarking.h
     internal/notationinteraction.h
     internal/notationmidiinput.cpp
     internal/notationmidiinput.h
@@ -138,6 +140,7 @@ set_source_files_properties(
     internal/jubelle/chordidentifierrunner.cpp
     internal/jubelle/condensingplanner.cpp
     internal/jubelle/passagelinkplanner.cpp
+    internal/jubelle/swingmarking.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )

@@ -205,7 +205,8 @@ String SwingSettings::newCustomId() const
 
 bool SwingSettings::isEmpty() const
 {
-    return scoreFeel.isEmpty() && partFeels.empty() && feels.empty();
+    return scoreFeel.isEmpty() && partFeels.empty() && feels.empty()
+           && markingStyle == SwingMarkingStyle::TextAndEquation && markingText.isEmpty() && markingEid.isEmpty();
 }
 
 bool SwingSettings::operator==(const SwingSettings& o) const
@@ -262,6 +263,10 @@ String SwingSettings::toText() const
     for (const auto& [partId, id] : partFeels) {
         out << "part " << partId << ' ' << encodeName(id) << '\n';
     }
+    if (markingStyle != SwingMarkingStyle::TextAndEquation || !markingText.isEmpty() || !markingEid.isEmpty()) {
+        out << "marking style=" << int(markingStyle) << " text=" << encodeName(markingText)
+            << " eid=" << encodeName(markingEid) << '\n';
+    }
     for (const SwingFeel& f : feels) {
         out << "feel id=" << encodeName(f.id) << " name=" << encodeName(f.name) << " unit=" << f.unit
             << " tempo=" << (f.tempoDependent ? 1 : 0) << " low=" << f.lowTempo << " high=" << f.highTempo
@@ -303,6 +308,26 @@ SwingSettings SwingSettings::fromText(const String& text)
                 line >> partText >> id;
                 if (!id.empty()) {
                     result.partFeels[std::stoull(partText)] = decodeName(id);
+                }
+            } else if (kind == "marking") {
+                std::string token;
+                while (line >> token) {
+                    const size_t eq = token.find('=');
+                    if (eq == std::string::npos) {
+                        continue;
+                    }
+                    const std::string key = token.substr(0, eq);
+                    const std::string v = token.substr(eq + 1);
+                    if (key == "style") {
+                        const int style = std::stoi(v);
+                        if (style >= 0 && style <= int(SwingMarkingStyle::Custom)) {
+                            result.markingStyle = SwingMarkingStyle(style);
+                        }
+                    } else if (key == "text") {
+                        result.markingText = decodeName(v);
+                    } else if (key == "eid") {
+                        result.markingEid = decodeName(v);
+                    }
                 }
             } else if (kind == "feel") {
                 SwingFeel f;
