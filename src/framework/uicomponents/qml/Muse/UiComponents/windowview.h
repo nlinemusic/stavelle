@@ -27,12 +27,14 @@
 #include <QQuickItem>
 #include <QQuickView>
 #include <QWindow>
+#include <QQmlEngine>
 
 #include "async/asyncable.h"
 
 #include "modularity/ioc.h"
 #include "ui/iinteractiveprovider.h"
 #include "ui/imainwindow.h"
+#include "ui/inavigation.h"  // INavigationControl* is used in a signal; moc needs the full type
 #include "ui/inavigationcontroller.h"
 #include "ui/iuiconfiguration.h"
 
