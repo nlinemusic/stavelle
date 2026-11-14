@@ -38,10 +38,6 @@ if (NOT MUSE_MODULE_LANGUAGES)
     add_subdirectory(languages)
 endif()
 
-if (NOT MUSE_MODULE_LEARN)
-    add_subdirectory(learn)
-endif()
-
 if (NOT MUSE_MODULE_MEDIA)
     add_subdirectory(media)
 endif()

@@ -86,7 +86,6 @@ qt_add_qml_module(appshell_qml
         TARGET muse_dockwindow_qml
         TARGET muse_diagnostics_qml
         TARGET muse_extensions_qml
-        TARGET muse_learn_qml
         TARGET muse_mpe_qml
         TARGET muse_shortcuts_qml
         TARGET muse_toast_qml
