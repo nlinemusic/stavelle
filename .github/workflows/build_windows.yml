@@ -197,6 +197,7 @@ jobs:
       shell: cmd
       run: |
         IF ${{ env.SENTRY_URL != 0 }} == true ( SET C_URL="${{ env.SENTRY_URL }}" ) ELSE ( SET C_URL="" )
+        SET NINJA_EXTRA_ARGS=-k 0
         buildscripts\ci\windows\build.bat -n ${{ env.BUILD_NUMBER }} --crash_log_url %C_URL%
     - name: Show ccache stats
       run: |
@@ -205,6 +206,10 @@ jobs:
       timeout-minutes: 30
       shell: bash
       run: |
+        # Stavelle must never contain MuseScore's app updater
+        CACHE=$(ls build.release/CMakeCache.txt 2>/dev/null | head -1)
+        echo "Build configuration: $CACHE"; grep "MUSE_MODULE_UPDATE:BOOL" "$CACHE"
+        grep -q "MUSE_MODULE_UPDATE:BOOL=OFF" "$CACHE" || { echo "FAIL: MuseScore's app updater is enabled"; exit 1; }
         mkdir -p smoke_scores
         cp demos/*.mscz demos/Dawn.mscx smoke_scores/
         python -X utf8 tools/stavelle_smoke/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15

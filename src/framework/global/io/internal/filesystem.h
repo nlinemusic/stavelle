@@ -28,7 +28,7 @@
 
 #include "../ifilesystem.h"
 
-class QFile;
+#include <QFile>  // full type needed: std::unique_ptr<QFile> members (was only provided by the precompiled header)
 
 namespace muse::io {
 class FileSystem : public IFileSystem
