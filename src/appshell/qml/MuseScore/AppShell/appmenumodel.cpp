@@ -72,6 +72,7 @@ void AppMenuModel::load()
         makeViewMenu(),
         makeAddMenu(),
         makeFormatMenu(),
+        makePlaybackMenu(),
         makeToolsMenu(),
         makePluginsMenu()
     };
@@ -373,6 +374,16 @@ MenuItem* AppMenuModel::makeFormatMenu()
     };
 
     return makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format");
+}
+
+//! Jubelle Phase 5D: playback controls
+MenuItem* AppMenuModel::makePlaybackMenu()
+{
+    MenuItemList playbackItems {
+        makeMenuItem("jubelle-repeats"),
+    };
+
+    return makeMenu(TranslatableString("appshell/menu/playback", "&Playback"), playbackItems, "menu-jubelle-playback");
 }
 
 MenuItem* AppMenuModel::makeToolsMenu()

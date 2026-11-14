@@ -435,6 +435,10 @@ public:
 
     int getRepeatCount() const { return repeatCount; }
     void addToRepeatCount(int add) { repeatCount += add; }
+
+    // Jubelle: on a REPEAT_START, the repeat is switched off for playback
+    // ("Play this repeat"): its section is played once, on its final pass
+    bool jubelleSkip = false;
 };
 
 ///---------------------------------------------------------
@@ -641,6 +645,9 @@ void RepeatList::collectRepeatListElements()
                 sectionRLElements.push_back(new RepeatListElement(RepeatListElementType::REPEAT_END, mb, toMeasure(mb)));
                 if (startFromRepeatMeasure != nullptr) {
                     startFromRepeatMeasure->addToRepeatCount(toMeasure(mb)->repeatCount() - 1);
+                    if (!toMeasure(mb)->jubellePlayRepeat()) {
+                        startFromRepeatMeasure->jubelleSkip = true;
+                    }
                 }
                 if (volta != nullptr) {
                     //if (volta->endMeasure()->tick() < mb->tick()) {
@@ -890,6 +897,11 @@ void RepeatList::unwind()
         continueAt.first = m_rlElements.cend();
         forceFinalRepeat = false;
 
+        if (startRepeatReference->jubelleSkip) {
+            // Jubelle: a repeat switched off from the start of the section
+            playbackCount = startRepeatReference->getRepeatCount();
+        }
+
         rs = new RepeatSegment(playbackCount);
         rs->addMeasure((*repeatListElementIt)->measure);
         ++repeatListElementIt;
@@ -959,7 +971,10 @@ void RepeatList::unwind()
                     rs = new RepeatSegment(playbackCount);
                     rs->addMeasure((*repeatListElementIt)->measure);
                 } else {
-                    int desiredPlaybackCount = (forceFinalRepeat) ? (*repeatListElementIt)->getRepeatCount() : 1;
+                    // Jubelle: a repeat switched off is played once, on its final pass
+                    // (like a repeat after a jump that doesn't play repeats)
+                    int desiredPlaybackCount = (forceFinalRepeat || (*repeatListElementIt)->jubelleSkip)
+                                               ? (*repeatListElementIt)->getRepeatCount() : 1;
                     if (rs->playbackCount != desiredPlaybackCount) {
                         // Restart a segment as we have a new playbackCount reference
                         rs->popMeasure();

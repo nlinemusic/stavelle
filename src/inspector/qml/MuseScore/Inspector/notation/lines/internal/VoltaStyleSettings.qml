@@ -56,6 +56,15 @@ FocusableItem {
             navigationRowStart: root.navigationRowStart + 1
         }
 
+        PropertyCheckBox {
+            text: qsTrc("inspector", "Play this repeat")
+            propertyItem: root.model ? root.model.jubellePlayRepeat : null
+
+            navigation.name: "JubellePlayRepeatCheckBox"
+            navigation.panel: root.navigationPanel
+            navigation.row: root.navigationRowStart + 1
+        }
+
         SeparatorLine { anchors.margins: -12 }
 
         Column {

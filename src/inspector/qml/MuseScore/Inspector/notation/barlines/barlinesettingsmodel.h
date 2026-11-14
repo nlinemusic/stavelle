@@ -34,6 +34,7 @@ class BarlineSettingsModel : public AbstractInspectorModel
 
     Q_PROPERTY(mu::inspector::PropertyItem * type READ type CONSTANT)
     Q_PROPERTY(mu::inspector::PropertyItem * playCount READ playCount CONSTANT)
+    Q_PROPERTY(mu::inspector::PropertyItem * jubellePlayRepeat READ jubellePlayRepeat CONSTANT)
     Q_PROPERTY(mu::inspector::PropertyItem * playCountText READ playCountText CONSTANT)
     Q_PROPERTY(mu::inspector::PropertyItem * playCountTextSetting READ playCountTextSetting CONSTANT)
     Q_PROPERTY(mu::inspector::PropertyItem * isSpanToNextStaff READ isSpanToNextStaff CONSTANT)
@@ -52,6 +53,7 @@ public:
 
     PropertyItem* type() const;
     PropertyItem* playCount() const;
+    PropertyItem* jubellePlayRepeat() const;
     PropertyItem* playCountText() const;
     PropertyItem* playCountTextSetting() const;
     PropertyItem* isSpanToNextStaff() const;
@@ -83,6 +85,7 @@ private:
 
     PropertyItem* m_type = nullptr;
     PropertyItem* m_playCount = nullptr;
+    PropertyItem* m_jubellePlayRepeat = nullptr;   // Jubelle: playback takes this repeat
     PropertyItem* m_playCountText = nullptr;
     PropertyItem* m_playCountTextSetting = nullptr;
     PropertyItem* m_isSpanToNextStaff = nullptr;

@@ -101,6 +101,7 @@ private:
     muse::uicomponents::MenuItem* makeViewMenu();
     muse::uicomponents::MenuItem* makeAddMenu();
     muse::uicomponents::MenuItem* makeFormatMenu();
+    muse::uicomponents::MenuItem* makePlaybackMenu();
     muse::uicomponents::MenuItem* makeToolsMenu();
     muse::uicomponents::MenuItem* makePluginsMenu();
     muse::uicomponents::MenuItemList makePluginsMenuSubitems();

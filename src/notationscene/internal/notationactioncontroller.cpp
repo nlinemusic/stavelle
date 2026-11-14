@@ -397,6 +397,9 @@ void NotationActionController::init()
     registerAction("jubelle-swing", [this]() {
         interactive()->open("musescore://notation/jubelle/swing");
     });
+    registerAction("jubelle-repeats", [this]() {
+        interactive()->open("musescore://notation/jubelle/repeats");
+    });
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);

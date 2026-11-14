@@ -62,6 +62,10 @@ void MeasureWrite::writeMeasure(const Measure* measure, XmlWriter& xml, WriteCon
         }
         if (measure->repeatEnd()) {
             xml.tag("endRepeat", measure->m_repeatCount);
+            if (!measure->jubellePlayRepeat()) {
+                // Jubelle; MuseScore 4.7.7 skips this tag and plays the repeat
+                xml.tag("jubellePlayRepeat", false);
+            }
         }
         TWrite::writeProperty(measure, xml, Pid::IRREGULAR);
         TWrite::writeProperty(measure, xml, Pid::BREAK_MMR);

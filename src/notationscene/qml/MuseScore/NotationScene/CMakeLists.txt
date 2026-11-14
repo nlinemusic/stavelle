@@ -43,6 +43,8 @@ qt_add_qml_module(notationscene_qml
         articulationplaybackmodel.h
         swingmodel.cpp
         swingmodel.h
+        repeatsmodel.cpp
+        repeatsmodel.h
         engravingpresetsmodel.cpp
         engravingpresetsmodel.h
         continuouspanel.h
@@ -173,6 +175,7 @@ qt_add_qml_module(notationscene_qml
         ChordIdentifierDialog.qml
         ArticulationPlaybackDialog.qml
         SwingDialog.qml
+        RepeatsDialog.qml
         EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml

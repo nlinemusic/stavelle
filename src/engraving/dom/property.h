@@ -520,6 +520,8 @@ enum class Pid : short {
     STAFF_MERGE_MATCHING_RESTS,
     STAFF_REFLECT_TRANSPOSITION,
 
+    JUBELLE_PLAY_REPEAT,   // Jubelle: whether playback takes this repeat (end-repeat measure)
+
     END
 };
 

@@ -326,3 +326,53 @@ TEST_F(Jubelle_Swing, InstrumentOverrideAndSwingText)
         }
     }
 }
+
+//! Jubelle Phase 5D, on MuseScore's real playback model: switching a repeat
+//! off changes what is played straight away, and undo brings it back.
+TEST(Jubelle_RepeatsPlayback, PlayThisRepeatReachesPlayback)
+{
+    MasterScore* score = ScoreRW::readScore(u"repeat_data/repeat01.mscx");   // bars 1;2;3; 2;3;4;5;6
+    ASSERT_TRUE(score);
+    auto repository = std::make_shared<::testing::NiceMock<muse::mpe::ArticulationProfilesRepositoryMock> >();
+    ON_CALL(*repository, defaultProfile(::testing::_)).WillByDefault(::testing::Return(flatProfile()));
+    PlaybackModel model(muse::modularity::globalCtx());
+    model.profilesRepository.set(repository);
+    model.load(score);
+
+    const Part* part = score->parts().front();
+    auto noteCount = [&]() {
+        size_t n = 0;
+        for (const auto& [ts, list] : model.resolveTrackPlaybackData(part->id(), part->instrumentId()).originEvents) {
+            for (const muse::mpe::PlaybackEvent& e : list) {
+                n += std::holds_alternative<muse::mpe::NoteEvent>(e) ? 1 : 0;
+            }
+        }
+        return n;
+    };
+    const size_t withRepeat = noteCount();
+    ASSERT_GT(withRepeat, 0u);
+
+    Measure* end = nullptr;
+    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasure()) {
+        if (m->repeatEnd()) {
+            end = m;
+        }
+    }
+    ASSERT_TRUE(end);
+    size_t notesInBars2and3 = 0;
+    for (Segment* s = score->firstMeasure()->nextMeasure()->first(SegmentType::ChordRest); s && s->measure() != end->nextMeasure();
+         s = s->next1(SegmentType::ChordRest)) {
+        if (s->element(0) && s->element(0)->isChord()) {
+            notesInBars2and3 += toChord(s->element(0))->notes().size();
+        }
+    }
+
+    score->startCmd(muse::TranslatableString::untranslatable("play repeat"));
+    end->undoChangeProperty(Pid::JUBELLE_PLAY_REPEAT, false);
+    score->endCmd();
+    EXPECT_EQ(noteCount(), withRepeat - notesInBars2and3);
+
+    score->undoRedo(true, nullptr);
+    EXPECT_EQ(noteCount(), withRepeat);
+    delete score;
+}

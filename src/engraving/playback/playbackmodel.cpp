@@ -784,6 +784,7 @@ bool PlaybackModel::hasToReloadScore(const ScoreChanges& changes) const
         mu::engraving::Pid::REPEAT_END,
         mu::engraving::Pid::REPEAT_JUMP,
         mu::engraving::Pid::REPEAT_COUNT,
+        mu::engraving::Pid::JUBELLE_PLAY_REPEAT,   // Jubelle: "Play this repeat"
     };
 
     for (const Pid pid: changes.changedPropertyIdSet) {

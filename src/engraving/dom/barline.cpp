@@ -860,7 +860,7 @@ void BarLine::undoChangeProperty(Pid id, const PropertyValue& v, PropertyFlags p
 
 EngravingObject* BarLine::propertyDelegate(Pid pid) const
 {
-    if (pid == Pid::REPEAT_COUNT) {
+    if (pid == Pid::REPEAT_COUNT || pid == Pid::JUBELLE_PLAY_REPEAT) {
         return measure();
     } else if (pid == Pid::PLAY_COUNT_TEXT || pid == Pid::PLAY_COUNT_TEXT_SETTING) {
         return playCountText();

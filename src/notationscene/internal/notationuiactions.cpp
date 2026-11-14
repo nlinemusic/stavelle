@@ -479,6 +479,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&wing…"),
              TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
              ),
+    //! Jubelle Phase 5D: which repeats playback takes
+    UiAction("jubelle-repeats",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Repeats…"),
+             TranslatableString("action", "Choose which repeated sections playback repeats; the repeat signs stay in the score")
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

@@ -92,7 +92,7 @@ VoltaSegment::VoltaSegment(Volta* sp, System* parent)
 
 EngravingObject* VoltaSegment::propertyDelegate(Pid pid) const
 {
-    if (pid == Pid::BEGIN_HOOK_TYPE || pid == Pid::END_HOOK_TYPE || pid == Pid::VOLTA_ENDING) {
+    if (pid == Pid::BEGIN_HOOK_TYPE || pid == Pid::END_HOOK_TYPE || pid == Pid::VOLTA_ENDING || pid == Pid::JUBELLE_PLAY_REPEAT) {
         return spanner();
     }
     return TextLineBaseSegment::propertyDelegate(pid);
@@ -214,10 +214,43 @@ PropertyValue Volta::getProperty(Pid propertyId) const
     switch (propertyId) {
     case Pid::VOLTA_ENDING:
         return PropertyValue::fromValue(endings());
+    case Pid::JUBELLE_PLAY_REPEAT: {
+        const Measure* m = jubelleRepeatMeasure();
+        return m ? m->jubellePlayRepeat() : true;
+    }
     default:
         break;
     }
     return TextLineBase::getProperty(propertyId);
+}
+
+//! Jubelle: the end-repeat measure of the repeat this ending belongs to: the
+//! end repeat inside the ending (a first ending), or else the nearest one
+//! before it (a later ending)
+Measure* Volta::jubelleRepeatMeasure() const
+{
+    Measure* first = startMeasure();
+    Measure* last = endMeasure();
+    if (!first || !last) {
+        return nullptr;
+    }
+    for (Measure* m = last; m; m = m->prevMeasure()) {
+        if (m->repeatEnd()) {
+            return m;
+        }
+        if (m == first) {
+            break;
+        }
+    }
+    for (Measure* m = first->prevMeasure(); m; m = m->prevMeasure()) {
+        if (m->repeatEnd()) {
+            return m;
+        }
+        if (m->sectionBreak()) {
+            break;
+        }
+    }
+    return nullptr;
 }
 
 //---------------------------------------------------------
@@ -229,6 +262,14 @@ bool Volta::setProperty(Pid propertyId, const PropertyValue& val)
     switch (propertyId) {
     case Pid::VOLTA_ENDING: {
         setEndings(val.value<std::vector<int> >());
+    } break;
+    case Pid::JUBELLE_PLAY_REPEAT: {
+        Measure* m = jubelleRepeatMeasure();
+        if (!m) {
+            return false;
+        }
+        m->setJubellePlayRepeat(val.toBool());
+        score()->setPlaylistDirty();
     } break;
     default:
         if (!TextLineBase::setProperty(propertyId, val)) {
@@ -249,6 +290,8 @@ PropertyValue Volta::propertyDefault(Pid propertyId) const
     switch (propertyId) {
     case Pid::VOLTA_ENDING:
         return PropertyValue::fromValue(std::vector<int>());
+    case Pid::JUBELLE_PLAY_REPEAT:
+        return true;
     case Pid::ANCHOR:
         return int(VOLTA_ANCHOR);
     case Pid::BEGIN_HOOK_TYPE:

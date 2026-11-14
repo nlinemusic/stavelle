@@ -131,6 +131,8 @@ void MeasureRead::readMeasure(Measure* measure, XmlReader& e, ReadContext& ctx, 
         } else if (tag == "endRepeat") {
             measure->m_repeatCount = e.readInt();
             measure->setRepeatEnd(true);
+        } else if (tag == "jubellePlayRepeat") {
+            measure->setJubellePlayRepeat(e.readBool());
         } else if (tag == "vspacer" || tag == "vspacerDown") {
             if (!measure->m_mstaves[staffIdx]->vspacerDown()) {
                 Spacer* spacer = Factory::createSpacer(measure);

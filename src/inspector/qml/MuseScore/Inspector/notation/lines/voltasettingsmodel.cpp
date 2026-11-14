@@ -45,6 +45,11 @@ PropertyItem* VoltaSettingsModel::repeatCount() const
     return m_repeatCount;
 }
 
+PropertyItem* VoltaSettingsModel::jubellePlayRepeat() const
+{
+    return m_jubellePlayRepeat;
+}
+
 void VoltaSettingsModel::updateStartAndEndHookTypes()
 {
     setPossibleStartHookTypes({});
@@ -63,6 +68,7 @@ void VoltaSettingsModel::createProperties()
     TextLineSettingsModel::createProperties();
 
     m_repeatCount = buildPropertyItem(mu::engraving::Pid::VOLTA_ENDING);
+    m_jubellePlayRepeat = buildPropertyItem(mu::engraving::Pid::JUBELLE_PLAY_REPEAT);
 
     isLineVisible()->setIsVisible(true);
     allowDiagonal()->setIsVisible(true);
@@ -74,6 +80,7 @@ void VoltaSettingsModel::loadProperties()
     TextLineSettingsModel::loadProperties();
 
     loadPropertyItem(m_repeatCount);
+    loadPropertyItem(m_jubellePlayRepeat);
     updateStartAndEndHookTypes();
 }
 
@@ -82,4 +89,5 @@ void VoltaSettingsModel::resetProperties()
     TextLineSettingsModel::resetProperties();
 
     m_repeatCount->resetToDefault();
+    m_jubellePlayRepeat->resetToDefault();
 }
