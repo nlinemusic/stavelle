@@ -31,6 +31,12 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.h
     ${ROOT}/src/notation/tests/chordidentifier_tests.cpp
+    ${ROOT}/src/notation/internal/jubelle/condensingplanner.cpp
+    ${ROOT}/src/notation/internal/jubelle/condensingplanner.h
+    ${ROOT}/src/notation/tests/condensingplanner_tests.cpp
+    ${ROOT}/src/notation/internal/jubelle/passagelinkplanner.cpp
+    ${ROOT}/src/notation/internal/jubelle/passagelinkplanner.h
+    ${ROOT}/src/notation/tests/passagelinkplanner_tests.cpp
 )
 target_include_directories(jubelle_platform_tests PRIVATE ${ROOT}/src)
 target_link_libraries(jubelle_platform_tests PRIVATE gtest_main)
