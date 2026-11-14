@@ -465,6 +465,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "&Chord Identifier…"),
              TranslatableString("action", "Name the chords in the selection or the whole score, as chord symbols or Roman numerals")
              ),
+    //! Jubelle Phase 5A: how articulations sound (playback only)
+    UiAction("jubelle-articulation-playback",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Articulation Playback…"),
+             TranslatableString("action", "Set how staccatos, accents, falls, scoops, glissandos and turns sound, for the score or one instrument")
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

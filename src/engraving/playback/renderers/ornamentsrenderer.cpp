@@ -22,6 +22,11 @@
 
 #include "ornamentsrenderer.h"
 
+#include <cmath>
+
+#include "dom/part.h"
+#include "playback/jubelle/articulationplayback.h"
+
 #include "realfn.h"
 
 #include "dom/ornament.h"
@@ -322,6 +327,16 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
 
     const DisclosurePattern& nominalPattern = search->second;
 
+    bool isJazzTurn = false;
+    if (preferredType == ArticulationType::Turn || preferredType == ArticulationType::InvertedTurn) {
+        for (const Articulation* a : chord->articulations()) {
+            if (a->symId() == SymId::brassJazzTurn) {
+                isJazzTurn = true;
+                break;
+            }
+        }
+    }
+
     for (const Note* note : chord->notes()) {
         if (!NoteRenderer::shouldRender(note, ctx, ctx.commonArticulations)) {
             continue;
@@ -335,8 +350,17 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
         NominalNoteCtx noteCtx(note, ornamentCtx);
         NoteArticulationsParser::buildNoteArticulationMap(note, noteCtx.chordCtx, noteCtx.articulations);
 
-        convert(preferredType, nominalPattern.buildActualPattern(note, intervalsInfo, ornamentCtx.beatsPerSecond.val),
-                std::move(noteCtx), result);
+        DisclosurePattern actualPattern = nominalPattern.buildActualPattern(note, intervalsInfo, ornamentCtx.beatsPerSecond.val);
+        if (isJazzTurn) {
+            // Jubelle: the score's turn speed (faster turn = shorter turn notes),
+            // never using more than three quarters of the note
+            const double speed = jubelle::turnSpeedFactor(chord->score(), chord->part() ? chord->part()->id().toUint64() : 0);
+            if (speed > 0.0 && speed != 1.0) {
+                const int maxTicks = ornamentCtx.nominalDurationTicks * 3 / 4;
+                actualPattern.prefixDurationTicks = std::min(maxTicks, int(std::lround(actualPattern.prefixDurationTicks / speed)));
+            }
+        }
+        convert(preferredType, actualPattern, std::move(noteCtx), result);
     }
 }
 

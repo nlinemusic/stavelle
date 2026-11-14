@@ -22,6 +22,8 @@ set(PLAYBACK_SRC
     ${CMAKE_CURRENT_LIST_DIR}/renderingcontext.h
     ${CMAKE_CURRENT_LIST_DIR}/playbackcontext.cpp
     ${CMAKE_CURRENT_LIST_DIR}/playbackcontext.h
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/articulationplayback.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/articulationplayback.h
     ${CMAKE_CURRENT_LIST_DIR}/playbackmodel.cpp
     ${CMAKE_CURRENT_LIST_DIR}/playbackmodel.h
     ${CMAKE_CURRENT_LIST_DIR}/playbackeventsrenderer.cpp
@@ -88,3 +90,6 @@ set(PLAYBACK_SRC
     ${CMAKE_CURRENT_LIST_DIR}/utils/arrangementutils.h
     ${CMAKE_CURRENT_LIST_DIR}/utils/repeatutils.h
 )
+
+# Jubelle: kept out of unity batches so its helpers never clash with MuseScore's
+set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/jubelle/articulationplayback.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)

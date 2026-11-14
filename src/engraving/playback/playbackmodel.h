@@ -155,6 +155,7 @@ private:
     const RepeatList& repeatList() const;
 
     muse::mpe::ArticulationsProfilePtr defaultActiculationProfile(const InstrumentTrackId& trackId) const;
+    bool jubelleArticulationSettingsChanged() const;
 
     PlaybackContextPtr playbackCtx(const InstrumentTrackId& trackId);
 
@@ -175,6 +176,14 @@ private:
     std::unordered_map<InstrumentTrackId, bool> m_sendEventsOnScoreChangeMap;
 
     InstrumentTrackIdSet m_changedTrackIdSet;
+
+    // Jubelle: profiles with the score's articulation playback settings applied
+    struct JubelleProfile {
+        muse::mpe::ArticulationsProfilePtr base;
+        muse::mpe::ArticulationsProfilePtr profile;
+    };
+    mutable muse::String m_jubelleArticulationText;
+    mutable std::unordered_map<InstrumentTrackId, JubelleProfile> m_jubelleProfiles;
 
     muse::async::Channel<InstrumentTrackIdSet> m_tracksDataChanged;
     muse::async::Channel<InstrumentTrackId> m_trackAdded;

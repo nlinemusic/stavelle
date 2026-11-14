@@ -32,6 +32,9 @@ set(GLOBAL_NO_INTERNAL ON)
 add_subdirectory(${MU_ROOT}/src/framework/global global)
 set(DRAW_NO_INTERNAL ON)
 add_subdirectory(${MU_ROOT}/src/framework/draw draw)
+# Playback (MuseScore's note-event renderer) is built too, so playback
+# features are tested on the real renderer
+set(MUE_BUILD_ENGRAVING_PLAYBACK ON)
 set(ENGRAVING_NO_INTERNAL ON)
 set(ENGRAVING_NO_ACCESSIBILITY ON)
 add_subdirectory(${MU_ROOT}/src/engraving engraving)
@@ -65,9 +68,11 @@ add_executable(jubelle_engine_tests
     # Jubelle code under test that isn't part of the engraving library:
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifierrunner.cpp
+    ${MU_ROOT}/src/engraving/playback/jubelle/articulationplayback.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
+    ${MU_ROOT}/src/engraving/tests/jubelle_articulationplayback_tests.cpp
 )
 target_compile_definitions(jubelle_engine_tests PRIVATE MU_ROOT_DIR="${MU_ROOT}")
 target_include_directories(jubelle_engine_tests PRIVATE

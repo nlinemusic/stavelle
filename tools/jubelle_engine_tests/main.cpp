@@ -19,6 +19,7 @@
 #include "engraving/dom/drumset.h"
 #include "engraving/dom/figuredbass.h"
 #include "mocks/engravingconfigurationmock.h"
+#include "global/tests/mocks/applicationmock.h"
 #include "utils/scorerw.h"
 
 using namespace mu::engraving;
@@ -42,6 +43,14 @@ int main(int argc, char** argv)
     // engraving test environment, so the mock is intentionally never deleted.
     ::testing::Mock::AllowLeak(cfg.get());
     ioc->registerExport<IEngravingConfiguration>("jubelle_engine_tests", cfg);
+
+    // Saving a score asks the application for its version
+    using AppMock = ::testing::NiceMock<muse::ApplicationMock>;
+    std::shared_ptr<AppMock> app(new AppMock(), [](AppMock*) {});
+    ON_CALL(*app, version()).WillByDefault(::testing::Return(muse::Version(4, 7, 7)));
+    ON_CALL(*app, revision()).WillByDefault(::testing::Return(muse::String(u"0")));
+    ::testing::Mock::AllowLeak(app.get());
+    ioc->registerExport<muse::IApplication>("jubelle_engine_tests", app);
 
     auto fonts = std::make_shared<EngravingFontsProvider>(nullptr);
     const std::string fontsDir = std::string(MU_ROOT_DIR) + "/fonts/";

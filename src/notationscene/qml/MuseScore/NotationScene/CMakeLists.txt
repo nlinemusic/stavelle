@@ -39,6 +39,8 @@ qt_add_qml_module(notationscene_qml
         continuouspanel.cpp
         chordidentifiermodel.cpp
         chordidentifiermodel.h
+        articulationplaybackmodel.cpp
+        articulationplaybackmodel.h
         engravingpresetsmodel.cpp
         engravingpresetsmodel.h
         continuouspanel.h
@@ -167,6 +169,7 @@ qt_add_qml_module(notationscene_qml
         ConcertPitchControl.qml
         EditGridSizeDialog.qml
         ChordIdentifierDialog.qml
+        ArticulationPlaybackDialog.qml
         EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml
