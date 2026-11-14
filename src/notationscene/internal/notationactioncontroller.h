@@ -52,6 +52,11 @@ class NotationActionController : public muse::actions::Actionable, public muse::
     muse::ContextInject<playback::IPlaybackController> playbackController = { this };
 
 public:
+    //! Jubelle: title-page alignment. The "Align to" choice is remembered
+    //! (0 = margins, 1 = page, 2 = each other)
+    static int jubelleAlignReference();
+    muse::async::Notification jubelleAlignReferenceChanged() const { return m_jubelleAlignReferenceChanged; }
+
 
     NotationActionController(const muse::modularity::ContextPtr& iocCtx)
         : muse::Contextable(iocCtx) {}
@@ -275,5 +280,10 @@ private:
 
     using IsActionEnabledFunc = std::function<bool ()>;
     std::map<muse::actions::ActionCode, IsActionEnabledFunc> m_isEnabledMap;
+
+    // Jubelle: title-page alignment
+    void jubelleAlign(int command);
+    void setJubelleAlignReference(int reference);
+    muse::async::Notification m_jubelleAlignReferenceChanged;
 };
 }

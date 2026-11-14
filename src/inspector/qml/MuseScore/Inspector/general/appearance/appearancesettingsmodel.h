@@ -44,6 +44,8 @@ class AppearanceSettingsModel : public AbstractInspectorModel
     Q_PROPERTY(mu::inspector::PropertyItem * offset READ offset CONSTANT)
     Q_PROPERTY(bool isSnappedToGrid READ isSnappedToGrid WRITE setIsSnappedToGrid NOTIFY isSnappedToGridChanged)
     Q_PROPERTY(bool isVerticalOffsetAvailable READ isVerticalOffsetAvailable NOTIFY isVerticalOffsetAvailableChanged)
+    // Jubelle: title-page alignment buttons
+    Q_PROPERTY(bool jubelleAlignAvailable READ jubelleAlignAvailable NOTIFY jubelleAlignAvailableChanged)
 
     muse::GlobalInject<notation::INotationConfiguration> notationConfiguration;
 
@@ -56,6 +58,9 @@ public:
     Q_INVOKABLE void pushToFrontInOrder();
 
     Q_INVOKABLE void configureGrid();
+    //! Jubelle: runs an alignment command (e.g. "jubelle-align-hcenter")
+    Q_INVOKABLE void jubelleAlign(const QString& actionCode);
+    bool jubelleAlignAvailable() const;
 
     void createProperties() override;
     void requestElements() override;
@@ -80,6 +85,7 @@ public slots:
 signals:
     void isSnappedToGridChanged(bool isSnappedToGrid);
     void isVerticalOffsetAvailableChanged(bool isVerticalOffsetAvailable);
+    void jubelleAlignAvailableChanged();
 
 private:
     void onNotationChanged(const mu::engraving::PropertyIdSet& changedPropertyIdSet,
@@ -87,6 +93,8 @@ private:
     void loadProperties(const mu::engraving::PropertyIdSet& allowedPropertyIdSet);
 
     void updateIsVerticalOffsetAvailable();
+    void updateJubelleAlignAvailable();
+    bool m_jubelleAlignAvailable = false;
 
     mu::engraving::Page* page() const;
     std::vector<mu::engraving::EngravingItem*> allElementsInPage() const;

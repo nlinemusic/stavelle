@@ -347,6 +347,25 @@ MenuItem* AppMenuModel::makeAddMenu()
 
 MenuItem* AppMenuModel::makeFormatMenu()
 {
+    // Jubelle: title-page alignment
+    MenuItemList alignItems {
+        makeMenuItem("jubelle-align-left"),
+        makeMenuItem("jubelle-align-hcenter"),
+        makeMenuItem("jubelle-align-right"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-top"),
+        makeMenuItem("jubelle-align-vcenter"),
+        makeMenuItem("jubelle-align-bottom"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-center"),
+        makeMenuItem("jubelle-distribute-h"),
+        makeMenuItem("jubelle-distribute-v"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-to-margins"),
+        makeMenuItem("jubelle-align-to-page"),
+        makeMenuItem("jubelle-align-to-each-other"),
+    };
+
     MenuItemList stretchItems {
         makeMenuItem("stretch+"),
         makeMenuItem("stretch-"),
@@ -358,6 +377,7 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("page-settings"),
         makeSeparator(),
         makeMenuItem("measures-per-system"),
+        makeMenu(TranslatableString("appshell/menu/format", "&Align"), alignItems, "menu-jubelle-align"),
         makeMenu(TranslatableString("appshell/menu/format", "Str&etch"), stretchItems, "menu-stretch"),
         makeSeparator(),
         makeMenuItem("reset-text-style-overrides"),

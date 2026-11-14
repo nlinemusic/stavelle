@@ -33,6 +33,9 @@
 
 #include "translation.h"
 #include "log.h"
+#include "settings.h"
+
+#include "notation/internal/jubelle/pagealignment.h"
 
 #include <QGuiApplication>
 
@@ -406,6 +409,26 @@ void NotationActionController::init()
     registerAction("jubelle-passage-playback", [this]() {
         interactive()->open("musescore://notation/jubelle/passageplayback");
     });
+    // Jubelle: title-page alignment (Format → Align, right-click, Properties panel)
+    static const std::vector<std::pair<const char*, jubelle::AlignCommand> > alignCommands {
+        { "jubelle-align-left", jubelle::AlignCommand::Left },
+        { "jubelle-align-hcenter", jubelle::AlignCommand::HCenter },
+        { "jubelle-align-right", jubelle::AlignCommand::Right },
+        { "jubelle-align-top", jubelle::AlignCommand::Top },
+        { "jubelle-align-vcenter", jubelle::AlignCommand::VCenter },
+        { "jubelle-align-bottom", jubelle::AlignCommand::Bottom },
+        { "jubelle-align-center", jubelle::AlignCommand::Center },
+        { "jubelle-distribute-h", jubelle::AlignCommand::DistributeHorizontally },
+        { "jubelle-distribute-v", jubelle::AlignCommand::DistributeVertically },
+    };
+    for (const auto& [code, command] : alignCommands) {
+        const int cmd = int(command);
+        registerAction(code, [this, cmd]() { jubelleAlign(cmd); });
+    }
+    registerAction("jubelle-align-to-margins", [this]() { setJubelleAlignReference(0); });
+    registerAction("jubelle-align-to-page", [this]() { setJubelleAlignReference(1); });
+    registerAction("jubelle-align-to-each-other", [this]() { setJubelleAlignReference(2); });
+
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);
@@ -2385,6 +2408,59 @@ void NotationActionController::checkForScoreCorruptions()
         text.detailedText = ret.text();
 
         interactive()->warning(title, text);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: title-page alignment
+// ---------------------------------------------------------------------------
+
+static const muse::Settings::Key JUBELLE_ALIGN_REFERENCE_KEY("notation", "jubelle/align/reference");
+
+int NotationActionController::jubelleAlignReference()
+{
+    const muse::Val v = muse::settings()->value(JUBELLE_ALIGN_REFERENCE_KEY);
+    const int ref = v.isNull() ? 0 : v.toInt();   // margins by default
+    return (ref >= 0 && ref <= 2) ? ref : 0;
+}
+
+void NotationActionController::setJubelleAlignReference(int reference)
+{
+    muse::settings()->setSharedValue(JUBELLE_ALIGN_REFERENCE_KEY, muse::Val(reference));
+    m_jubelleAlignReferenceChanged.notify();
+}
+
+void NotationActionController::jubelleAlign(int command)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    const std::vector<EngravingItem*> items = notation->interaction()->selection()->elements();
+    if (items.empty()) {
+        interactive()->info(muse::trc("notation", "Nothing to align"),
+                            muse::trc("notation", "Select the text or images you want to align first."));
+        return;
+    }
+
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Align"));
+    const jubelle::AlignReport report = jubelle::alignItems(notation->elements()->msScore(), items,
+                                                            jubelle::AlignCommand(command),
+                                                            jubelle::AlignReference(jubelleAlignReference()));
+    notation->undoStack()->commitChanges();
+
+    // Explain anything that wasn't moved, instead of moving it wrongly
+    if (!report.refused.empty() || !report.warnings.empty()) {
+        std::string body;
+        for (const muse::String& s : report.refused) {
+            body += s.toStdString() + "\n";
+        }
+        for (const muse::String& s : report.warnings) {
+            body += s.toStdString() + "\n";
+        }
+        const std::string title = report.moved > 0 ? muse::trc("notation", "Aligned, with notes")
+                                  : muse::trc("notation", "Nothing was aligned");
+        interactive()->info(title, body);
     }
 }
 

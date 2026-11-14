@@ -293,6 +293,28 @@ MenuItemList NotationContextMenuModel::makeElementItems()
         items << makeSeparator();
         items << makeMenuItem("jubelle-identify-chords");
         items << makeMenuItem("jubelle-passage-playback");
+    } else if (element && (element->isText() || element->isImage() || element->isStaffText() || element->isSystemText()
+                           || element->isTempoText() || element->isRehearsalMark())) {
+        // Jubelle: title-page alignment
+        MenuItemList alignItems {
+            makeMenuItem("jubelle-align-left"),
+            makeMenuItem("jubelle-align-hcenter"),
+            makeMenuItem("jubelle-align-right"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-top"),
+            makeMenuItem("jubelle-align-vcenter"),
+            makeMenuItem("jubelle-align-bottom"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-center"),
+            makeMenuItem("jubelle-distribute-h"),
+            makeMenuItem("jubelle-distribute-v"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-to-margins"),
+            makeMenuItem("jubelle-align-to-page"),
+            makeMenuItem("jubelle-align-to-each-other"),
+        };
+        items << makeSeparator();
+        items << makeMenu(muse::TranslatableString("notation", "Align"), alignItems);
     } else if (element && mu::engraving::jubelle::passageLine(element)) {
         // Jubelle: a playback line: edit its passage's values
         items << makeSeparator();

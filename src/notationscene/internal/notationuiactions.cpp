@@ -500,6 +500,82 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Articulation Playback for &Selection…"),
              TranslatableString("action", "Set how articulations sound in the highlighted passage only")
              ),
+    //! Jubelle: title-page alignment (Format → Align)
+    UiAction("jubelle-align-left",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &left"),
+             TranslatableString("action", "Align the selected text or images to the left")
+             ),
+    UiAction("jubelle-align-hcenter",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre &horizontally"),
+             TranslatableString("action", "Centre the selected text or images horizontally")
+             ),
+    UiAction("jubelle-align-right",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &right"),
+             TranslatableString("action", "Align the selected text or images to the right")
+             ),
+    UiAction("jubelle-align-top",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &top"),
+             TranslatableString("action", "Align the selected text or images to the top")
+             ),
+    UiAction("jubelle-align-vcenter",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre &vertically"),
+             TranslatableString("action", "Centre the selected text or images vertically")
+             ),
+    UiAction("jubelle-align-bottom",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &bottom"),
+             TranslatableString("action", "Align the selected text or images to the bottom")
+             ),
+    UiAction("jubelle-align-center",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre on &both axes"),
+             TranslatableString("action", "Centre the selected text or images horizontally and vertically")
+             ),
+    UiAction("jubelle-distribute-h",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Distribute hori&zontally"),
+             TranslatableString("action", "Space three or more selected items evenly from left to right")
+             ),
+    UiAction("jubelle-distribute-v",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Distribute verti&cally"),
+             TranslatableString("action", "Space three or more selected items evenly from top to bottom")
+             ),
+    UiAction("jubelle-align-to-margins",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &margins"),
+             TranslatableString("action", "Align relative to the printable area inside the page margins"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-align-to-page",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &page"),
+             TranslatableString("action", "Align relative to the whole page"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-align-to-each-other",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &each other"),
+             TranslatableString("action", "Align the selected items relative to one another; the group stays where it is"),
+             Checkable::Yes
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
@@ -2815,6 +2891,11 @@ NotationUiActions::NotationUiActions(std::shared_ptr<NotationActionController> c
 
 void NotationUiActions::init()
 {
+    // Jubelle: the "Align to" choice changed
+    m_controller->jubelleAlignReferenceChanged().onNotify(this, [this]() {
+        m_actionCheckedChanged.send({ "jubelle-align-to-margins", "jubelle-align-to-page", "jubelle-align-to-each-other" });
+    });
+
     m_controller->currentNotationNoteInputChanged().onNotify(this, [this]() {
         m_actionCheckedChanged.send({ NOTE_INPUT_ACTION_CODE });
     });
@@ -2982,6 +3063,13 @@ bool NotationUiActions::actionChecked(const UiAction& act) const
         if (interaction) {
             return isScoreConfigChecked(act.code, interaction->scoreConfig());
         }
+    }
+
+    // Jubelle: which "Align to" is chosen
+    if (act.code == "jubelle-align-to-margins" || act.code == "jubelle-align-to-page" || act.code == "jubelle-align-to-each-other") {
+        static const std::vector<std::string> refs { "jubelle-align-to-margins", "jubelle-align-to-page", "jubelle-align-to-each-other" };
+        const int ref = NotationActionController::jubelleAlignReference();
+        return ref >= 0 && ref < int(refs.size()) && act.code == refs[size_t(ref)];
     }
 
     auto engravingDebuggingActionsSearch = NotationActionController::engravingDebuggingActions.find(act.code);

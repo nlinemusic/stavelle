@@ -116,6 +116,46 @@ Column {
 
     SeparatorLine { anchors.margins: -12 }
 
+    // Jubelle: title-page alignment (to the margins, the page or each other,
+    // as chosen in Format → Align)
+    Column {
+        id: jubelleAlignSection
+        width: parent.width
+        spacing: 8
+        visible: root.model ? root.model.jubelleAlignAvailable : false
+
+        StyledTextLabel {
+            width: parent.width
+            horizontalAlignment: Text.AlignLeft
+            text: qsTrc("inspector", "Align")
+        }
+
+        Row {
+            spacing: 4
+            Repeater {
+                model: [
+                    { code: "jubelle-align-left", icon: IconCode.TEXT_ALIGN_LEFT, tip: qsTrc("inspector", "Align left") },
+                    { code: "jubelle-align-hcenter", icon: IconCode.TEXT_ALIGN_CENTER, tip: qsTrc("inspector", "Centre horizontally") },
+                    { code: "jubelle-align-right", icon: IconCode.TEXT_ALIGN_RIGHT, tip: qsTrc("inspector", "Align right") },
+                    { code: "jubelle-align-top", icon: IconCode.TEXT_ALIGN_TOP, tip: qsTrc("inspector", "Align top") },
+                    { code: "jubelle-align-vcenter", icon: IconCode.TEXT_ALIGN_MIDDLE, tip: qsTrc("inspector", "Centre vertically") },
+                    { code: "jubelle-align-bottom", icon: IconCode.TEXT_ALIGN_BOTTOM, tip: qsTrc("inspector", "Align bottom") }
+                ]
+                delegate: FlatButton {
+                    icon: modelData.icon
+                    toolTipTitle: modelData.tip
+                    toolTipDescription: qsTrc("inspector", "To the margins, the page or each other, as chosen in Format → Align")
+                    navigation.name: "JubelleAlign" + index
+                    navigation.panel: root.navigationPanel
+                    navigation.row: arrangeSection.navigationRowEnd + 1 + index
+                    onClicked: root.model.jubelleAlign(modelData.code)
+                }
+            }
+        }
+    }
+
+    SeparatorLine { anchors.margins: -12; visible: jubelleAlignSection.visible }
+
     ColorSection {
         propertyItem: root.model?.color ?? null
 
