@@ -36,6 +36,17 @@ if (CMAKE_GENERATOR MATCHES "Make" OR CMAKE_GENERATOR MATCHES "Ninja")
     set(ENV{CCACHE_CPP2} true)
     set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros")
 
+    # Stavelle: the compiler cache cannot cache MSVC compilations that write debug
+    # information to a shared PDB file (/Zi) or use precompiled headers (/Yc, /Yu); every
+    # Windows compile was rejected as "unsupported compiler option". Embed debug
+    # information in the object files instead (/Z7; the linker still produces a PDB) and
+    # do not use precompiled headers when a compiler cache is active.
+    if (MSVC)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+        set(MUSE_COMPILE_USE_PCH OFF CACHE BOOL "Use precompiled headers." FORCE)
+        message(STATUS "MSVC with compiler cache: using embedded debug info (/Z7) and no precompiled headers")
+    endif()
+
     message(STATUS "Using compiler cache program ${COMPILER_CACHE_PROGRAM} via CMAKE_C_COMPILER_LAUNCHER and CMAKE_CXX_COMPILER_LAUNCHER")
     return()
 endif()

@@ -222,7 +222,9 @@ jobs:
       uses: actions/upload-artifact@v6
       with:
         name: stavelle-app-check-${{ runner.os }}
-        path: smoke_work/smoke_results.json
+        path: |
+          smoke_work/smoke_results.json
+          smoke_work/profile_*.txt
     - name: Generate dSYM
       if: env.DO_UPLOAD_SYMBOLS == 'true'
       run: |

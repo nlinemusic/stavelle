@@ -74,8 +74,11 @@ def data_dirs():
     return base / "Stavelle" / "Stavelle", base / "MuseScore"
 
 
-def convert(exe, src, dst, label):
+def convert(exe, src, dst, label, keep_output=None):
     proc, elapsed = run_app(exe, ["-o", str(dst), str(src)])
+    if keep_output:
+        # The app's built-in profiler prints a timing table when the command-line run ends.
+        Path(keep_output).write_text(str(proc.stdout), encoding="utf-8", errors="replace")
     ok = proc.returncode == 0 and dst.exists() and dst.stat().st_size > 0
     detail = f"{elapsed:.2f}s"
     if not ok:
@@ -113,7 +116,8 @@ def main():
         for i in range(a.runs):
             if saved.exists():
                 saved.unlink()
-            ok, t = convert(exe, src, saved, f"{name}: open and save as new file (run {i + 1})")
+            ok, t = convert(exe, src, saved, f"{name}: open and save as new file (run {i + 1})",
+                            keep_output=work / f"profile_{name}.txt" if i == 0 else None)
             if not ok:
                 break
             times.append(t)
