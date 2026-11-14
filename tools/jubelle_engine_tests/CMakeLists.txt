@@ -69,6 +69,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifierrunner.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/swingmarking.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/partlayout.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
@@ -76,6 +77,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/engraving/tests/jubelle_swing_tests.cpp
     ${MU_ROOT}/src/engraving/tests/jubelle_repeats_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_swingmarking_tests.cpp
+    ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
 )
 target_compile_definitions(jubelle_engine_tests PRIVATE MU_ROOT_DIR="${MU_ROOT}")
 target_include_directories(jubelle_engine_tests PRIVATE
