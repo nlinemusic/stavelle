@@ -21,6 +21,8 @@
  */
 #include "modifydom.h"
 
+#include <array>
+
 #include "dom/measure.h"
 #include "dom/staff.h"
 #include "dom/spannermap.h"
@@ -28,6 +30,8 @@
 #include "dom/trill.h"
 #include "dom/ornament.h"
 #include "dom/note.h"
+#include "dom/pitchspelling.h"
+#include "dom/key.h"
 #include "dom/utils.h"
 #include "dom/chord.h"
 #include "dom/keysig.h"
@@ -78,6 +82,101 @@ void ModifyDom::connectTremolo(Measure* m)
     m->connectTremolo();
 }
 
+//! Jubelle: automatic courtesy (cautionary) accidentals.
+//! A staff line whose pitch a note altered in the previous measure, and which the
+//! key of this measure spells differently, has its accidental restated on its first
+//! note in this measure (for example F♯ in bar 1, then F in bar 2 shows ♮).
+//! Uses the engine's own "force restate" mechanism, so the accidental is an
+//! ordinary automatic one: it updates and disappears by itself as notes change.
+namespace mu::engraving::rendering::score {
+static void markCourtesyAccidentals(const Measure* measure, staff_idx_t staffIdx, const Staff* staff, AccidentalState& as)
+{
+    const Score* score = measure->score();
+    if (!score->styleB(Sid::jubelleCourtesyAccidentals)) {
+        return;
+    }
+
+    const Measure* prev = measure->prevMeasure();
+    if (!prev) {
+        return;
+    }
+
+    // Only pitched, non-tablature staves use accidentals this way.
+    if (staff->isTabStaff(prev->tick()) || staff->part()->instrument(prev->tick())->useDrumset()) {
+        return;
+    }
+
+    AccidentalState prevState;
+    prevState.init(staff->keySigEvent(prev->tick()));
+    std::array<bool, MAX_ACC_STATE> alteredByNote;
+    alteredByNote.fill(false);
+
+    const track_idx_t startTrack = staff->part()->startTrack();
+    const track_idx_t endTrack = staff->part()->endTrack();
+    const track_idx_t mainTrack = staffIdx * VOICES;
+
+    auto readChord = [&](const Chord* ch) {
+        if (ch->vStaffIdx() != staffIdx) {
+            return;
+        }
+        for (const Note* note : ch->notes()) {
+            const int line = absStep(note->tpc(), note->epitch());
+            if (line < MIN_ACC_STATE || line >= MAX_ACC_STATE) {
+                continue;
+            }
+            const AccidentalVal val = tpc2alter(note->tpc());
+            if (val != prevState.accidentalVal(line)) {
+                alteredByNote[line] = true;
+            }
+            prevState.setAccidentalVal(line, val);
+        }
+    };
+
+    for (const Segment& segment : prev->segments()) {
+        if (segment.isJustType(SegmentType::KeySig)) {
+            if (segment.element(mainTrack)) {
+                prevState.init(staff->keySigEvent(segment.tick()));
+                alteredByNote.fill(false);
+            }
+        } else if (segment.isJustType(SegmentType::ChordRest)) {
+            for (track_idx_t t = startTrack; t < endTrack; ++t) {
+                const EngravingItem* e = segment.element(t);
+                if (!e || !e->isChord()) {
+                    continue;
+                }
+                const Chord* chord = toChord(e);
+                for (const Chord* grace : chord->graceNotesBefore()) {
+                    readChord(grace);
+                }
+                readChord(chord);
+                for (const Chord* grace : chord->graceNotesAfter()) {
+                    readChord(grace);
+                }
+            }
+        }
+    }
+
+    const bool allOctaves = score->styleB(Sid::jubelleCourtesyAccidentalsAllOctaves);
+    for (int line = MIN_ACC_STATE; line < MAX_ACC_STATE; ++line) {
+        if (!alteredByNote[line]) {
+            continue;
+        }
+        const AccidentalVal last = prevState.accidentalVal(line);
+        if (!allOctaves) {
+            if (last != as.accidentalVal(line)) {
+                as.setForceRestateAccidental(line, true);
+            }
+            continue;
+        }
+        for (int other = line % 7; other < MAX_ACC_STATE; other += 7) {
+            if (last != as.accidentalVal(other)) {
+                as.setForceRestateAccidental(other, true);
+            }
+        }
+    }
+}
+}
+
 void ModifyDom::cmdUpdateNotes(const Measure* measure, const DomAccessor& dom)
 {
     for (staff_idx_t staffIdx = 0; staffIdx < dom.nstaves(); ++staffIdx) {
@@ -107,6 +206,8 @@ void ModifyDom::cmdUpdateNotes(const Measure* measure, const DomAccessor& dom)
                     as.setForceRestateAccidental(line, true);
                 }
             }
+
+            markCourtesyAccidentals(measure, staffIdx, staff, as);
         }
 
         track_idx_t startTrack = staff->part()->startTrack();

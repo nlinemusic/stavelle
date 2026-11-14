@@ -2188,6 +2188,11 @@ enum class Sid : short {
     palmMuteEndFilledArrowHeight,
     palmMuteEndFilledArrowWidth,
 
+    // Jubelle: automatic courtesy (cautionary) accidentals. Off by default, so
+    // scores look exactly as in MuseScore unless the user turns it on.
+    jubelleCourtesyAccidentals,
+    jubelleCourtesyAccidentalsAllOctaves,
+
     STYLES
 };
 

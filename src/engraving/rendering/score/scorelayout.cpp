@@ -78,6 +78,18 @@ void ScoreLayout::layoutRange(Score* score, const Fraction& st, const Fraction& 
         etick = score->last()->endTick();
     }
 
+    // Jubelle: a courtesy accidental depends on the measure before it, so when
+    // they are switched on, an edit also re-lays out the following measure.
+    if (!isLayoutAll && score->styleB(Sid::jubelleCourtesyAccidentals)) {
+        Measure* next = score->tick2measure(etick);
+        if (next && next->tick() < etick) {
+            next = next->nextMeasure();
+        }
+        if (next && next->endTick() > etick) {
+            etick = next->endTick();
+        }
+    }
+
     ctx.mutState().setIsLayoutAll(isLayoutAll);
 
     // Init context and layout

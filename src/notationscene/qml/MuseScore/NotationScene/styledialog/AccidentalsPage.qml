@@ -23,6 +23,7 @@ import QtQuick
 import QtQuick.Layouts
 
 import MuseScore.NotationScene
+import Muse.Ui
 import Muse.UiComponents
 
 StyledFlickable {
@@ -56,6 +57,37 @@ StyledFlickable {
 
                 labelAreaWidth: -1
                 controlAreaWidth: spinBoxWidth
+            }
+        }
+
+        StyledGroupBox {
+            Layout.fillWidth: true
+            title: qsTrc("notation/editstyle/accidentals", "Courtesy accidentals")
+
+            ColumnLayout {
+                width: parent.width
+                spacing: 12
+
+                CheckBox {
+                    text: qsTrc("notation/editstyle/accidentals", "Add courtesy accidentals automatically")
+                    checked: accidentalsPageModel.courtesyAccidentals.value === true
+                    onClicked: accidentalsPageModel.courtesyAccidentals.value = !accidentalsPageModel.courtesyAccidentals.value
+                }
+
+                StyledTextLabel {
+                    Layout.fillWidth: true
+                    text: qsTrc("notation/editstyle/accidentals", "After a bar line, a note whose pitch was altered in the previous bar shows its accidental again (for example F♯ in one bar, then ♮ on the next F). Courtesy accidentals update by themselves as you edit.")
+                    horizontalAlignment: Text.AlignLeft
+                    wrapMode: Text.Wrap
+                    opacity: 0.75
+                }
+
+                CheckBox {
+                    text: qsTrc("notation/editstyle/accidentals", "Also in other octaves")
+                    enabled: accidentalsPageModel.courtesyAccidentals.value === true
+                    checked: accidentalsPageModel.courtesyAccidentalsAllOctaves.value === true
+                    onClicked: accidentalsPageModel.courtesyAccidentalsAllOctaves.value = !accidentalsPageModel.courtesyAccidentalsAllOctaves.value
+                }
             }
         }
 
