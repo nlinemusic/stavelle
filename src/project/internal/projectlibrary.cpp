@@ -78,7 +78,7 @@ static bool isDir(const fs::path& p)
     return fs::is_directory(p, ec);
 }
 
-static bool exists(const fs::path& p)
+static bool pathExists(const fs::path& p)
 {
     std::error_code ec;
     return fs::exists(p, ec);
@@ -248,7 +248,7 @@ Result ensureMainFolder(const std::string& mainFolder)
         return success(main);
     }
 
-    if (exists(main)) {
+    if (pathExists(main)) {
         return fail("A file with the same name as the projects folder is in the way: " + mainFolder);
     }
 
@@ -313,7 +313,7 @@ Result createCategory(const std::string& mainFolder, const std::string& name)
     }
 
     const fs::path dir = main / toPath(name);
-    if (exists(dir)) {
+    if (pathExists(dir)) {
         return fail("A category named \"" + name + "\" already exists.");
     }
 
@@ -347,7 +347,7 @@ Result renameCategory(const std::string& mainFolder, const std::string& oldName,
         return success(from);
     }
 
-    if (exists(to) && !sameEntry(from, to)) {
+    if (pathExists(to) && !sameEntry(from, to)) {
         return fail("A category named \"" + newName + "\" already exists.");
     }
 
@@ -469,7 +469,7 @@ Result createProject(const std::string& mainFolder, const std::string& category,
 
     // Never reuse an existing folder: number the new one instead.
     std::string finalName = name;
-    for (int n = 2; exists(categoryDir / toPath(finalName)); ++n) {
+    for (int n = 2; pathExists(categoryDir / toPath(finalName)); ++n) {
         finalName = name + " (" + std::to_string(n) + ")";
     }
 
@@ -522,7 +522,7 @@ Result renameProject(const std::string& projectFolder, const std::string& newNam
     }
 
     const fs::path to = from.parent_path() / toPath(newName);
-    if (exists(to) && !sameEntry(from, to)) {
+    if (pathExists(to) && !sameEntry(from, to)) {
         return fail("A project named \"" + newName + "\" already exists in this category.");
     }
 
@@ -545,10 +545,10 @@ Result renameProject(const std::string& projectFolder, const std::string& newNam
     };
 
     for (const Step& step : fileSteps) {
-        if (!exists(step.from)) {
+        if (!pathExists(step.from)) {
             continue;
         }
-        if (exists(step.to) && !sameEntry(step.from, step.to)) {
+        if (pathExists(step.to) && !sameEntry(step.from, step.to)) {
             undo();
             return fail("The project contains a file named \"" + toUtf8(step.to.filename())
                         + "\" already, so it can't be renamed to \"" + newName + "\".");
@@ -606,7 +606,7 @@ Result moveProject(const std::string& projectFolder, const std::string& mainFold
         return success(from); // already there
     }
 
-    if (exists(to)) {
+    if (pathExists(to)) {
         return fail("The category \"" + newCategory + "\" already has a project named \""
                     + toUtf8(from.filename()) + "\". Rename one of them first.");
     }
