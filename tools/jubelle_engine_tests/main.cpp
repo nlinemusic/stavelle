@@ -29,6 +29,17 @@ static const IEngravingConfiguration::DebuggingOptions debugOpt {};
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleMock(&argc, argv);
+
+    // MuseScore tests that can't run without Qt here (not Jubelle problems):
+    // repeat14 reads chord-symbol descriptions (number parsing needs Qt);
+    // the glissando renderer tests lay out glissando lines, which needs real
+    // font outlines; Playback_Setup_Data_MultiInstrument needs the
+    // instruments list from Qt resources. They run in "Check: Unit Tests".
+    if (::testing::GTEST_FLAG(filter) == "*") {
+        ::testing::GTEST_FLAG(filter) = "-Engraving_RepeatTests.repeat14"
+                                        ":Engraving_PlaybackEventsRendererTests.*Glissando*"
+                                        ":Engraving_PlaybackModelTests.Playback_Setup_Data_MultiInstrument";
+    }
     auto ioc = muse::modularity::globalIoc();
 
     ioc->registerExport<muse::io::IFileSystem>("jubelle_engine_tests", new StdFileSystem());

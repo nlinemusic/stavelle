@@ -56,6 +56,21 @@ string(REPLACE "muse::io::dirpath(filePath.toQString())" "muse::io::dirpath(file
 string(REPLACE "#include \"engravingfontsprovider.h\"" "#include \"engraving/internal/engravingfontsprovider.h\"" EFP_TEXT "${EFP_TEXT}")
 file(WRITE ${EFP_COPY} "${EFP_TEXT}")
 
+# MuseScore's own repeat and playback tests build String from narrow
+# literals, which needs Qt; these copies use u"" literals instead and are
+# otherwise unchanged.
+set(MUSE_TEST_COPIES)
+foreach(t repeat_tests playback/playbackmodel_tests playback/playbackeventsrendering_tests)
+    file(READ ${MU_ROOT}/src/engraving/tests/${t}.cpp T_TEXT)
+    string(REPLACE "String(\"" "String(u\"" T_TEXT "${T_TEXT}")
+    string(REPLACE "DIR + \"" "DIR + u\"" T_TEXT "${T_TEXT}")
+    string(REGEX REPLACE "(static const String [A-Z_]+)\\(\"" "\\1(u\"" T_TEXT "${T_TEXT}")
+    get_filename_component(T_NAME ${t} NAME)
+    set(T_COPY ${CMAKE_CURRENT_BINARY_DIR}/musetests/${T_NAME}.cpp)
+    file(WRITE ${T_COPY} "${T_TEXT}")
+    list(APPEND MUSE_TEST_COPIES ${T_COPY})
+endforeach()
+
 add_executable(jubelle_engine_tests
     main.cpp
     stdfs.h
@@ -80,6 +95,9 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/jubelle_swingmarking_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_articulationpassage_tests.cpp
+    # MuseScore's own tests for the code Jubelle touches, to show its
+    # behaviour is unchanged (copies with u"" string literals, see below):
+    ${MUSE_TEST_COPIES}
 )
 target_compile_definitions(jubelle_engine_tests PRIVATE MU_ROOT_DIR="${MU_ROOT}")
 target_include_directories(jubelle_engine_tests PRIVATE
