@@ -72,8 +72,23 @@ def run_limited(cmd, timeout, log_path=None):
             out.close()
 
 
+APP_PROCESSES = ("MuseScore4.exe", "Stavelle.exe", "crashpad_handler.exe")
+
+
+def close_app_processes():
+    """Make sure no MuseScore/Stavelle process (or helper) holds installed files, so Windows
+    Installer never has to wait for, or forcibly close, running programs."""
+    for name in APP_PROCESSES:
+        subprocess.run(["taskkill", "/F", "/T", "/IM", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                       timeout=60)
+
+
 def msiexec(args, log):
-    rc = run_limited(["msiexec"] + args + ["/qn", "/norestart", "/l*v", str(log)], timeout=900)
+    close_app_processes()
+    # REBOOT=ReallySuppress: never restart the machine (stronger than /norestart).
+    # MSIRESTARTMANAGERCONTROL=Disable: never ask Restart Manager to shut down other programs.
+    rc = run_limited(["msiexec"] + args + ["/qn", "/norestart", "REBOOT=ReallySuppress", "MSIRESTARTMANAGERCONTROL=Disable",
+                                           "/l*v", str(log)], timeout=600)
     return "timed out" if rc is None else rc
 
 
@@ -213,11 +228,35 @@ def diff(a, b):
 def run_converter(exe, src, out):
     if Path(out).exists():
         Path(out).unlink()
-    rc = run_limited([exe, "-o", out, src], timeout=300, log_path=str(out) + ".log")
+    rc = run_limited([exe, "-o", out, src], timeout=180, log_path=str(out) + ".log")
+    close_app_processes()
     return rc == 0 and Path(out).exists() and Path(out).stat().st_size > 0
 
 
+TEST_LIMIT_SECONDS = 15 * 60
+
+
+def start_watchdog_and_heartbeat():
+    """Heartbeat: a line every 30 s, visible in GitHub's live log even if the log is never saved.
+    Watchdog: end the whole test after TEST_LIMIT_SECONDS (normal run: about 2 minutes)."""
+    import threading
+    started = time.monotonic()
+
+    def loop():
+        while True:
+            time.sleep(30)
+            elapsed = time.monotonic() - started
+            trace(f"heartbeat: test running {elapsed:.0f}s")
+            if elapsed > TEST_LIMIT_SECONDS:
+                trace(f"WATCHDOG: test exceeded {TEST_LIMIT_SECONDS}s; ending it")
+                close_app_processes()
+                os._exit(3)
+
+    threading.Thread(target=loop, daemon=True).start()
+
+
 def main():
+    start_watchdog_and_heartbeat()
     ms_msi, st_msi, score, work = (Path(a).resolve() for a in sys.argv[1:5])
     work.mkdir(parents=True, exist_ok=True)
     pf = Path(os.environ.get("ProgramW6432", os.environ["ProgramFiles"]))

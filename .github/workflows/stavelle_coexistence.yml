@@ -7,10 +7,10 @@ name: 'Stavelle: Coexistence Test (Windows)'
 # Runs automatically after every successful "Build: Windows" run, or on request with the
 # run ID of the build whose installer should be tested.
 
+# Manual-only for now (14 Nov): two runs hung with the build machine itself becoming
+# unresponsive. Re-enable the automatic run after a successful Windows build once the
+# hardened test has been confirmed on request.
 on:
-  workflow_run:
-    workflows: [ 'Build: Windows' ]
-    types: [ completed ]
   workflow_dispatch:
     inputs:
       build_run_id:
@@ -23,9 +23,8 @@ permissions:
 
 jobs:
   coexistence:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: windows-2025
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
     - name: Clone repository
       uses: actions/checkout@v6
@@ -33,7 +32,7 @@ jobs:
       shell: bash
       env:
         GH_TOKEN: ${{ github.token }}
-        BUILD_RUN_ID: ${{ inputs.build_run_id || github.event.workflow_run.id }}
+        BUILD_RUN_ID: ${{ inputs.build_run_id }}
       timeout-minutes: 10
       run: |
         echo "Using installer from Build: Windows run $BUILD_RUN_ID"
@@ -54,7 +53,7 @@ jobs:
         ls -la musescore_msi
     - name: Coexistence test (with negative control)
       shell: bash
-      timeout-minutes: 25
+      timeout-minutes: 20
       run: |
         STAVELLE_MSI=$(ls stavelle_artifact/*.msi | head -1)
         MUSESCORE_MSI=$(ls musescore_msi/*.msi | head -1)
