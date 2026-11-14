@@ -11,6 +11,7 @@
 
 #include <QObject>
 #include <QVariantList>
+#include <QVariantMap>
 #include <qqmlintegration.h>
 
 #include "modularity/ioc.h"
@@ -31,6 +32,7 @@ class ArticulationPlaybackModel : public QObject, public muse::Contextable
     Q_PROPERTY(QVariantList params READ params NOTIFY paramsChanged)
     Q_PROPERTY(bool hasChanges READ hasChanges NOTIFY paramsChanged)
     Q_PROPERTY(QString resultText READ resultText NOTIFY resultChanged)
+    Q_PROPERTY(QVariantList passages READ passages NOTIFY passagesChanged)
 
     QML_ELEMENT
 
@@ -44,6 +46,11 @@ public:
     Q_INVOKABLE void resetValue(const QString& key);
     Q_INVOKABLE void resetScope();
     Q_INVOKABLE bool apply();
+    Q_INVOKABLE void goToPassage(int index);
+    Q_INVOKABLE void removePassage(int index);
+
+    //! Shown wording for one setting: key, group, title, unit, min, max, defaultValue
+    static QVariantMap describeParam(engraving::jubelle::ArtParam param);
 
     QVariantList scopes() const;
     int currentScope() const;
@@ -51,8 +58,10 @@ public:
     QVariantList params() const;
     bool hasChanges() const;
     QString resultText() const;
+    QVariantList passages() const;
 
 signals:
+    void passagesChanged();
     void scopesChanged();
     void currentScopeChanged();
     void paramsChanged();
@@ -74,5 +83,6 @@ private:
     engraving::jubelle::ArticulationPlaybackSettings m_original;
     engraving::jubelle::ArticulationPlaybackSettings m_settings;
     QString m_resultText;
+    std::vector<engraving::EngravingItem*> m_passageLines;   // Jubelle playback lines, by bar
 };
 }

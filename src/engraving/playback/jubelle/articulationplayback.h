@@ -22,12 +22,16 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <vector>
 
 #include "global/types/string.h"
 #include "mpe/mpetypes.h"
 
 namespace mu::engraving {
+class EngravingItem;
+class Part;
 class Score;
+class TextLine;
 }
 
 namespace mu::engraving::jubelle {
@@ -104,6 +108,37 @@ struct ArticulationPlaybackSettings {
 muse::mpe::ArticulationsProfilePtr applyArticulationPlayback(const muse::mpe::ArticulationsProfilePtr& base,
                                                              const ArticulationPlaybackValues& values);
 
-//! Turn speed for a part of a score (1.0 = normal). Cheap to call repeatedly.
+// ---------------------------------------------------------------------------
+// Level 3: passages (decided 14 Nov 2026)
+//
+// A passage override is a hidden (never printed) MuseScore text line on an
+// instrument's staff, over the passage. Its text holds the values, e.g.
+//   "Jubelle playback: staccato=25% accentLoudness=+15%"
+// so it moves with the music, copies and pastes, undoes and saves like any
+// other line. For each articulation separately, a note uses the passage
+// covering it (the later-starting one where passages overlap), else the
+// instrument value, else the global value, else MuseScore's.
+// ---------------------------------------------------------------------------
+
+constexpr const char16_t* PASSAGE_PREFIX = u"Jubelle playback:";
+
+//! The line text for a passage with these values
+muse::String passageText(const ArticulationPlaybackValues& values);
+//! The values in a passage line's text; nullopt if it isn't one
+std::optional<ArticulationPlaybackValues> parsePassageText(const muse::String& text);
+//! A Jubelle passage line (or a segment of one)
+const TextLine* passageLine(const EngravingItem* item);
+
+struct PassageAt {
+    const TextLine* line = nullptr;
+    ArticulationPlaybackValues values;
+};
+//! The passages on this part covering `tick`, earliest-starting first
+std::vector<PassageAt> passagesAt(const Score* score, const Part* part, int tick);
+//! Passage values merged (later-starting wins per articulation)
+ArticulationPlaybackValues mergedPassageValues(const std::vector<PassageAt>& passages);
+
+//! Turn speed for a part at a tick (1.0 = normal). Cheap to call repeatedly.
+double turnSpeedFactor(const Score* score, const Part* part, int tick);
 double turnSpeedFactor(const Score* score, uint64_t partId);
 }

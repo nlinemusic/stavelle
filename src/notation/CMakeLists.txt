@@ -80,6 +80,8 @@ target_sources(notation PRIVATE
     internal/jubelle/swingmarking.h
     internal/jubelle/partlayout.cpp
     internal/jubelle/partlayout.h
+    internal/jubelle/articulationpassage.cpp
+    internal/jubelle/articulationpassage.h
     internal/notationinteraction.h
     internal/notationmidiinput.cpp
     internal/notationmidiinput.h
@@ -144,6 +146,7 @@ set_source_files_properties(
     internal/jubelle/passagelinkplanner.cpp
     internal/jubelle/swingmarking.cpp
     internal/jubelle/partlayout.cpp
+    internal/jubelle/articulationpassage.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )

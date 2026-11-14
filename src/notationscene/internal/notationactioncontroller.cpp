@@ -403,6 +403,9 @@ void NotationActionController::init()
     registerAction("jubelle-apply-part-layout", [this]() {
         interactive()->open("musescore://notation/jubelle/applypartlayout");
     });
+    registerAction("jubelle-passage-playback", [this]() {
+        interactive()->open("musescore://notation/jubelle/passageplayback");
+    });
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);

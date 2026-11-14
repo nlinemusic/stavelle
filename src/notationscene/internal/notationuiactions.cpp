@@ -493,6 +493,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Apply &Part Layout…"),
              TranslatableString("action", "Copy one part's system and page breaks and other layout to other parts, without changing any music")
              ),
+    //! Jubelle Phase 5A level 3: articulation playback for the highlighted passage
+    UiAction("jubelle-passage-playback",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Articulation Playback for &Selection…"),
+             TranslatableString("action", "Set how articulations sound in the highlighted passage only")
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

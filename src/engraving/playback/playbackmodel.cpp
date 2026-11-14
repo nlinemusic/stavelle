@@ -24,6 +24,7 @@
 
 #include "jubelle/articulationplayback.h"
 #include "jubelle/swingfeel.h"
+#include "dom/textline.h"
 
 #include <limits>
 
@@ -83,7 +84,14 @@ void PlaybackModel::load(Score* score)
         // Jubelle: articulation playback or swing settings changed (or were
         // undone): everything has to be rendered again with the new values
         const bool swingChanged = jubelleSwingSettingsChanged();
-        if (jubelleArticulationSettingsChanged() || swingChanged) {
+        bool passageChanged = false;   // a passage line was added, moved, edited or removed
+        for (const auto& pair : changes.changedObjects) {
+            if (pair.first->isEngravingItem() && jubelle::passageLine(toEngravingItem(pair.first))) {
+                passageChanged = true;
+                break;
+            }
+        }
+        if (jubelleArticulationSettingsChanged() || swingChanged || passageChanged) {
             reload();
             return;
         }
@@ -573,7 +581,8 @@ void PlaybackModel::processSegment(const int tickPositionOffset, const Segment* 
             continue;
         }
 
-        ArticulationsProfilePtr profile = defaultActiculationProfile(trackId);
+        // Jubelle: the profile at this note's tick (passage overrides)
+        ArticulationsProfilePtr profile = defaultActiculationProfile(trackId, item->tick().ticks());
         if (!profile) {
             LOGE() << "unsupported instrument family: " << item->part()->id();
             continue;
@@ -1171,7 +1180,7 @@ InstrumentTrackId PlaybackModel::idKey(const ID& partId, const String& instrumen
     return { partId, instrumentId };
 }
 
-muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(const InstrumentTrackId& trackId) const
+muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(const InstrumentTrackId& trackId, int tick) const
 {
     auto it = m_playbackDataMap.find(trackId);
     if (it == m_playbackDataMap.cend()) {
@@ -1186,7 +1195,33 @@ muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(con
 
     // Jubelle: the score's own articulation playback settings, if any
     jubelleArticulationSettingsChanged();
-    if (m_jubelleArticulationText.isEmpty() || !base) {
+    if (!base) {
+        return base;
+    }
+
+    // Level 3: passage lines covering this tick
+    if (tick >= 0 && m_score) {
+        const Part* part = m_score->partById(trackId.partId);
+        const std::vector<jubelle::PassageAt> passages = jubelle::passagesAt(m_score, part, tick);
+        if (!passages.empty()) {
+            String key = trackId.instrumentId + u"|" + String::number(int64_t(trackId.partId.toUint64()));
+            for (const jubelle::PassageAt& pa : passages) {
+                key += u"|" + String::number(pa.line->tick().ticks()) + u":" + pa.line->beginText();
+            }
+            JubelleProfile& cached = m_jubellePassageProfiles[key.toStdString()];
+            if (cached.base != base || !cached.profile) {
+                const jubelle::ArticulationPlaybackSettings settings
+                    = jubelle::ArticulationPlaybackSettings::fromText(m_jubelleArticulationText);
+                const jubelle::ArticulationPlaybackValues values
+                    = jubelle::mergedPassageValues(passages).over(settings.effective(trackId.partId.toUint64()));
+                cached.base = base;
+                cached.profile = jubelle::applyArticulationPlayback(base, values);
+            }
+            return cached.profile;
+        }
+    }
+
+    if (m_jubelleArticulationText.isEmpty()) {
         return base;
     }
 
@@ -1222,6 +1257,7 @@ bool PlaybackModel::jubelleArticulationSettingsChanged() const
     }
     m_jubelleArticulationText = text;
     m_jubelleProfiles.clear();
+    m_jubellePassageProfiles.clear();
     return true;
 }
 

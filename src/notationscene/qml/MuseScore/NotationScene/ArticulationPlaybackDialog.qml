@@ -164,6 +164,51 @@ StyledDialogView {
             }
         }
 
+        // Passages (level 3): hidden playback lines in the score
+        StyledTextLabel {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignLeft
+            font: ui.theme.bodyBoldFont
+            color: root.jubellePurple
+            text: qsTrc("notation", "Passages (%1)").arg(artModel.passages.length)
+        }
+        StyledTextLabel {
+            Layout.fillWidth: true
+            visible: artModel.passages.length === 0
+            horizontalAlignment: Text.AlignLeft
+            wrapMode: Text.Wrap
+            opacity: 0.7
+            text: qsTrc("notation", "None. Select a passage and right-click → Articulation Playback for Selection… to give it its own values.")
+        }
+        StyledListView {
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.min(contentHeight, 110)
+            visible: artModel.passages.length > 0
+            spacing: 4
+            clip: true
+            model: artModel.passages
+            delegate: RowLayout {
+                width: ListView.view.width
+                spacing: 8
+                StyledTextLabel {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignLeft
+                    elide: Text.ElideRight
+                    text: modelData.title + " — " + modelData.summary
+                }
+                FlatButton {
+                    text: qsTrc("notation", "Go to")
+                    navigation.panel: paramsPanel
+                    onClicked: artModel.goToPassage(index)
+                }
+                FlatButton {
+                    text: qsTrc("notation", "Remove")
+                    navigation.panel: paramsPanel
+                    onClicked: artModel.removePassage(index)
+                }
+            }
+        }
+
         StyledTextLabel {
             Layout.fillWidth: true
             visible: text !== ""

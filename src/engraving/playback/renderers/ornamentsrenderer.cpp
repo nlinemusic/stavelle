@@ -354,7 +354,7 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
         if (isJazzTurn) {
             // Jubelle: the score's turn speed (faster turn = shorter turn notes),
             // never using more than three quarters of the note
-            const double speed = jubelle::turnSpeedFactor(chord->score(), chord->part() ? chord->part()->id().toUint64() : 0);
+            const double speed = jubelle::turnSpeedFactor(chord->score(), chord->part(), chord->tick().ticks());
             if (speed > 0.0 && speed != 1.0) {
                 const int maxTicks = ornamentCtx.nominalDurationTicks * 3 / 4;
                 actualPattern.prefixDurationTicks = std::min(maxTicks, int(std::lround(actualPattern.prefixDurationTicks / speed)));

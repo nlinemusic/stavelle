@@ -154,7 +154,7 @@ private:
 
     const RepeatList& repeatList() const;
 
-    muse::mpe::ArticulationsProfilePtr defaultActiculationProfile(const InstrumentTrackId& trackId) const;
+    muse::mpe::ArticulationsProfilePtr defaultActiculationProfile(const InstrumentTrackId& trackId, int tick = -1) const;
     bool jubelleArticulationSettingsChanged() const;
     bool jubelleSwingSettingsChanged() const;
 
@@ -186,6 +186,7 @@ private:
     mutable muse::String m_jubelleArticulationText;
     mutable muse::String m_jubelleSwingText;
     mutable std::unordered_map<InstrumentTrackId, JubelleProfile> m_jubelleProfiles;
+    mutable std::unordered_map<std::string, JubelleProfile> m_jubellePassageProfiles;
 
     muse::async::Channel<InstrumentTrackIdSet> m_tracksDataChanged;
     muse::async::Channel<InstrumentTrackId> m_trackAdded;

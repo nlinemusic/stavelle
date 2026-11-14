@@ -16,7 +16,14 @@
 #include "translation.h"
 
 #include "engraving/dom/masterscore.h"
+#include "engraving/dom/measure.h"
 #include "engraving/dom/part.h"
+#include "engraving/dom/spanner.h"
+#include "engraving/dom/textline.h"
+
+#include <QStringList>
+
+#include "notation/inotationinteraction.h"
 
 #include "notation/inotation.h"
 #include "notation/inotationelements.h"
@@ -67,6 +74,25 @@ std::optional<ArtParam> paramForKey(const QString& key)
 }
 }
 
+QVariantMap ArticulationPlaybackModel::describeParam(ArtParam param)
+{
+    QVariantMap m;
+    for (const ParamText& t : paramTexts()) {
+        if (t.param != param) {
+            continue;
+        }
+        const ArtParamInfo& info = artParamInfo(param);
+        m["key"] = QString::fromLatin1(info.key);
+        m["group"] = muse::qtrc("notation", t.group);
+        m["title"] = muse::qtrc("notation", t.title);
+        m["unit"] = QString::fromLatin1(t.unit);
+        m["min"] = info.minValue;
+        m["max"] = info.maxValue;
+        m["defaultValue"] = info.defaultValue;
+    }
+    return m;
+}
+
 ArticulationPlaybackModel::ArticulationPlaybackModel(QObject* parent)
     : QObject(parent), muse::Contextable(muse::iocCtxForQmlObject(this))
 {
@@ -97,6 +123,17 @@ void ArticulationPlaybackModel::load()
     }
     m_settings = m_original;
     m_currentScope = 0;
+
+    // Passages: every Jubelle playback line in the score
+    m_passageLines.clear();
+    if (s && s->masterScore()) {
+        for (const auto& [tick, sp] : s->masterScore()->spanner()) {
+            if (passageLine(sp)) {
+                m_passageLines.push_back(sp);
+            }
+        }
+    }
+    emit passagesChanged();
 
     emit scopesChanged();
     emit currentScopeChanged();
@@ -236,6 +273,60 @@ void ArticulationPlaybackModel::setResult(const QString& text)
         m_resultText = text;
         emit resultChanged();
     }
+}
+
+QVariantList ArticulationPlaybackModel::passages() const
+{
+    QVariantList list;
+    for (EngravingItem* item : m_passageLines) {
+        const TextLine* line = passageLine(item);
+        if (!line) {
+            continue;
+        }
+        const Score* s = line->score();
+        const Measure* a = s->tick2measure(line->tick());
+        const Measure* b = s->tick2measure(line->tick2() - Fraction::fromTicks(1));
+        QStringList changes;
+        if (auto values = parsePassageText(line->beginText())) {
+            for (const ArtParamInfo& info : artParams()) {
+                if (auto v = values->get(info.param)) {
+                    const QVariantMap d = describeParam(info.param);
+                    changes << QString("%1 %2 %3").arg(d["group"].toString(), d["title"].toString(), QString::number(*v));
+                }
+            }
+        }
+        QVariantMap m;
+        m["title"] = QString("%1 · %2").arg(line->part() ? line->part()->partName().toQString() : QString(),
+                                            (a && b && a != b) ? muse::qtrc("notation", "bars %1–%2").arg(a->no() + 1).arg(b->no() + 1)
+                                            : muse::qtrc("notation", "bar %1").arg(a ? a->no() + 1 : 1));
+        m["summary"] = changes.join(", ");
+        list << m;
+    }
+    return list;
+}
+
+void ArticulationPlaybackModel::goToPassage(int index)
+{
+    INotationPtr notation = globalContext() ? globalContext()->currentNotation() : nullptr;
+    if (!notation || index < 0 || index >= int(m_passageLines.size())) {
+        return;
+    }
+    notation->interaction()->select({ m_passageLines[index] }, SelectType::SINGLE);
+    notation->interaction()->showItem(m_passageLines[index]);
+}
+
+void ArticulationPlaybackModel::removePassage(int index)
+{
+    INotationPtr notation = globalContext() ? globalContext()->currentNotation() : nullptr;
+    if (!notation || index < 0 || index >= int(m_passageLines.size())) {
+        return;
+    }
+    EngravingItem* line = m_passageLines[index];
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Remove passage articulation playback"));
+    line->score()->undoRemoveElement(line);
+    notation->undoStack()->commitChanges();
+    m_passageLines.erase(m_passageLines.begin() + index);
+    emit passagesChanged();
 }
 
 bool ArticulationPlaybackModel::apply()

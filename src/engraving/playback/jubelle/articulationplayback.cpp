@@ -19,6 +19,10 @@
 #include <unordered_map>
 
 #include "dom/masterscore.h"
+#include "dom/part.h"
+#include "dom/spanner.h"
+#include "dom/staff.h"
+#include "dom/textline.h"
 #include "editing/editscoreproperties.h"
 
 namespace mu::engraving::jubelle {
@@ -436,5 +440,115 @@ double turnSpeedFactor(const Score* score, uint64_t partId)
         cachedText = text;
     }
     return cached.effective(partId).valueOrDefault(ArtParam::TurnSpeed) / 100.0;
+}
+
+// ---------------------------------------------------------------------------
+// Passages
+// ---------------------------------------------------------------------------
+
+String passageText(const ArticulationPlaybackValues& values)
+{
+    std::ostringstream out;
+    out << "Jubelle playback:";
+    for (const ArtParamInfo& info : PARAMS) {
+        if (auto v = values.get(info.param)) {
+            out << ' ' << info.key << '=';
+            const bool signedValue = info.param == ArtParam::AccentLoudness || info.param == ArtParam::MarcatoLoudness;
+            if (signedValue && *v >= 0) {
+                out << '+';
+            }
+            out << *v;
+            const bool percent = info.param != ArtParam::FallRange && info.param != ArtParam::ScoopRange
+                                 && info.param != ArtParam::FallCurve && info.param != ArtParam::GlissandoCurve;
+            out << (percent ? "%" : "");
+        }
+    }
+    return String::fromUtf8(out.str().c_str());
+}
+
+std::optional<ArticulationPlaybackValues> parsePassageText(const String& text)
+{
+    const std::string t = text.toStdString();
+    const std::string prefix = String(PASSAGE_PREFIX).toStdString();
+    const size_t at = t.find(prefix);
+    if (at == std::string::npos) {
+        return std::nullopt;
+    }
+    std::string rest = t.substr(at + prefix.size());
+    for (char& c : rest) {
+        if (c == '%' || c == '+' || c == ',') {
+            c = ' ';
+        }
+    }
+    // "staccato= 25" → "staccato=25" after removing the sign/percent marks
+    std::string cleaned;
+    for (size_t i = 0; i < rest.size(); ++i) {
+        if (rest[i] == ' ' && !cleaned.empty() && cleaned.back() == '=') {
+            continue;
+        }
+        cleaned += rest[i];
+    }
+    ArticulationPlaybackValues values;
+    std::istringstream line(cleaned);
+    readValues(line, values);
+    return values;
+}
+
+const TextLine* passageLine(const EngravingItem* item)
+{
+    if (!item) {
+        return nullptr;
+    }
+    if (item->isTextLineSegment()) {
+        item = toTextLineSegment(item)->textLine();
+    }
+    if (!item || !item->isTextLine()) {
+        return nullptr;
+    }
+    const TextLine* line = toTextLine(item);
+    return line->beginText().contains(String(PASSAGE_PREFIX)) ? line : nullptr;
+}
+
+std::vector<PassageAt> passagesAt(const Score* score, const Part* part, int tick)
+{
+    std::vector<PassageAt> result;
+    if (!score || !part) {
+        return result;
+    }
+    for (const auto& interval : score->spannerMap().findOverlapping(tick, tick)) {
+        const Spanner* sp = interval.value;
+        const TextLine* line = passageLine(sp);
+        if (!line || !line->staff() || line->staff()->part() != part) {
+            continue;
+        }
+        if (tick < line->tick().ticks() || tick >= line->tick2().ticks()) {
+            continue;
+        }
+        if (auto values = parsePassageText(line->beginText())) {
+            result.push_back({ line, *values });
+        }
+    }
+    std::stable_sort(result.begin(), result.end(), [](const PassageAt& a, const PassageAt& b) {
+        return a.line->tick() < b.line->tick();
+    });
+    return result;
+}
+
+ArticulationPlaybackValues mergedPassageValues(const std::vector<PassageAt>& passages)
+{
+    ArticulationPlaybackValues merged;
+    for (const PassageAt& p : passages) {
+        merged = p.values.over(merged);
+    }
+    return merged;
+}
+
+double turnSpeedFactor(const Score* score, const Part* part, int tick)
+{
+    const ArticulationPlaybackValues passage = mergedPassageValues(passagesAt(score, part, tick));
+    if (auto v = passage.get(ArtParam::TurnSpeed)) {
+        return *v / 100.0;
+    }
+    return turnSpeedFactor(score, part ? part->id().toUint64() : 0);
 }
 }
