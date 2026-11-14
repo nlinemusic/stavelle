@@ -28,7 +28,6 @@ using namespace mu::appshell;
 
 static const QString HOME_PAGE("musescore://home");
 static const QString NOTATION_PAGE("musescore://notation");
-static const QString NOTATION_REVIEW_PAGE("musescore://notation/review");
 static const QString PUBLISH_PAGE("musescore://publish");
 static const QString DEVTOOLS_PAGE("musescore://devtools");
 
@@ -39,7 +38,7 @@ static const QString IS_CHECKED_KEY("isChecked");
 
 static bool isNotationPageUri(const QString& uri)
 {
-    return uri == NOTATION_PAGE || uri == NOTATION_REVIEW_PAGE;
+    return uri == NOTATION_PAGE;
 }
 
 static bool isItemChecked(const QString& itemUri, const QString& currentUri)

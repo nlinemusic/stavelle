@@ -35,7 +35,6 @@
 #include "iappshellconfiguration.h"
 #include "multiwindows/imultiwindowsprovider.h"
 #include "project/iprojectfilescontroller.h"
-#include "project/iconvertfiletoscorescenario.h"
 #include "audio/main/isoundfontcontroller.h"
 #include "istartupscenario.h"
 #include "iapplication.h"
@@ -59,7 +58,6 @@ class ApplicationActionController : public QObject, public muse::Contextable, pu
     muse::ContextInject<muse::ui::IMainWindow> mainWindow = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
     muse::ContextInject<project::IProjectFilesController> projectFilesController = { this };
-    muse::ContextInject<project::IConvertFileToScoreScenario> convertFileToScoreScenario = { this };
     muse::ContextInject<muse::audio::ISoundFontController> soundFontController = { this };
     muse::ContextInject<IStartupScenario> startupScenario = { this };
     muse::ContextInject<muse::IApplication> application = { this };
@@ -82,8 +80,7 @@ private:
         Unknown = 0,
         ProjectFile,
         SoundFont,
-        Extension,
-        ConvertibleFile
+        Extension
     };
 
     bool eventFilter(QObject* watched, QEvent* event) override;

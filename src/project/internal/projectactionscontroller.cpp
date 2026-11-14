@@ -50,7 +50,6 @@ using namespace muse;
 using namespace muse::actions;
 
 static const muse::Uri NOTATION_PAGE_URI("musescore://notation");
-static const muse::Uri NOTATION_REVIEW_PAGE_URI("musescore://notation/review");
 static const muse::Uri HOME_PAGE_URI("musescore://home");
 static const muse::Uri NEW_SCORE_URI("musescore://project/newscore");
 static const muse::Uri PROJECT_PROPERTIES_URI("musescore://project/properties");
@@ -90,7 +89,6 @@ void ProjectActionsController::init()
     dispatcher()->reg(this, "file-share-audio", this, &ProjectActionsController::shareAudio);
 
     dispatcher()->reg(this, "file-export", this, &ProjectActionsController::exportScore);
-    dispatcher()->reg(this, "file-convert-to-score", this, &ProjectActionsController::convertFileToScore);
 
     dispatcher()->reg(this, "print", this, &ProjectActionsController::printScore);
 
@@ -132,7 +130,6 @@ bool ProjectActionsController::canReceiveAction(const ActionCode& code) const
         static const std::unordered_set<ActionCode> DONT_REQUIRE_OPEN_PROJECT {
             "file-new",
             "file-open",
-            "file-convert-to-score",
             "continue-last-session",
             "clear-recent",
         };
@@ -144,14 +141,6 @@ bool ProjectActionsController::canReceiveAction(const ActionCode& code) const
         if (code == "file-save-to-cloud" || code == "file-publish") {
             return false;
         }
-    }
-
-    if (interactive()->currentUri().val == NOTATION_REVIEW_PAGE_URI) {
-        static const std::unordered_set<ActionCode> ALLOWED_ON_REVIEW_PAGE {
-            "file-close",
-        };
-
-        return muse::contains(ALLOWED_ON_REVIEW_PAGE, code);
     }
 
     return true;
@@ -451,16 +440,7 @@ Ret ProjectActionsController::doFinishOpenProject()
 
 Uri ProjectActionsController::resolveNotationPageUri() const
 {
-    INotationProjectPtr project = globalContext()->currentProject();
-    if (!project || !project->cloudInfo().isValid()) {
-        return NOTATION_PAGE_URI;
-    }
-
-    int scoreId = static_cast<int>(muse::cloud::idFromCloudUrl(project->cloudInfo().sourceUrl).toUint64());
-    if (convertFileToScoreScenario()->isAwaitingReview(scoreId)) {
-        return NOTATION_REVIEW_PAGE_URI;
-    }
-
+    // Jubelle: the review page for converted scores was removed with "Convert file to score".
     return NOTATION_PAGE_URI;
 }
 
@@ -1870,12 +1850,6 @@ void ProjectActionsController::warnProjectCannotBeOpened(const Ret& ret, const m
     }
 
     interactive()->error(title, body);
-}
-
-void ProjectActionsController::convertFileToScore(const ActionData& args)
-{
-    muse::io::paths_t paths = args.empty() ? muse::io::paths_t() : args.arg<muse::io::paths_t>(0);
-    convertFileToScoreScenario()->convertFiles(paths);
 }
 
 void ProjectActionsController::clearRecentScores()
