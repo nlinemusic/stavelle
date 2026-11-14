@@ -395,12 +395,13 @@ MenuItem* AppMenuModel::makeToolsMenu()
     };
 
     MenuItemList toolsItems {
+        makeMenuItem("jubelle-identify-chords"),
+        makeSeparator(),
         makeMenuItem("transpose"),
         makeSeparator(),
         makeMenuItem("explode"),
         makeMenuItem("implode"),
         makeMenuItem("realize-chord-symbols"),
-        makeMenuItem("jubelle-identify-chords"),
         makeMenu(TranslatableString("appshell/menu/tools", "&Voices"), voicesItems, "menu-voices"),
         makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
         makeMenuItem("time-delete"),

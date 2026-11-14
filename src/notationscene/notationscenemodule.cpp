@@ -92,6 +92,7 @@ void NotationSceneModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://notation/selectmeasurescount"), "MuseScore.NotationScene", "SelectMeasuresCountDialog");
         ir->registerQmlUri(Uri("musescore://notation/editgridsize"), "MuseScore.NotationScene", "EditGridSizeDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/engravingpresets"), "MuseScore.NotationScene", "EngravingPresetsDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/chordidentifier"), "MuseScore.NotationScene", "ChordIdentifierDialog");
         ir->registerQmlUri(Uri("musescore://notation/percussionpanelpadswap"), "MuseScore.NotationScene", "PercussionPanelPadSwapDialog");
         ir->registerQmlUri(Uri("musescore://notation/editpercussionshortcut"), "MuseScore.NotationScene", "EditPercussionShortcutDialog");
     }

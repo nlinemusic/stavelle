@@ -388,7 +388,9 @@ void NotationActionController::init()
     registerAction("explode", &Interaction::explodeSelectedStaff);
     registerAction("implode", &Interaction::implodeSelectedStaff);
     registerAction("extend-to-next-note", &Interaction::extendToNextNote);
-    registerAction("jubelle-identify-chords", &Interaction::identifyChords);
+    registerAction("jubelle-identify-chords", [this]() {
+        interactive()->open("musescore://notation/jubelle/chordidentifier");
+    });
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);

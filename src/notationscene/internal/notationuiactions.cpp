@@ -458,12 +458,12 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Realize &chord symbols"),
              TranslatableString("action", "Realize chord symbols")
              ),
-    //! Jubelle: built-in chord identification
+    //! Jubelle: Chord Identifier (built in; replaces the old plugin)
     UiAction("jubelle-identify-chords",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
-             TranslatableString("action", "&Identify chords"),
-             TranslatableString("action", "Add chord symbols named from the selected notes")
+             TranslatableString("action", "&Chord Identifier…"),
+             TranslatableString("action", "Name the chords in the selection or the whole score, as chord symbols or Roman numerals")
              ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,

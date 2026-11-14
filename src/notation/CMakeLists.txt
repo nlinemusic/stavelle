@@ -131,6 +131,17 @@ if(NOT OS_IS_WASM)
     target_compile_definitions(notation PRIVATE MUE_BUILD_ENGRAVING_FONTSCONTROLLER)
 endif()
 
+# Jubelle: keep these out of unity batches so their file-local helpers and
+# using-directives can't clash with neighbouring sources.
+set_source_files_properties(
+    internal/jubelle/chordidentifier.cpp
+    internal/jubelle/chordidentifierrunner.cpp
+    internal/jubelle/condensingplanner.cpp
+    internal/jubelle/passagelinkplanner.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+)
+
 target_link_libraries(notation PRIVATE
     muse::draw
     engraving
