@@ -25,6 +25,7 @@
 #include <QVariant>
 #include <QMap>
 #include <QStack>
+#include <QWindow>
 
 #include <qqmlintegration.h>
 

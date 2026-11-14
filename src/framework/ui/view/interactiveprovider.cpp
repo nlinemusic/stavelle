@@ -28,6 +28,7 @@
 #include <QColorDialog>
 #include <QGuiApplication>
 #include <QWindow>
+#include <QQmlEngine>
 #include <QWidget>
 
 #include "global/async/async.h"

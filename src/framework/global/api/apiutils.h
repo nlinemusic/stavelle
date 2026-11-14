@@ -25,6 +25,7 @@
 #include <string>
 #include <vector>
 #include <QString>
+#include <QMetaEnum>
 #include <QJSValue>
 
 #include "apitypes.h"
