@@ -281,8 +281,12 @@ def main():
     # 3. Install Jubelle and use it
     rc = msiexec(["/i", str(st_msi)], work / "jubelle_install.log")
     check("Jubelle installs alongside MuseScore", rc == 0, f"msiexec exit {rc}")
-    st_exe = pf / "Jubelle" / "bin" / "Jubelle.exe"
-    check("Jubelle installed to its own folder", st_exe.exists(), str(st_exe))
+    # The folder name depends on the build mode ("Jubelle", "Jubelle Testing", …),
+    # as MuseScore's does, so it is found the same way as MuseScore's above.
+    st_exes = sorted(pf.glob("Jubelle*/bin/Jubelle.exe"))
+    st_exe = st_exes[0] if st_exes else pf / "Jubelle" / "bin" / "Jubelle.exe"
+    check("Jubelle installed to its own folder", len(st_exes) == 1 and st_exe.parent.parent != ms_install,
+          ", ".join(map(str, st_exes)) or "no Jubelle*/bin/Jubelle.exe under Program Files")
     check("Jubelle not installed inside MuseScore's folder", not any(ms_install.rglob("Jubelle*")))
     if st_exe.exists():
         check("Jubelle works", run_converter(st_exe, score, work / "jubelle_1.pdf"))
@@ -307,7 +311,7 @@ def main():
     # 4. Uninstall Jubelle
     rc = msiexec(["/x", str(st_msi)], work / "jubelle_uninstall.log")
     check("Jubelle uninstalls", rc == 0, f"msiexec exit {rc}")
-    check("Jubelle program files removed", not st_exe.exists())
+    check("Jubelle program files removed", not st_exe.exists(), str(st_exe))
     s2 = snapshot(ms_install)
     d = diff(s1b["install"], s2["install"])
     check("MuseScore installation files unchanged after uninstalling Jubelle", not d, ", ".join(d[:5]))
