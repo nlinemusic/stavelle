@@ -472,6 +472,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "&Articulation Playback…"),
              TranslatableString("action", "Set how staccatos, accents, falls, scoops, glissandos and turns sound, for the score or one instrument")
              ),
+    //! Jubelle Phase 5B: rhythmic feel (playback only)
+    UiAction("jubelle-swing",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "S&wing…"),
+             TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
+             ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

@@ -23,6 +23,7 @@
 #include "playbackmodel.h"
 
 #include "jubelle/articulationplayback.h"
+#include "jubelle/swingfeel.h"
 
 #include <limits>
 
@@ -73,14 +74,16 @@ void PlaybackModel::load(Score* score)
     }
 
     m_score = score;
+    jubelleSwingSettingsChanged();
 
     auto changesChannel = score->changesChannel();
     changesChannel.disconnect(this);
 
     changesChannel.onReceive(this, [this](const ScoreChanges& changes) {
-        // Jubelle: articulation playback settings changed (or were undone):
-        // everything has to be rendered again with the new values
-        if (jubelleArticulationSettingsChanged()) {
+        // Jubelle: articulation playback or swing settings changed (or were
+        // undone): everything has to be rendered again with the new values
+        const bool swingChanged = jubelleSwingSettingsChanged();
+        if (jubelleArticulationSettingsChanged() || swingChanged) {
             reload();
             return;
         }
@@ -1194,6 +1197,18 @@ muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(con
         cached.profile = jubelle::applyArticulationPlayback(base, settings.effective(trackId.partId.toUint64()));
     }
     return cached.profile;
+}
+
+bool PlaybackModel::jubelleSwingSettingsChanged() const
+{
+    const String text = m_score && m_score->masterScore()
+                        ? m_score->masterScore()->metaTag(String(jubelle::SwingSettings::META_TAG))
+                        : String();
+    if (text == m_jubelleSwingText) {
+        return false;
+    }
+    m_jubelleSwingText = text;
+    return true;
 }
 
 bool PlaybackModel::jubelleArticulationSettingsChanged() const

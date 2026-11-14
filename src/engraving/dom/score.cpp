@@ -6134,6 +6134,8 @@ void Score::updateSwing()
             SwingParameters sp;
             sp.swingRatio = st->swingParameters().swingRatio;
             sp.swingUnit = st->swingParameters().swingUnit;
+            sp.jubelleFeel = st->swingParameters().jubelleFeel;
+            sp.fromText = true;
             if (st->systemFlag()) {
                 for (Staff* sta : m_staves) {
                     sta->insertIntoSwingMap(s->tick(), sp);

@@ -156,6 +156,7 @@ private:
 
     muse::mpe::ArticulationsProfilePtr defaultActiculationProfile(const InstrumentTrackId& trackId) const;
     bool jubelleArticulationSettingsChanged() const;
+    bool jubelleSwingSettingsChanged() const;
 
     PlaybackContextPtr playbackCtx(const InstrumentTrackId& trackId);
 
@@ -183,6 +184,7 @@ private:
         muse::mpe::ArticulationsProfilePtr profile;
     };
     mutable muse::String m_jubelleArticulationText;
+    mutable muse::String m_jubelleSwingText;
     mutable std::unordered_map<InstrumentTrackId, JubelleProfile> m_jubelleProfiles;
 
     muse::async::Channel<InstrumentTrackIdSet> m_tracksDataChanged;

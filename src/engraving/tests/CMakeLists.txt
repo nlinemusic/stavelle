@@ -118,6 +118,7 @@ set(MODULE_TEST_SRC ${MODULE_TEST_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/playback/playbackcontext_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/playback/bendsrenderer_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/jubelle_articulationplayback_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_swing_tests.cpp
 )
 endif()
 

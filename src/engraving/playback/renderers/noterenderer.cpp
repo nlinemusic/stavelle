@@ -31,6 +31,10 @@
 
 #include "glissandosrenderer.h"
 
+#include <cmath>
+
+#include "playback/jubelle/swingfeel.h"
+
 #include "playback/metaparsers/chordarticulationsparser.h"
 #include "playback/metaparsers/notearticulationsparser.h"
 
@@ -300,6 +304,19 @@ void NoteRenderer::applySwingIfNeed(const Note* note, NominalNoteCtx& noteCtx)
 {
     const Chord* chord = note->chord();
     if (!chord || chord->tuplet()) {
+        return;
+    }
+
+    // Jubelle: a rhythmic feel (whole score, instrument or Swing text) if one
+    // is chosen; otherwise MuseScore's own swing below, unchanged
+    const jubelle::SwingTiming feel = jubelle::swingTiming(chord);
+    if (feel.jubelleFeel) {
+        const duration_t additional = noteCtx.duration - noteCtx.chordCtx.nominalDuration;
+        noteCtx.timestamp += static_cast<timestamp_t>(std::llround(noteCtx.chordCtx.nominalDuration * feel.startShift));
+        noteCtx.duration = static_cast<duration_t>(std::llround(noteCtx.chordCtx.nominalDuration * feel.durationFactor)) + additional;
+        if (feel.loudnessFactor != 1.0) {
+            noteCtx.dynamicLevel = static_cast<dynamic_level_t>(std::lround(noteCtx.dynamicLevel * feel.loudnessFactor));
+        }
         return;
     }
 

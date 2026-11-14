@@ -365,6 +365,7 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("reset-to-default-layout"),
         makeSeparator(),
         makeMenuItem("jubelle-articulation-playback"),
+        makeMenuItem("jubelle-swing"),
         makeSeparator(),
         makeMenuItem("load-style"),
         makeMenuItem("save-style"),

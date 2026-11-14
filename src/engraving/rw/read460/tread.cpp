@@ -755,6 +755,7 @@ bool TRead::readProperties(StaffTextBase* t, XmlReader& e, ReadContext& ctx)
         int ratio = e.intAttribute("ratio", 60);
         t->setSwing(true);
         t->setSwingParameters(unit, ratio);
+        t->setJubelleSwingFeel(e.attribute("jubelleFeel"));   // Jubelle; MuseScore ignores it
         e.readNext();
     } else if (tag == "capo") {
         int fretId = e.intAttribute("fretId", 0);
