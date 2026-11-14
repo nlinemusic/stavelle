@@ -22,6 +22,7 @@
 #include "notationcontextmenumodel.h"
 
 #include "engraving/playback/jubelle/articulationplayback.h"
+#include "notation/internal/jubelle/linkedpassages.h"
 
 #include "types/translatablestring.h"
 
@@ -134,6 +135,7 @@ MenuItemList NotationContextMenuModel::makeMeasureItems()
 
     items << makeMenuItem("jubelle-identify-chords");
     items << makeMenuItem("jubelle-passage-playback");
+    items << makeMenuItem("jubelle-linked-passages");
     items << makeSeparator();
     items << makeMenuItem("staff-properties");
     items << makeSeparator();
@@ -319,6 +321,10 @@ MenuItemList NotationContextMenuModel::makeElementItems()
         // Jubelle: a playback line: edit its passage's values
         items << makeSeparator();
         items << makeMenuItem("jubelle-passage-playback");
+    } else if (element && mu::notation::jubelle::linkMember(element)) {
+        // Jubelle: a (hidden, shown with "Show invisible") link line
+        items << makeSeparator();
+        items << makeMenuItem("jubelle-linked-passages");
     }
 
     items << makeSeparator()

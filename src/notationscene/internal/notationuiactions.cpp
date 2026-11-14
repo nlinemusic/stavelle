@@ -493,6 +493,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Apply &Part Layout…"),
              TranslatableString("action", "Copy one part's system and page breaks and other layout to other parts, without changing any music")
              ),
+    //! Jubelle Phase 4 / G2: link the highlighted passage to other staves; manage links
+    UiAction("jubelle-linked-passages",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Linked Passages…"),
+             TranslatableString("action", "Link the highlighted passage to the same bars on other staves, or re-sync or unlink existing links")
+             ),
     //! Jubelle Phase 5A level 3: articulation playback for the highlighted passage
     UiAction("jubelle-passage-playback",
              mu::context::UiCtxProjectOpened,

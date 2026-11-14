@@ -409,6 +409,9 @@ void NotationActionController::init()
     registerAction("jubelle-passage-playback", [this]() {
         interactive()->open("musescore://notation/jubelle/passageplayback");
     });
+    registerAction("jubelle-linked-passages", [this]() {
+        interactive()->open("musescore://notation/jubelle/linkedpassages");
+    });
     // Jubelle: title-page alignment (Format → Align, right-click, Properties panel)
     static const std::vector<std::pair<const char*, jubelle::AlignCommand> > alignCommands {
         { "jubelle-align-left", jubelle::AlignCommand::Left },

@@ -49,6 +49,8 @@ qt_add_qml_module(notationscene_qml
         applypartlayoutmodel.h
         passageplaybackmodel.cpp
         passageplaybackmodel.h
+        linkedpassagesmodel.cpp
+        linkedpassagesmodel.h
         engravingpresetsmodel.cpp
         engravingpresetsmodel.h
         continuouspanel.h
@@ -182,6 +184,7 @@ qt_add_qml_module(notationscene_qml
         RepeatsDialog.qml
         ApplyPartLayoutDialog.qml
         PassagePlaybackDialog.qml
+        LinkedPassagesDialog.qml
         EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml
@@ -336,6 +339,7 @@ set_source_files_properties(
     repeatsmodel.cpp
     applypartlayoutmodel.cpp
     passageplaybackmodel.cpp
+    linkedpassagesmodel.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )

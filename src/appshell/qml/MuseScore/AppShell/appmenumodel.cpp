@@ -442,6 +442,8 @@ MenuItem* AppMenuModel::makeToolsMenu()
         makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
         makeMenuItem("time-delete"),
         makeSeparator(),
+        makeMenuItem("jubelle-linked-passages"),
+        makeSeparator(),
         makeMenuItem("slash-fill"),
         makeMenuItem("slash-rhythm"),
         makeSeparator(),
