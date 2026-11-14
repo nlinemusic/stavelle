@@ -8,13 +8,18 @@ on:
     branches: [ main, 'stavelle/**', 'jubelle/**' ]
   pull_request:
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Runners to test on (JSON list), e.g. ["windows-2025"] to save macOS minutes'
+        default: '["windows-2025", "macos-latest", "ubuntu-latest"]'
+        required: true
 
 jobs:
   platform_tests:
     strategy:
       fail-fast: false
       matrix:
-        os: [ windows-2025, macos-latest, ubuntu-latest ]
+        os: ${{ fromJSON(github.event.inputs.platforms || '["windows-2025", "macos-latest", "ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
     - name: Clone repository
