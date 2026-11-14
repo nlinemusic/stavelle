@@ -59,7 +59,6 @@ class GeneralPreferencesModel : public QObject, public muse::Contextable, public
     Q_PROPERTY(QString startupScorePath READ startupScorePath WRITE setStartupScorePath NOTIFY startupScorePathChanged)
     Q_PROPERTY(QStringList scorePathFilter READ scorePathFilter CONSTANT)
 
-    Q_PROPERTY(bool showWelcomeDialog READ showWelcomeDialog WRITE setShowWelcomeDialog NOTIFY showWelcomeDialogChanged)
 
     Q_PROPERTY(
         bool needCheckForNewAppVersion READ needCheckForNewAppVersion WRITE setNeedCheckForNewAppVersion NOTIFY needCheckForNewAppVersionChanged)
@@ -92,8 +91,6 @@ public:
     QString startupScorePath() const;
     QStringList scorePathFilter() const;
 
-    bool showWelcomeDialog() const;
-    void setShowWelcomeDialog(bool show);
 
     bool needCheckForNewAppVersion() const;
     Q_INVOKABLE bool isAppUpdatable() const;
@@ -122,7 +119,6 @@ signals:
     void currentStartupModeChanged();
     void startupScorePathChanged();
 
-    void showWelcomeDialogChanged();
 
     void needCheckForNewAppVersionChanged(bool value);
 

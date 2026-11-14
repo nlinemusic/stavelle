@@ -81,8 +81,6 @@ public:
     MOCK_METHOD(HomeScoresPageViewType, homeScoresPageViewType, (), (const, override));
     MOCK_METHOD(void, setHomeScoresPageViewType, (HomeScoresPageViewType), (override));
 
-    MOCK_METHOD(int, homeScoresPageTabIndex, (), (const, override));
-    MOCK_METHOD(void, setHomeScoresPageTabIndex, (int), (override));
 
     MOCK_METHOD(QColor, templatePreviewBackgroundColor, (), (const, override));
     MOCK_METHOD(muse::async::Notification, templatePreviewBackgroundChanged, (), (const, override));

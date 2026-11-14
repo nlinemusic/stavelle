@@ -28,10 +28,7 @@ import Muse.Ui
 import Muse.UiComponents
 import Muse.Dock
 
-import Muse.Cloud
-import Muse.Learn
 import MuseScore.Project
-import MuseScore.MuseSounds
 
 DockPage {
     id: root
@@ -57,9 +54,9 @@ DockPage {
     }
 
     function setCurrentCentral(name) {
-        // Jubelle: the MuseSounds and Learn sections were removed from the Home screen,
-        // so any request to open them shows Scores instead.
-        if (name === "musesounds" || name === "learn") {
+        // Jubelle: the MuseSounds, Learn and Account sections were removed from the Home
+        // screen, so any request to open them shows Scores instead.
+        if (name === "musesounds" || name === "learn" || name === "account") {
             name = "scores"
         }
 
@@ -73,7 +70,6 @@ DockPage {
         case "scores": root.central = scoresComp; break
         case "plugins": root.central = extensionsComp; break // backward compatibility
         case "extensions": root.central = extensionsComp; break
-        case "account": root.central = accountComp; break
         }
     }
 
@@ -110,12 +106,6 @@ DockPage {
     ]
 
     central: scoresComp
-
-    Component {
-        id: accountComp
-
-        AccountPage {}
-    }
 
     Component {
         id: scoresComp

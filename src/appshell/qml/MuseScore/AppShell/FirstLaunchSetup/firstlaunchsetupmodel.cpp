@@ -34,7 +34,7 @@ FirstLaunchSetupModel::FirstLaunchSetupModel(QObject* parent)
     m_pages = {
         Page { "ThemesPage.qml", "musescore://notation" },
         Page { "PlaybackPage.qml", "musescore://notation" }
-        // Jubelle: the Tutorials page is not shown because the Learn section was removed from Home.
+        // Jubelle: the Tutorials page was removed together with the Learn section.
     };
 }
 

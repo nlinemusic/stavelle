@@ -28,7 +28,6 @@ import QtQuick.Layouts
 
 import Muse.Ui
 import Muse.UiComponents
-import Muse.Cloud
 
 Item {
     id: root
@@ -61,28 +60,13 @@ Item {
 
         spacing: 0
 
-        AccountInfoButton {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 60
-            Layout.topMargin: 20
-
-            navigation.name: "AccountInfo"
-            navigation.panel: navPanel
-            navigation.row: 1
-
-            checked: root.currentPageName === "account"
-            iconOnly: root.iconsOnly
-
-            onToggled: {
-                root.selected("account")
-            }
-        }
-
+        // Jubelle: the Account section was removed from the Home screen.
         RadioButtonGroup {
             id: radioButtonList
 
             Layout.fillHeight: true
             Layout.fillWidth: true
+            Layout.topMargin: 20
 
             orientation: ListView.Vertical
             spacing: 0
@@ -108,7 +92,7 @@ Item {
 
                 navigation.name: title
                 navigation.panel: navPanel
-                navigation.row: 2 + index
+                navigation.row: 1 + index
 
                 spacing: 30
                 leftPadding: spacing

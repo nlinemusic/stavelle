@@ -70,6 +70,10 @@ set(MUSESCORE_REVISION "" CACHE STRING "Build revision")
 # options so this becomes the default.
 option(MUSE_MODULE_UPDATE "Build UPDATE module" OFF)
 
+# Jubelle: MuseScore's Learn section (online video playlists) was removed; Jubelle will
+# have its own Learning Center. The framework's stub takes its place.
+option(MUSE_MODULE_LEARN "Build LEARN module" OFF)
+
 include(${MUSE_FRAMEWORK_SRC_PATH}/cmake/MuseDeclareOptions.cmake)
 
 # Modules (alphabetical order please)

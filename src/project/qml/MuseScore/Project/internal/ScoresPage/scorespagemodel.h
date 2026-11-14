@@ -39,7 +39,6 @@ class ScoresPageModel : public QObject, public muse::Contextable
 {
     Q_OBJECT
 
-    Q_PROPERTY(int tabIndex READ tabIndex WRITE setTabIndex NOTIFY tabIndexChanged)
     Q_PROPERTY(ViewType viewType READ viewType WRITE setViewType NOTIFY viewTypeChanged)
 
     QML_ELEMENT
@@ -52,8 +51,6 @@ class ScoresPageModel : public QObject, public muse::Contextable
 public:
     explicit ScoresPageModel(QObject* parent = nullptr);
 
-    int tabIndex() const;
-    void setTabIndex(int index);
 
     enum ViewType {
         Grid = int(IProjectConfiguration::HomeScoresPageViewType::Grid),
@@ -71,10 +68,8 @@ public:
     Q_INVOKABLE void revealInFileBrowser(const QString& scorePath);
     Q_INVOKABLE void viewOnline(int scoreId);
     Q_INVOKABLE void deleteScore(int scoreId, const QString& scoreName);
-    Q_INVOKABLE void openScoreManager();
 
 signals:
-    void tabIndexChanged();
     void viewTypeChanged();
 };
 }

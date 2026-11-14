@@ -25,7 +25,6 @@ import QtQuick.Layouts
 import Muse.Ui
 import Muse.UiComponents
 import MuseScore.Project
-import Muse.Cloud
 
 import "internal/ScoresPage"
 
@@ -46,8 +45,8 @@ FocusScope {
 
     function applySubSection() {
         switch (root.subSection) {
-        case "newAndRecent": scoresPageModel.tabIndex = 0; break
-        case "myOnlineScores": scoresPageModel.tabIndex = 1; break
+        // Jubelle: "My online scores" was removed; only the local scores view remains.
+        case "newAndRecent": break
         default: return
         }
 
@@ -68,16 +67,10 @@ FocusScope {
 
     ScoresPageModel {
         id: scoresPageModel
-
-        onTabIndexChanged: {
-            tabBar.currentIndex = scoresPageModel.tabIndex
-        }
     }
 
     Component.onCompleted: {
         applySubSection()
-        tabBar.currentIndex = scoresPageModel.tabIndex
-        tabBar.completed = true
     }
 
     Rectangle {
@@ -142,79 +135,24 @@ FocusScope {
 
         spacing: 12
 
-        StyledTabBar {
-            id: tabBar
-
-            property bool completed: false
-
+        Item {
             Layout.fillWidth: true
-
-            onCurrentIndexChanged: {
-                if (completed) {
-                    scoresPageModel.tabIndex = currentIndex
-                }
-            }
-
-            NavigationPanel {
-                id: navTabPanel
-                name: "HomeScoresTabs"
-                section: navSec
-                direction: NavigationPanel.Horizontal
-                order: 2
-                accessible.name: qsTrc("project", "Scores tab bar")
-                enabled: tabBar.enabled && tabBar.visible
-
-                onNavigationEvent: function(event) {
-                    if (event.type === NavigationEvent.AboutActive) {
-                        event.setData("controlName", tabBar.currentItem.navigation.name)
-                    }
-                }
-            }
-
-            StyledTabButton {
-                text: qsTrc("project", "New & recent")
-
-                navigation.name: "NewAndRecent"
-                navigation.panel: navTabPanel
-                navigation.column: 1
-            }
-
-            StyledTabButton {
-                text: qsTrc("project", "My online scores")
-
-                navigation.name: "MyOnlineScores"
-                navigation.panel: navTabPanel
-                navigation.column: 2
-            }
         }
 
         NavigationPanel {
             id: viewButtonsNavPanel
             name: "ViewButtons"
-            enabled: tabBar.enabled && tabBar.visible
+            enabled: controlsRow.enabled && controlsRow.visible
             section: navSec
             order: 3
             direction: NavigationPanel.Horizontal
             accessible.name: qsTrc("project", "View buttons")
         }
 
-        FlatButton {
-            id: refreshButton
-
-            visible: tabBar.currentIndex === 1
-
-            navigation.panel: viewButtonsNavPanel
-            navigation.order: 1
-
-            icon: IconCode.UPDATE
-            text: qsTrc("project", "Refresh")
-            orientation: Qt.Horizontal
-        }
-
         RadioButtonGroup {
             id: viewTypeRadioButtons
 
-            property int navigationOrderStart: refreshButton.navigation.order + 1
+            property int navigationOrderStart: 1
 
             implicitHeight: ui.theme.defaultButtonSize
 
@@ -254,13 +192,7 @@ FocusScope {
         anchors.right: parent.right
         anchors.bottom: buttonsPanel.top
 
-        sourceComponent: {
-            if (!tabBar.completed || tabBar.currentIndex < 0) {
-                return null
-            }
-
-            return [newAndRecentComp, onlineScoresComp][tabBar.currentIndex]
-        }
+        sourceComponent: newAndRecentComp
     }
 
     Component {
@@ -300,52 +232,6 @@ FocusScope {
         }
     }
 
-    Component {
-        id: onlineScoresComp
-
-        CloudScoresView {
-            id: cloudScoresView
-            anchors.fill: parent
-
-            viewType: scoresPageModel.viewType
-            searchText: searchField.searchText
-
-            backgroundColor: background.color
-            sideMargin: prv.sideMargin
-
-            navigationSection: navSec
-            navigationOrder: 4
-
-            onCreateNewScoreRequested: {
-                scoresPageModel.createNewScore()
-            }
-
-            onOpenScoreRequested: function(scorePath, displayName) {
-                Qt.callLater(scoresPageModel.openScore, scorePath, displayName)
-            }
-
-            onRevealInFileBrowserRequested: function(scorePath) {
-                Qt.callLater(scoresPageModel.revealInFileBrowser, scorePath)
-            }
-
-            onViewOnlineRequested: function(scoreId) {
-                Qt.callLater(scoresPageModel.viewOnline, scoreId)
-            }
-
-            onDeleteScoreRequested: function(scoreId, scoreName) {
-                Qt.callLater(scoresPageModel.deleteScore, scoreId, scoreName)
-            }
-
-            Connections {
-                target: refreshButton
-
-                function onClicked() {
-                    cloudScoresView.refresh()
-                }
-            }
-        }
-    }
-
     Rectangle {
         id: buttonsPanel
 
@@ -365,23 +251,6 @@ FocusScope {
 
             //: accessibility name for the panel at the bottom of the "Scores" page
             accessible.name: qsTrc("project", "Scores actions")
-        }
-
-        FlatButton {
-            anchors.left: parent.left
-            anchors.leftMargin: prv.sideMargin
-            anchors.verticalCenter: parent.verticalCenter
-
-            navigation.name: "ScoreManager"
-            navigation.panel: navBottomPanel
-            navigation.column: 1
-
-            minWidth: 216
-            text: qsTrc("project", "Score manager (online)")
-
-            onClicked: {
-                scoresPageModel.openScoreManager()
-            }
         }
 
         Row {

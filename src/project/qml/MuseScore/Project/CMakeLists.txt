@@ -48,8 +48,6 @@ qt_add_qml_module(project_qml
         internal/Properties/projectpropertiesmodel.h
         internal/ScoresPage/abstractscoresmodel.cpp
         internal/ScoresPage/abstractscoresmodel.h
-        internal/ScoresPage/cloudscoresmodel.cpp
-        internal/ScoresPage/cloudscoresmodel.h
         internal/ScoresPage/cloudscorestatuswatcher.cpp
         internal/ScoresPage/cloudscorestatuswatcher.h
         internal/ScoresPage/pixmapscorethumbnailview.cpp
