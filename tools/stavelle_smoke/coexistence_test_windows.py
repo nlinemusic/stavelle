@@ -35,9 +35,27 @@ def check(name, ok, detail=""):
         failures.append(name)
 
 
+def run_limited(cmd, timeout, log_path=None):
+    """Runs a command with a hard time limit. Output goes to a file (never to pipes): on
+    Windows a helper process that outlives the app can hold a pipe open and make Python
+    wait forever. On timeout the whole process tree is killed and None is returned."""
+    out = open(log_path, "w", encoding="utf-8", errors="replace") if log_path else subprocess.DEVNULL
+    try:
+        proc = subprocess.Popen([str(c) for c in cmd], stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        try:
+            return proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"TIMEOUT after {timeout}s: {' '.join(map(str, cmd))}", flush=True)
+            return None
+    finally:
+        if log_path:
+            out.close()
+
+
 def msiexec(args, log):
-    proc = subprocess.run(["msiexec"] + args + ["/qn", "/norestart", "/l*v", str(log)])
-    return proc.returncode
+    rc = run_limited(["msiexec"] + args + ["/qn", "/norestart", "/l*v", str(log)], timeout=900)
+    return "timed out" if rc is None else rc
 
 
 def hash_tree(root):
@@ -175,8 +193,8 @@ def diff(a, b):
 def run_converter(exe, src, out):
     if Path(out).exists():
         Path(out).unlink()
-    proc = subprocess.run([str(exe), "-o", str(out), str(src)], capture_output=True, text=True, errors="replace", timeout=600)
-    return proc.returncode == 0 and Path(out).exists() and Path(out).stat().st_size > 0
+    rc = run_limited([exe, "-o", out, src], timeout=300, log_path=str(out) + ".log")
+    return rc == 0 and Path(out).exists() and Path(out).stat().st_size > 0
 
 
 def main():

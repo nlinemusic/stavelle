@@ -35,11 +35,30 @@ def check(name, ok, detail=""):
         failures.append(name)
 
 
-def run_app(exe, args, timeout=600):
-    start = time.perf_counter()
-    proc = subprocess.run([str(exe)] + args, capture_output=True, text=True, errors="replace", timeout=timeout)
-    elapsed = time.perf_counter() - start
-    return proc, elapsed
+class _Result:
+    def __init__(self, returncode, output):
+        self.returncode, self.stdout, self.stderr = returncode, output, ""
+
+
+def run_app(exe, args, timeout=300):
+    """Runs the app with a hard time limit, sending output to a temporary file rather than
+    pipes (a helper process outliving the app could otherwise block forever on Windows)."""
+    import tempfile
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as log:
+        start = time.perf_counter()
+        proc = subprocess.Popen([str(exe)] + [str(a) for a in args], stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        try:
+            rc = proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                proc.kill()
+            proc.wait()
+            rc = f"timed out after {timeout}s"
+        elapsed = time.perf_counter() - start
+        log.seek(0)
+        return _Result(rc, log.read()), elapsed
 
 
 def data_dirs():
