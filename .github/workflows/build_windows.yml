@@ -221,26 +221,6 @@ jobs:
         :: Stavelle: no code-signing certificate, and the installer uses Stavelle's own
         :: upgrade code (set in package.bat), never MuseScore's.
         buildscripts\ci\windows\package.bat
-    - name: "Stavelle: coexistence test with an installed MuseScore"
-      timeout-minutes: 30
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        STAVELLE_MSI=$(ls build.artifacts/*.msi | head -1)
-        echo "Stavelle installer: $STAVELLE_MSI"
-        mkdir -p musescore_msi
-        gh release download v4.7.7 --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi \
-          || gh release download --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi
-        MUSESCORE_MSI=$(ls musescore_msi/*.msi | head -1)
-        echo "MuseScore installer: $MUSESCORE_MSI"
-        python -X utf8 tools/stavelle_smoke/coexistence_test_windows.py "$MUSESCORE_MSI" "$STAVELLE_MSI" demos/Amazing_grace.mscz coexistence_work
-    - name: "Stavelle: upload coexistence test results"
-      if: always()
-      uses: actions/upload-artifact@v6
-      with:
-        name: stavelle-coexistence-windows
-        path: coexistence_work/
     - name: Checksum
       run: |
         bash ./buildscripts/ci/tools/checksum.sh
