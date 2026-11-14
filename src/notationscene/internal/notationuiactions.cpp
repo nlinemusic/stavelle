@@ -420,6 +420,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&ave style…"),
              TranslatableString("action", "Save style")
              ),
+    //! Jubelle: named engraving presets (style files in the Styles folder)
+    UiAction("jubelle-engraving-presets",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Engraving &presets…"),
+             TranslatableString("action", "Engraving presets")
+             ),
     UiAction("transpose",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
@@ -450,6 +457,13 @@ const UiActionList NotationUiActions::s_actions = {
              mu::context::CTX_NOTATION_OPENED,
              TranslatableString("action", "Realize &chord symbols"),
              TranslatableString("action", "Realize chord symbols")
+             ),
+    //! Jubelle: built-in chord identification
+    UiAction("jubelle-identify-chords",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Identify chords"),
+             TranslatableString("action", "Add chord symbols named from the selected notes")
              ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,

@@ -267,6 +267,7 @@ public:
 
     void realizeSelectedChordSymbols(bool literal, Voicing voicing, HarmonyDurationType durationType) override;
     void extendToNextNote() override;
+    void identifyChords() override;
     void removeSelectedMeasures() override;
     void removeSelectedRange() override;
     void removeEmptyTrailingMeasures() override;

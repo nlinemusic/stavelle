@@ -365,7 +365,8 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("reset-to-default-layout"),
         makeSeparator(),
         makeMenuItem("load-style"),
-        makeMenuItem("save-style")
+        makeMenuItem("save-style"),
+        makeMenuItem("jubelle-engraving-presets")
     };
 
     return makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format");
@@ -399,6 +400,7 @@ MenuItem* AppMenuModel::makeToolsMenu()
         makeMenuItem("explode"),
         makeMenuItem("implode"),
         makeMenuItem("realize-chord-symbols"),
+        makeMenuItem("jubelle-identify-chords"),
         makeMenu(TranslatableString("appshell/menu/tools", "&Voices"), voicesItems, "menu-voices"),
         makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
         makeMenuItem("time-delete"),

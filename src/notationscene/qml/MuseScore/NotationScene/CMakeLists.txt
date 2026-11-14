@@ -37,6 +37,8 @@ qt_add_qml_module(notationscene_qml
         abstractnotationpaintview.cpp
         abstractnotationpaintview.h
         continuouspanel.cpp
+        engravingpresetsmodel.cpp
+        engravingpresetsmodel.h
         continuouspanel.h
         editgridsizedialogmodel.cpp
         editgridsizedialogmodel.h
@@ -162,6 +164,7 @@ qt_add_qml_module(notationscene_qml
         AbstractElementPopup.qml
         ConcertPitchControl.qml
         EditGridSizeDialog.qml
+        EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml
         elementpopups/DynamicPopup.qml

@@ -324,6 +324,9 @@ void NotationActionController::init()
 
     registerAction("load-style", &Controller::loadStyle);
     registerAction("save-style", &Controller::saveStyle);
+    registerAction("jubelle-engraving-presets", [this]() {
+        interactive()->open("musescore://notation/jubelle/engravingpresets");
+    });
 
     registerAction("voice-x12", &Interaction::swapVoices, 0, 1);
     registerAction("voice-x13", &Interaction::swapVoices, 0, 2);
@@ -385,6 +388,7 @@ void NotationActionController::init()
     registerAction("explode", &Interaction::explodeSelectedStaff);
     registerAction("implode", &Interaction::implodeSelectedStaff);
     registerAction("extend-to-next-note", &Interaction::extendToNextNote);
+    registerAction("jubelle-identify-chords", &Interaction::identifyChords);
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);

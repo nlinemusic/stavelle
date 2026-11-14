@@ -130,6 +130,8 @@ MenuItemList NotationContextMenuModel::makeMeasureItems()
         items << makeMenuItem("customize-kit");
     }
 
+    items << makeMenuItem("jubelle-identify-chords");
+    items << makeSeparator();
     items << makeMenuItem("staff-properties");
     items << makeSeparator();
     items << makeMenu(TranslatableString("notation", "Insert measures"), makeInsertMeasuresItems());
@@ -281,6 +283,12 @@ MenuItemList NotationContextMenuModel::makeElementItems()
     if (element && element->isEditable()) {
         items << makeSeparator();
         items << makeMenuItem("edit-element");
+    }
+
+    // Jubelle: name the chord formed by the selected notes
+    if (element && (element->isNote() || element->isChord())) {
+        items << makeSeparator();
+        items << makeMenuItem("jubelle-identify-chords");
     }
 
     items << makeSeparator()

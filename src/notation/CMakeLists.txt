@@ -68,6 +68,8 @@ target_sources(notation PRIVATE
     internal/notationelements.cpp
     internal/notationelements.h
     internal/notationinteraction.cpp
+    internal/jubelle/chordidentifier.cpp
+    internal/jubelle/chordidentifier.h
     internal/notationinteraction.h
     internal/notationmidiinput.cpp
     internal/notationmidiinput.h

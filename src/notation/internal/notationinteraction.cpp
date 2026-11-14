@@ -25,6 +25,8 @@
 
 #include <memory>
 #include <limits>
+#include <map>
+#include <set>
 #include <QRectF>
 #include <QPainter>
 #include <QClipboard>
@@ -55,6 +57,12 @@
 #include "engraving/dom/box.h"
 #include "engraving/dom/bracket.h"
 #include "engraving/dom/chord.h"
+#include "engraving/dom/harmony.h"
+#include "engraving/dom/note.h"
+#include "engraving/dom/segment.h"
+#include "engraving/dom/select.h"
+
+#include "internal/jubelle/chordidentifier.h"
 #include "engraving/dom/drumset.h"
 #include "engraving/dom/dynamic.h"
 #include "engraving/dom/elementgroup.h"
@@ -6386,6 +6394,107 @@ void NotationInteraction::realizeSelectedChordSymbols(bool literal, Voicing voic
 
     startEdit(TranslatableString("undoableAction", "Realize chord symbols"));
     score()->cmdRealizeChordSymbols(literal, voicing, durationType);
+    apply();
+}
+
+void NotationInteraction::identifyChords()
+{
+    // Jubelle: built-in chord identification. For each beat of the selection, the
+    // selected notes (all staves together) are named and a chord symbol is added
+    // above the top staff. Existing chord symbols are never replaced.
+    if (selection()->isNone()) {
+        return;
+    }
+
+    const mu::engraving::Selection& sel = score()->selection();
+
+    struct Group {
+        std::vector<chordidentifier::InputNote> notes;
+        staff_idx_t topStaff = muse::nidx;
+    };
+    std::vector<Segment*> order;
+    std::map<Segment*, Group> groups;
+    std::set<const Note*> seen;
+
+    auto addNote = [&](const Note* note) {
+        const Chord* chord = note ? note->chord() : nullptr;
+        if (!chord || chord->isGrace() || !chord->segment() || !seen.insert(note).second) {
+            return;
+        }
+        Segment* seg = chord->segment();
+        auto it = groups.find(seg);
+        if (it == groups.end()) {
+            order.push_back(seg);
+            it = groups.emplace(seg, Group()).first;
+        }
+        // Concert pitch and concert spelling: chord symbols are stored in concert
+        // pitch and shown transposed on transposing staves, as when typed by hand.
+        it->second.notes.push_back({ note->pitch(), note->tpc1() });
+        if (it->second.topStaff == muse::nidx || chord->staffIdx() < it->second.topStaff) {
+            it->second.topStaff = chord->staffIdx();
+        }
+    };
+
+    if (sel.isRange()) {
+        const track_idx_t startTrack = sel.staffStart() * VOICES;
+        const track_idx_t endTrack = sel.staffEnd() * VOICES;
+        for (Segment* s = sel.startSegment(); s && s != sel.endSegment(); s = s->next1()) {
+            if (!s->isChordRestType()) {
+                continue;
+            }
+            for (track_idx_t t = startTrack; t < endTrack; ++t) {
+                EngravingItem* e = s->element(t);
+                if (e && e->isChord()) {
+                    for (const Note* n : toChord(e)->notes()) {
+                        addNote(n);
+                    }
+                }
+            }
+        }
+    } else {
+        for (EngravingItem* e : sel.elements()) {
+            if (e->isNote()) {
+                addNote(toNote(e));
+            } else if (e->isChord()) {
+                for (const Note* n : toChord(e)->notes()) {
+                    addNote(n);
+                }
+            }
+        }
+    }
+
+    if (groups.empty()) {
+        return;
+    }
+
+    startEdit(TranslatableString("undoableAction", "Identify chords"));
+
+    for (Segment* seg : order) {
+        const Group& g = groups.at(seg);
+        const chordidentifier::Result r = chordidentifier::identify(g.notes);
+        if (!r.ok || g.topStaff == muse::nidx) {
+            continue;
+        }
+
+        const track_idx_t track = g.topStaff * VOICES;
+        bool hasChordSymbol = false;
+        for (const EngravingItem* a : seg->annotations()) {
+            if (a->isHarmony() && a->staffIdx() == g.topStaff) {
+                hasChordSymbol = true;
+                break;
+            }
+        }
+        if (hasChordSymbol) {
+            continue;
+        }
+
+        Harmony* harmony = Factory::createHarmony(seg);
+        harmony->setTrack(track);
+        harmony->setParent(seg);
+        harmony->setHarmony(String::fromStdString(r.name));
+        score()->undoAddElement(harmony);
+    }
+
     apply();
 }
 
