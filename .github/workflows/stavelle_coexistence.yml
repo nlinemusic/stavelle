@@ -7,6 +7,9 @@ name: 'Jubelle: Coexistence Test (Windows)'
 # Runs automatically after every successful "Build: Windows" run, or on request with the
 # run ID of the build whose installer should be tested.
 
+# File name kept as stavelle_coexistence.yml: GitHub only allows starting a workflow by hand
+# under the file name it knows from the default branch.
+#
 # Manual-only for now (14 Nov): two runs hung with the build machine itself becoming
 # unresponsive. Re-enable the automatic run after a successful Windows build once the
 # hardened test has been confirmed on request.

@@ -234,6 +234,10 @@ void TemplatesModel::setProjectCategory(const QString& projectCategory, bool sho
     }
     loadAllCategories();
     m_saveCurrentCategory = false;
+    if (!m_visibleCategoriesTitles.contains(m_currentCategory)) {
+        m_currentCategory = m_visibleCategoriesTitles.value(0);
+        updateTemplatesByCurrentCategory();
+    }
     if (m_visibleTemplates.contains(keptTemplate)) {
         setCurrentTemplate(keptTemplate);
     }
