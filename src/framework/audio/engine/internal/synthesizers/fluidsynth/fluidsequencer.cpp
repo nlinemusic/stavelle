@@ -117,6 +117,10 @@ void FluidSequencer::addPlaybackEvents(EventSequenceMap& destination, const mpe:
     }
 
     addSostenutoEvents(destination, sostenutoTimeAndDurations);
+
+    // Jubelle: bends end after the release, not at note-off (no "snap back")
+    jubelle::placeResets(destination, m_jubellePendingResets);
+    m_jubellePendingResets.clear();
 }
 
 void FluidSequencer::addDynamicEvents(EventSequenceMap& destination, const mpe::DynamicLevelLayers& dynamics)
@@ -262,7 +266,18 @@ void FluidSequencer::addPitchCurve(EventSequenceMap& destination, const mpe::Not
     const timestamp_t noteTimestampTo = noteEvent.arrangementCtx().actualTimestamp + noteEvent.arrangementCtx().actualDuration;
     const timestamp_t pitchBendTimestampTo = std::min(artMeta.timestamp + artMeta.overallDuration, noteTimestampTo);
 
-    addPitchBend(destination, pitchBendTimestampTo, channelIdx, 8192);
+    // Jubelle: the reset to the written pitch is placed after the note's release
+    // (addPlaybackEvents); gestures that leave the note also fade out
+    const bool fades = artMeta.type == ArticulationType::Fall || artMeta.type == ArticulationType::QuickFall
+                       || artMeta.type == ArticulationType::Doit || artMeta.type == ArticulationType::SlideOutDown
+                       || artMeta.type == ArticulationType::SlideOutUp;
+    m_jubellePendingResets.push_back({ static_cast<int64_t>(pitchBendTimestampTo), channelIdx, fades });
+
+    int maxBendDistance = 0;
+    for (const auto& point : noteEvent.pitchCtx().pitchCurve) {
+        maxBendDistance = std::max(maxBendDistance, std::abs(pitchBendLevel(point.second) - 8192));
+    }
+    uint32_t prevVolume = jubelle::FULL_VOLUME;
 
     auto currIt = noteEvent.pitchCtx().pitchCurve.cbegin();
     auto nextIt = std::next(currIt);
@@ -294,6 +309,13 @@ void FluidSequencer::addPitchCurve(EventSequenceMap& destination, const mpe::Not
 
             if (time < pitchBendTimestampTo && bendValue != prevBendValue) {
                 addPitchBend(destination, time, channelIdx, bendValue);
+                if (fades && maxBendDistance > 0) {
+                    const uint32_t volume = jubelle::fadedVolume(std::abs(bendValue - 8192) / double(maxBendDistance));
+                    if (volume != prevVolume) {
+                        destination[time].push_back(jubelle::volumeEvent(channelIdx, volume));
+                        prevVolume = volume;
+                    }
+                }
             }
 
             prevBendValue = bendValue;

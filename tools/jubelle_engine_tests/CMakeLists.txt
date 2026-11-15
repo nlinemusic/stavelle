@@ -99,6 +99,8 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/tools/jubelle_templates/templatebuilder.cpp
     ${MU_ROOT}/tools/jubelle_templates/bigbandtestmusic.cpp
     ${MU_ROOT}/tools/jubelle_templates/jubelle_templates_tests.cpp
+    # Falls without snap back (FluidSynth playback)
+    jubelle_bendshaping_tests.cpp
     # Engine baselines (measurements only)
     jubelle_baselines.cpp
     # Engraving tests that run here:
