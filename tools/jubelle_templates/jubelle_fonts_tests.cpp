@@ -18,6 +18,8 @@
 #include "engraving/dom/segment.h"
 #include "engraving/iengravingfontsprovider.h"
 #include "engraving/style/style.h"
+#include "engraving/style/jubelle/jazzlook.h"
+#include "engraving/iengravingfont.h"
 #include "modularity/ioc.h"
 
 #include "fontproviderstub.h"
@@ -113,4 +115,56 @@ TEST(Jubelle_TemplateLayout, SwitchingTheFontChangesNothingInTheMusic)
     // and undo goes back
     s->undoRedo(true, nullptr);
     EXPECT_EQ(s->style().styleSt(Sid::musicalSymbolFont), String(u"Sebastian"));
+}
+
+//! T2: one step to the "Jazz handwritten" look and back; only fonts change
+TEST(Jubelle_TemplateLayout, JazzHandwrittenLookAndBack)
+{
+    if (!muse::draw::FontProviderStub::realisticMetrics()) {
+        GTEST_SKIP() << "needs realistic metrics";
+    }
+    jubelle_templates::loadInstrumentData();
+    std::unique_ptr<MasterScore> s(jubelle_templates::readTemplate(ROOT + "tools/jubelle_templates/testscores/Big_Band_test_music.mscz"));
+    ASSERT_TRUE(s);
+    const Snapshot before = snapshot(s.get());
+    const MStyle original = s->style();
+
+    // a text font you chose yourself stays
+    s->startCmd(muse::TranslatableString::untranslatable("own font"));
+    s->undoChangeStyleVal(Sid::titleFontFace, String(u"Georgia"));
+    s->endCmd();
+
+    ASSERT_FALSE(jubelle::hasJazzLook(s->style()));
+    s->startCmd(muse::TranslatableString::untranslatable("jazz look"));
+    EXPECT_GT(jubelle::applyJazzLook(s.get(), true), 30u);
+    s->endCmd();
+    EXPECT_TRUE(jubelle::hasJazzLook(s->style()));
+    EXPECT_EQ(s->style().styleSt(Sid::musicalTextFont), String(u"MuseJazz Text"));
+    EXPECT_EQ(s->style().value(Sid::chordStyle), PropertyValue(ChordStylePreset::JAZZ));
+    EXPECT_EQ(s->style().styleSt(Sid::staffTextFontFace), String(u"MuseJazz Text"));
+    EXPECT_EQ(s->style().styleSt(Sid::titleFontFace), String(u"Georgia")) << "your own choice stays";
+    EXPECT_EQ(s->engravingFont()->name(), "MuseJazz") << "the music font itself is switched";
+    EXPECT_DOUBLE_EQ(s->style().spatium(), original.spatium()) << "layout values don't change";
+    EXPECT_EQ(s->style().value(Sid::minMeasureWidth), original.value(Sid::minMeasureWidth));
+    const Snapshot jazz = snapshot(s.get());
+    EXPECT_EQ(jazz.notes, before.notes);
+    EXPECT_EQ(jazz.pitchSum, before.pitchSum);
+    EXPECT_EQ(jubelle::applyJazzLook(s.get(), true), 0u) << "twice changes nothing";
+
+    // back to the standard look
+    s->startCmd(muse::TranslatableString::untranslatable("standard look"));
+    EXPECT_GT(jubelle::applyJazzLook(s.get(), false), 30u);
+    s->endCmd();
+    EXPECT_FALSE(jubelle::hasJazzLook(s->style()));
+    EXPECT_EQ(s->style().styleSt(Sid::musicalSymbolFont), original.styleSt(Sid::musicalSymbolFont));
+    EXPECT_EQ(s->style().styleSt(Sid::staffTextFontFace), original.styleSt(Sid::staffTextFontFace));
+    EXPECT_EQ(s->style().value(Sid::chordStyle), original.value(Sid::chordStyle));
+    EXPECT_EQ(s->style().styleSt(Sid::titleFontFace), String(u"Georgia"));
+
+    // one undo step each
+    s->undoRedo(true, nullptr);
+    EXPECT_TRUE(jubelle::hasJazzLook(s->style()));
+    s->undoRedo(true, nullptr);
+    EXPECT_FALSE(jubelle::hasJazzLook(s->style()));
+    EXPECT_EQ(s->style().styleSt(Sid::titleFontFace), String(u"Georgia"));
 }

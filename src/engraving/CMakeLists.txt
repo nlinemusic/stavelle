@@ -296,6 +296,8 @@ target_sources(engraving PRIVATE
     style/style.cpp
     style/style.h
     style/defaultstyle.cpp
+    style/jubelle/jazzlook.cpp
+    style/jubelle/jazzlook.h
     style/defaultstyle.h
 
     rendering/iscorerenderer.h

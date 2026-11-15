@@ -421,6 +421,19 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Save style")
              ),
     //! Jubelle: named engraving presets (style files in the Styles folder)
+    //! Jubelle T2: one step between the two looks; only fonts and chord symbols change
+    UiAction("jubelle-look-jazz",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Jazz handwritten look"),
+             TranslatableString("action", "Use MuseJazz for music, text and chord symbols (layout unchanged; your own text fonts stay)")
+             ),
+    UiAction("jubelle-look-standard",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "S&tandard engraved look"),
+             TranslatableString("action", "Back to the standard engraved fonts (layout unchanged)")
+             ),
     UiAction("jubelle-engraving-presets",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

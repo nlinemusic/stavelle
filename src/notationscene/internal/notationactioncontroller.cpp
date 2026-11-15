@@ -21,6 +21,8 @@
  */
 #include "notationactioncontroller.h"
 
+#include "engraving/style/jubelle/jazzlook.h"
+
 #include "io/file.h"
 
 #include "engraving/dom/masterscore.h"
@@ -333,6 +335,8 @@ void NotationActionController::init()
     registerAction("jubelle-engraving-presets", [this]() {
         interactive()->open("musescore://notation/jubelle/engravingpresets");
     });
+    registerAction("jubelle-look-jazz", [this]() { jubelleSetLook(true); });
+    registerAction("jubelle-look-standard", [this]() { jubelleSetLook(false); });
 
     registerAction("voice-x12", &Interaction::swapVoices, 0, 1);
     registerAction("voice-x13", &Interaction::swapVoices, 0, 2);
@@ -2441,6 +2445,25 @@ void NotationActionController::setJubelleAlignReference(int reference)
 {
     muse::settings()->setSharedValue(JUBELLE_ALIGN_REFERENCE_KEY, muse::Val(reference));
     m_jubelleAlignReferenceChanged.notify();
+}
+
+void NotationActionController::jubelleSetLook(bool jazz)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements()) {
+        return;
+    }
+    notation->undoStack()->prepareChanges(jazz ? muse::TranslatableString("undoableAction", "Jazz handwritten look")
+                                          : muse::TranslatableString("undoableAction", "Standard engraved look"));
+    const size_t changed = mu::engraving::jubelle::applyJazzLook(notation->elements()->msScore(), jazz);
+    notation->undoStack()->commitChanges();
+    if (changed) {
+        notation->notationChanged().notify();
+    } else {
+        interactive()->info(jazz ? muse::trc("notation", "Already in the Jazz handwritten look")
+                            : muse::trc("notation", "Already in the standard engraved look"),
+                            muse::trc("notation", "Nothing needed changing."));
+    }
 }
 
 void NotationActionController::jubelleAlign(int command)

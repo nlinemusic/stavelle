@@ -394,7 +394,9 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeSeparator(),
         makeMenuItem("load-style"),
         makeMenuItem("save-style"),
-        makeMenuItem("jubelle-engraving-presets")
+        makeMenuItem("jubelle-engraving-presets"),
+        makeMenuItem("jubelle-look-jazz"),
+        makeMenuItem("jubelle-look-standard")
     };
 
     return makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format");
