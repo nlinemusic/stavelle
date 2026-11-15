@@ -96,28 +96,38 @@ Rectangle {
             popupController.repositionPopupIfNeed()
         }
 
-        delegate: Column {
+        // Jubelle R4 (approved mockup): each Properties section is a rounded card
+        // instead of MuseScore's full-width sections divided by lines
+        delegate: Item {
             id: delegateItem
 
             required property AbstractInspectorModel inspectorSectionModel
             required property int index
 
             width: ListView.view.width
-            spacing: sectionList.spacing
+            height: _item.height + 24
 
             property var navigationPanel: _item.navigationPanel
 
-            SeparatorLine {
-                visible: delegateItem.index !== 0
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                radius: 8
+                color: ui.theme.backgroundSecondaryColor
+                border.width: ui.theme.isDark ? 0 : 1
+                border.color: ui.theme.strokeColor
             }
 
             InspectorSectionDelegate {
                 id: _item
 
+                anchors.top: parent.top
+                anchors.topMargin: 12
                 anchors.left: parent.left
-                anchors.leftMargin: 12
+                anchors.leftMargin: 20
                 anchors.right: parent.right
-                anchors.rightMargin: 12
+                anchors.rightMargin: 20
 
                 sectionModel: delegateItem.inspectorSectionModel
                 anchorItem: root

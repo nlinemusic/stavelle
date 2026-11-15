@@ -82,8 +82,13 @@ Item {
 
             iconFont: ui.theme.toolbarIconsFont
 
-            accentButton: (Boolean(item) && item.checked) || menuLoader.isMenuOpened
+            // Jubelle R4 (approved mockup): Play is a filled purple button
+            readonly property bool isJubellePlay: Boolean(item) && item.id === "play"
+
+            accentButton: isJubellePlay || (Boolean(item) && item.checked) || menuLoader.isMenuOpened
             transparent: !accentButton
+            accentColor: isJubellePlay ? ui.theme.focusColor : ui.theme.accentColor
+            iconColor: isJubellePlay ? "#FFFFFF" : ui.theme.fontPrimaryColor
 
             navigation.panel: root.navPanel
             navigation.name: toolTipTitle

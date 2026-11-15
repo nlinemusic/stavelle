@@ -138,8 +138,9 @@ Item {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            Layout.leftMargin: -contentColumn.sideMargin
-            Layout.rightMargin: -contentColumn.sideMargin
+            // Jubelle R4: the palette tiles sit inside the panel's margins
+            Layout.leftMargin: 0
+            Layout.rightMargin: 0
 
             clip: true
             paletteProvider: root.paletteProvider
