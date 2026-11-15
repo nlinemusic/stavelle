@@ -318,6 +318,29 @@ HouseStyle soloWithPianoStyle()
     return hs;
 }
 
+HouseStyle chamberStyle()
+{
+    // 9x12 (T4: chamber ensembles, Letter or 9x12): the customary size for
+    // chamber scores; room for three to six staves per system with two systems
+    // a page for most music.
+    HouseStyle hs;
+    hs.name = u"Jubelle Chamber";
+    hs.pageClass = u"9x12";
+    hs.marginTopInch = 0.55;
+    hs.marginBottomInch = 0.55;
+    hs.marginSideInch = 0.6;
+    hs.spatiumMm = 1.6;
+    hs.values = {
+        { Sid::staffDistance, Spatium(6.5) },
+        { Sid::akkoladeDistance, Spatium(6.5) },
+        { Sid::minSystemDistance, Spatium(10.0) },
+        { Sid::maxSystemDistance, Spatium(18.0) },
+        { Sid::enableIndentationOnFirstSystem, true },
+        { Sid::createMultiMeasureRests, false },
+    };
+    return hs;
+}
+
 const std::vector<SoloWithPiano>& soloWithPianoTemplates()
 {
     static const std::vector<SoloWithPiano> t {
@@ -458,6 +481,27 @@ int buildAll(const std::string& originalsDir, const std::string& outDir)
         s->doLayout();
         const std::string dir = std::string("/09-Solo_with_Piano/") + t.dir + "/" + t.dir + ".mscx";
         if (!writeTemplate(s, outDir + dir)) {
+            ++failures;
+        }
+        delete s;
+    }
+    // Piano Trio and String Trio (new, T3), with the Chamber Music templates
+    struct Chamber { const char* dir; const char16_t* title; std::vector<NewPart> parts; const char16_t* order; };
+    const std::vector<Chamber> chamber {
+        { "07-Piano_Trio", u"Piano Trio", { { u"violin", u"", u"" }, { u"violoncello", u"", u"" }, { u"piano", u"", u"" } }, nullptr },
+        { "08-String_Trio", u"String Trio", { { u"violin", u"", u"" }, { u"viola", u"", u"" }, { u"violoncello", u"", u"" } },
+          u"string-ensemble" },
+    };
+    for (const Chamber& c : chamber) {
+        MasterScore* s = newTemplate(c.title, c.parts);
+        if (!s || (c.order && !applyScoreOrder(s, c.order))) {
+            ++failures;
+            delete s;
+            continue;
+        }
+        applyHouseStyle(s, chamberStyle());
+        s->doLayout();
+        if (!writeTemplate(s, outDir + "/03-Chamber_Music/" + c.dir + "/" + c.dir + ".mscx")) {
             ++failures;
         }
         delete s;

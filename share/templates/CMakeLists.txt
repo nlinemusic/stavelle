@@ -62,6 +62,8 @@ install(DIRECTORY
       03-Chamber_Music/04-Saxophone_Quartet
       03-Chamber_Music/05-Brass_Quartet
       03-Chamber_Music/06-Brass_Quintet
+      03-Chamber_Music/07-Piano_Trio
+      03-Chamber_Music/08-String_Trio
       DESTINATION ${Mscore_SHARE_NAME}${Mscore_INSTALL_NAME}templates/03-Chamber_Music
       )
 

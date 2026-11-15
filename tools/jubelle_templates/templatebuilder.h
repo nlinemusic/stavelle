@@ -81,6 +81,7 @@ struct NewPart {
 mu::engraving::MasterScore* newTemplate(const muse::String& title, const std::vector<NewPart>& parts);
 
 HouseStyle soloWithPianoStyle();
+HouseStyle chamberStyle();
 
 struct SoloWithPiano {
     const char* dir;            // folder and file name

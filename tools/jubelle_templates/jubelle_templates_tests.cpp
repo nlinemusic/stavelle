@@ -360,3 +360,26 @@ TEST(Jubelle_Templates, SoloWithPianoFamily)
         EXPECT_TRUE(s->first()->isVBox()) << "title frame: New Score lists the template by its title";
     }
 }
+
+TEST(Jubelle_Templates, PianoTrioAndStringTrio)
+{
+    // T3: new chamber templates; 9x12 (T4)
+    jubelle_templates::loadInstrumentData();
+    std::unique_ptr<MasterScore> pt(jubelle_templates::readTemplate(TEMPLATES + "03-Chamber_Music/07-Piano_Trio/07-Piano_Trio.mscx"));
+    ASSERT_TRUE(pt);
+    ASSERT_EQ(pt->parts().size(), 3u);
+    EXPECT_EQ(pt->parts()[0]->instrument()->id(), String(u"violin"));
+    EXPECT_EQ(pt->parts()[1]->instrument()->id(), String(u"violoncello"));
+    EXPECT_EQ(pt->parts()[2]->instrument()->id(), String(u"piano"));
+    EXPECT_TRUE(hasBrace(pt->parts()[2]->staff(0)));
+    EXPECT_TRUE(near(pt->style().styleD(Sid::pageWidth), 9.0));
+    EXPECT_TRUE(near(pt->style().styleD(Sid::pageHeight), 12.0));
+
+    std::unique_ptr<MasterScore> st(jubelle_templates::readTemplate(TEMPLATES + "03-Chamber_Music/08-String_Trio/08-String_Trio.mscx"));
+    ASSERT_TRUE(st);
+    ASSERT_EQ(st->parts().size(), 3u);
+    EXPECT_EQ(st->parts()[1]->instrument()->id(), String(u"viola"));
+    EXPECT_EQ(st->parts()[1]->staff(0)->defaultClefType().concertClef, ClefType::C3);
+    EXPECT_EQ(sectionBracket(st->staff(0)), 3u) << "the three strings bracketed together";
+    EXPECT_TRUE(near(st->style().styleD(Sid::pageWidth), 9.0));
+}
