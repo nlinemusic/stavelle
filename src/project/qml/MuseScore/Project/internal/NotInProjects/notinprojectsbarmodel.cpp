@@ -15,7 +15,7 @@ using namespace mu::project;
 namespace jpl = mu::project::projectlibrary;
 
 NotInProjectsBarModel::NotInProjectsBarModel(QObject* parent)
-    : QObject(parent)
+    : QObject(parent), muse::Contextable(muse::iocCtxForQmlObject(this))
 {
 }
 
