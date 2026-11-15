@@ -46,6 +46,8 @@ class JubelleLayoutPageModel : public AbstractStyleDialogModel
 
     QML_ELEMENT
 
+    muse::ContextInject<context::IGlobalContext> globalContext = { this };
+
 public:
     explicit JubelleLayoutPageModel(QObject* parent = nullptr);
 

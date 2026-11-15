@@ -13,6 +13,9 @@
 #include "engraving/rendering/score/jubelle/engravingrules.h"
 #include "translation.h"
 
+#include "notation/inotation.h"
+#include "notation/inotationelements.h"
+
 using namespace mu::notation;
 
 JubelleLayoutPageModel::JubelleLayoutPageModel(QObject* parent)
@@ -90,8 +93,8 @@ QVariantList JubelleLayoutPageModel::scopeOptions() const
     };
     // the score's own instruments
     QStringList seen;
-    if (context() && context()->currentNotation()) {
-        if (const mu::engraving::Score* score = context()->currentNotation()->elements()->msScore()) {
+    if (globalContext() && globalContext()->currentNotation()) {
+        if (const mu::engraving::Score* score = globalContext()->currentNotation()->elements()->msScore()) {
             for (const mu::engraving::Part* part : score->parts()) {
                 const mu::engraving::Instrument* instrument = part->instrument();
                 if (!instrument || seen.contains(instrument->id().toQString())) {
