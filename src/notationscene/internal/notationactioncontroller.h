@@ -288,7 +288,8 @@ private:
 
     // Jubelle: title-page alignment
     void jubelleAlign(int command);
-    void jubelleSetLook(bool jazz);   // T2: Jazz handwritten / standard engraved look
+    void jubelleSetLook(bool jazz);
+    void jubelleToggleCourtesy();     // R8   // T2: Jazz handwritten / standard engraved look
     void setJubelleAlignReference(int reference);
     muse::async::Notification m_jubelleAlignReferenceChanged;
 

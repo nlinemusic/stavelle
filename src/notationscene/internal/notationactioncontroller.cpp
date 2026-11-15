@@ -337,6 +337,7 @@ void NotationActionController::init()
     });
     registerAction("jubelle-look-jazz", [this]() { jubelleSetLook(true); });
     registerAction("jubelle-look-standard", [this]() { jubelleSetLook(false); });
+    registerAction("jubelle-courtesy-toggle", [this]() { jubelleToggleCourtesy(); });
 
     registerAction("voice-x12", &Interaction::swapVoices, 0, 1);
     registerAction("voice-x13", &Interaction::swapVoices, 0, 2);
@@ -2445,6 +2446,25 @@ void NotationActionController::setJubelleAlignReference(int reference)
 {
     muse::settings()->setSharedValue(JUBELLE_ALIGN_REFERENCE_KEY, muse::Val(reference));
     m_jubelleAlignReferenceChanged.notify();
+}
+
+void NotationActionController::jubelleToggleCourtesy()
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->elements()->msScore()) {
+        return;
+    }
+    mu::engraving::Score* score = notation->elements()->msScore();
+    const bool on = !score->style().styleB(mu::engraving::Sid::jubelleCourtesyAccidentals);
+    notation->undoStack()->prepareChanges(on ? muse::TranslatableString("undoableAction", "Courtesy accidentals on")
+                                          : muse::TranslatableString("undoableAction", "Courtesy accidentals off"));
+    score->undoChangeStyleVal(mu::engraving::Sid::jubelleCourtesyAccidentals, on);
+    notation->undoStack()->commitChanges();
+    notation->notationChanged().notify();
+    interactive()->info(on ? muse::trc("notation", "Courtesy accidentals are on")
+                        : muse::trc("notation", "Courtesy accidentals are off"),
+                        on ? muse::trc("notation", "They follow the rules in Format › Style › Accidentals and update as you edit.")
+                        : muse::trc("notation", "Your rules are kept for when you switch them on again."));
 }
 
 void NotationActionController::jubelleSetLook(bool jazz)

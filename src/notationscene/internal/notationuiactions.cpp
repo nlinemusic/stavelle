@@ -422,6 +422,13 @@ const UiActionList NotationUiActions::s_actions = {
              ),
     //! Jubelle: named engraving presets (style files in the Styles folder)
     //! Jubelle T2: one step between the two looks; only fonts and chord symbols change
+    //! Jubelle R8: courtesy accidentals on or off for the score, from the Format menu
+    UiAction("jubelle-courtesy-toggle",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Courtesy accidentals on/off"),
+             TranslatableString("action", "Switch automatic courtesy accidentals on or off for this score (rules: Format › Style › Accidentals)")
+             ),
     UiAction("jubelle-look-jazz",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
