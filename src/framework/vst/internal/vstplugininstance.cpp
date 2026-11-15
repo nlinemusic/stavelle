@@ -147,6 +147,10 @@ void VstPluginInstance::load()
             }
 
             m_pluginProvider = std::make_unique<VstPluginProvider>(factory, classInfo);
+            // Jubelle: remembered to find this plugin's presets
+            m_jubelleVendor = classInfo.vendor();
+            m_jubelleClassName = classInfo.name();
+            m_jubelleClassId = classInfo.ID().toString();
             break;
         }
 
@@ -378,6 +382,48 @@ void VstPluginInstance::updatePluginConfig(const audio::AudioUnitConfig& config)
     Async::call(this, [this, config]() {
         setPluginConfig(config);
     }, m_mainThreadId);
+}
+
+std::string VstPluginInstance::jubellePluginVendor() const
+{
+    std::lock_guard lock(m_mutex);
+    return m_jubelleVendor;
+}
+
+std::string VstPluginInstance::jubellePluginName() const
+{
+    std::lock_guard lock(m_mutex);
+    return m_jubelleClassName;
+}
+
+std::string VstPluginInstance::jubellePluginClassId() const
+{
+    std::lock_guard lock(m_mutex);
+    return m_jubelleClassId;
+}
+
+// Jubelle: loads a preset by restoring its states the same way a saved
+// score restores the track's plugin settings, then reports the new settings
+// so they are saved with the score (and undo/redo of the mixer sees them).
+bool VstPluginInstance::jubelleApplyPresetStates(const std::string& componentState, const std::string& controllerState)
+{
+    ONLY_MAIN_THREAD(threadSecurer);
+
+    if (!m_isLoaded || (componentState.empty() && controllerState.empty())) {
+        return false;
+    }
+
+    muse::audio::AudioUnitConfig config;
+    if (!componentState.empty()) {
+        config.emplace(COMPONENT_STATE_KEY, componentState);
+    }
+    if (!controllerState.empty()) {
+        config.emplace(CONTROLLER_STATE_KEY, controllerState);
+    }
+
+    setPluginConfig(config);
+    rescanParams();
+    return true;
 }
 
 void VstPluginInstance::refreshConfig()
