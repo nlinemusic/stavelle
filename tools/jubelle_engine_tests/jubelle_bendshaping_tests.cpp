@@ -116,3 +116,18 @@ TEST(Jubelle_BendShaping, SmoothCurveThroughThePatternPoints)
         EXPECT_LT(std::abs(s2 - s1), 0.0012) << "at sample " << i;
     }
 }
+
+TEST(Jubelle_BendShaping, WorksWithTheSequencersVariantEvents)
+{
+    // FluidSequencer keeps std::variant<midi::Event> elements
+    using V = std::variant<midi::Event>;
+    std::map<int64_t, std::vector<V> > events;
+    events[1300000].push_back(V(noteOn(2)));
+    placeResets(events, { { 1200000, 2, true } });
+    const auto& slot = events[1300000];
+    ASSERT_EQ(slot.size(), 3u);
+    const midi::Event* first = asMidi(slot[0]);
+    ASSERT_TRUE(first);
+    EXPECT_TRUE(isReset(*first, 2));
+    EXPECT_EQ(asMidi(slot[2])->opcode(), midi::Event::Opcode::NoteOn);
+}

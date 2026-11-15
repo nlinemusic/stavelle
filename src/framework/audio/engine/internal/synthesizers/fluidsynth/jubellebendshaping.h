@@ -37,6 +37,7 @@
 #include <cmath>
 #include <cstdint>
 #include <map>
+#include <variant>
 #include <vector>
 
 #include "midi/midievent.h"
@@ -133,18 +134,31 @@ inline std::vector<CurvePoint> smoothCurve(const std::vector<CurvePoint>& pts, s
     return out;
 }
 
+//! The MIDI event in a sequence element (a plain event, or the sequencer's variant)
+inline const midi::Event* asMidi(const midi::Event& e)
+{
+    return &e;
+}
+
+template<typename ... T>
+const midi::Event* asMidi(const std::variant<T...>& v)
+{
+    return std::get_if<midi::Event>(&v);
+}
+
 //! Puts each pending reset after the note's release, or just before the next
 //! note-on on its channel if that comes sooner (so the next note never starts bent).
-template<typename Key>
-void placeResets(std::map<Key, std::vector<midi::Event> >& events, const std::vector<PendingReset>& resets,
+template<typename Key, typename Elem>
+void placeResets(std::map<Key, std::vector<Elem> >& events, const std::vector<PendingReset>& resets,
                  int64_t releaseUs = RELEASE_US)
 {
     for (const PendingReset& r : resets) {
         Key when = static_cast<Key>(r.at + releaseUs);
         bool beforeNoteOn = false;
         for (auto it = events.lower_bound(static_cast<Key>(r.at)); it != events.end() && it->first <= when; ++it) {
-            const bool noteOnHere = std::any_of(it->second.begin(), it->second.end(), [&](const midi::Event& e) {
-                return e.opcode() == midi::Event::Opcode::NoteOn && e.channel() == r.channel;
+            const bool noteOnHere = std::any_of(it->second.begin(), it->second.end(), [&](const Elem& el) {
+                const midi::Event* e = asMidi(el);
+                return e && e->opcode() == midi::Event::Opcode::NoteOn && e->channel() == r.channel;
             });
             if (noteOnHere) {
                 when = it->first;
@@ -152,11 +166,11 @@ void placeResets(std::map<Key, std::vector<midi::Event> >& events, const std::ve
                 break;
             }
         }
-        std::vector<midi::Event> reset { pitchBendEvent(r.channel, PITCH_BEND_CENTER) };
+        std::vector<Elem> reset { Elem(pitchBendEvent(r.channel, PITCH_BEND_CENTER)) };
         if (r.volume) {
-            reset.push_back(volumeEvent(r.channel, FULL_VOLUME));
+            reset.push_back(Elem(volumeEvent(r.channel, FULL_VOLUME)));
         }
-        std::vector<midi::Event>& slot = events[when];
+        std::vector<Elem>& slot = events[when];
         slot.insert(beforeNoteOn ? slot.begin() : slot.end(), reset.begin(), reset.end());
     }
 }
