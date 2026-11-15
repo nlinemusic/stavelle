@@ -59,7 +59,7 @@ Item {
     // with Settings pinned at the bottom. Account, MuseSounds and Learn were removed.
     readonly property var mainSections: [
         { "name": "scores", "title": qsTrc("appshell", "Projects"), "iconCode": IconCode.OPEN_FILE },
-        { "name": "extensions", "title": qsTrc("appshell", "Extensions"), "iconCode": IconCode.PLUGIN },
+        { "name": "extensions", "title": qsTrc("appshell", "Plugins"), "iconCode": IconCode.PLUGIN },
         { "name": "templates", "title": qsTrc("appshell", "Template Library"), "iconCode": IconCode.NEW_FILE },
         { "name": "learning", "title": qsTrc("appshell", "Learning Center"), "iconCode": IconCode.GRADUATION_CAP }
     ]

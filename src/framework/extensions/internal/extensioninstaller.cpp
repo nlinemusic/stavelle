@@ -31,8 +31,8 @@ void ExtensionInstaller::installExtension(const io::path_t& srcPath)
     if (data.empty()) {
         LOGE() << "not found manifest.json in: " << srcPath;
 
-        interactive()->error(trc("extensions", "Failed to install extension"),
-                             trc("extensions", "The extension does not contain a valid manifest file."),
+        interactive()->error(trc("extensions", "Failed to install plugin"),
+                             trc("extensions", "The plugin does not contain a valid manifest file."),
                              { interactive()->buttonData(IInteractive::Button::Ok) });
 
         return;
@@ -56,25 +56,25 @@ void ExtensionInstaller::installExtension(const io::path_t& srcPath)
     if (existingManifest.version == m.val.version) {
         LOGI() << "already installed: " << m.val.uri;
 
-        interactive()->info(trc("extensions", "The extension is already installed."), std::string(),
+        interactive()->info(trc("extensions", "The plugin is already installed."), std::string(),
                             { interactive()->buttonData(IInteractive::Button::Ok) });
 
         return;
     }
 
     if (!existingManifest.isRemovable) {
-        interactive()->error(trc("extensions", "This extension cannot be updated."),
+        interactive()->error(trc("extensions", "This plugin cannot be updated."),
                              trc("extensions", "The currently installed version cannot be uninstalled."),
                              { interactive()->buttonData(IInteractive::Button::Ok) });
 
         return;
     }
 
-    const std::string text = qtrc("extensions", "Another version of the extension “%1” is already installed (version %2). "
+    const std::string text = qtrc("extensions", "Another version of the plugin “%1” is already installed (version %2). "
                                                 "Do you want to replace it with version %3?")
                              .arg(existingManifest.title, existingManifest.version, m.val.version).toStdString();
 
-    interactive()->question(trc("extensions", "Update extension"),
+    interactive()->question(trc("extensions", "Update plugin"),
                             text,
                             { IInteractive::Button::Cancel, IInteractive::Button::Ok })
     .onResolve(this, [this, existingManifest, srcPath](const IInteractive::Result& result) {
@@ -97,7 +97,7 @@ void ExtensionInstaller::doInstallExtension(const io::path_t& srcPath)
     if (!ret) {
         LOGE() << "failed unpack from: " << srcPath << ", to: " << dstPath << ", err: " << ret.toString();
 
-        interactive()->error(trc("extensions", "Failed to install extension"),
+        interactive()->error(trc("extensions", "Failed to install plugin"),
 #if QT_VERSION >= QT_VERSION_CHECK(6, 9, 0)
                              qtrc("extensions", "Error code: %1").arg(ret.toString()).toStdString(),
 #else

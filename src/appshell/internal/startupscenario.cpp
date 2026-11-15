@@ -35,7 +35,7 @@ using namespace mu::appshell;
 using namespace muse;
 using namespace muse::actions;
 
-static const muse::UriQuery FIRST_LAUNCH_SETUP_URI("musescore://firstLaunchSetup?floating=true");
+[[maybe_unused]] static const muse::UriQuery FIRST_LAUNCH_SETUP_URI("musescore://firstLaunchSetup?floating=true");
 
 static StartupModeType modeTypeTromString(const std::string& str)
 {
@@ -249,12 +249,12 @@ void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
     }
 
     //! Jubelle: MuseScore's startup welcome dialog (promotions for MuseScore.com, MuseSounds
-    //! and tutorials) was removed. The first launch setup is still shown once, and the
-    //! MuseSounds status check still runs.
+    //! and tutorials) and its first launch setup ("Getting started": theme, playback and
+    //! tutorial pages) are not shown (Refinement Phase R2, approved 15 Nov 2026). The theme
+    //! stays in Preferences. The MuseSounds status check still runs.
     const auto showFirstLaunchOrSamplerStatusIfNeed = [this, modeType]() {
         if (!configuration()->hasCompletedFirstLaunchSetup()) {
-            interactive()->open(FIRST_LAUNCH_SETUP_URI);
-            return;
+            configuration()->setHasCompletedFirstLaunchSetup(true);
         }
 
         const bool shouldCheckForMuseSamplerUpdate = modeType == StartupModeType::StartEmpty

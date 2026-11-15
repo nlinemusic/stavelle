@@ -232,6 +232,35 @@ void ExtensionsListModel::reloadPlugins()
     provider()->reloadExtensions();
 }
 
+void ExtensionsListModel::installFromFile()
+{
+    // Jubelle: install a plugin package (.mext) chosen by the user. Plugins kept
+    // as folders (older QML plugins) are added by copying them into the plugins
+    // folder (openPluginsFolder) and pressing Reload plugins.
+    const std::vector<std::string> filter = {
+        muse::qtrc("extensions", "Plugin packages").toStdString() + " (*." + std::string(SINGLE_FILE_EXT) + ")"
+    };
+    const io::path_t path = interactive()->selectOpeningFileSync(muse::trc("extensions", "Install plugin"), io::path_t(), filter);
+    if (path.empty()) {
+        return;
+    }
+    if (!installer()->isFileSupported(path)) {
+        interactive()->error(muse::trc("extensions", "This file isn't a plugin package"),
+                             muse::trc("extensions", "Choose a plugin package file (.mext). To add a plugin kept as a folder, "
+                                                     "copy it into the plugins folder and press Reload plugins."));
+        return;
+    }
+    installer()->installExtension(path);
+}
+
+void ExtensionsListModel::openPluginsFolder()
+{
+    const io::path_t dir = configuration()->pluginsUserPath();
+    if (!dir.empty()) {
+        interactive()->revealInFileBrowser(dir);
+    }
+}
+
 void ExtensionsListModel::removeExtension(const QString& uri)
 {
     installer()->uninstallExtension(Uri(uri.toStdString()));

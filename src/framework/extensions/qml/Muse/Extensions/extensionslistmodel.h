@@ -65,6 +65,10 @@ public:
     Q_INVOKABLE void reloadPlugins();
     Q_INVOKABLE void removeExtension(const QString& uri);
 
+    // Jubelle: central plugin management on the Plugins page
+    Q_INVOKABLE void installFromFile();
+    Q_INVOKABLE void openPluginsFolder();
+
     Q_INVOKABLE QVariantList categories() const;
 
 signals:

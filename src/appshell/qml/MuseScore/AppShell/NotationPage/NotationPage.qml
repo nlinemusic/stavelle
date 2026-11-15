@@ -167,7 +167,7 @@ DockPage {
             id: extDockToolBar
 
             objectName: root.pageModel.extensionsToolBarName()
-            title: qsTrc("appshell", "Extensions toolbar")
+            title: qsTrc("appshell", "Plugins toolbar")
 
             separatorsVisible: false
             orientation: Qt.Horizontal

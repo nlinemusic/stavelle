@@ -47,6 +47,14 @@ Item {
         extensionsModel.reloadPlugins()
     }
 
+    function installFromFile() {
+        extensionsModel.installFromFile()
+    }
+
+    function openPluginsFolder() {
+        extensionsModel.openPluginsFolder()
+    }
+
     ExtensionsListModel {
         id: extensionsModel
 

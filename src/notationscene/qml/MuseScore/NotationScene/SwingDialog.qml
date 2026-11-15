@@ -93,7 +93,7 @@ StyledDialogView {
 
         StyledDropdown {
             Layout.fillWidth: true
-            model: [{ text: qsTrc("notation", "Not set (MuseScore's swing from Format → Style)") }].concat(swingModel.feelChoices)
+            model: [{ text: qsTrc("notation", "Not set (the score's swing setting in Format → Style)") }].concat(swingModel.feelChoices)
             currentIndex: swingModel.scoreFeelIndex
             navigation.panel: panel
             onActivated: function(index, value) { swingModel.scoreFeelIndex = index }

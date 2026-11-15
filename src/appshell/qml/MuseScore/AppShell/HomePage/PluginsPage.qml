@@ -61,7 +61,7 @@ FocusScope {
         name: "PluginsTopPanel"
         section: navSec
         order: 1
-        accessible.name: qsTrc("appshell", "Extensions")
+        accessible.name: qsTrc("appshell", "Plugins")
     }
 
     Column {
@@ -85,7 +85,7 @@ FocusScope {
                 id: pageTitle
                 Layout.fillWidth: true
 
-                text: qsTrc("appshell", "Extensions")
+                text: qsTrc("appshell", "Plugins")
                 font: ui.theme.titleBoldFont
                 horizontalAlignment: Text.AlignLeft
             }
@@ -98,7 +98,7 @@ FocusScope {
                 navigation.name: "PluginsSearch"
                 navigation.panel: navTopPanel
                 navigation.order: 1
-                accessible.name: qsTrc("appshell", "Extensions search")
+                accessible.name: qsTrc("appshell", "Plugins search")
 
                 onSearchTextChanged: {
                     categoryDropdown.selectedCategory = ""
@@ -145,21 +145,57 @@ FocusScope {
             }
         }
 
-        FlatButton {
-            id: reloadButton
-
+        // Jubelle: central plugin management
+        Row {
             anchors.right: parent.right
+            spacing: 8
 
-            text: qsTrc("extensions", "Reload plugins")
-            icon: IconCode.UPDATE
-            orientation: Qt.Horizontal
+            FlatButton {
+                id: installButton
 
-            navigation.name: "PluginsReloadButton"
-            navigation.panel: navTopPanel
-            navigation.order: 3
+                text: qsTrc("extensions", "Install plugin from file…")
+                icon: IconCode.IMPORT
+                orientation: Qt.Horizontal
 
-            onClicked: {
-                pluginsPage.reloadPlugins()
+                navigation.name: "PluginsInstallButton"
+                navigation.panel: navTopPanel
+                navigation.order: 3
+
+                onClicked: {
+                    pluginsPage.installFromFile()
+                }
+            }
+
+            FlatButton {
+                id: folderButton
+
+                text: qsTrc("extensions", "Open plugins folder")
+                icon: IconCode.OPEN_FILE
+                orientation: Qt.Horizontal
+
+                navigation.name: "PluginsFolderButton"
+                navigation.panel: navTopPanel
+                navigation.order: 4
+
+                onClicked: {
+                    pluginsPage.openPluginsFolder()
+                }
+            }
+
+            FlatButton {
+                id: reloadButton
+
+                text: qsTrc("extensions", "Reload plugins")
+                icon: IconCode.UPDATE
+                orientation: Qt.Horizontal
+
+                navigation.name: "PluginsReloadButton"
+                navigation.panel: navTopPanel
+                navigation.order: 5
+
+                onClicked: {
+                    pluginsPage.reloadPlugins()
+                }
             }
         }
     }
