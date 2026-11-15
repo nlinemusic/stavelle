@@ -111,6 +111,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
     ${MU_ROOT}/src/engraving/tests/jubelle_articulationplayback_tests.cpp
     ${MU_ROOT}/src/engraving/tests/jubelle_swing_tests.cpp
+    ${MU_ROOT}/src/engraving/tests/jubelle_jazzfalls_tests.cpp
     ${MU_ROOT}/src/engraving/tests/jubelle_repeats_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_swingmarking_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp

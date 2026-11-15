@@ -34,6 +34,7 @@
 #include <cmath>
 
 #include "playback/jubelle/swingfeel.h"
+#include "playback/jubelle/jazzfalls.h"
 
 #include "playback/metaparsers/chordarticulationsparser.h"
 #include "playback/metaparsers/notearticulationsparser.h"
@@ -153,7 +154,8 @@ void NoteRenderer::render(const Note* note, const RenderingContext& ctx, mpe::Pl
         return;
     }
 
-    mpe::NoteEvent ev = buildNoteEvent(noteCtx);
+    // Jubelle: falls and doits in real time, by instrument (playback block)
+    mpe::NoteEvent ev = jubelle::applyJazzFall(note, buildNoteEvent(noteCtx));
 
     if (ev.arrangementCtx().actualTimestamp >= 0) {
         result.emplace_back(std::move(ev));
