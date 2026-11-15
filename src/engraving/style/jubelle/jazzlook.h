@@ -12,7 +12,7 @@
 #include <unordered_map>
 
 #include "../styledef.h"
-#include "types/propertyvalue.h"
+#include "../../types/propertyvalue.h"
 
 namespace mu::engraving {
 class MStyle;
