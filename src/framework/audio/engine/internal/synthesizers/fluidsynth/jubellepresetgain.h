@@ -13,6 +13,9 @@
  */
 #pragma once
 
+#include <algorithm>
+#include <atomic>
+#include <cmath>
 #include <string>
 
 #include "jubellepresetgains.h"
@@ -27,6 +30,29 @@ inline int presetCorrectionCentibels(int bank, int program)
         }
     }
     return 0;
+}
+
+// Ensemble trim (P1 headroom, approved 15 Nov 2026): the more instruments a
+// score has, the more the whole band is turned down, as a mixing engineer
+// would set the faders. Up to 4 instruments: unchanged. Beyond that
+// -15*log10(n/4) dB, at most -15 dB (big band, 17: about -9.4 dB).
+// Measured: a 17-piece big band tutti peaked at +5 dBFS (mf) and +16 (fff)
+// without it; with it about -4 and +7, so the safety limiter only has real
+// work at the loudest tuttis.
+inline double ensembleTrimDb(int instruments)
+{
+    if (instruments <= 4) {
+        return 0.0;
+    }
+    return std::max(-15.0, -15.0 * std::log10(double(instruments) / 4.0));
+}
+
+// How many instruments are playing with the built-in sounds right now
+// (one FluidSynth per instrument)
+inline std::atomic<int>& builtInSoundInstruments()
+{
+    static std::atomic<int> count { 0 };
+    return count;
 }
 
 // True when the file is the built-in soundfont (MS Basic.sf3 / .sf2)

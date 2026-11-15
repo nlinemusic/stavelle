@@ -222,8 +222,9 @@ int main(int argc, char** argv)
                 peak = std::max(peak, double(std::max(std::fabs(l[i]), std::fabs(r[i]))));
                 sum += 0.5 * (double(l[i]) * l[i] + double(r[i]) * r[i]);
             }
-            std::fprintf(stderr, "big band tutti %s: RMS %.1f dBFS, peak %.1f dBFS\n", loud ? "fff" : "mf",
-                         10 * std::log10(sum / sr), 20 * std::log10(peak));
+            const double trimDb = std::max(-15.0, -15.0 * std::log10(17.0 / 4.0));   // as jubellepresetgain.h, 17 parts
+            std::fprintf(stderr, "big band tutti %s: RMS %.1f dBFS, peak %.1f dBFS; with the ensemble trim (%.1f dB): peak %.1f dBFS\n",
+                         loud ? "fff" : "mf", 10 * std::log10(sum / sr), 20 * std::log10(peak), trimDb, 20 * std::log10(peak) + trimDb);
         }
     }
 

@@ -107,3 +107,15 @@ TEST(Jubelle_PresetGain, OnlyTheBuiltInSoundFontIsCorrected)
     EXPECT_FALSE(isBuiltInSoundFont("/home/me/SoundFonts/GeneralUser GS.sf2"));
     EXPECT_FALSE(isBuiltInSoundFont("/home/me/MS Basic copy.sf3"));
 }
+
+TEST(Jubelle_PresetGain, EnsembleTrimGrowsWithTheBand)
+{
+    EXPECT_DOUBLE_EQ(ensembleTrimDb(1), 0.0);    // solo: unchanged
+    EXPECT_DOUBLE_EQ(ensembleTrimDb(4), 0.0);    // small group: unchanged
+    EXPECT_NEAR(ensembleTrimDb(8), -4.52, 0.01);
+    EXPECT_NEAR(ensembleTrimDb(17), -9.43, 0.01);   // big band
+    EXPECT_DOUBLE_EQ(ensembleTrimDb(200), -15.0);   // never more than 15 dB
+    for (int n = 5; n < 60; ++n) {
+        EXPECT_LE(ensembleTrimDb(n + 1), ensembleTrimDb(n));   // more players, never louder
+    }
+}

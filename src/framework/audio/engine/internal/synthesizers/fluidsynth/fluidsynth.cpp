@@ -316,8 +316,31 @@ Ret FluidSynth::addSoundFonts(const std::vector<io::path_t>& sfonts)
             m_jubelleEvenLevels = false;
         }
     }
+    setJubelleCounted(m_jubelleEvenLevels);
+    m_jubelleTrimForCount = -1;   // a new synth instance: set its gain again
 
     return ok ? make_ret(Err::NoError) : make_ret(Err::SoundFontFailedLoad);
+}
+
+void FluidSynth::setJubelleCounted(bool counted)
+{
+    if (counted != m_jubelleCounted) {
+        jubelle::builtInSoundInstruments() += counted ? 1 : -1;
+        m_jubelleCounted = counted;
+    }
+}
+
+void FluidSynth::applyJubelleEnsembleTrim()
+{
+    // Checked once per audio block; the gain changes only when the number of
+    // instruments does
+    const int count = m_jubelleEvenLevels ? jubelle::builtInSoundInstruments().load() : 0;
+    if (count == m_jubelleTrimForCount || !m_fluid->synth) {
+        return;
+    }
+    m_jubelleTrimForCount = count;
+    const double trim = std::pow(10.0, jubelle::ensembleTrimDb(count) / 20.0);
+    fluid_synth_set_gain(m_fluid->synth, float(FLUID_GLOBAL_VOLUME_GAIN * trim));
 }
 
 void FluidSynth::applyJubellePresetGain(int channel)
@@ -439,6 +462,8 @@ samples_t FluidSynth::process(float* buffer, samples_t samplesPerChannel)
         doFlushSound();
         m_flushSoundRequested = false;
     }
+
+    applyJubelleEnsembleTrim();
 
     const msecs_t nextMsecs = samplesToMsecs(samplesPerChannel, m_outputSpec.sampleRate);
     const FluidSequencer::EventSequenceMap sequences = m_sequencer.movePlaybackForward(nextMsecs);

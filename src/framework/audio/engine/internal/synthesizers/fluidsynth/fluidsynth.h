@@ -113,7 +113,11 @@ private:
 
     // Jubelle (P1): even instrument levels for the built-in soundfont
     void applyJubellePresetGain(int channel);
+    void setJubelleCounted(bool counted);
+    void applyJubelleEnsembleTrim();
     bool m_jubelleEvenLevels = false;
+    bool m_jubelleCounted = false;
+    int m_jubelleTrimForCount = -1;
 
     OutputSpec m_outputSpec;
 
