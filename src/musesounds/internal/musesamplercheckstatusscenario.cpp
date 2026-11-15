@@ -39,10 +39,12 @@ void MuseSamplerCheckStatusScenario::checkAndShowStatusIfNeed()
     }
 
     if (service()->libInitFailed()) {
+        // Jubelle (R0, 15 Nov 2026): MuseSounds is Muse Group's proprietary engine and
+        // doesn't start inside Jubelle, so the "MuseSounds could not be loaded" warning
+        // appeared at every start. It's only logged now; Jubelle plays with its built-in
+        // sounds and VST3 instruments. (MuseSounds is never forced to load.)
         m_alreadyChecked = true;
-        if (configuration()->showLoadingFailedWarning()) {
-            showLoadingFailedNotification();
-        }
+        LOGW() << "MuseSounds is not available in Jubelle (the MuseSounds engine did not start)";
         return;
     }
 
