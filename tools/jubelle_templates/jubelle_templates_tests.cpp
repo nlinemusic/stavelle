@@ -383,3 +383,47 @@ TEST(Jubelle_Templates, PianoTrioAndStringTrio)
     EXPECT_EQ(sectionBracket(st->staff(0)), 3u) << "the three strings bracketed together";
     EXPECT_TRUE(near(st->style().styleD(Sid::pageWidth), 9.0));
 }
+
+TEST(Jubelle_Templates, RefinedOriginalsHaveTheirPageAndLook)
+{
+    // T5: MuseScore's templates refined in place; T4/T6 page sizes; T2 Leland
+    jubelle_templates::loadInstrumentData();
+    ASSERT_EQ(jubelle_templates::refinements().size(), 40u) << "the 41 originals minus the Big Band (redesigned separately)";
+    for (const jubelle_templates::Refinement& r : jubelle_templates::refinements()) {
+        std::unique_ptr<MasterScore> s(jubelle_templates::readTemplate(TEMPLATES + r.path));
+        ASSERT_TRUE(s) << r.path;
+        jt::PageSizeInch size;
+        ASSERT_TRUE(jt::usPageSize(r.pageClass, size));
+        EXPECT_TRUE(near(s->style().styleD(Sid::pageWidth), size.width)) << r.path;
+        EXPECT_TRUE(near(s->style().styleD(Sid::pageHeight), size.height)) << r.path;
+        EXPECT_EQ(s->metaTag(jt::PAGE_CLASS_TAG), String(r.pageClass)) << r.path;
+        EXPECT_EQ(s->style().styleSt(Sid::musicalSymbolFont), String(u"Leland")) << r.path;
+        EXPECT_NE(s->style().styleSt(Sid::defaultFontFace), String(u"MuseJazz Text")) << r.path;
+        EXPECT_FALSE(s->parts().empty()) << r.path;
+    }
+}
+
+TEST(Jubelle_TemplateLayout, RefinedOriginalsFitTheirPages)
+{
+    REQUIRE_REALISTIC_METRICS();
+    jubelle_templates::loadInstrumentData();
+    for (const jubelle_templates::Refinement& r : jubelle_templates::refinements()) {
+        std::unique_ptr<MasterScore> s(jubelle_templates::readTemplate(TEMPLATES + r.path));
+        ASSERT_TRUE(s) << r.path;
+        for (bool international : { false, true }) {
+            if (international) {
+                jt::applyTemplatePageClass(s.get(), 210 / 25.4, 297 / 25.4);   // the A-size version
+            }
+            s->setLayoutAll();
+            s->doLayout();
+            const double pageH = s->style().styleD(Sid::pageHeight) * DPI;
+            const double bottom = s->style().styleD(Sid::pageOddBottomMargin) * DPI;
+            for (const Page* p : s->pages()) {
+                for (const System* sys : p->systems()) {
+                    EXPECT_LT(sys->pagePos().y() + sys->height(), pageH - bottom + 0.5)
+                        << r.path << (international ? " (A size)" : "") << ": a system overflows page " << p->pageNumber() + 1;
+                }
+            }
+        }
+    }
+}

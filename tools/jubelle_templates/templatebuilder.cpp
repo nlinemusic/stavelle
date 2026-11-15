@@ -30,6 +30,8 @@
 #include "engraving/dom/sig.h"
 #include "engraving/dom/text.h"
 #include "engraving/dom/timesig.h"
+#include "engraving/dom/page.h"
+#include "engraving/dom/system.h"
 #include "engraving/style/defaultstyle.h"
 #include "engraving/style/style.h"
 #include "engraving/infrastructure/mscwriter.h"
@@ -341,6 +343,144 @@ HouseStyle chamberStyle()
     return hs;
 }
 
+HouseStyle ensembleStyle(Ensemble e, const String& pageClass, double spatiumMm)
+{
+    HouseStyle hs;
+    hs.pageClass = pageClass;
+    hs.spatiumMm = spatiumMm;
+    hs.marginTopInch = 0.5;
+    hs.marginBottomInch = 0.5;
+    hs.marginSideInch = 0.6;
+    hs.values = {
+        { Sid::enableIndentationOnFirstSystem, true },
+        { Sid::createMultiMeasureRests, false },
+    };
+    auto add = [&](std::initializer_list<StyleValue> v) { hs.values.insert(hs.values.end(), v); };
+    switch (e) {
+    case Ensemble::General:
+    case Ensemble::Solo:
+        hs.name = u"Jubelle General";
+        add({ { Sid::minSystemDistance, Spatium(9.5) }, { Sid::maxSystemDistance, Spatium(16.0) } });
+        break;
+    case Ensemble::Choral:
+        // room for lyrics between the voices
+        hs.name = u"Jubelle Choral";
+        add({ { Sid::staffDistance, Spatium(7.5) }, { Sid::akkoladeDistance, Spatium(6.5) },
+              { Sid::minSystemDistance, Spatium(10.0) }, { Sid::maxSystemDistance, Spatium(18.0) } });
+        break;
+    case Ensemble::Chamber:
+        hs = chamberStyle();
+        hs.pageClass = pageClass;
+        hs.spatiumMm = spatiumMm;
+        break;
+    case Ensemble::LeadSheet:
+        // a large staff and clear chord symbols for reading on the stand
+        hs.name = u"Jubelle Lead Sheet";
+        add({ { Sid::chordSymbolAFontSize, 12.0 }, { Sid::chordSymbolBFontSize, 12.0 },
+              { Sid::minSystemDistance, Spatium(11.0) }, { Sid::maxSystemDistance, Spatium(16.0) } });
+        break;
+    case Ensemble::SmallJazz:
+    case Ensemble::Popular:
+        hs.name = e == Ensemble::SmallJazz ? u"Jubelle Small Jazz" : u"Jubelle Popular";
+        add({ { Sid::staffDistance, Spatium(6.0) }, { Sid::akkoladeDistance, Spatium(6.0) },
+              { Sid::minSystemDistance, Spatium(9.0) }, { Sid::maxSystemDistance, Spatium(16.0) },
+              { Sid::chordSymbolAFontSize, 11.0 }, { Sid::chordSymbolBFontSize, 11.0 } });
+        break;
+    case Ensemble::LargeEnsemble:
+        // bands and orchestras on 11x17: one system per page, tight within
+        // sections, readable text on the large page (score only)
+        hs.name = u"Jubelle Large Ensemble";
+        hs.marginTopInch = 0.45;
+        hs.marginBottomInch = 0.45;
+        hs.marginSideInch = 0.5;
+        add({ { Sid::staffDistance, Spatium(5.0) }, { Sid::akkoladeDistance, Spatium(5.0) },
+              { Sid::staffUpperBorder, Spatium(5.0) }, { Sid::staffLowerBorder, Spatium(5.0) },
+              { Sid::frameSystemDistance, Spatium(5.0) }, { Sid::enableVerticalSpread, true },
+              { Sid::minStaffSpread, Spatium(3.5) }, { Sid::maxStaffSpread, Spatium(10.0) },
+              { Sid::longInstrumentFontSize, 12.0, true }, { Sid::shortInstrumentFontSize, 12.0, true },
+              { Sid::rehearsalMarkFontSize, 18.0, true }, { Sid::tempoFontSize, 14.0, true },
+              { Sid::metronomeFontSize, 14.0, true }, { Sid::expressionFontSize, 12.0, true },
+              { Sid::staffTextFontSize, 12.0, true }, { Sid::systemTextFontSize, 12.0, true },
+              { Sid::dynamicsSize, 1.2, true } });
+        break;
+    }
+    return hs;
+}
+
+const std::vector<Refinement>& refinements()
+{
+    using E = Ensemble;
+    static const std::vector<Refinement> r {
+        { "01-General/01-Treble_Clef/01-Treble_Clef.mscx", E::General, u"letter", 1.75 },
+        { "01-General/02-Bass_Clef/02-Bass_Clef.mscx", E::General, u"letter", 1.75 },
+        { "01-General/03-Grand_Staff/03-Grand_Staff.mscx", E::General, u"letter", 1.75 },
+        { "02-Choral/01-SATB/01-SATB.mscx", E::Choral, u"letter", 1.65 },
+        { "02-Choral/02-SATB_+_Organ/02-SATB_+_Organ.mscx", E::Choral, u"letter", 1.55 },
+        { "02-Choral/03-SATB_+_Piano/03-SATB_+_Piano.mscx", E::Choral, u"letter", 1.55 },
+        { "02-Choral/04-SATB_Closed_Score/04-SATB_Closed_Score.mscx", E::Choral, u"letter", 1.75 },
+        { "02-Choral/05-SATB_Closed_Score_+_Organ/05-SATB_Closed_Score_+_Organ.mscx", E::Choral, u"letter", 1.65 },
+        { "02-Choral/06-SATB_Closed_Score_+_Piano/06-SATB_Closed_Score_+_Piano.mscx", E::Choral, u"letter", 1.65 },
+        { "02-Choral/07-Voice_+_Piano/07-Voice_+_Piano.mscx", E::Choral, u"letter", 1.75 },
+        { "02-Choral/08-Barbershop_Quartet_(Men)/08-Barbershop_Quartet_(Men).mscx", E::Choral, u"letter", 1.75 },
+        { "02-Choral/09-Barbershop_Quartet_(Women)/09-Barbershop_Quartet_(Women).mscx", E::Choral, u"letter", 1.75 },
+        { "02-Choral/10-Liturgical_Unmetrical/10-Liturgical_Unmetrical.mscx", E::Choral, u"letter", 1.75 },
+        { "02-Choral/11-Liturgical_Unmetrical_+_Organ/11-Liturgical_Unmetrical_+_Organ.mscx", E::Choral, u"letter", 1.75 },
+        { "03-Chamber_Music/01-String_Quartet/01-String_Quartet.mscx", E::Chamber, u"9x12", 1.6 },
+        { "03-Chamber_Music/02-Wind_Quartet/02-Wind_Quartet.mscx", E::Chamber, u"9x12", 1.6 },
+        { "03-Chamber_Music/03-Wind_Quintet/03-Wind_Quintet.mscx", E::Chamber, u"9x12", 1.55 },
+        { "03-Chamber_Music/04-Saxophone_Quartet/04-Saxophone_Quartet.mscx", E::Chamber, u"9x12", 1.6 },
+        { "03-Chamber_Music/05-Brass_Quartet/05-Brass_Quartet.mscx", E::Chamber, u"9x12", 1.6 },
+        { "03-Chamber_Music/06-Brass_Quintet/06-Brass_Quintet.mscx", E::Chamber, u"9x12", 1.55 },
+        { "04-Solo/01-Guitar/01-Guitar.mscx", E::Solo, u"letter", 1.75 },
+        { "04-Solo/02-Guitar_+_Tablature/02-Guitar_+_Tablature.mscx", E::Solo, u"letter", 1.75 },
+        { "04-Solo/03-Guitar_Tablature/03-Guitar_Tablature.mscx", E::Solo, u"letter", 1.75 },
+        { "04-Solo/04-Piano/04-Piano.mscx", E::Solo, u"letter", 1.75 },
+        { "05-Jazz/01-Jazz_Lead_Sheet/01-Jazz_Lead_Sheet.mscx", E::LeadSheet, u"letter", 1.9, true },
+        { "05-Jazz/03-Jazz_Combo/03-Jazz_Combo.mscx", E::SmallJazz, u"letter", 1.45, true },
+        { "06-Popular/01-Rock_Band/01-Rock_Band.mscx", E::Popular, u"letter", 1.5 },
+        { "06-Popular/02-Bluegrass_Band/02-Bluegrass_Band.mscx", E::Popular, u"letter", 1.5 },
+        { "07-Band_and_Percussion/01-Concert_Band/01-Concert_Band.mscx", E::LargeEnsemble, u"11x17", 1.3 },
+        { "07-Band_and_Percussion/02-Small_Concert_Band/02-Small_Concert_Band.mscx", E::LargeEnsemble, u"11x17", 1.45 },
+        { "07-Band_and_Percussion/03-Brass_Band/03-Brass_Band.mscx", E::LargeEnsemble, u"11x17", 1.45 },
+        { "07-Band_and_Percussion/04-Marching_Band/04-Marching_Band.mscx", E::LargeEnsemble, u"11x17", 1.35 },
+        { "07-Band_and_Percussion/05-Small_Marching_Band/05-Small_Marching_Band.mscx", E::LargeEnsemble, u"11x17", 1.5 },
+        { "07-Band_and_Percussion/06-Battery_Percussion/06-Battery_Percussion.mscx", E::Popular, u"letter", 1.6 },
+        { "07-Band_and_Percussion/07-Large_Pit_Percussion/07-Large_Pit_Percussion.mscx", E::LargeEnsemble, u"11x17", 1.3 },
+        { "07-Band_and_Percussion/08-Small_Pit_Percussion/08-Small_Pit_Percussion.mscx", E::LargeEnsemble, u"11x17", 1.5 },
+        { "07-Band_and_Percussion/09-European_Concert_Band/09-European_Concert_Band.mscx", E::LargeEnsemble, u"11x17", 1.3 },
+        { "08-Orchestral/01-Classical_Orchestra/01-Classical_Orchestra.mscx", E::LargeEnsemble, u"11x17", 1.6 },
+        { "08-Orchestral/02-Symphony_Orchestra/02-Symphony_Orchestra.mscx", E::LargeEnsemble, u"11x17", 1.35 },
+        { "08-Orchestral/03-String_Orchestra/03-String_Orchestra.mscx", E::Chamber, u"9x12", 1.6 },
+    };
+    return r;
+}
+
+double fitStaffSize(MasterScore* score, double minSpatiumMm)
+{
+    MStyle& st = score->style();
+    const double pageH = st.styleD(Sid::pageHeight) * DPI;
+    const double bottom = st.styleD(Sid::pageOddBottomMargin) * DPI;
+    auto fits = [&]() {
+        score->setLayoutAll();
+        score->doLayout();
+        for (const Page* p : score->pages()) {
+            for (const System* sys : p->systems()) {
+                if (sys->pagePos().y() + sys->height() > pageH - bottom + 0.5) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    double sp = st.spatium() / DPMM;
+    while (!fits() && sp - 0.05 >= minSpatiumMm - 1e-9) {
+        sp -= 0.05;
+        st.set(Sid::spatium, sp * DPMM);
+        st.precomputeValues();
+    }
+    return sp;
+}
+
 const std::vector<SoloWithPiano>& soloWithPianoTemplates()
 {
     static const std::vector<SoloWithPiano> t {
@@ -470,6 +610,41 @@ int buildAll(const std::string& originalsDir, const std::string& outDir)
     } else {
         ++failures;
     }
+    // MuseScore's original templates, refined in place (T5) with Jubelle's
+    // house styles and page sizes (T4, T6)
+    for (const Refinement& r : refinements()) {
+        MasterScore* s = readTemplate(originalsDir + "/" + r.path);
+        if (!s) {
+            ++failures;
+            continue;
+        }
+        std::vector<String> before;
+        for (const Part* p : s->parts()) {
+            before.push_back(p->instrument()->id());
+        }
+        if (r.standardLook) {
+            s->style() = DefaultStyle::baseStyle();     // T2: Leland, not the MuseJazz look
+            s->checkChordList();
+        }
+        applyHouseStyle(s, ensembleStyle(r.ensemble, r.pageClass, r.maxSpatiumMm));
+        const double sp = fitStaffSize(s);
+        std::vector<String> after;
+        for (const Part* p : s->parts()) {
+            after.push_back(p->instrument()->id());
+        }
+        if (after != before) {
+            std::cerr << "refinement changed the instruments of " << r.path << "\n";
+            ++failures;
+            delete s;
+            continue;
+        }
+        std::cout << "refined " << r.path << ": " << String(r.pageClass).toStdString() << ", staff size " << sp << " mm\n";
+        if (!writeTemplate(s, outDir + "/" + r.path)) {
+            ++failures;
+        }
+        delete s;
+    }
+
     // Solo Instrument + Piano (new, built from MuseScore's instrument definitions)
     for (const SoloWithPiano& t : soloWithPianoTemplates()) {
         MasterScore* s = newTemplate(t.title, { { t.instrumentId, u"", u"" }, { u"piano", u"", u"" } });

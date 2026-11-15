@@ -81,6 +81,24 @@ struct NewPart {
 mu::engraving::MasterScore* newTemplate(const muse::String& title, const std::vector<NewPart>& parts);
 
 HouseStyle soloWithPianoStyle();
+
+//! Jubelle's house styles for MuseScore's original templates (T5: refined in place)
+enum class Ensemble {
+    General, Choral, Chamber, Solo, LeadSheet, SmallJazz, Popular, LargeEnsemble
+};
+HouseStyle ensembleStyle(Ensemble e, const muse::String& pageClass, double spatiumMm);
+
+struct Refinement {
+    const char* path;           // relative to the templates folder
+    Ensemble ensemble;
+    const char16_t* pageClass;
+    double maxSpatiumMm;        // reduced automatically until a full system fits the page
+    bool standardLook = false;  // MuseScore's jazz templates: replace the MuseJazz look with Leland (T2)
+};
+const std::vector<Refinement>& refinements();
+
+//! Largest staff size (<= the house style's) at which every system fits its page
+double fitStaffSize(mu::engraving::MasterScore* score, double minSpatiumMm = 1.0);
 HouseStyle chamberStyle();
 
 struct SoloWithPiano {
