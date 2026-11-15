@@ -22,6 +22,9 @@
 #include "engraving/compat/scoreaccess.h"
 #include "engraving/engravingproject.h"
 #include "engraving/infrastructure/mscwriter.h"
+#include "engraving/infrastructure/localfileinfoprovider.h"
+
+#include "log.h"
 
 #include "engraving/dom/chord.h"
 #include "engraving/dom/dynamic.h"
@@ -929,7 +932,12 @@ ExistingCopy readExistingCopy(const muse::io::path_t& path, const muse::modulari
         return e;
     }
     MasterScore* score = compat::ScoreAccess::createMasterScoreWithBaseStyle(iocCtx);
-    if (compat::loadMsczOrMscx(score, path, true)) {
+    score->setFileInfoProvider(std::make_shared<LocalFileInfoProvider>(path));
+    const muse::Ret ret = compat::loadMsczOrMscx(score, path, true);
+    if (!ret) {
+        LOGW() << "Jubelle: couldn't read " << path << ": " << ret.toString();
+    }
+    if (ret) {
         e.isCondensedCopy = isCondensedCopy(score);
         e.overrides = readOverrides(score);
     }
