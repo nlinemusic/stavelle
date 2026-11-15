@@ -78,10 +78,23 @@ class TextLineSettingsModel : public InspectorModelWithVoiceAndPositionOptions
     Q_PROPERTY(bool showStartArrowSettings READ showStartArrowSettings NOTIFY showStartArrowSettingsChanged)
     Q_PROPERTY(bool showEndArrowSettings READ showEndArrowSettings NOTIFY showEndArrowSettingsChanged)
 
+    // Jubelle: the "Linked passage" section, shown when a linked passage's marker is selected
+    Q_PROPERTY(bool jubelleIsLink READ jubelleIsLink NOTIFY jubelleLinkChanged)
+    Q_PROPERTY(bool jubelleIsLinkSource READ jubelleIsLinkSource NOTIFY jubelleLinkChanged)
+    Q_PROPERTY(QString jubelleLinkSummary READ jubelleLinkSummary NOTIFY jubelleLinkChanged)
+    Q_PROPERTY(int jubelleHandEditedCount READ jubelleHandEditedCount NOTIFY jubelleLinkChanged)
+
     Q_PROPERTY(bool startFilledArrow READ startFilledArrow NOTIFY startFilledArrowChanged)
     Q_PROPERTY(bool endFilledArrow READ endFilledArrow NOTIFY endFilledArrowChanged)
 
 public:
+    bool jubelleIsLink() const { return m_jubelleIsLink; }
+    bool jubelleIsLinkSource() const { return m_jubelleIsLinkSource; }
+    QString jubelleLinkSummary() const { return m_jubelleLinkSummary; }
+    int jubelleHandEditedCount() const { return m_jubelleHandEditedCount; }
+    //! Re-sync, Unlink or the Linked passages dialog, for the selected marker
+    Q_INVOKABLE void jubelleLinkAction(const QString& actionCode);
+
     explicit TextLineSettingsModel(QObject* parent, const muse::modularity::ContextPtr& iocCtx, IElementRepositoryService* repository,
                                    mu::engraving::ElementType elementType = mu::engraving::ElementType::TEXTLINE_BASE);
 
@@ -168,6 +181,7 @@ protected:
     void setPossibleEndHookTypes(const QList<HookTypeInfo>& types);
 
 signals:
+    void jubelleLinkChanged();
     void possibleStartHookTypesChanged(QVariantList startHookTypes);
     void possibleEndHookTypesChanged(QVariantList endHookTypes);
 
@@ -180,6 +194,12 @@ signals:
     void endFilledArrowChanged(bool endFilledArrow);
 
 private:
+    void jubelleLoadLinkInfo();
+    bool m_jubelleIsLink = false;
+    bool m_jubelleIsLinkSource = false;
+    QString m_jubelleLinkSummary;
+    int m_jubelleHandEditedCount = 0;
+
     QVariantList hookTypesToObjList(const QList<HookTypeInfo>& types, bool start) const;
 
     void loadProperties(const mu::engraving::PropertyIdSet& propertyIdSet);
