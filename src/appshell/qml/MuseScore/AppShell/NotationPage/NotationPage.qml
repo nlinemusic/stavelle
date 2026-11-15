@@ -35,6 +35,7 @@ import MuseScore.Palette
 import MuseScore.Inspector
 import MuseScore.InstrumentsScene
 import MuseScore.Playback
+import MuseScore.Project
 
 DockPage {
     id: root
@@ -594,6 +595,11 @@ DockPage {
         isNavigatorVisible: root.pageModel.isNavigatorVisible
         isBraillePanelVisible: root.pageModel.isBraillePanelVisible
         isMainView: true
+
+        // Jubelle R1
+        topBar: Component {
+            NotInProjectsBar {}
+        }
 
         Component.onCompleted: {
             root.notationView = notationView.paintView

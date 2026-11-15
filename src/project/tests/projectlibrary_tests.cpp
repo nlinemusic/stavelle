@@ -353,3 +353,25 @@ TEST_F(ProjectLibraryTests, DontAskAgainIsRememberedPerFile)
         EXPECT_NE(c.front(), '.');
     }
 }
+
+TEST_F(ProjectLibraryTests, NotInProjectsBarShowsOnlyWhenItShould)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const std::string outside = (m_root / "Downloads" / "Chart.mscz").u8string();
+    const std::string inside = m_main + "/Jazz/Song/Song.mscz";
+    std::set<std::string> dismissed;
+
+    EXPECT_TRUE(shouldOfferAddToProjects(outside, false, m_main, dismissed));
+    EXPECT_FALSE(shouldOfferAddToProjects(inside, false, m_main, dismissed)) << "already in Projects";
+    EXPECT_FALSE(shouldOfferAddToProjects(outside, true, m_main, dismissed)) << "a new score";
+    EXPECT_FALSE(shouldOfferAddToProjects("", false, m_main, dismissed));
+
+    dismissed.insert(outside);   // "Not now"
+    EXPECT_FALSE(shouldOfferAddToProjects(outside, false, m_main, dismissed));
+    dismissed.clear();           // next session
+    EXPECT_TRUE(shouldOfferAddToProjects(outside, false, m_main, dismissed));
+
+    ASSERT_TRUE(silenceAddToProjects(m_main, outside).ok);   // "Don't ask for this file"
+    EXPECT_FALSE(shouldOfferAddToProjects(outside, false, m_main, dismissed));
+    EXPECT_TRUE(shouldOfferAddToProjects((m_root / "Other.mscz").u8string(), false, m_main, dismissed));
+}

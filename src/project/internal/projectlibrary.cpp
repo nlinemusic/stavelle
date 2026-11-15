@@ -866,6 +866,18 @@ std::string findImportedProject(const std::string& mainFolder, const std::string
 
 static constexpr const char* SILENCED_LIST = ".jubelle-dont-ask-to-add.txt";
 
+bool shouldOfferAddToProjects(const std::string& scorePath, bool newlyCreated, const std::string& mainFolder,
+                              const std::set<std::string>& dismissedThisSession)
+{
+    if (scorePath.empty() || newlyCreated || mainFolder.empty()) {
+        return false;   // new scores are saved into Projects anyway
+    }
+    if (isInsideMainFolder(scorePath, mainFolder)) {
+        return false;
+    }
+    return !dismissedThisSession.count(scorePath) && !isAddToProjectsSilenced(mainFolder, scorePath);
+}
+
 bool isAddToProjectsSilenced(const std::string& mainFolder, const std::string& scorePath)
 {
     std::ifstream in(toPath(mainFolder) / fs::u8path(SILENCED_LIST), std::ios::binary);

@@ -49,6 +49,9 @@ FocusScope {
 
     property alias defaultNavigationControl: fakeNavCtrl
 
+    //! Jubelle: an optional bar under the tabs (e.g. "not in your Jubelle Projects")
+    property Component topBar: null
+
     readonly property alias navigationSection: navSec
     readonly property alias navigationOrderEnd: searchPopup.navigationOrderEnd
 
@@ -85,6 +88,13 @@ FocusScope {
         }
 
         SeparatorLine { visible: tabPanel.visible }
+
+        Loader {
+            Layout.fillWidth: true
+            Layout.preferredHeight: item ? item.implicitHeight : 0
+            active: root.topBar !== null
+            sourceComponent: root.topBar
+        }
 
         SplitView {
             id: splitView

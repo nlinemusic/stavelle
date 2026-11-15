@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include <set>
 #include <string>
 #include <vector>
 
@@ -130,6 +131,12 @@ std::string findImportedProject(const std::string& mainFolder, const std::string
 //! when saving (kept in a small hidden list in the main folder).
 bool isAddToProjectsSilenced(const std::string& mainFolder, const std::string& scorePath);
 Result silenceAddToProjects(const std::string& mainFolder, const std::string& scorePath);
+
+//! R1: whether the "not in your Jubelle Projects" bar is shown for an open score.
+//! Not for new scores, scores already in Projects, files you said not to ask
+//! about, or files you dismissed this session ("Not now").
+bool shouldOfferAddToProjects(const std::string& scorePath, bool newlyCreated, const std::string& mainFolder,
+                              const std::set<std::string>& dismissedThisSession);
 
 //! True if `folder` has the Jubelle project structure.
 bool isProjectFolder(const std::string& folder);

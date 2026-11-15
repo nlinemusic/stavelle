@@ -54,6 +54,8 @@ qt_add_qml_module(project_qml
         internal/ScoresPage/scorespagemodel.h
         internal/ScoresPage/scorethumbnailloader.cpp
         internal/ScoresPage/scorethumbnailloader.h
+        internal/NotInProjects/notinprojectsbarmodel.cpp
+        internal/NotInProjects/notinprojectsbarmodel.h
         internal/YouTube/youtubepublishmodel.cpp
         internal/YouTube/youtubepublishmodel.h
     QML_FILES
@@ -122,6 +124,7 @@ qt_add_qml_module(project_qml
         ProjectCategoriesTagsDialog.qml
         ProjectMoveDialog.qml
         AddToProjectsDialog.qml
+        NotInProjectsBar.qml
         ProjectNameDialog.qml
         ProjectPropertiesDialog.qml
         ProjectUploadedDialog.qml
