@@ -2171,6 +2171,9 @@ const std::array<StyleDef::StyleValue, size_t(Sid::STYLES)> StyleDef::styleValue
 
     styleDef(jubelleCourtesyAccidentals,                 false),
     styleDef(jubelleCourtesyAccidentalsAllOctaves,       false),
+    styleDef(jubelleCourtesyAccidentalsBars,             1),
+    styleDef(jubelleCourtesyAccidentalsOtherStaves,      false),
+    styleDef(jubelleCourtesyAccidentalsParentheses,      false),
 } };
 
 #undef styleDef

@@ -536,7 +536,7 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
         // if the accidental is standard (doubleflat, flat, natural, sharp or double sharp)
         // and it has either no bracket or parentheses, then we have glyphs straight from smufl.
 
-        if (item->bracket() == AccidentalBracket::PARENTHESIS && !item->parentNoteHasParentheses()) {
+        if (item->displayBracket() == AccidentalBracket::PARENTHESIS && !item->parentNoteHasParentheses()) {
             switch (item->accidentalType()) {
             case AccidentalType::FLAT:      return SymId::accidentalFlatParens;
             case AccidentalType::FLAT2:     return SymId::accidentalDoubleFlatParens;
@@ -577,15 +577,15 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
         double x = 0.0;
 
         std::pair<SymId, SymId> bracketSyms;
-        bool isNeedBracket = item->bracket() != AccidentalBracket::NONE && !item->parentNoteHasParentheses();
+        bool isNeedBracket = item->displayBracket() != AccidentalBracket::NONE && !item->parentNoteHasParentheses();
         if (isNeedBracket) {
-            bracketSyms = accidentalBracketSyms(item->bracket());
+            bracketSyms = accidentalBracketSyms(item->displayBracket());
         }
 
         // Left
         if (bracketSyms.first != SymId::noSym) {
             Accidental::LayoutData::Sym ls(bracketSyms.first, 0.0,
-                                           item->bracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
+                                           item->displayBracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
             ldata->syms.push_back(ls);
             shape.add(item->symBbox(bracketSyms.first), item);
 
@@ -603,7 +603,7 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
             x += item->symAdvance(mainSym) + margin;
 
             Accidental::LayoutData::Sym rs(bracketSyms.second, x,
-                                           item->bracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
+                                           item->displayBracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
             ldata->syms.push_back(rs);
             shape.add(item->symBbox(bracketSyms.second).translated(x, 0.0), item);
         }

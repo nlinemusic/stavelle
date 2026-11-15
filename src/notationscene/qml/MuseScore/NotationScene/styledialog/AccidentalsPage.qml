@@ -76,7 +76,7 @@ StyledFlickable {
 
                 StyledTextLabel {
                     Layout.fillWidth: true
-                    text: qsTrc("notation/editstyle/accidentals", "After a bar line, a note whose pitch was altered in the previous bar shows its accidental again (for example F♯ in one bar, then ♮ on the next F). Courtesy accidentals update by themselves as you edit.")
+                    text: qsTrc("notation/editstyle/accidentals", "After a bar line, a note whose pitch was altered in the previous bar (or within the number of bars set below) shows its accidental again (for example F♯ in one bar, then ♮ on the next F). Courtesy accidentals update by themselves as you edit.")
                     horizontalAlignment: Text.AlignLeft
                     wrapMode: Text.Wrap
                     opacity: 0.75
@@ -87,6 +87,35 @@ StyledFlickable {
                     enabled: accidentalsPageModel.courtesyAccidentals.value === true
                     checked: accidentalsPageModel.courtesyAccidentalsAllOctaves.value === true
                     onClicked: accidentalsPageModel.courtesyAccidentalsAllOctaves.value = !accidentalsPageModel.courtesyAccidentalsAllOctaves.value
+                }
+
+                // Jubelle G2: more rules, each on its own; the defaults keep
+                // the behaviour described above
+                StyleSpinboxWithReset {
+                    enabled: accidentalsPageModel.courtesyAccidentals.value === true
+                    styleItem: accidentalsPageModel.courtesyAccidentalsBars
+                    label: qsTrc("notation/editstyle/accidentals", "For how many bars after the change:")
+                    decimals: 0
+                    step: 1
+                    min: 1
+                    max: 4
+
+                    labelAreaWidth: -1
+                    controlAreaWidth: spinBoxWidth
+                }
+
+                CheckBox {
+                    text: qsTrc("notation/editstyle/accidentals", "Also after changes on the instrument’s other staves (for example piano right and left hand, in the same bar too)")
+                    enabled: accidentalsPageModel.courtesyAccidentals.value === true
+                    checked: accidentalsPageModel.courtesyAccidentalsOtherStaves.value === true
+                    onClicked: accidentalsPageModel.courtesyAccidentalsOtherStaves.value = !accidentalsPageModel.courtesyAccidentalsOtherStaves.value
+                }
+
+                CheckBox {
+                    text: qsTrc("notation/editstyle/accidentals", "Show courtesy accidentals in parentheses")
+                    enabled: accidentalsPageModel.courtesyAccidentals.value === true
+                    checked: accidentalsPageModel.courtesyAccidentalsParentheses.value === true
+                    onClicked: accidentalsPageModel.courtesyAccidentalsParentheses.value = !accidentalsPageModel.courtesyAccidentalsParentheses.value
                 }
             }
         }

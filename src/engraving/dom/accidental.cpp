@@ -264,6 +264,15 @@ SymId Accidental::symId() const
     return ACC_LIST[int(accidentalType())].sym;
 }
 
+AccidentalBracket Accidental::displayBracket() const
+{
+    if (m_bracket == AccidentalBracket::NONE && m_jubelleCourtesy
+        && style().styleB(Sid::jubelleCourtesyAccidentalsParentheses)) {
+        return AccidentalBracket::PARENTHESIS;
+    }
+    return m_bracket;
+}
+
 bool Accidental::parentNoteHasParentheses() const
 {
     return explicitParent() && parentItem()->isNote() && toNote(parentItem())->parenthesisInfo();

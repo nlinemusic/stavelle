@@ -2192,6 +2192,11 @@ enum class Sid : short {
     // scores look exactly as in MuseScore unless the user turns it on.
     jubelleCourtesyAccidentals,
     jubelleCourtesyAccidentalsAllOctaves,
+    // Jubelle G2: more courtesy rules. Each is independent; the defaults
+    // give exactly the behaviour above (1 bar, this staff, no parentheses).
+    jubelleCourtesyAccidentalsBars,          // how many bars after the change (1–4)
+    jubelleCourtesyAccidentalsOtherStaves,   // also for other staves of the same instrument
+    jubelleCourtesyAccidentalsParentheses,   // draw courtesy accidentals in parentheses
 
     STYLES
 };

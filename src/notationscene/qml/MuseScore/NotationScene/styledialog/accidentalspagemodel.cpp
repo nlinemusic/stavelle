@@ -33,7 +33,10 @@ AccidentalsPageModel::AccidentalsPageModel(QObject* parent)
     StyleId::alignOffsetOctaveAccidentals,
 
     StyleId::jubelleCourtesyAccidentals,
-    StyleId::jubelleCourtesyAccidentalsAllOctaves
+    StyleId::jubelleCourtesyAccidentalsAllOctaves,
+    StyleId::jubelleCourtesyAccidentalsBars,
+    StyleId::jubelleCourtesyAccidentalsOtherStaves,
+    StyleId::jubelleCourtesyAccidentalsParentheses
 })
 {
 }
@@ -71,4 +74,19 @@ StyleItem* AccidentalsPageModel::courtesyAccidentals() const
 StyleItem* AccidentalsPageModel::courtesyAccidentalsAllOctaves() const
 {
     return styleItem(StyleId::jubelleCourtesyAccidentalsAllOctaves);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsBars() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsBars);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsOtherStaves() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsOtherStaves);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsParentheses() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsParentheses);
 }

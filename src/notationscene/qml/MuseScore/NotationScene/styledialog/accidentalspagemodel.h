@@ -39,6 +39,9 @@ class AccidentalsPageModel : public AbstractStyleDialogModel
     //! Jubelle: automatic courtesy accidentals
     Q_PROPERTY(mu::notation::StyleItem * courtesyAccidentals READ courtesyAccidentals CONSTANT)
     Q_PROPERTY(mu::notation::StyleItem * courtesyAccidentalsAllOctaves READ courtesyAccidentalsAllOctaves CONSTANT)
+    Q_PROPERTY(mu::notation::StyleItem * courtesyAccidentalsBars READ courtesyAccidentalsBars CONSTANT)
+    Q_PROPERTY(mu::notation::StyleItem * courtesyAccidentalsOtherStaves READ courtesyAccidentalsOtherStaves CONSTANT)
+    Q_PROPERTY(mu::notation::StyleItem * courtesyAccidentalsParentheses READ courtesyAccidentalsParentheses CONSTANT)
 
     QML_ELEMENT
 
@@ -52,5 +55,8 @@ public:
     StyleItem* alignOffsetOctaveAccidentals() const;
     StyleItem* courtesyAccidentals() const;
     StyleItem* courtesyAccidentalsAllOctaves() const;
+    StyleItem* courtesyAccidentalsBars() const;
+    StyleItem* courtesyAccidentalsOtherStaves() const;
+    StyleItem* courtesyAccidentalsParentheses() const;
 };
 }

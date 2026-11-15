@@ -60,11 +60,13 @@ file(WRITE ${EFP_COPY} "${EFP_TEXT}")
 # literals, which needs Qt; these copies use u"" literals instead and are
 # otherwise unchanged.
 set(MUSE_TEST_COPIES)
-foreach(t repeat_tests playback/playbackmodel_tests playback/playbackeventsrendering_tests)
+# note_tests and keysig_tests cover accidentals (courtesy-accidental rules).
+foreach(t repeat_tests playback/playbackmodel_tests playback/playbackeventsrendering_tests note_tests keysig_tests)
     file(READ ${MU_ROOT}/src/engraving/tests/${t}.cpp T_TEXT)
     string(REPLACE "String(\"" "String(u\"" T_TEXT "${T_TEXT}")
     string(REPLACE "DIR + \"" "DIR + u\"" T_TEXT "${T_TEXT}")
     string(REGEX REPLACE "(static const String [A-Z_]+)\\(\"" "\\1(u\"" T_TEXT "${T_TEXT}")
+    string(REGEX REPLACE "(String [A-Za-z0-9_]+)\\(\"" "\\1(u\"" T_TEXT "${T_TEXT}")
     get_filename_component(T_NAME ${t} NAME)
     set(T_COPY ${CMAKE_CURRENT_BINARY_DIR}/musetests/${T_NAME}.cpp)
     file(WRITE ${T_COPY} "${T_TEXT}")
@@ -80,6 +82,7 @@ add_executable(jubelle_engine_tests
     ${EFP_COPY}
     ${MU_ROOT}/src/engraving/internal/engravingfont.cpp
     ${MU_ROOT}/src/engraving/tests/utils/scorerw.cpp
+    scorecomp_noqt.cpp
     # Jubelle code under test that isn't part of the engraving library:
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifierrunner.cpp
