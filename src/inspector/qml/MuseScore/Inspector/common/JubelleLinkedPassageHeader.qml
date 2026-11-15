@@ -1,24 +1,6 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
- *
- * Jubelle (based on MuseScore Studio)
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 3 as
- * published by the Free Software Foundation.
  */
-import QtQuick
-import QtQuick.Layouts
-
-import Muse.Ui
-import Muse.UiComponents
-
-//! Jubelle R6: the "Repeat playback" heading on every repeat element (repeat
-//! barlines, voltas, jumps, markers), with the way to the whole-score overview.
-//! Playback only; the printed repeats never change.
-Column {
-    id: root
-
 import QtQuick
 import QtQuick.Layouts
 
