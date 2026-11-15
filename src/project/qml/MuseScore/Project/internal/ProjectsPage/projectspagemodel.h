@@ -96,6 +96,7 @@ public:
     Q_INVOKABLE void createNewScore();
     Q_INVOKABLE void createScoreFromTemplate(const QString& templatePath);
     Q_INVOKABLE void openOther();
+    Q_INVOKABLE void importScoresInteractive();   // Jubelle R1
     Q_INVOKABLE void openScore(const QString& scorePath);
     Q_INVOKABLE void revealInFileBrowser(const QString& path);
     Q_INVOKABLE void openProjectsFolder();

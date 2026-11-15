@@ -72,6 +72,12 @@ const UiActionList ProjectUiActions::m_actions = {
              ),
     // Jubelle: your own templates (saved into your Templates folder; a folder
     // inside it is a category in New Score)
+    UiAction("jubelle-add-to-projects",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Add to Jubelle &Projects…"),
+             TranslatableString("action", "Copy this score into a new Jubelle project; the original stays as it is")
+             ),
     UiAction("jubelle-save-as-template",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_ANY,

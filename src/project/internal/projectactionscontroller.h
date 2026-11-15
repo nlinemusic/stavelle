@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <set>
+#include <string>
+
 #include "iprojectfilescontroller.h"
 
 #include <QObject>
@@ -137,6 +140,12 @@ private:
     bool saveProject(SaveMode saveMode, SaveLocationType saveLocationType = SaveLocationType::Undefined, bool force = false);
     void saveProjectAt(const muse::actions::ActionData& args);
     void saveAsTemplate();   // Jubelle
+    // Jubelle R1: bring a score from outside Jubelle Projects into a project
+    bool addCurrentScoreToProjects();
+    //! Asked once when saving a score that isn't in Jubelle Projects: true if
+    //! it was added (and saved there), false to save where it is
+    bool offerAddToProjectsOnSave(bool& handled);
+    std::set<std::string> m_jubelleAskedToAdd;
     bool saveProjectAt(const SaveLocation& saveLocation, SaveMode saveMode = SaveMode::Save, bool force = false);
     bool saveProjectToCloud(CloudProjectInfo info, SaveMode saveMode = SaveMode::Save);
 

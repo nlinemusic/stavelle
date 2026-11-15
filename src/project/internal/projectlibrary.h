@@ -101,6 +101,36 @@ std::string availableProjectName(const std::string& mainFolder, const std::strin
 //! anywhere inside it. Used to undo createProject() when making the score fails.
 Result removeUnusedProject(const std::string& projectFolder);
 
+// ---- Jubelle R1: bringing existing scores into Projects (approved 15 Nov 2026) ----
+
+//! True if `path` (a file or folder) is inside the main project folder.
+bool isInsideMainFolder(const std::string& path, const std::string& mainFolder);
+
+//! A fingerprint of a file's contents (size and a 64-bit hash), "" if unreadable.
+std::string fileFingerprint(const std::string& filePath);
+
+//! Creates a project for an existing score and copies the score in as its main
+//! score (byte for byte, for .mscz files). The original is never moved or
+//! changed. Records where it came from (in the project's hidden .jubelle folder)
+//! so the same file isn't imported twice. If the copy fails, the new project
+//! folder is removed again. For other formats (.mscx, MusicXML...) use
+//! createProject and save the opened score to mainScorePath instead, then
+//! recordImport.
+Result importScore(const std::string& mainFolder, const std::string& category, const std::string& name,
+                   const std::string& sourcePath);
+
+//! Remembers that `projectFolder` was made from `sourcePath`.
+Result recordImport(const std::string& projectFolder, const std::string& sourcePath);
+
+//! The project already made from this file (same contents, or same original
+//! path if the file is gone or changed since), or "" if none.
+std::string findImportedProject(const std::string& mainFolder, const std::string& sourcePath);
+
+//! Scores outside Jubelle Projects for which the user chose "don't ask again"
+//! when saving (kept in a small hidden list in the main folder).
+bool isAddToProjectsSilenced(const std::string& mainFolder, const std::string& scorePath);
+Result silenceAddToProjects(const std::string& mainFolder, const std::string& scorePath);
+
 //! True if `folder` has the Jubelle project structure.
 bool isProjectFolder(const std::string& folder);
 

@@ -21,6 +21,7 @@
  */
 #include "projectactionscontroller.h"
 #include "usertemplates.h"
+#include "projectlibrary.h"
 
 #include <QBuffer>
 #include <QEventLoop>
@@ -88,6 +89,7 @@ void ProjectActionsController::init()
     dispatcher()->reg(this, "file-save-as", [this]() { saveProject(SaveMode::SaveAs); });
     dispatcher()->reg(this, "file-save-a-copy", [this]() { saveProject(SaveMode::SaveCopy); });
     dispatcher()->reg(this, "jubelle-save-as-template", [this]() { saveAsTemplate(); });
+    dispatcher()->reg(this, "jubelle-add-to-projects", [this]() { addCurrentScoreToProjects(); });
     dispatcher()->reg(this, "file-save-selection", [this]() { saveProject(SaveMode::SaveSelection, SaveLocationType::Local); });
     dispatcher()->reg(this, "file-save-to-cloud", [this]() { saveProject(SaveMode::Save, SaveLocationType::Cloud); });
     dispatcher()->reg(this, "jubelle-publish-youtube", [this]() {
@@ -831,6 +833,15 @@ bool ProjectActionsController::saveProject(SaveMode saveMode, SaveLocationType s
     const bool isExistingSave = saveMode == SaveMode::Save && !project->isNewlyCreated();
     const bool wantNewCloudSave = saveLocationType == SaveLocationType::Cloud && !project->isCloudProject();
     if (isExistingSave && !wantNewCloudSave) {
+        // Jubelle R1: a score from outside Jubelle Projects: offer once to add it
+        if (!project->isCloudProject()) {
+            bool handled = false;
+            const bool added = offerAddToProjectsOnSave(handled);
+            if (handled) {
+                return added;
+            }
+        }
+
         // Under these conditions, we can save without asking...
         SaveLocation location;
         if (project->isCloudProject()) {
@@ -1981,6 +1992,118 @@ void ProjectActionsController::saveAsTemplate()
                             .arg(category.empty() ? muse::qtrc("project", "My templates") : QString::fromStdString(category))
                             .toStdString());
     }
+}
+
+namespace jpl = mu::project::projectlibrary;
+
+static const muse::Uri ADD_TO_PROJECTS_URI("musescore://project/jubelle/addtoprojects");
+
+bool ProjectActionsController::addCurrentScoreToProjects()
+{
+    INotationProjectPtr project = currentNotationProject();
+    if (!project) {
+        return false;
+    }
+    const std::string main = configuration()->userProjectsPath().toStdString();
+    const std::string current = project->isNewlyCreated() ? std::string() : project->path().toStdString();
+
+    if (!current.empty() && jpl::isInsideMainFolder(current, main)) {
+        interactive()->info(muse::trc("project", "Already in Jubelle Projects"),
+                            muse::trc("project", "This score is already in your Jubelle Projects."));
+        return false;
+    }
+    if (!current.empty()) {
+        const std::string existing = jpl::findImportedProject(main, current);
+        if (!existing.empty()) {
+            const int OPEN = int(IInteractive::Button::CustomButton) + 1;
+            const int AGAIN = OPEN + 1;
+            const auto answer = interactive()->questionSync(
+                muse::trc("project", "This score was added before"),
+                muse::qtrc("project", "It's already in your Jubelle Projects as “%1”. Open that project instead?")
+                .arg(QString::fromStdString(io::filename(io::path_t(existing)).toStdString())).toStdString(),
+                { IInteractive::ButtonData(OPEN, muse::trc("project", "Open project"), true),
+                  IInteractive::ButtonData(AGAIN, muse::trc("project", "Add again")),
+                  interactive()->buttonData(IInteractive::Button::Cancel) });
+            if (answer.button() == OPEN) {
+                openProject(io::path_t(jpl::mainScorePath(existing)));
+                return false;
+            }
+            if (answer.button() != AGAIN) {
+                return false;
+            }
+        }
+    }
+
+    jpl::ensureMainFolder(main);
+    ValList categories;
+    for (const std::string& c : jpl::categories(main)) {
+        categories.push_back(Val(QString::fromStdString(c)));
+    }
+    UriQuery q(ADD_TO_PROJECTS_URI);
+    q.addParam("initialName", Val(project->displayName()));
+    q.addParam("askName", Val(true));
+    q.addParam("fileCount", Val(1));
+    q.addParam("categories", Val(categories));
+    RetVal<Val> rv = interactive()->openSync(q);
+    if (!rv.ret) {
+        return false;
+    }
+    const QVariantMap map = rv.val.toQVariant().toMap();
+    const std::string category = map.value("category").toString().toStdString();
+    const std::string name = map.value("name").toString().toStdString();
+
+    const jpl::Result created = jpl::createProject(main, category, name);
+    if (!created.ok) {
+        interactive()->error(muse::trc("project", "Couldn't add the score to Jubelle Projects"), created.error);
+        return false;
+    }
+    // Save As into the project: the open score continues as the project's copy,
+    // so later saves go there. The original file is left exactly as it was.
+    const io::path_t target(jpl::mainScorePath(created.path));
+    if (!saveProjectAt(SaveLocation(SaveLocationType::Local, target), SaveMode::SaveAs, false)) {
+        jpl::removeUnusedProject(created.path);
+        return false;
+    }
+    if (!current.empty()) {
+        jpl::recordImport(created.path, current);
+    }
+    return true;
+}
+
+bool ProjectActionsController::offerAddToProjectsOnSave(bool& handled)
+{
+    handled = false;
+    INotationProjectPtr project = currentNotationProject();
+    if (!project || project->isNewlyCreated()) {
+        return false;
+    }
+    const std::string main = configuration()->userProjectsPath().toStdString();
+    const std::string path = project->path().toStdString();
+    if (path.empty() || jpl::isInsideMainFolder(path, main) || m_jubelleAskedToAdd.count(path)
+        || jpl::isAddToProjectsSilenced(main, path)) {
+        return false;
+    }
+    m_jubelleAskedToAdd.insert(path);   // once per file per session
+
+    const int ADD = int(IInteractive::Button::CustomButton) + 1;
+    const int HERE = ADD + 1;
+    const int NEVER = ADD + 2;
+    const auto answer = interactive()->questionSync(
+        muse::trc("project", "This score isn't in your Jubelle Projects"),
+        muse::trc("project", "Add it to Jubelle Projects? A copy is saved in a new project folder, and your original file "
+                             "is left as it was. Or save it where it is."),
+        { IInteractive::ButtonData(ADD, muse::trc("project", "Add to Projects…"), true),
+          IInteractive::ButtonData(HERE, muse::trc("project", "Save here")),
+          IInteractive::ButtonData(NEVER, muse::trc("project", "Save here, don't ask again")) });
+    if (answer.button() == NEVER) {
+        jpl::silenceAddToProjects(main, path);
+        return false;
+    }
+    if (answer.button() == ADD) {
+        handled = true;
+        return addCurrentScoreToProjects();
+    }
+    return false;
 }
 
 bool ProjectActionsController::hasSelection() const

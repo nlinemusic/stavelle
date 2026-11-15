@@ -121,6 +121,7 @@ qt_add_qml_module(project_qml
         ProjectCard.qml
         ProjectCategoriesTagsDialog.qml
         ProjectMoveDialog.qml
+        AddToProjectsDialog.qml
         ProjectNameDialog.qml
         ProjectPropertiesDialog.qml
         ProjectUploadedDialog.qml

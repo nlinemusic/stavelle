@@ -808,6 +808,7 @@ static const muse::Uri NAME_DIALOG_URI("musescore://project/jubelle/name");
 static const muse::Uri MOVE_DIALOG_URI("musescore://project/jubelle/move");
 static const muse::Uri CATEGORIES_TAGS_DIALOG_URI("musescore://project/jubelle/categoriestags");
 static const muse::Uri CARD_IMAGE_DIALOG_URI("musescore://project/jubelle/cardimage");
+static const muse::Uri ADD_DIALOG_URI("musescore://project/jubelle/addtoprojects");
 
 static Val toValList(const QStringList& list)
 {
@@ -1003,4 +1004,71 @@ void ProjectsPageModel::deleteCategoryInteractive(const QString& name)
     if (result.standardButton() == IInteractive::Button::Yes) {
         deleteCategory(name);
     }
+}
+
+void ProjectsPageModel::importScoresInteractive()
+{
+    // Jubelle R1: copies MuseScore files (.mscz) into new projects. The originals
+    // are never moved or changed. Other formats: open them and use
+    // File > Add to Jubelle Projects..., which saves them as .mscz.
+    const std::vector<std::string> filter = { muse::trc("project", "MuseScore files") + " (*.mscz)" };
+    const io::paths_t files = interactive()->selectOpeningFilesSync(muse::trc("project", "Import MuseScore files"),
+                                                                    io::path_t(), filter);
+    if (files.empty()) {
+        return;
+    }
+    const std::string main = mainFolderStd();
+    pl::ensureMainFolder(main);
+
+    std::vector<std::string> toImport;
+    QStringList alreadyThere;
+    for (const io::path_t& f : files) {
+        const std::string path = f.toStdString();
+        if (pl::isInsideMainFolder(path, main) || !pl::findImportedProject(main, path).empty()) {
+            alreadyThere << QString::fromStdString(io::filename(f).toStdString());
+        } else {
+            toImport.push_back(path);
+        }
+    }
+    if (toImport.empty()) {
+        interactive()->info(muse::trc("project", "Already in Jubelle Projects"),
+                            muse::qtrc("project", "These scores are already in your Jubelle Projects: %1")
+                            .arg(alreadyThere.join(", ")).toStdString());
+        return;
+    }
+
+    UriQuery q(ADD_DIALOG_URI);
+    const QString firstName = QString::fromStdString(io::completeBasename(io::path_t(toImport.front())).toStdString());
+    q.addParam("initialName", Val(firstName));
+    q.addParam("askName", Val(toImport.size() == 1));
+    q.addParam("fileCount", Val(int(toImport.size())));
+    q.addParam("categories", toValList(categoryNames()));
+
+    interactive()->open(q).onResolve(this, [this, toImport, alreadyThere, main](const Val& val) {
+        const QVariantMap map = val.toQVariant().toMap();
+        const std::string category = map.value("category").toString().toStdString();
+        if (category.empty()) {
+            return;
+        }
+        QStringList failed;
+        for (const std::string& path : toImport) {
+            std::string name = toImport.size() == 1 ? map.value("name").toString().toStdString()
+                               : io::completeBasename(io::path_t(path)).toStdString();
+            const pl::Result r = pl::importScore(main, category, name, path);
+            if (!r.ok) {
+                failed << QString::fromStdString(io::filename(io::path_t(path)).toStdString() + ": " + r.error);
+            }
+        }
+        reload();
+        if (!failed.isEmpty() || !alreadyThere.isEmpty()) {
+            QString msg;
+            if (!failed.isEmpty()) {
+                msg += muse::qtrc("project", "Not imported: %1").arg(failed.join("; ")) + "\n";
+            }
+            if (!alreadyThere.isEmpty()) {
+                msg += muse::qtrc("project", "Already in Jubelle Projects (skipped): %1").arg(alreadyThere.join(", "));
+            }
+            interactive()->info(muse::trc("project", "Import finished"), msg.toStdString());
+        }
+    });
 }

@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cstdint>
 #include <filesystem>
+#include <sstream>
 #include <fstream>
 #include <system_error>
 
@@ -747,5 +748,144 @@ bool isSameFolder(const std::string& a, const std::string& b)
     const fs::path pa = toPath(a);
     const fs::path pb = toPath(b);
     return isDir(pa) && isDir(pb) && sameEntry(pa, pb);
+}
+
+// ---- Jubelle R1: bringing existing scores into Projects ----
+
+static constexpr const char* IMPORT_RECORD = ".jubelle/imported-from.txt";
+
+bool isInsideMainFolder(const std::string& path, const std::string& mainFolder)
+{
+    if (path.empty() || mainFolder.empty()) {
+        return false;
+    }
+    auto normal = [](const std::string& in) {
+        std::error_code ec;
+        fs::path p = fs::weakly_canonical(toPath(in), ec);
+        std::string s = toUtf8(ec ? toPath(in).lexically_normal() : p);
+        std::replace(s.begin(), s.end(), '\\', '/');
+        while (s.size() > 1 && s.back() == '/') {
+            s.pop_back();
+        }
+#if defined(_WIN32) || defined(__APPLE__)
+        // Windows and (by default) macOS file names ignore letter case
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+#endif
+        return s;
+    };
+    const std::string p = normal(path);
+    const std::string m = normal(mainFolder);
+    return p.size() > m.size() && p.compare(0, m.size(), m) == 0 && p[m.size()] == '/';
+}
+
+std::string fileFingerprint(const std::string& filePath)
+{
+    std::ifstream in(toPath(filePath), std::ios::binary);
+    if (!in) {
+        return std::string();
+    }
+    uint64_t hash = 1469598103934665603ULL;   // FNV-1a 64
+    uint64_t size = 0;
+    char buf[65536];
+    while (in.read(buf, sizeof(buf)) || in.gcount() > 0) {
+        const std::streamsize n = in.gcount();
+        for (std::streamsize i = 0; i < n; ++i) {
+            hash ^= static_cast<unsigned char>(buf[i]);
+            hash *= 1099511628211ULL;
+        }
+        size += static_cast<uint64_t>(n);
+    }
+    std::ostringstream out;
+    out << size << "-" << std::hex << hash;
+    return out.str();
+}
+
+Result recordImport(const std::string& projectFolder, const std::string& sourcePath)
+{
+    const fs::path record = toPath(projectFolder) / fs::u8path(IMPORT_RECORD);
+    std::error_code ec;
+    fs::create_directories(record.parent_path(), ec);
+    std::ofstream out(record, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        return fail("The import record could not be written.");
+    }
+    out << "originalPath=" << sourcePath << "\n" << "fingerprint=" << fileFingerprint(sourcePath) << "\n";
+    return out ? success(record) : fail("The import record could not be written.");
+}
+
+Result importScore(const std::string& mainFolder, const std::string& category, const std::string& name,
+                   const std::string& sourcePath)
+{
+    const fs::path source = toPath(sourcePath);
+    std::error_code ec;
+    if (!fs::is_regular_file(source, ec)) {
+        return fail("The score \"" + sourcePath + "\" was not found.");
+    }
+    Result project = createProject(mainFolder, category, name);
+    if (!project.ok) {
+        return project;
+    }
+    const std::string target = mainScorePath(project.path);
+    fs::copy_file(source, toPath(target), fs::copy_options::none, ec);
+    if (ec || fileFingerprint(target) != fileFingerprint(sourcePath)) {
+        std::error_code ignore;
+        fs::remove(toPath(target), ignore);
+        removeUnusedProject(project.path);
+        return fail("The score could not be copied into the project (" + (ec ? ec.message() : std::string("copy differs")) + ").");
+    }
+    recordImport(project.path, sourcePath);
+    return success(toPath(target));
+}
+
+std::string findImportedProject(const std::string& mainFolder, const std::string& sourcePath)
+{
+    const std::string fingerprint = fileFingerprint(sourcePath);
+    std::string byPath;
+    for (const std::string& category : categories(mainFolder)) {
+        for (const std::string& name : projects(mainFolder, category)) {
+            const fs::path folder = toPath(mainFolder) / toPath(category) / toPath(name);
+            std::ifstream in(folder / fs::u8path(IMPORT_RECORD), std::ios::binary);
+            std::string line, original, fp;
+            while (std::getline(in, line)) {
+                if (line.rfind("originalPath=", 0) == 0) {
+                    original = line.substr(13);
+                } else if (line.rfind("fingerprint=", 0) == 0) {
+                    fp = line.substr(12);
+                }
+            }
+            if (!fingerprint.empty() && fp == fingerprint) {
+                return toUtf8(folder);
+            }
+            if (!original.empty() && original == sourcePath && byPath.empty()) {
+                byPath = toUtf8(folder);
+            }
+        }
+    }
+    return byPath;
+}
+
+static constexpr const char* SILENCED_LIST = ".jubelle-dont-ask-to-add.txt";
+
+bool isAddToProjectsSilenced(const std::string& mainFolder, const std::string& scorePath)
+{
+    std::ifstream in(toPath(mainFolder) / fs::u8path(SILENCED_LIST), std::ios::binary);
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line == scorePath) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Result silenceAddToProjects(const std::string& mainFolder, const std::string& scorePath)
+{
+    if (isAddToProjectsSilenced(mainFolder, scorePath)) {
+        return success(toPath(mainFolder) / fs::u8path(SILENCED_LIST));
+    }
+    const fs::path list = toPath(mainFolder) / fs::u8path(SILENCED_LIST);
+    std::ofstream out(list, std::ios::binary | std::ios::app);
+    out << scorePath << "\n";
+    return out ? success(list) : fail("The list could not be written.");
 }
 }

@@ -110,6 +110,7 @@ void ProjectModule::resolveImports()
         // Jubelle: Projects page dialogs
         ir->registerQmlUri(Uri("musescore://project/jubelle/name"), "MuseScore.Project", "ProjectNameDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/move"), "MuseScore.Project", "ProjectMoveDialog");
+        ir->registerQmlUri(Uri("musescore://project/jubelle/addtoprojects"), "MuseScore.Project", "AddToProjectsDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/categoriestags"), "MuseScore.Project", "ProjectCategoriesTagsDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/cardimage"), "MuseScore.Project", "CardImageDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/youtube"), "MuseScore.Project", "YouTubePublishDialog");

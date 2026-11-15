@@ -227,6 +227,7 @@ MenuItemList AppMenuModel::makeSaveOtherSubItems()
     MenuItemList subItems {
         makeMenuItem("file-save-a-copy"),
         makeMenuItem("jubelle-save-as-template"),
+        makeMenuItem("jubelle-add-to-projects"),
         makeMenuItem("file-save-selection"),
     };
     return subItems;

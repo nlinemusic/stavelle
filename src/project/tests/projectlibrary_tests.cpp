@@ -274,3 +274,82 @@ TEST_F(ProjectLibraryTests, SameFolderIsRecognised)
     EXPECT_FALSE(isSameFolder(parts, exportFolder(r.path, ExportKind::FullScorePdf)));
     EXPECT_FALSE(isSameFolder(parts, ""));
 }
+
+// ---- Jubelle R1: bringing existing scores into Projects ----
+
+TEST_F(ProjectLibraryTests, ImportCopiesTheScoreAndNeverTouchesTheOriginal)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const fs::path outside = m_root / "Downloads" / "Old Chart.mscz";
+    fs::create_directories(outside.parent_path());
+    writeFile(outside, std::string("PK\x03\x04 score bytes", 18));
+    const auto before = fs::last_write_time(outside);
+
+    const Result r = importScore(m_main, defaultCategories().front(), "Old Chart", outside.u8string());
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(readFile(P(r.path)), readFile(outside)) << "byte for byte";
+    EXPECT_TRUE(isProjectFolder(P(r.path).parent_path().u8string())) << "a normal project, with its subfolders";
+    EXPECT_TRUE(fs::exists(outside)) << "the original stays";
+    EXPECT_EQ(fs::last_write_time(outside), before) << "and is unchanged";
+    EXPECT_TRUE(isInsideMainFolder(r.path, m_main));
+    EXPECT_FALSE(isInsideMainFolder(outside.u8string(), m_main));
+}
+
+TEST_F(ProjectLibraryTests, TheSameFileIsntImportedTwice)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const fs::path outside = m_root / "Chart.mscz";
+    writeFile(outside, "contents one");
+    EXPECT_EQ(findImportedProject(m_main, outside.u8string()), "");
+    const Result r = importScore(m_main, defaultCategories().front(), "Chart", outside.u8string());
+    ASSERT_TRUE(r.ok);
+    const std::string project = P(r.path).parent_path().u8string();
+    EXPECT_EQ(findImportedProject(m_main, outside.u8string()), project) << "found by contents";
+
+    // a copy of the same file elsewhere is recognised too
+    const fs::path copy = m_root / "Copy of Chart.mscz";
+    writeFile(copy, "contents one");
+    EXPECT_EQ(findImportedProject(m_main, copy.u8string()), project);
+
+    // the original changed since: still found by its path
+    writeFile(outside, "contents two, edited in MuseScore");
+    EXPECT_EQ(findImportedProject(m_main, outside.u8string()), project);
+
+    // a different file is not
+    const fs::path other = m_root / "Other.mscz";
+    writeFile(other, "something else");
+    EXPECT_EQ(findImportedProject(m_main, other.u8string()), "");
+}
+
+TEST_F(ProjectLibraryTests, FailedImportLeavesNoEmptyProject)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const std::string category = defaultCategories().front();
+    const Result r = importScore(m_main, category, "Missing", (m_root / "does not exist.mscz").u8string());
+    EXPECT_FALSE(r.ok);
+    EXPECT_TRUE(projects(m_main, category).empty());
+}
+
+TEST_F(ProjectLibraryTests, InsideMainFolderIsNotFooledBySimilarNames)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    EXPECT_FALSE(isInsideMainFolder(m_main + " (old)/Song/Song.mscz", m_main));
+    EXPECT_FALSE(isInsideMainFolder(m_main, m_main)) << "the folder itself isn't inside itself";
+    EXPECT_TRUE(isInsideMainFolder(m_main + "/Jazz/Song/Song.mscz", m_main));
+}
+
+TEST_F(ProjectLibraryTests, DontAskAgainIsRememberedPerFile)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const std::string a = (m_root / "a.mscz").u8string();
+    const std::string b = (m_root / "b.mscz").u8string();
+    EXPECT_FALSE(isAddToProjectsSilenced(m_main, a));
+    ASSERT_TRUE(silenceAddToProjects(m_main, a).ok);
+    ASSERT_TRUE(silenceAddToProjects(m_main, a).ok) << "twice is fine";
+    EXPECT_TRUE(isAddToProjectsSilenced(m_main, a));
+    EXPECT_FALSE(isAddToProjectsSilenced(m_main, b));
+    EXPECT_TRUE(categories(m_main) == defaultCategories() || !categories(m_main).empty()) << "the hidden list isn't a category";
+    for (const std::string& c : categories(m_main)) {
+        EXPECT_NE(c.front(), '.');
+    }
+}

@@ -133,12 +133,23 @@ FocusScope {
 
                 Item { Layout.fillWidth: true }
 
+                // Jubelle R1: copy existing MuseScore files into Projects
+                FlatButton {
+                    text: qsTrc("project", "Import MuseScore files…")
+
+                    navigation.name: "ImportScores"
+                    navigation.panel: topNavPanel
+                    navigation.column: 2
+
+                    onClicked: projectsModel.importScoresInteractive()
+                }
+
                 FlatButton {
                     text: qsTrc("project", "Open other…")
 
                     navigation.name: "OpenOther"
                     navigation.panel: topNavPanel
-                    navigation.column: 2
+                    navigation.column: 3
 
                     onClicked: projectsModel.openOther()
                 }
@@ -151,7 +162,7 @@ FocusScope {
 
                     navigation.name: "NewScore"
                     navigation.panel: topNavPanel
-                    navigation.column: 3
+                    navigation.column: 4
 
                     onClicked: projectsModel.createNewScore()
                 }
