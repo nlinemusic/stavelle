@@ -137,6 +137,8 @@ qt_add_qml_module(notationscene_qml
         styledialog/abstractstyledialogmodel.h
         styledialog/accidentalspagemodel.cpp
         styledialog/accidentalspagemodel.h
+        styledialog/jubellelayoutpagemodel.cpp
+        styledialog/jubellelayoutpagemodel.h
         styledialog/beamspagemodel.cpp
         styledialog/beamspagemodel.h
         styledialog/bendspagemodel.cpp
@@ -226,6 +228,7 @@ qt_add_qml_module(notationscene_qml
         SelectionFilterPanel.qml
         SelectMeasuresCountDialog.qml
         styledialog/AccidentalsPage.qml
+        styledialog/JubelleLayoutPage.qml
         styledialog/BeamsPage.qml
         styledialog/BendsPage.qml
         styledialog/ChordSymbolsPage.qml

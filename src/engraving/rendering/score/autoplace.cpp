@@ -21,6 +21,8 @@
  */
 #include "autoplace.h"
 
+#include "jubelle/magneticlayout.h"
+
 #include "dom/harmony.h"
 #include "style/style.h"
 
@@ -100,6 +102,19 @@ void Autoplace::autoplaceSegmentElement(const EngravingItem* item, EngravingItem
 
         double d = above ? filteredSkyline.minDistanceToShapeAbove(shape, minSkylineHorizontalClearance)
                    : filteredSkyline.minDistanceToShapeBelow(shape, minSkylineHorizontalClearance);
+
+        // Jubelle G7: sideways nudging. A text-like item that would be pushed
+        // away may move a little sideways instead (off unless switched on).
+        if (d > -minDistance && ldata->autoplace.offsetChanged == OffsetChange::NONE) {
+            const double dx = jubelle::bestSidewaysMove(item, shape, filteredSkyline, above, minSkylineHorizontalClearance,
+                                                        minDistance, d + minDistance);
+            if (dx != 0.0) {
+                ldata->moveX(dx);
+                shape.translateX(dx);
+                d = above ? filteredSkyline.minDistanceToShapeAbove(shape, minSkylineHorizontalClearance)
+                    : filteredSkyline.minDistanceToShapeBelow(shape, minSkylineHorizontalClearance);
+            }
+        }
 
         if (d > -minDistance) {
             double yd = d + minDistance;

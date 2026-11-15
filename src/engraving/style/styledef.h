@@ -2198,6 +2198,15 @@ enum class Sid : short {
     jubelleCourtesyAccidentalsOtherStaves,   // also for other staves of the same instrument
     jubelleCourtesyAccidentalsParentheses,   // draw courtesy accidentals in parentheses
 
+    // Jubelle G7 (G3 design approved 15 Nov 2026): magnetic layout and
+    // collision avoidance. All off by default, so existing scores lay out
+    // exactly as in MuseScore; new Jubelle scores switch them on.
+    jubelleMagneticLayout,          // the master switch for the three behaviours below
+    jubelleMagneticRows,            // dynamics, expressions, rehearsal marks and tempo line up in rows
+    jubelleSidewaysNudge,           // text-like items may move a little sideways instead of far away
+    jubelleNudgeLimit,              // how far sideways, in staff spaces (default 0.5, at most 2)
+    jubelleCollisionAvoidance,      // resolve the overlaps MuseScore leaves, by the priority table
+
     STYLES
 };
 

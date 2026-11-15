@@ -101,7 +101,8 @@ static const QStringList ALL_PAGE_CODES {
     "chord-symbols",
     "fretboard-diagrams",
     "tablature-styles",
-    "text-styles"
+    "text-styles",
+    "jubelle-layout"   // Jubelle G7: magnetic layout and collision avoidance (added at the end)
 };
 
 static const QStringList ALL_TEXT_STYLE_SUBPAGE_CODES {
@@ -1260,6 +1261,22 @@ EditStyle::EditStyle(QWidget* parent)
 
     connect(textStyles, &QListWidget::currentRowChanged, this, &EditStyle::textStyleChanged);
     textStyles->setCurrentRow(configuration()->styleDialogLastSubPageIndex());
+
+    // ====================================================
+    // Jubelle G7: JUBELLE LAYOUT (QML), the last page
+    // ====================================================
+    {
+        QWidget* jubelleLayoutPage = new QWidget(pageStack);
+        jubelleLayoutPage->setObjectName("PageJubelleLayout");
+        auto* jubelleLayoutBox = new QVBoxLayout(jubelleLayoutPage);
+        jubelleLayoutBox->setContentsMargins(0, 0, 0, 0);
+        auto jubelleLayoutQml = createQmlWidget(
+            jubelleLayoutPage,
+            QUrl(QString::fromUtf8("qrc:/qt/qml/MuseScore/NotationScene/styledialog/JubelleLayoutPage.qml")));
+        jubelleLayoutBox->addWidget(jubelleLayoutQml.widget);
+        pageStack->addWidget(jubelleLayoutPage);
+        pageList->addItem(muse::qtrc("notation", "Jubelle layout"));
+    }
 
     connect(pageList, &QListWidget::currentRowChanged, pageStack, &QStackedWidget::setCurrentIndex);
     connect(pageList, &QListWidget::currentRowChanged, this, &EditStyle::on_pageRowSelectionChanged);

@@ -100,6 +100,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/tools/jubelle_templates/bigbandtestmusic.cpp
     ${MU_ROOT}/tools/jubelle_templates/jubelle_templates_tests.cpp
     ${MU_ROOT}/tools/jubelle_templates/jubelle_layoutchecks_tests.cpp
+    ${MU_ROOT}/tools/jubelle_templates/jubelle_magneticlayout_tests.cpp
     ${MU_ROOT}/tools/jubelle_templates/jubelle_fonts_tests.cpp
     # Falls without snap back (FluidSynth playback)
     jubelle_bendshaping_tests.cpp

@@ -374,6 +374,23 @@ Ret NotationProject::createNew(const ProjectCreateOptions& projectOptions)
         return ret;
     }
 
+    // Jubelle G7 (decision 1, adopted 15 Nov 2026): magnetic layout and collision
+    // avoidance are on for new scores; scores made earlier keep MuseScore's layout
+    {
+        auto switchOn = [](mu::engraving::Score* score) {
+            score->style().set(mu::engraving::Sid::jubelleMagneticLayout, true);
+            score->style().set(mu::engraving::Sid::jubelleCollisionAvoidance, true);
+            score->update();
+            score->doLayout();
+        };
+        switchOn(masterScore);
+        for (mu::engraving::Excerpt* excerpt : masterScore->excerpts()) {
+            if (excerpt && excerpt->excerptScore()) {
+                switchOn(excerpt->excerptScore());
+            }
+        }
+    }
+
     // Setup audio settings
     m_projectAudioSettings->makeDefault();
 
