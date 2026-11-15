@@ -49,6 +49,12 @@
 #include "engraving/dom/timesig.h"
 #include "engraving/types/typesconv.h"
 
+#include <QInputDialog>
+
+#include "notation/internal/inotationundostack.h"
+#include "notation/internal/inotationselectionrange.h"
+#include "notation/internal/jubelle/timelinemarkers.h"
+
 #include "log.h"
 
 using namespace mu::notation;
@@ -765,6 +771,8 @@ Timeline::Timeline(QSplitter* splitter, const muse::modularity::ContextPtr& iocC
     _metas.push_back({ muse::qtrc("notation/timeline", "Tempo"), &Timeline::tempoMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Time signature"), &Timeline::timeMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Rehearsal mark"), &Timeline::rehearsalMeta, true });
+    // Jubelle G4: custom markers, never printed
+    _metas.push_back({ muse::qtrc("notation/timeline", "Markers"), &Timeline::jubelleMarkerMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Key signature"), &Timeline::keyMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Barlines"), &Timeline::barlineMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Jumps and markers"), &Timeline::jumpMarkerMeta, true });
@@ -1150,6 +1158,10 @@ void Timeline::drawGrid(int globalRows, int globalCols, int startMeasure, int en
 
     gridRows = globalRows;
     gridCols = globalCols;
+
+    // Jubelle G4: the playhead is drawn over the new grid
+    m_jubellePlayhead = nullptr;
+    jubelleDrawPlayhead();
 }
 
 //---------------------------------------------------------
@@ -1830,6 +1842,7 @@ void Timeline::clearScene()
     nonVisiblePathItem = nullptr;
     visiblePathItem = nullptr;
     selectionItem = nullptr;
+    m_jubellePlayhead = nullptr;
 }
 
 //---------------------------------------------------------
@@ -2611,6 +2624,15 @@ void Timeline::setNotation(INotationPtr notation)
 {
     m_notation = notation;
 
+    // Jubelle G4: follow playback with a playhead
+    if (!m_jubellePlayheadConnected && playbackController()) {
+        m_jubellePlayheadConnected = true;
+        playbackController()->currentPlaybackPositionChanged().onReceive(this, [this](muse::audio::secs_t, muse::midi::tick_t tick) {
+            m_jubellePlayheadTick = int(tick);
+            jubelleDrawPlayhead();
+        });
+    }
+
     clearScene();
 
     if (m_notation) {
@@ -3067,6 +3089,31 @@ void Timeline::toggleShow(int staff)
 void Timeline::contextMenuEvent(QContextMenuEvent* event)
 {
     QMenu* contextMenu = new QMenu(muse::qtrc("notation/timeline", "Context menu"), this);
+
+    // Jubelle G4: custom markers and play from here, on the timeline itself
+    if (score() && _rowNames->cursorIsOn() != "instrument") {
+        const QPoint pos = event->pos();
+        EngravingItem* marker = jubelleMarkerAt(pos);
+        EngravingItem* clicked = nullptr;
+        if (QGraphicsItem* gi = scene()->itemAt(mapToScene(pos), transform())) {
+            clicked = static_cast<EngravingItem*>(gi->data(4).value<void*>());
+        }
+        if (marker) {
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Rename marker…"), this, [this, marker]() { jubelleRenameMarker(marker); });
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Move marker to the selection"), this,
+                                   [this, marker]() { jubelleMoveMarkerToSelection(marker); });
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Delete marker"), this, [this, marker]() { jubelleDeleteMarker(marker); });
+        }
+        if (clicked) {
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Play from here"), this, [this, clicked]() { jubellePlayFrom(clicked); });
+        }
+        contextMenu->addAction(muse::qtrc("notation/timeline", "Add marker here…"), this, [this, pos]() { jubelleAddMarkerAt(pos); });
+        if (_rowNames->cursorIsOn() != "meta" && cursorIsOn(event->pos()) != "meta") {
+            contextMenu->exec(QCursor::pos());
+            return;
+        }
+        contextMenu->addSeparator();
+    }
     if (_rowNames->cursorIsOn() == "instrument") {
         QAction* edit_instruments = new QAction(muse::qtrc("notation/timeline", "Edit instruments"), this);
         connect(edit_instruments, &QAction::triggered, this, &Timeline::requestInstrumentDialog);
@@ -3253,4 +3300,168 @@ Score* Timeline::score() const
 TRowLabels* Timeline::labelsColumn() const
 {
     return _rowNames;
+}
+
+//---------------------------------------------------------
+//   Jubelle G4: custom markers, playhead, play from here
+//---------------------------------------------------------
+
+void Timeline::jubelleMarkerMeta(Segment* seg, int* stagger, int pos)
+{
+    const int row = getMetaRow(muse::qtrc("notation/timeline", "Markers"));
+    for (EngravingItem* element : seg->annotations()) {
+        if (!mu::notation::jubelle::isTimelineMarker(element)) {
+            continue;
+        }
+        const int x = pos + (*stagger) * _spacing;
+        if (addMetaValue(x, pos, mu::notation::jubelle::markerName(element).toQString(), row, ElementType::STAFF_TEXT, element, 0,
+                         seg->measure(), muse::qtrc("notation/timeline", "Custom marker (never printed): %1")
+                         .arg(mu::notation::jubelle::markerName(element).toQString()))) {
+            // purple, so custom markers are told apart from rehearsal marks
+            const size_t n = _metaRows.size();
+            if (n >= 2) {
+                if (auto* rect = dynamic_cast<QGraphicsRectItem*>(_metaRows[n - 2].first)) {
+                    rect->setBrush(QBrush(QColor("#7E22CE")));
+                    rect->setPen(QPen(QColor("#A855F7")));
+                }
+                if (auto* text = dynamic_cast<QGraphicsTextItem*>(_metaRows[n - 1].first)) {
+                    text->setDefaultTextColor(Qt::white);
+                }
+            }
+            (*stagger)++;
+            _globalZValue++;
+        }
+    }
+}
+
+Fraction Timeline::jubelleTickAt(const QPoint& viewPos) const
+{
+    if (!score() || _gridWidth <= 0) {
+        return Fraction(0, 1);
+    }
+    const int index = std::max(0, int(mapToScene(viewPos).x()) / _gridWidth);
+    int i = 0;
+    for (Measure* m = score()->firstMeasure(); m; m = m->nextMeasure(), ++i) {
+        if (i == index || !m->nextMeasure()) {
+            return m->tick();
+        }
+    }
+    return Fraction(0, 1);
+}
+
+EngravingItem* Timeline::jubelleMarkerAt(const QPoint& viewPos) const
+{
+    for (QGraphicsItem* gi : scene()->items(mapToScene(viewPos))) {
+        EngravingItem* e = static_cast<EngravingItem*>(gi->data(4).value<void*>());
+        if (e && mu::notation::jubelle::isTimelineMarker(e)) {
+            return e;
+        }
+    }
+    return nullptr;
+}
+
+void Timeline::jubelleAddMarkerAt(const QPoint& viewPos)
+{
+    if (!m_notation || !score()) {
+        return;
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, muse::qtrc("notation/timeline", "Add marker"),
+                                               muse::qtrc("notation/timeline", "Marker name (shown on the timeline only, never printed):"),
+                                               QLineEdit::Normal,
+                                               mu::notation::jubelle::nextMarkerName(score()).toQString(), &ok);
+    if (!ok) {
+        return;
+    }
+    const Fraction tick = jubelleTickAt(viewPos);
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Add timeline marker"));
+    mu::notation::jubelle::addTimelineMarker(score(), tick, muse::String::fromQString(name));
+    m_notation->undoStack()->commitChanges();
+}
+
+void Timeline::jubelleRenameMarker(EngravingItem* marker)
+{
+    if (!m_notation || !score()) {
+        return;
+    }
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, muse::qtrc("notation/timeline", "Rename marker"),
+                                               muse::qtrc("notation/timeline", "Marker name:"), QLineEdit::Normal,
+                                               mu::notation::jubelle::markerName(marker).toQString(), &ok);
+    if (!ok || name.trimmed().isEmpty()) {
+        return;
+    }
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Rename timeline marker"));
+    mu::notation::jubelle::renameTimelineMarker(score(), marker, muse::String::fromQString(name));
+    m_notation->undoStack()->commitChanges();
+}
+
+void Timeline::jubelleMoveMarkerToSelection(EngravingItem* marker)
+{
+    if (!m_notation || !score()) {
+        return;
+    }
+    const INotationSelectionPtr selection = interaction()->selection();
+    Fraction tick = Fraction(-1, 1);
+    for (const EngravingItem* e : selection->elements()) {
+        if (tick < Fraction(0, 1) || e->tick() < tick) {
+            tick = e->tick();
+        }
+    }
+    if (selection->isRange()) {
+        tick = selection->range()->startTick();
+    }
+    if (tick < Fraction(0, 1)) {
+        return;   // nothing selected
+    }
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Move timeline marker"));
+    mu::notation::jubelle::moveTimelineMarker(score(), marker, tick);
+    m_notation->undoStack()->commitChanges();
+}
+
+void Timeline::jubelleDeleteMarker(EngravingItem* marker)
+{
+    if (!m_notation || !score()) {
+        return;
+    }
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Delete timeline marker"));
+    mu::notation::jubelle::removeTimelineMarker(score(), marker);
+    m_notation->undoStack()->commitChanges();
+}
+
+void Timeline::jubellePlayFrom(EngravingItem* item)
+{
+    if (!item || !playbackController()) {
+        return;
+    }
+    playbackController()->seekElement(item);
+    if (!playbackController()->isPlaying()) {
+        dispatcher()->dispatch("play");
+    }
+}
+
+void Timeline::jubelleDrawPlayhead()
+{
+    if (!score() || !scene() || _gridWidth <= 0) {
+        return;
+    }
+    const Fraction tick = Fraction::fromTicks(m_jubellePlayheadTick);
+    const Measure* m = score()->tick2measure(tick);
+    if (!m) {
+        return;
+    }
+    int index = 0;
+    for (const Measure* it = score()->firstMeasure(); it && it != m; it = it->nextMeasure()) {
+        ++index;
+    }
+    const double frac = m->ticks().ticks() > 0 ? double((tick - m->tick()).ticks()) / double(m->ticks().ticks()) : 0.0;
+    const double x = (index + std::clamp(frac, 0.0, 1.0)) * _gridWidth;
+    const double height = std::max(sceneRect().height(), double(_gridHeight * 4));
+    if (!m_jubellePlayhead) {
+        m_jubellePlayhead = new QGraphicsLineItem();
+        m_jubellePlayhead->setPen(QPen(QColor("#E600A9"), 2));
+        m_jubellePlayhead->setZValue(1e6);
+        scene()->addItem(m_jubellePlayhead);
+    }
+    m_jubellePlayhead->setLine(x, 0, x, height);
 }

@@ -99,6 +99,8 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/jubelle_findselect_tests.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/proofread.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_proofread_tests.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/timelinemarkers.cpp
+    ${MU_ROOT}/src/notation/tests/jubelle_timelinemarkers_tests.cpp
     # Jubelle's template builder and its tests:
     ${MU_ROOT}/tools/jubelle_templates/templatebuilder.cpp
     ${MU_ROOT}/tools/jubelle_templates/bigbandtestmusic.cpp

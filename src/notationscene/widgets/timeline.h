@@ -34,6 +34,7 @@
 
 #include <vector>
 #include <QGraphicsView>
+#include <QGraphicsLineItem>
 #include <QSplitter>
 
 namespace mu::engraving {
@@ -187,6 +188,20 @@ private:
     void timeMeta(engraving::Segment* seg, int* stagger, int pos);
     void measureMeta(engraving::Segment*, int*, int pos);
     void rehearsalMeta(engraving::Segment* seg, int* stagger, int pos);
+    // Jubelle G4: custom markers (their own row, coloured apart from rehearsal marks)
+    void jubelleMarkerMeta(engraving::Segment* seg, int* stagger, int pos);
+    // Jubelle G4: a playhead that follows playback
+    void jubelleDrawPlayhead();
+    void jubelleAddMarkerAt(const QPoint& viewPos);
+    void jubelleRenameMarker(engraving::EngravingItem* marker);
+    void jubelleMoveMarkerToSelection(engraving::EngravingItem* marker);
+    void jubelleDeleteMarker(engraving::EngravingItem* marker);
+    void jubellePlayFrom(engraving::EngravingItem* item);
+    engraving::EngravingItem* jubelleMarkerAt(const QPoint& viewPos) const;
+    engraving::Fraction jubelleTickAt(const QPoint& viewPos) const;
+    QGraphicsLineItem* m_jubellePlayhead = nullptr;
+    int m_jubellePlayheadTick = 0;
+    bool m_jubellePlayheadConnected = false;
     void keyMeta(engraving::Segment* seg, int* stagger, int pos);
     void barlineMeta(engraving::Segment* seg, int* stagger, int pos);
     void jumpMarkerMeta(engraving::Segment* seg, int* stagger, int pos);
