@@ -210,10 +210,9 @@ jobs:
       timeout-minutes: 30
       shell: bash
       run: |
-        # Jubelle must never contain MuseScore's app updater
-        CACHE=$(ls build.release/CMakeCache.txt 2>/dev/null | head -1)
-        echo "Build configuration: $CACHE"; grep "MUSE_MODULE_UPDATE:BOOL" "$CACHE"
-        grep -q "MUSE_MODULE_UPDATE:BOOL=OFF" "$CACHE" || { echo "FAIL: MuseScore's app updater is enabled"; exit 1; }
+        # Jubelle's updater may only look at Jubelle's own signed GitHub releases,
+        # never at MuseScore's update servers
+        python -X utf8 tools/jubelle_checks/check_update_feed.py src/app/configs/update.cfg "build.install/bin/Jubelle.exe"
         mkdir -p smoke_scores
         cp demos/*.mscz demos/Dawn.mscx smoke_scores/
         python -X utf8 tools/jubelle_checks/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15
