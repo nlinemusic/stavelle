@@ -1,90 +1,92 @@
-# ![MuseScore Studio](share/icons/musescore_logo_full.png)
+# ![Jubelle](branding/jubelle_banner.png)
 
-Music notation and composition software
+**Jubelle** is a music notation application for composing and arranging, with a particular focus on
+jazz and big-band writing. It is a personal project, developed in the open, and built on the
+open-source engine of [MuseScore Studio](https://github.com/musescore/MuseScore) 4.7.7.
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0.en.html)
-[![Coverage](https://s3.us-east-1.amazonaws.com/extensions.musescore.org/test/code_coverage/coverage_badge.svg?)](https://github.com/musescore/MuseScore/actions/workflows/check_unit_tests.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE.txt)
 
-MuseScore Studio is an open source and free music notation software. For support, contribution, and bug reports visit MuseScore.org. Fork and make pull requests!
+> **Status:** in active development. Windows test builds are produced from the `jubelle/phase-2`
+> branch. There is no public release yet, and features are listed below only as far as they have
+> actually been built and tested.
 
-## Features
+## What Jubelle adds
 
-- WYSIWYG design, notes are entered on a "virtual notepaper"
-- TrueType font(s) for printing & display allows for high quality scaling to all sizes
-- Easy & fast note entry
-- Many editing functions
-- MusicXML import/export
-- MIDI (SMF) import/export
-- MEI import/export
-- MuseData import
-- MIDI input for note entry
-- Integrated sequencer and software synthesizer to play the score
-- Print or create PDF files
+Jubelle keeps everything MuseScore Studio 4.7.7 can do, and adds:
 
-## More info
+- **Projects:** a "Jubelle Projects" library with categories, a standard folder for each
+  composition, exports saved next to the score, and a picture on each project card.
+- **New Score:** composition name, category and suggested templates in one setup screen.
+- **Playback:** articulation playback you can adjust for the whole score, per instrument or per
+  passage; swing feels including a Basie-style feel; repeat playback controls.
+- **Engraving and arranging tools:**
+  - automatic courtesy accidentals with your own rules;
+  - chord identification;
+  - linked passages (music that stays in sync across staves);
+  - Apply Part Layout;
+  - title-page alignment;
+  - a condensed full-score copy for winds and brass.
+- **Reliability:** crash-safe saving, so the last good version of a score is never corrupted.
 
-- [MuseScore Homepage](https://musescore.org)
-- [MuseScore Git workflow instructions](https://musescore.org/en/developers-handbook/git-workflow)
-- [How to compile MuseScore?](https://github.com/musescore/MuseScore/wiki/Set-up-developer-environment)
+Templates, music fonts, jazz articulation playback and the Jubelle interface are being refined now.
+More features are planned: a timeline, advanced selection, score proofreading, live tempo
+recording, page-turn optimisation, magnetic layout, drum stems and video export.
 
-## License
+## Compatibility
 
-MuseScore Studio is licensed under GPL version 3.0. See [license file](https://github.com/musescore/MuseScore/blob/master/LICENSE.txt) in the same directory.
-
-## Packages
-
-See [Code Structure on Wiki](https://github.com/musescore/MuseScore/wiki/CodeStructure)
+- Jubelle reads and writes standard MuseScore files (`.mscz`, `.mscx`). Scores made in Jubelle open
+  in MuseScore Studio 4.7.7.
+- Jubelle installs and runs alongside MuseScore Studio, with its own settings, so neither affects
+  the other.
+- **Platforms:** Windows now; macOS later.
 
 ## Building
 
-**Read the [Compilation section](https://github.com/musescore/MuseScore/wiki/Set-up-developer-environment) of the [MuseScore Wiki](https://github.com/musescore/MuseScore/wiki) for a complete build walkthrough and a list of dependencies.**
+Jubelle builds the same way as MuseScore Studio. The repository's GitHub Actions workflows produce
+the Windows installer:
 
-### Getting sources
+- **Build: Windows**, started manually, makes the `.msi` installer and runs Jubelle's application
+  checks.
+- **Check: Unit Tests** compiles the whole application on Linux and runs the test suite.
 
-If using git to download repo of entire code history, type:
+To build on your own machine, follow MuseScore's
+[developer environment guide](https://github.com/musescore/MuseScore/wiki/Set-up-developer-environment).
+The steps and dependencies are the same.
 
-    git clone https://github.com/musescore/MuseScore.git
-    cd MuseScore
+Jubelle's own fast test tools, which need no Qt and no build minutes:
 
-Otherwise, you can just download the latest source release tarball from the [Releases page](https://github.com/musescore/MuseScore/releases), and then from your download directory type:
+```sh
+cmake -S tools/jubelle_engine_tests -B build-engine-tests -GNinja && cmake --build build-engine-tests
+build-engine-tests/jubelle_engine_tests
+```
 
-    tar xzf MuseScore-x.x.x.tar.gz
-    cd MuseScore-x.x.x
+## Repository layout
 
-### Release Build
+| Path | What it is |
+|---|---|
+| `src/` | The application. Jubelle's own code is mostly in `jubelle/` subfolders (for example `src/notation/internal/jubelle/`) |
+| `share/` | Templates, instruments, styles and other installed data |
+| `branding/` | Jubelle's logo sources and artwork |
+| `tools/jubelle_*` | Jubelle's test tools |
+| `docs/upstream/` | MuseScore's original README, contribution guide and GitHub templates, kept for reference |
+| `.github/workflows-upstream-disabled/` | MuseScore's own CI workflows, kept but switched off |
 
-To compile MuseScore Studio for release, type:
+## Relationship to MuseScore
 
-    cmake -P build.cmake -DCMAKE_BUILD_TYPE=Release
+Jubelle is derived from MuseScore Studio, by MuseScore Limited and its contributors, and stays
+compatible with it. MuseScore's copyright notices, licence headers and third-party attributions are
+kept unchanged throughout the source code. MuseScore™ is a trademark of MuseScore Limited. Jubelle is
+an independent project and is not affiliated with or endorsed by MuseScore Limited or Muse Group.
 
-If something goes wrong, append the word "clean" to the above command to delete the build subdirectory:
+Jubelle does not include or use the proprietary MuseSounds libraries.
 
-    cmake -P build.cmake -DCMAKE_BUILD_TYPE=Release clean
+## Licence
 
-Then try running the first command again.
+Jubelle is licensed under the **GNU General Public License version 3**, like MuseScore Studio; see
+[LICENSE.txt](LICENSE.txt). Bundled fonts and third-party components keep their own licences, found
+next to each component (for example in `fonts/` and `thirdparty/`).
 
-### Running
+## Contributing and feedback
 
-To start MuseScore Studio, type:
-
-    cmake -P build.cmake -DCMAKE_BUILD_TYPE=Release run
-
-Or run the compiled executable directly.
-
-### Debug Build
-
-A debug version can be built and run by replacing `-DCMAKE_BUILD_TYPE=Release`
-with `-DCMAKE_BUILD_TYPE=Debug` in the above commands.
-
-If you omit the `-DCMAKE_BUILD_TYPE` option entirely then `RelWithDebInfo` is
-used by default, as it provides a useful compromise between Release and Debug.
-
-### Testing
-
-See the [Unit tests section](https://github.com/musescore/MuseScore/wiki/Unit-tests) of the [MuseScore Wiki](https://github.com/musescore/MuseScore/wiki) for instructions on how to run the test suite.
-
-### Code Formatting
-
-Run `./hooks/install.sh` to install a pre-commit hook that will format your staged files. Requires that you install `uncrustify`.
-
-If you have problems, please report them. To uninstall, run `./hooks/uninstall.sh`.
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please read it before opening an issue, especially the
+section on **not posting private scores or diagnostic files** in public issues.

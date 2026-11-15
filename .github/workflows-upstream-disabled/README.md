@@ -9,3 +9,7 @@ them here disables them while keeping them available for reference.
 
 `dependabot.yml` is also kept here: it opened weekly automatic update requests,
 each of which would start every build (including the costly macOS build).
+
+`issue_add_label_config.yml` and `issue_assign_by_label_config.yml` were used
+only by `triage_issues.yml` (labelling MuseScore issues and assigning them to
+MuseScore team members), so they are kept here with it.
