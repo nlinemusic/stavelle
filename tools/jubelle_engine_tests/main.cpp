@@ -21,6 +21,10 @@
 #include "mocks/engravingconfigurationmock.h"
 #include "global/tests/mocks/applicationmock.h"
 #include "utils/scorerw.h"
+#include "templatebuilder.h"
+
+#include <cstdlib>
+#include <string>
 
 using namespace mu::engraving;
 
@@ -38,7 +42,8 @@ int main(int argc, char** argv)
     // save and compare with a reference file differ only in lines that come from
     // those two gaps (chord-symbol style values and instrument ids); checked by
     // hand, no other line differs. They run in "Check: Unit Tests".
-    if (::testing::GTEST_FLAG(filter) == "*") {
+    const bool defaultRun = (::testing::GTEST_FLAG(filter) == "*");
+    if (defaultRun) {
         ::testing::GTEST_FLAG(filter) = "-Engraving_RepeatTests.repeat14"
                                         ":Engraving_PlaybackEventsRendererTests.*Glissando*"
                                         ":Engraving_PlaybackModelTests.Playback_Setup_Data_MultiInstrument"
@@ -47,6 +52,14 @@ int main(int argc, char** argv)
                                         ":Engraving_NoteTests.noteLimits"
                                         ":Engraving_KeySigTests.concertPitch:Engraving_KeySigTests.preferSharpFlat";
     }
+    // Jubelle: layout tests run in a second pass with realistic font metrics
+    // (fonts measure their symbols once, when loaded, so the switch must be set
+    // before anything else)
+    const char* realistic = getenv("JUBELLE_REALISTIC_METRICS");
+    const bool realisticPass = realistic && std::string(realistic) == "1";
+    const bool building = argc >= 2 && std::string(argv[1]) == "--build-templates";
+    muse::draw::FontProviderStub::setRealisticMetrics(realisticPass || building);
+
     auto ioc = muse::modularity::globalIoc();
 
     ioc->registerExport<muse::io::IFileSystem>("jubelle_engine_tests", new StdFileSystem());
@@ -90,5 +103,20 @@ int main(int argc, char** argv)
     MScore::noGui = true;
     ScoreRW::setRootPath(muse::String::fromUtf8(std::string(MU_ROOT_DIR) + "/src/engraving/tests"));
 
-    return RUN_ALL_TESTS();
+    // Jubelle: build the score templates instead of running the tests
+    //   jubelle_engine_tests --build-templates <MuseScore originals> <output>
+    if (argc >= 4 && std::string(argv[1]) == "--build-templates") {
+        return jubelle_templates::buildAll(argv[2], argv[3]);
+    }
+
+    if (realisticPass) {
+        ::testing::GTEST_FLAG(filter) = "Jubelle_TemplateLayout.*";
+        return RUN_ALL_TESTS();
+    }
+    int result = RUN_ALL_TESTS();
+    if (defaultRun) {
+        const std::string cmd = std::string("JUBELLE_REALISTIC_METRICS=1 \"") + argv[0] + "\"";
+        result |= std::system(cmd.c_str()) == 0 ? 0 : 1;
+    }
+    return result;
 }

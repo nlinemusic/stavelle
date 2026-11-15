@@ -94,6 +94,11 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/internal/jubelle/passagelinkplanner.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/condensedscore.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/condensingplanner.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/templatepage.cpp
+    # Jubelle's template builder and its tests:
+    ${MU_ROOT}/tools/jubelle_templates/templatebuilder.cpp
+    ${MU_ROOT}/tools/jubelle_templates/bigbandtestmusic.cpp
+    ${MU_ROOT}/tools/jubelle_templates/jubelle_templates_tests.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
@@ -115,7 +120,8 @@ target_include_directories(jubelle_engine_tests PRIVATE
     ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR}
     ${MU_ROOT} ${MU_ROOT}/src ${MU_ROOT}/src/framework ${MU_ROOT}/src/framework/global
     ${MU_ROOT}/src/engraving ${MU_ROOT}/src/engraving/internal ${MU_ROOT}/src/engraving/infrastructure
-    ${MU_ROOT}/src/engraving/tests)
+    ${MU_ROOT}/src/engraving/tests
+    ${MU_ROOT}/tools/jubelle_templates)
 target_link_libraries(jubelle_engine_tests muse::global muse::draw engraving gmock gtest)
 
 enable_testing()
