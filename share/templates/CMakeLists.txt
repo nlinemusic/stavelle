@@ -72,6 +72,21 @@ install(DIRECTORY
       04-Solo/04-Piano
       DESTINATION ${Mscore_SHARE_NAME}${Mscore_INSTALL_NAME}templates/04-Solo
       )
+# Jubelle: Solo Instrument + Piano (new templates, 15 Nov 2026)
+install(DIRECTORY
+      09-Solo_with_Piano/01-Violin_+_Piano
+      09-Solo_with_Piano/02-Viola_+_Piano
+      09-Solo_with_Piano/03-Cello_+_Piano
+      09-Solo_with_Piano/04-Flute_+_Piano
+      09-Solo_with_Piano/05-Oboe_+_Piano
+      09-Solo_with_Piano/06-Clarinet_+_Piano
+      09-Solo_with_Piano/07-Alto_Saxophone_+_Piano
+      09-Solo_with_Piano/08-Tenor_Saxophone_+_Piano
+      09-Solo_with_Piano/09-Trumpet_+_Piano
+      09-Solo_with_Piano/10-Horn_+_Piano
+      09-Solo_with_Piano/11-Trombone_+_Piano
+      DESTINATION ${Mscore_SHARE_NAME}${Mscore_INSTALL_NAME}templates/09-Solo_with_Piano
+      )
 
 install(DIRECTORY
       05-Jazz/01-Jazz_Lead_Sheet

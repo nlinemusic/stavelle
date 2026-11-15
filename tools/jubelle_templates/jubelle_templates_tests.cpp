@@ -317,3 +317,46 @@ TEST(Jubelle_TemplateLayout, BigBandWithRealMusic)
     }
 
 }
+
+TEST(Jubelle_Templates, SoloWithPianoFamily)
+{
+    // T3: eleven Solo Instrument + Piano templates, built from MuseScore's
+    // instrument definitions; US Letter (T4)
+    jubelle_templates::loadInstrumentData();
+    struct Expect { const char* dir; const char16_t* id; int chromatic; ClefType clef; };
+    const std::vector<Expect> expected {
+        { "01-Violin_+_Piano", u"violin", 0, ClefType::G },
+        { "02-Viola_+_Piano", u"viola", 0, ClefType::C3 },
+        { "03-Cello_+_Piano", u"violoncello", 0, ClefType::F },
+        { "04-Flute_+_Piano", u"flute", 0, ClefType::G },
+        { "05-Oboe_+_Piano", u"oboe", 0, ClefType::G },
+        { "06-Clarinet_+_Piano", u"bb-clarinet", -2, ClefType::G },
+        { "07-Alto_Saxophone_+_Piano", u"alto-saxophone", -9, ClefType::G },
+        { "08-Tenor_Saxophone_+_Piano", u"tenor-saxophone", -14, ClefType::G8_VB },   // concert-pitch view: treble 8vb
+        { "09-Trumpet_+_Piano", u"bb-trumpet", -2, ClefType::G },
+        { "10-Horn_+_Piano", u"horn", -7, ClefType::G },
+        { "11-Trombone_+_Piano", u"trombone", 0, ClefType::F },
+    };
+    ASSERT_EQ(jubelle_templates::soloWithPianoTemplates().size(), expected.size());
+    for (const Expect& e : expected) {
+        const std::string path = TEMPLATES + "09-Solo_with_Piano/" + e.dir + "/" + e.dir + ".mscx";
+        std::unique_ptr<MasterScore> s(jubelle_templates::readTemplate(path));
+        ASSERT_TRUE(s) << path;
+        ASSERT_EQ(s->parts().size(), 2u) << e.dir;
+        const Part* solo = s->parts()[0];
+        const Part* piano = s->parts()[1];
+        EXPECT_EQ(solo->instrument()->id(), String(e.id)) << e.dir;
+        EXPECT_EQ(solo->instrument()->transpose().chromatic, e.chromatic) << e.dir;
+        EXPECT_EQ(solo->staff(0)->defaultClefType().concertClef, e.clef) << e.dir;
+        EXPECT_FALSE(solo->staff(0)->staffType(Fraction(0, 1))->isSmall()) << "full-size solo staff, so its part is full size";
+        EXPECT_EQ(piano->instrument()->id(), String(u"piano"));
+        ASSERT_EQ(piano->nstaves(), 2u);
+        EXPECT_TRUE(hasBrace(piano->staff(0))) << e.dir;
+        EXPECT_EQ(piano->staff(1)->defaultClefType().concertClef, ClefType::F);
+        EXPECT_TRUE(near(s->style().styleD(Sid::pageWidth), 8.5)) << "US Letter";
+        EXPECT_TRUE(near(s->style().styleD(Sid::pageHeight), 11.0));
+        EXPECT_EQ(s->metaTag(jt::PAGE_CLASS_TAG), String(u"letter"));
+        EXPECT_EQ(s->nmeasures(), 32u);
+        EXPECT_TRUE(s->first()->isVBox()) << "title frame: New Score lists the template by its title";
+    }
+}

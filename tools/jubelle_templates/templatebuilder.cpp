@@ -24,6 +24,12 @@
 #include "engraving/dom/part.h"
 #include "engraving/dom/scoreorder.h"
 #include "engraving/dom/staff.h"
+#include "engraving/dom/box.h"
+#include "engraving/dom/factory.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/sig.h"
+#include "engraving/dom/text.h"
+#include "engraving/dom/timesig.h"
 #include "engraving/style/defaultstyle.h"
 #include "engraving/style/style.h"
 #include "engraving/infrastructure/mscwriter.h"
@@ -245,6 +251,91 @@ bool applyScoreOrder(MasterScore* score, const String& orderId)
     return false;
 }
 
+MasterScore* newTemplate(const String& title, const std::vector<NewPart>& parts)
+{
+    MasterScore* score = compat::ScoreAccess::createMasterScoreWithBaseStyle(nullptr);
+    score->setMetaTag(u"workTitle", title);
+    score->startCmd(muse::TranslatableString::untranslatable("Jubelle new template"));
+    for (const NewPart& np : parts) {
+        const InstrumentTemplate* t = searchTemplate(np.instrumentId);
+        if (!t) {
+            std::cerr << "no instrument " << np.instrumentId.toStdString() << "\n";
+            score->endCmd();
+            delete score;
+            return nullptr;
+        }
+        score->appendPart(t);
+        Part* p = score->parts().back();
+        if (!np.longName.isEmpty()) {
+            setNames(p, np.longName, np.shortName);
+        }
+    }
+
+    const Fraction fourFour(4, 4);
+    score->sigmap()->add(0, fourFour);
+    score->appendMeasures(32);
+    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasure()) {
+        m->setTimesig(fourFour);
+        m->setTicks(fourFour);
+    }
+    TimeSig* ts = Factory::createTimeSig(score->dummy()->segment());
+    ts->setSig(fourFour, TimeSigType::NORMAL);
+    score->cmdAddTimeSig(score->firstMeasure(), 0, ts, false);
+
+    // Title frame (its title text is the template's name in New Score)
+    MeasureBase* box = static_cast<Score*>(score)->insertMeasure(ElementType::VBOX, score->first());
+    if (box && box->isVBox()) {
+        Text* text = Factory::createText(box, TextStyleType::TITLE);
+        text->setPlainText(title);
+        text->setParent(box);
+        score->undoAddElement(text);
+    }
+    score->endCmd();
+    score->doLayout();
+    return score;
+}
+
+HouseStyle soloWithPianoStyle()
+{
+    // US Letter (T4). The solo staff stays full size (a cue-size staff would also
+    // make the soloist's part small); MuseScore's chamber spacing, with a little
+    // more room between the solo staff and the piano and between systems.
+    HouseStyle hs;
+    hs.name = u"Jubelle Solo with Piano";
+    hs.pageClass = u"letter";
+    hs.marginTopInch = 0.5;
+    hs.marginBottomInch = 0.5;
+    hs.marginSideInch = 0.6;
+    hs.spatiumMm = 1.75;
+    hs.values = {
+        { Sid::staffDistance, Spatium(7.0) },
+        { Sid::akkoladeDistance, Spatium(6.5) },
+        { Sid::minSystemDistance, Spatium(10.0) },
+        { Sid::maxSystemDistance, Spatium(16.0) },
+        { Sid::enableIndentationOnFirstSystem, true },
+        { Sid::createMultiMeasureRests, false },
+    };
+    return hs;
+}
+
+const std::vector<SoloWithPiano>& soloWithPianoTemplates()
+{
+    static const std::vector<SoloWithPiano> t {
+        { "01-Violin_+_Piano", u"Violin + Piano", u"violin" },
+        { "02-Viola_+_Piano", u"Viola + Piano", u"viola" },
+        { "03-Cello_+_Piano", u"Cello + Piano", u"violoncello" },
+        { "04-Flute_+_Piano", u"Flute + Piano", u"flute" },
+        { "05-Oboe_+_Piano", u"Oboe + Piano", u"oboe" },
+        { "06-Clarinet_+_Piano", u"Clarinet + Piano", u"bb-clarinet" },
+        { "07-Alto_Saxophone_+_Piano", u"Alto Saxophone + Piano", u"alto-saxophone" },
+        { "08-Tenor_Saxophone_+_Piano", u"Tenor Saxophone + Piano", u"tenor-saxophone" },
+        { "09-Trumpet_+_Piano", u"Trumpet + Piano", u"bb-trumpet" },
+        { "10-Horn_+_Piano", u"Horn + Piano", u"horn" },
+        { "11-Trombone_+_Piano", u"Trombone + Piano", u"trombone" },
+    };
+    return t;
+}
+
 MasterScore* buildBigBand(const std::string& originalsDir)
 {
     MasterScore* score = readTemplate(originalsDir + "/05-Jazz/02-Big_Band/02-Big_Band.mscx");
@@ -355,6 +446,21 @@ int buildAll(const std::string& originalsDir, const std::string& outDir)
         delete bb;
     } else {
         ++failures;
+    }
+    // Solo Instrument + Piano (new, built from MuseScore's instrument definitions)
+    for (const SoloWithPiano& t : soloWithPianoTemplates()) {
+        MasterScore* s = newTemplate(t.title, { { t.instrumentId, u"", u"" }, { u"piano", u"", u"" } });
+        if (!s) {
+            ++failures;
+            continue;
+        }
+        applyHouseStyle(s, soloWithPianoStyle());
+        s->doLayout();
+        const std::string dir = std::string("/09-Solo_with_Piano/") + t.dir + "/" + t.dir + ".mscx";
+        if (!writeTemplate(s, outDir + dir)) {
+            ++failures;
+        }
+        delete s;
     }
     return failures;
 }

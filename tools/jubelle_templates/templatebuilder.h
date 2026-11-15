@@ -69,6 +69,26 @@ bool replaceInstrument(mu::engraving::Part* part, const muse::String& instrument
 //! Sets the score order by id (from orders.xml) and recreates brackets and barlines.
 bool applyScoreOrder(mu::engraving::MasterScore* score, const muse::String& orderId);
 
+struct NewPart {
+    muse::String instrumentId;
+    muse::String longName;      // empty: MuseScore's name for the instrument
+    muse::String shortName;
+};
+
+//! A new template made from MuseScore's instrument definitions (not from
+//! another template): the parts in this order, 4/4, C major, 32 bars, and a
+//! title frame with the template's name (New Score lists templates by it).
+mu::engraving::MasterScore* newTemplate(const muse::String& title, const std::vector<NewPart>& parts);
+
+HouseStyle soloWithPianoStyle();
+
+struct SoloWithPiano {
+    const char* dir;            // folder and file name
+    const char16_t* title;
+    const char16_t* instrumentId;
+};
+const std::vector<SoloWithPiano>& soloWithPianoTemplates();
+
 //! The Big Band redesign (T1): order, bass trombone, names, house style.
 mu::engraving::MasterScore* buildBigBand(const std::string& originalsDir);
 
