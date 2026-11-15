@@ -69,10 +69,15 @@ const std::map<char32_t, GlyphBox>* glyphBoxes(const String& family)
 
 const GlyphBox* glyph(const Font& f, char32_t c)
 {
-    if (!s_realistic || f.type() != Font::Type::MusicSymbol) {
-        return nullptr;
+    if (!s_realistic || c < 0xE000 || c > 0xF8FF) {
+        return nullptr;     // SMuFL glyphs are in the private use area
     }
-    const std::map<char32_t, GlyphBox>* boxes = glyphBoxes(f.family().id());
+    // Music fonts, and their text fonts ("Leland Text") for dynamics and symbols in text
+    String family = f.family().id();
+    if (family.endsWith(u" Text")) {
+        family = family.left(family.size() - 5);
+    }
+    const std::map<char32_t, GlyphBox>* boxes = glyphBoxes(family);
     if (!boxes) {
         return nullptr;
     }

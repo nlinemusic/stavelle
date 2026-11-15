@@ -97,4 +97,8 @@ set(RENDERING_SCORE_SRC
 
     ${CMAKE_CURRENT_LIST_DIR}/dumplayoutdata.cpp
     ${CMAKE_CURRENT_LIST_DIR}/dumplayoutdata.h
+
+    # Jubelle G7: layout checks (G3 design approved 15 Nov 2026)
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/overlapchecker.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/overlapchecker.h
 )
