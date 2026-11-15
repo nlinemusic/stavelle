@@ -305,6 +305,7 @@ MenuItem* AppMenuModel::makeViewMenu()
         makeMenuItem("toggle-instruments"),
         makeMenuItem("inspector"),
         makeMenuItem("toggle-selection-filter"),
+        makeMenuItem("jubelle-toggle-proofread"),
         historyItem,
         makeMenuItem("toggle-navigator"),
         makeMenuItem("toggle-braille-panel"),
@@ -438,6 +439,7 @@ MenuItem* AppMenuModel::makeToolsMenu()
 
     MenuItemList toolsItems {
         makeMenuItem("jubelle-identify-chords"),
+        makeMenuItem("jubelle-toggle-proofread"),
         makeSeparator(),
         makeMenuItem("transpose"),
         makeSeparator(),

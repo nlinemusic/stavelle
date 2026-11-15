@@ -80,6 +80,8 @@ target_sources(notation PRIVATE
     internal/jubelle/swingmarking.h
     internal/jubelle/findselect.cpp
     internal/jubelle/findselect.h
+    internal/jubelle/proofread.cpp
+    internal/jubelle/proofread.h
     internal/jubelle/partlayout.cpp
     internal/jubelle/partlayout.h
     internal/jubelle/articulationpassage.cpp
@@ -162,6 +164,7 @@ set_source_files_properties(
     internal/jubelle/condensedscore.cpp
     internal/jubelle/templatepage.cpp
     internal/jubelle/findselect.cpp
+    internal/jubelle/proofread.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )

@@ -360,6 +360,35 @@ DockPage {
             }
         },
 
+        // Jubelle G5: Proofread panel (Tools › Proofread score)
+        DockPanel {
+            id: jubelleProofreadPanel
+
+            objectName: root.pageModel.jubelleProofreadPanelName()
+            title: qsTrc("appshell", "Proofread")
+
+            navigationSection: root.navigationPanelSec(jubelleProofreadPanel.location)
+
+            width: root.verticalPanelDefaultWidth
+            minimumWidth: root.verticalPanelDefaultWidth
+            maximumWidth: root.verticalPanelDefaultWidth * 2
+
+            minimumHeight: root.panelMinDimension
+            maximumHeight: root.panelMaxDimension
+
+            groupName: root.verticalPanelsGroup
+
+            //! NOTE: hidden by default
+            visible: false
+
+            dropDestinations: root.verticalPanelDropDestinations
+
+            ProofreadPanel {
+                navigationSection: jubelleProofreadPanel.navigationSection
+                navigationOrderStart: jubelleProofreadPanel.contentNavigationPanelOrderStart
+            }
+        },
+
         DockPanel {
             id: undoHistoryPanel
 
