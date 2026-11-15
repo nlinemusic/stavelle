@@ -705,13 +705,15 @@ bool ProjectsPageModel::setProjectTags(const QString& projectFolder, const QStri
 // Card image
 // ---------------------------------------------------------------------------
 
-QString ProjectsPageModel::chooseImageFile()
+QString ProjectsPageModel::chooseImageFile(const QString& projectFolder)
 {
     const std::vector<std::string> filter {
         muse::trc("project", "Images") + " (*.jpg *.jpeg *.png *.webp)"
     };
+    // P4: start in the project's Pictures folder when it has one
+    const std::string pictures = projectFolder.isEmpty() ? std::string() : pl::picturesFolder(toStd(projectFolder), false);
     muse::io::path_t path = interactive()->selectOpeningFileSync(muse::trc("project", "Choose a card image"),
-                                                                 muse::io::path_t(), filter);
+                                                                 muse::io::path_t(pictures), filter);
     return path.toQString();
 }
 
@@ -924,7 +926,7 @@ void ProjectsPageModel::openCardImageDialog(const QString& projectFolder, const 
         const double ny = map.value("y").toDouble();
 
         if (action == "choose") {
-            const QString chosen = chooseImageFile();
+            const QString chosen = chooseImageFile(projectFolder);
             if (chosen.isEmpty()) {
                 // Cancelled: reopen with what was shown before, unchanged.
                 openCardImageDialog(projectFolder, imageFile, nx, ny, isNewImage);
@@ -952,10 +954,22 @@ void ProjectsPageModel::editCardImage(const QString& projectFolder)
         return;
     }
 
-    const QString chosen = chooseImageFile();
+    const QString chosen = chooseImageFile(projectFolder);
     if (!chosen.isEmpty()) {
         openCardImageDialog(projectFolder, chosen, 50, 50, true);
     }
+}
+
+void ProjectsPageModel::openPicturesFolder(const QString& projectFolder)
+{
+    // P4: made the first time you open it
+    const std::string dir = pl::picturesFolder(toStd(projectFolder), true);
+    if (dir.empty()) {
+        interactive()->error(muse::trc("project", "Couldn't open the Pictures folder"),
+                             muse::trc("project", "The project's Pictures folder couldn't be made."));
+        return;
+    }
+    interactive()->openUrl(QUrl::fromLocalFile(fromStd(dir)));
 }
 
 void ProjectsPageModel::newCategoryInteractive()

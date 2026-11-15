@@ -409,6 +409,7 @@ FocusScope {
                                             case "categories-tags": projectsModel.editCategoriesAndTags(modelData.folder); break
                                             case "card-image": projectsModel.editCardImage(modelData.folder); break
                                             case "remove-card-image": projectsModel.removeCardImage(modelData.folder); break
+                                            case "pictures": projectsModel.openPicturesFolder(modelData.folder); break
                                             case "reveal": projectsModel.revealInFileBrowser(modelData.folder); break
                                             }
                                         }

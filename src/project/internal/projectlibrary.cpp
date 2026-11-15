@@ -431,6 +431,20 @@ static const std::vector<fs::path>& projectSubfolders()
     return dirs;
 }
 
+std::string picturesFolder(const std::string& projectFolder, bool create)
+{
+    const fs::path dir = toPath(projectFolder) / "Pictures";
+    std::error_code ec;
+    if (isDir(dir)) {
+        return toUtf8(dir);
+    }
+    if (!create || !isProjectFolder(projectFolder)) {
+        return std::string();
+    }
+    fs::create_directories(dir, ec);
+    return ec ? std::string() : toUtf8(dir);
+}
+
 bool isProjectFolder(const std::string& folder)
 {
     const fs::path dir = toPath(folder);

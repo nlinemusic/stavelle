@@ -375,3 +375,19 @@ TEST_F(ProjectLibraryTests, NotInProjectsBarShowsOnlyWhenItShould)
     EXPECT_FALSE(shouldOfferAddToProjects(outside, false, m_main, dismissed));
     EXPECT_TRUE(shouldOfferAddToProjects((m_root / "Other.mscz").u8string(), false, m_main, dismissed));
 }
+
+TEST_F(ProjectLibraryTests, PicturesFolderIsMadeOnlyWhenAskedFor)
+{
+    ASSERT_TRUE(ensureMainFolder(m_main).ok);
+    const Result r = createProject(m_main, defaultCategories().front(), "Song");
+    ASSERT_TRUE(r.ok) << r.error;
+    const std::string project = r.path;   // the project folder
+    EXPECT_EQ(picturesFolder(project, false), "") << "not made until you want it";
+    EXPECT_FALSE(fs::exists(P(project) / "Pictures"));
+    const std::string pics = picturesFolder(project, true);
+    ASSERT_FALSE(pics.empty());
+    EXPECT_TRUE(fs::is_directory(P(pics)));
+    EXPECT_EQ(picturesFolder(project, false), pics) << "found afterwards";
+    EXPECT_EQ(picturesFolder((m_root / "not a project").u8string(), true), "") << "only inside a project";
+    EXPECT_TRUE(isProjectFolder(project)) << "still a normal project";
+}

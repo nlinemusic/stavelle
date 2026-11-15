@@ -166,6 +166,7 @@ Item {
                                 result.push({ id: "remove-card-image", title: qsTrc("project", "Remove card image") })
                             }
                             result.push({})
+                            result.push({ id: "pictures", title: qsTrc("project", "Open Pictures folder") })
                             result.push({ id: "reveal", title: root.revealTitle })
                             return result
                         }

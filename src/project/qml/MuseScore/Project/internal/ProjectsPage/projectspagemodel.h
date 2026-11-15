@@ -113,7 +113,8 @@ public:
     Q_INVOKABLE bool setProjectTags(const QString& projectFolder, const QStringList& tags);
 
     // Card image
-    Q_INVOKABLE QString chooseImageFile();
+    Q_INVOKABLE QString chooseImageFile(const QString& projectFolder = QString());
+    Q_INVOKABLE void openPicturesFolder(const QString& projectFolder);   // P4
     Q_INVOKABLE QString imageUrl(const QString& filePath) const;
     Q_INVOKABLE QVariantMap cardImage(const QString& projectFolder) const;
     Q_INVOKABLE bool setCardImage(const QString& projectFolder, const QString& sourcePath, double x, double y);

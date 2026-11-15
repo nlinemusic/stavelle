@@ -138,6 +138,11 @@ Result silenceAddToProjects(const std::string& mainFolder, const std::string& sc
 bool shouldOfferAddToProjects(const std::string& scorePath, bool newlyCreated, const std::string& mainFolder,
                               const std::set<std::string>& dismissedThisSession);
 
+//! P4: the project's optional "Pictures" folder (for the card picture and any
+//! other images you keep with the project). Made only when asked for, so
+//! existing projects are unchanged; "" if it can't be made.
+std::string picturesFolder(const std::string& projectFolder, bool create);
+
 //! True if `folder` has the Jubelle project structure.
 bool isProjectFolder(const std::string& folder);
 
