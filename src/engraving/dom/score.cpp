@@ -217,6 +217,18 @@ Score::Score(MasterScore* parent, bool forcePartStyle /* = true */)
         for (auto i : styles) {
             m_style.set(i, DefaultStyle::defaultStyle().value(i));
         }
+        // Jubelle: style values a Jubelle template designed for the full score
+        // only (listed by name in the jubelleScoreOnlyStyle tag, for example the
+        // big-band minimum bar width) start from the defaults in parts
+        const String scoreOnly = parent->metaTag(u"jubelleScoreOnlyStyle");
+        if (!scoreOnly.isEmpty()) {
+            for (const String& name : scoreOnly.split(u',')) {
+                const Sid sid = MStyle::styleIdx(name.trimmed());
+                if (sid != Sid::NOSTYLE) {
+                    m_style.set(sid, DefaultStyle::defaultStyle().value(sid));
+                }
+            }
+        }
         // and force some style settings that just make sense for parts
         if (forcePartStyle) {
             style().set(Sid::concertPitch, false);

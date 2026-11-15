@@ -88,6 +88,8 @@ target_sources(notation PRIVATE
     internal/jubelle/linkedpassages.h
     internal/jubelle/condensedscore.cpp
     internal/jubelle/condensedscore.h
+    internal/jubelle/templatepage.cpp
+    internal/jubelle/templatepage.h
     internal/notationinteraction.h
     internal/notationmidiinput.cpp
     internal/notationmidiinput.h
@@ -156,6 +158,7 @@ set_source_files_properties(
     internal/jubelle/pagealignment.cpp
     internal/jubelle/linkedpassages.cpp
     internal/jubelle/condensedscore.cpp
+    internal/jubelle/templatepage.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )
