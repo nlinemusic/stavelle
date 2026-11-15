@@ -58,6 +58,8 @@ target_sources(project PRIVATE
     internal/projectinfo.h
     internal/templatesuggestions.cpp
     internal/templatesuggestions.h
+    internal/usertemplates.cpp
+    internal/usertemplates.h
     internal/projectcreator.cpp
     internal/projectcreator.h
     internal/projectaudiosettings.cpp

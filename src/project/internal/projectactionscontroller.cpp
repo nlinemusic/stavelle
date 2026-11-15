@@ -20,6 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "projectactionscontroller.h"
+#include "usertemplates.h"
 
 #include <QBuffer>
 #include <QEventLoop>
@@ -86,6 +87,7 @@ void ProjectActionsController::init()
     dispatcher()->reg(this, "file-save", [this]() { saveProject(SaveMode::Save); });
     dispatcher()->reg(this, "file-save-as", [this]() { saveProject(SaveMode::SaveAs); });
     dispatcher()->reg(this, "file-save-a-copy", [this]() { saveProject(SaveMode::SaveCopy); });
+    dispatcher()->reg(this, "jubelle-save-as-template", [this]() { saveAsTemplate(); });
     dispatcher()->reg(this, "file-save-selection", [this]() { saveProject(SaveMode::SaveSelection, SaveLocationType::Local); });
     dispatcher()->reg(this, "file-save-to-cloud", [this]() { saveProject(SaveMode::Save, SaveLocationType::Cloud); });
     dispatcher()->reg(this, "jubelle-publish-youtube", [this]() {
@@ -1935,6 +1937,50 @@ async::Promise<io::path_t> ProjectActionsController::selectScoreOpeningFile() co
                                       muse::trc("project", "MuseScore backup files") + " (*.mscz~)" };
 
     return interactive()->selectOpeningFile(muse::trc("project", "Open"), configuration()->defaultOpenProjectsPath(), filter);
+}
+
+void ProjectActionsController::saveAsTemplate()
+{
+    // Jubelle: a copy of the score in the user Templates folder (or a folder
+    // inside it, which becomes its category in New Score). The open score is
+    // unchanged and stays open as it was.
+    INotationProjectPtr project = currentNotationProject();
+    if (!project) {
+        return;
+    }
+    const io::path_t root = configuration()->userTemplatesPath();
+    fileSystem()->makePath(root);
+
+    std::string title = project->masterNotation()->masterScore()->metaTag(u"workTitle").toStdString();
+    if (title.empty()) {
+        title = project->displayName().toStdString();
+    }
+    const io::path_t suggested = root + "/" + usertemplates::fileNameFor(title) + ".mscz";
+    const std::vector<std::string> filter = { muse::trc("project", "MuseScore files") + " (*.mscz)" };
+    const io::path_t path = interactive()->selectSavingFileSync(
+        muse::trc("project", "Save as template (choose or create a folder for its category)"), suggested, filter);
+    if (path.empty()) {
+        return;
+    }
+    const std::string rootStr = root.toStdString();
+    const std::string pathStr = path.toStdString();
+    if (pathStr.rfind(rootStr, 0) != 0) {
+        const auto answer = interactive()->warningSync(
+            muse::trc("project", "This folder isn't in your Templates folder"),
+            muse::trc("project", "New Score only lists templates saved in your Templates folder (Preferences → Folders) "
+                                 "or in a folder inside it. Save here anyway?"),
+            { IInteractive::Button::Cancel, IInteractive::Button::Save });
+        if (answer.standardButton() != IInteractive::Button::Save) {
+            return;
+        }
+    }
+    if (saveProjectLocally(path, SaveMode::SaveCopy)) {
+        const std::string category = usertemplates::categoryFor(pathStr.rfind(rootStr, 0) == 0 ? pathStr.substr(rootStr.size()) : "");
+        interactive()->info(muse::trc("project", "Saved as template"),
+                            muse::qtrc("project", "It's listed in New Score under “%1”.")
+                            .arg(category.empty() ? muse::qtrc("project", "My templates") : QString::fromStdString(category))
+                            .toStdString());
+    }
 }
 
 bool ProjectActionsController::hasSelection() const

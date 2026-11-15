@@ -30,6 +30,10 @@
 #include <QJsonObject>
 #include <QJsonArray>
 
+#include <map>
+
+#include "usertemplates.h"
+
 using namespace muse;
 using namespace mu::project;
 
@@ -59,7 +63,23 @@ Templates TemplatesRepository::readTemplates(const muse::io::path_t& dirPath) co
             return Templates();
         }
 
-        return readTemplates(files.val, muse::qtrc("project", "My templates"), true /*isCustom*/);
+        // Jubelle: folders inside the user Templates folder are categories
+        // (usertemplates.h); files directly in it stay under "My templates"
+        std::map<std::string, io::paths_t> byCategory;
+        const std::string root = dirPath.toStdString();
+        for (const io::path_t& file : files.val) {
+            std::string rel = file.toStdString();
+            if (rel.rfind(root, 0) == 0) {
+                rel = rel.substr(root.size());
+            }
+            byCategory[usertemplates::categoryFor(rel)].push_back(file);
+        }
+        Templates result;
+        for (const auto& [category, paths] : byCategory) {   // "" (My templates) sorts first
+            const QString title = category.empty() ? muse::qtrc("project", "My templates") : QString::fromStdString(category);
+            result << readTemplates(paths, title, true /*isCustom*/);
+        }
+        return result;
     }
 
     RetVal<ByteArray> categoriesJson = fileSystem()->readFile(categoriesJsonPath);

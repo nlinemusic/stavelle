@@ -70,6 +70,14 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Save a &copy…"),
              TranslatableString("action", "Save a copy")
              ),
+    // Jubelle: your own templates (saved into your Templates folder; a folder
+    // inside it is a category in New Score)
+    UiAction("jubelle-save-as-template",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Save as &template…"),
+             TranslatableString("action", "Save the score as a template for New Score")
+             ),
     UiAction("file-save-selection",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,

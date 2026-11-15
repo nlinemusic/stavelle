@@ -27,6 +27,8 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/project/internal/templatesuggestions.cpp
     ${ROOT}/src/project/internal/templatesuggestions.h
     ${ROOT}/src/project/tests/templatesuggestions_tests.cpp
+    ${ROOT}/src/project/internal/usertemplates.cpp
+    ${ROOT}/src/project/tests/usertemplates_tests.cpp
     ${ROOT}/src/project/tests/newproject_tests.cpp
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.h

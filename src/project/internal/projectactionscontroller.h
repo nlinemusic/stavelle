@@ -136,6 +136,7 @@ private:
     muse::Ret canSaveProject() const;
     bool saveProject(SaveMode saveMode, SaveLocationType saveLocationType = SaveLocationType::Undefined, bool force = false);
     void saveProjectAt(const muse::actions::ActionData& args);
+    void saveAsTemplate();   // Jubelle
     bool saveProjectAt(const SaveLocation& saveLocation, SaveMode saveMode = SaveMode::Save, bool force = false);
     bool saveProjectToCloud(CloudProjectInfo info, SaveMode saveMode = SaveMode::Save);
 
