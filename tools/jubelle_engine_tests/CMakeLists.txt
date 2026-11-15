@@ -105,6 +105,8 @@ add_executable(jubelle_engine_tests
     jubelle_bendshaping_tests.cpp
     jubelle_playbacklevels_tests.cpp
     jubelle_updateverify_tests.cpp
+    jubelle_crashreport_tests.cpp
+    ${MU_ROOT}/src/appshell/internal/jubelle/crashreport.cpp
     ${MU_ROOT}/src/framework/update/internal/jubelle/updateverify.cpp
     # Engine baselines (measurements only)
     jubelle_baselines.cpp

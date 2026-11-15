@@ -38,6 +38,10 @@ target_sources(appshell PRIVATE
     internal/sessionsmanager.h
     internal/startupscenario.cpp
     internal/startupscenario.h
+    internal/jubelle/crashguard.cpp
+    internal/jubelle/crashguard.h
+    internal/jubelle/crashreport.cpp
+    internal/jubelle/crashreport.h
     widgets/splashscreen/splashscreen.cpp
     widgets/splashscreen/splashscreen.h
     widgets/splashscreen/loadingscreenview.cpp

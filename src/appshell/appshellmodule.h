@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <string>
+
 #include <memory>
 
 #include "modularity/imodulesetup.h"
@@ -49,6 +51,7 @@ public:
     muse::modularity::IContextSetup* newContext(const muse::modularity::ContextPtr& ctx) const override;
 
 private:
+    std::string m_jubelleAppDataDir;   // Jubelle R3: crash reports
     std::shared_ptr<AppShellConfiguration> m_appShellConfiguration;
     std::shared_ptr<SessionsManager> m_sessionsManager;
 };

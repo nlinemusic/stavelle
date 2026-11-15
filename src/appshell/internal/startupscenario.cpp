@@ -22,6 +22,17 @@
 
 #include "startupscenario.h"
 
+#include "jubelle/crashguard.h"
+#include "jubelle/crashreport.h"
+
+#include <QDir>
+#include <QUrl>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <memory>
+#include <sstream>
+
 #include <QCoreApplication>
 
 #include "async/async.h"
@@ -238,6 +249,83 @@ void StartupScenario::onStartupPageOpened(StartupModeType modeType)
     }
 
     showStartupDialogsIfNeed(modeType);
+    offerCrashReportIfNeed();
+}
+
+void StartupScenario::offerCrashReportIfNeed()
+{
+    // Jubelle R3 (D7): last time's crash report, offered once. Nothing is sent
+    // unless you choose Send, and then only through your own browser.
+    if (!jubelleGlobalConfiguration()) {
+        return;
+    }
+    const std::string dataDir = jubelleGlobalConfiguration()->userAppDataPath().toStdString();
+    const std::string pending = jubelle::CrashGuard::pendingReport(dataDir);
+    if (pending.empty()) {
+        return;
+    }
+    std::string text;
+    {
+        std::ifstream in(std::filesystem::u8path(pending), std::ios::binary);
+        std::stringstream s;
+        s << in.rdbuf();
+        text = s.str();
+    }
+    const jubelle::CrashReport report = jubelle::CrashReport::fromText(text);
+    const QString home = QDir::homePath();
+    const std::string homeDir = QDir::toNativeSeparators(home).toStdString();
+    const std::string userName = qEnvironmentVariable("USERNAME", qEnvironmentVariable("USER")).toStdString();
+    const std::string title = report.issueTitle();
+    const std::string body = report.issueBody(homeDir, userName);
+
+    // What would be sent, readable before anything happens
+    const std::string reviewFile = jubelle::CrashGuard::folder(dataDir) + "/report-to-send.txt";
+    std::ofstream(std::filesystem::u8path(reviewFile), std::ios::trunc) << jubelle::sanitize(title, homeDir, userName) << "\n\n" << body;
+
+    const bool knownCrash = jubelle::readSentSignatures(jubelle::CrashGuard::sentSignaturesFile(dataDir)).count(report.signature()) > 0;
+    const int REVIEW = int(IInteractive::Button::CustomButton) + 1;
+    const int SEND = REVIEW + 1;
+    const int DONT = REVIEW + 2;
+
+    const std::string question = report.frames.empty()
+                                 ? muse::trc("appshell", "Jubelle didn't close normally last time.")
+                                 : muse::trc("appshell", "Jubelle closed because of a problem last time.");
+    std::string explanation = muse::trc("appshell",
+                                        "A short report can help fix it. It holds only Jubelle's version, your system's version, "
+                                        "the kind of problem and where in Jubelle's code it happened. Names, folders, file names "
+                                        "and score titles are removed. Send opens your browser on a filled-in report in your private "
+                                        "crash-report repository; you look at it and submit it yourself.");
+    if (knownCrash) {
+        explanation += "\n\n" + muse::trc("appshell", "You've sent this problem before: Send opens that report so you can add a note.");
+    }
+
+    auto ask = std::make_shared<std::function<void()> >();
+    *ask = [this, ask, question, explanation, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND, DONT]() {
+        auto promise = interactive()->question(question, explanation,
+                                               { IInteractive::ButtonData(REVIEW, muse::trc("appshell", "Review report…")),
+                                                 IInteractive::ButtonData(DONT, muse::trc("appshell", "Don't send")),
+                                                 IInteractive::ButtonData(SEND, muse::trc("appshell", "Send…"), true) });
+        promise.onResolve(this, [this, ask, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND](
+                              const IInteractive::Result& res) {
+            if (res.button() == REVIEW) {
+                interactive()->openUrl(QUrl::fromLocalFile(QString::fromStdString(reviewFile)));
+                (*ask)();   // then the same choice again
+                return;
+            }
+            if (res.button() == SEND) {
+                const std::string url = knownCrash
+                                        ? jubelle::searchIssuesUrl(jubelle::CRASH_REPORT_REPOSITORY, report.signature())
+                                        : jubelle::newIssueUrl(jubelle::CRASH_REPORT_REPOSITORY, title, body);
+                interactive()->openUrl(QUrl::fromEncoded(QByteArray::fromStdString(url)));
+                jubelle::rememberSentSignature(jubelle::CrashGuard::sentSignaturesFile(dataDir), report.signature());
+            }
+            std::error_code ec;
+            std::filesystem::remove(std::filesystem::u8path(pending), ec);
+            std::filesystem::remove(std::filesystem::u8path(reviewFile), ec);
+            *ask = nullptr;   // done
+        });
+    };
+    (*ask)();
 }
 
 void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)

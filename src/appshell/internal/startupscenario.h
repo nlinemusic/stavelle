@@ -32,6 +32,7 @@
 #include "multiwindows/imultiwindowsprovider.h"
 #include "iappshellconfiguration.h"
 #include "isessionsmanager.h"
+#include "global/iglobalconfiguration.h"
 #include "project/iprojectautosaver.h"
 #include "audioplugins/iregisteraudiopluginsscenario.h"
 
@@ -52,6 +53,7 @@ class StartupScenario : public IStartupScenario, public muse::Contextable, publi
     muse::ContextInject<muse::update::IAppUpdateScenario> appUpdateScenario = { this };
     muse::ContextInject<mu::musesounds::IMuseSoundsCheckUpdateScenario> museSoundsUpdateScenario = { this };
     muse::ContextInject<musesounds::IMuseSamplerCheckStatusScenario> museSamplerCheckStatusScenario = { this };
+    muse::GlobalInject<muse::IGlobalConfiguration> jubelleGlobalConfiguration;
 
 public:
     StartupScenario(const muse::modularity::ContextPtr& iocCtx)
@@ -81,6 +83,7 @@ private:
     void openScore(const project::ProjectFile& file);
 
     void restoreLastSession();
+    void offerCrashReportIfNeed();   // Jubelle R3 (D7)
     void removeProjectsUnsavedChanges(const muse::io::paths_t& projectsPaths);
 
     std::string m_startupTypeStr;
