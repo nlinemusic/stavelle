@@ -23,6 +23,8 @@
 
 #include "engraving/playback/jubelle/articulationplayback.h"
 #include "notation/internal/jubelle/linkedpassages.h"
+#include "notation/internal/jubelle/condensedscore.h"
+#include "notation/inotationelements.h"
 
 #include "types/translatablestring.h"
 
@@ -136,6 +138,15 @@ MenuItemList NotationContextMenuModel::makeMeasureItems()
     items << makeMenuItem("jubelle-identify-chords");
     items << makeMenuItem("jubelle-passage-playback");
     items << makeMenuItem("jubelle-linked-passages");
+    // Jubelle G2: in a condensed copy, choose how these bars are condensed next time
+    if (isJubelleCondensedCopy()) {
+        MenuItemList condenseItems {
+            makeMenuItem("jubelle-condense-keep-separate"),
+            makeMenuItem("jubelle-condense-share"),
+            makeMenuItem("jubelle-condense-automatic"),
+        };
+        items << makeMenu(muse::TranslatableString("notation", "Condensing"), condenseItems);
+    }
     items << makeSeparator();
     items << makeMenuItem("staff-properties");
     items << makeSeparator();
@@ -514,6 +525,12 @@ bool NotationContextMenuModel::isDrumsetStaff() const
 
     Fraction tick = ctx.element ? ctx.element->tick() : Fraction { -1, 1 };
     return ctx.staff->part()->instrument(tick)->drumset() != nullptr;
+}
+
+bool NotationContextMenuModel::isJubelleCondensedCopy() const
+{
+    INotationPtr notation = globalContext()->currentNotation();
+    return notation && notation->elements() && mu::notation::jubelle::isCondensedCopy(notation->elements()->msScore());
 }
 
 INotationInteractionPtr NotationContextMenuModel::interaction() const

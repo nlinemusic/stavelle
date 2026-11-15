@@ -69,6 +69,7 @@ private:
     bool canSelectSimilarInRange() const;
     bool canSelectSimilar() const;
     bool isDrumsetStaff() const;
+    bool isJubelleCondensedCopy() const;
 
     INotationInteractionPtr interaction() const;
     INotationSelectionPtr selection() const;

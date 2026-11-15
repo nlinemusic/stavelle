@@ -100,6 +100,7 @@ void NotationSceneModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://notation/jubelle/applypartlayout"), "MuseScore.NotationScene", "ApplyPartLayoutDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/passageplayback"), "MuseScore.NotationScene", "PassagePlaybackDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/linkedpassages"), "MuseScore.NotationScene", "LinkedPassagesDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/condensedscore"), "MuseScore.NotationScene", "CondensedScoreDialog");
         ir->registerQmlUri(Uri("musescore://notation/percussionpanelpadswap"), "MuseScore.NotationScene", "PercussionPanelPadSwapDialog");
         ir->registerQmlUri(Uri("musescore://notation/editpercussionshortcut"), "MuseScore.NotationScene", "EditPercussionShortcutDialog");
     }

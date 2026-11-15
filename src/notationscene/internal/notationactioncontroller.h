@@ -57,6 +57,11 @@ public:
     static int jubelleAlignReference();
     muse::async::Notification jubelleAlignReferenceChanged() const { return m_jubelleAlignReferenceChanged; }
 
+    //! Jubelle G2: condensed scores are off until you switch them on
+    //! (Tools → Condensing → Enable Condensed Scores). Never on by itself.
+    static bool jubelleCondensingEnabled();
+    muse::async::Notification jubelleCondensingChanged() const { return m_jubelleCondensingChanged; }
+
 
     NotationActionController(const muse::modularity::ContextPtr& iocCtx)
         : muse::Contextable(iocCtx) {}
@@ -285,5 +290,9 @@ private:
     void jubelleAlign(int command);
     void setJubelleAlignReference(int reference);
     muse::async::Notification m_jubelleAlignReferenceChanged;
+
+    void toggleJubelleCondensing();
+    void setJubelleCondenseOverride(int mode);   // 0 keep separate, 1 condense, 2 automatic
+    muse::async::Notification m_jubelleCondensingChanged;
 };
 }

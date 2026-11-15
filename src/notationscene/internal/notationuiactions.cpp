@@ -562,6 +562,38 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Distribute verti&cally"),
              TranslatableString("action", "Space three or more selected items evenly from top to bottom")
              ),
+    //! Jubelle G2: condensed full-score copy (off until switched on)
+    UiAction("jubelle-condensing-enabled",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Enable condensed scores"),
+             TranslatableString("action", "Allow making a separate condensed copy of the full score. Off until you switch it on"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-condensed-score",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Condensed score…"),
+             TranslatableString("action", "Create or update a separate condensed copy of this full score. The score itself never changes")
+             ),
+    UiAction("jubelle-condense-keep-separate",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Keep these bars separate"),
+             TranslatableString("action", "In a condensed copy: keep the two players on their own staves here at the next update")
+             ),
+    UiAction("jubelle-condense-share",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Con&dense these bars"),
+             TranslatableString("action", "In a condensed copy: put the two players on one staff here at the next update")
+             ),
+    UiAction("jubelle-condense-automatic",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Condense these bars &automatically"),
+             TranslatableString("action", "In a condensed copy: remove your choice for these bars")
+             ),
     UiAction("jubelle-align-to-margins",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
@@ -2899,6 +2931,10 @@ NotationUiActions::NotationUiActions(std::shared_ptr<NotationActionController> c
 void NotationUiActions::init()
 {
     // Jubelle: the "Align to" choice changed
+    m_controller->jubelleCondensingChanged().onNotify(this, [this]() {
+        m_actionCheckedChanged.send({ "jubelle-condensing-enabled" });
+    });
+
     m_controller->jubelleAlignReferenceChanged().onNotify(this, [this]() {
         m_actionCheckedChanged.send({ "jubelle-align-to-margins", "jubelle-align-to-page", "jubelle-align-to-each-other" });
     });
@@ -3070,6 +3106,11 @@ bool NotationUiActions::actionChecked(const UiAction& act) const
         if (interaction) {
             return isScoreConfigChecked(act.code, interaction->scoreConfig());
         }
+    }
+
+    // Jubelle: condensed scores switched on?
+    if (act.code == "jubelle-condensing-enabled") {
+        return NotationActionController::jubelleCondensingEnabled();
     }
 
     // Jubelle: which "Align to" is chosen

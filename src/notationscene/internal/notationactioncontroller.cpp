@@ -24,6 +24,8 @@
 #include "io/file.h"
 
 #include "engraving/dom/masterscore.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/select.h"
 #include "engraving/dom/note.h"
 #include "engraving/dom/text.h"
 #include "engraving/dom/sig.h"
@@ -36,6 +38,7 @@
 #include "settings.h"
 
 #include "notation/internal/jubelle/pagealignment.h"
+#include "notation/internal/jubelle/condensedscore.h"
 
 #include <QGuiApplication>
 
@@ -429,6 +432,13 @@ void NotationActionController::init()
         registerAction(code, [this, cmd]() { jubelleAlign(cmd); });
     }
     registerAction("jubelle-align-to-margins", [this]() { setJubelleAlignReference(0); });
+    registerAction("jubelle-condensing-enabled", [this]() { toggleJubelleCondensing(); });
+    registerAction("jubelle-condensed-score", [this]() {
+        interactive()->open("musescore://notation/jubelle/condensedscore");
+    });
+    registerAction("jubelle-condense-keep-separate", [this]() { setJubelleCondenseOverride(0); });
+    registerAction("jubelle-condense-share", [this]() { setJubelleCondenseOverride(1); });
+    registerAction("jubelle-condense-automatic", [this]() { setJubelleCondenseOverride(2); });
     registerAction("jubelle-align-to-page", [this]() { setJubelleAlignReference(1); });
     registerAction("jubelle-align-to-each-other", [this]() { setJubelleAlignReference(2); });
 
@@ -2465,6 +2475,86 @@ void NotationActionController::jubelleAlign(int command)
                                   : muse::trc("notation", "Nothing was aligned");
         interactive()->info(title, body);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle G2: condensed full-score copy
+// ---------------------------------------------------------------------------
+
+static const muse::Settings::Key JUBELLE_CONDENSING_KEY("notation", "jubelle/condensing/enabled");
+
+bool NotationActionController::jubelleCondensingEnabled()
+{
+    const muse::Val v = muse::settings()->value(JUBELLE_CONDENSING_KEY);
+    return !v.isNull() && v.toBool();   // off unless you switched it on
+}
+
+void NotationActionController::toggleJubelleCondensing()
+{
+    muse::settings()->setSharedValue(JUBELLE_CONDENSING_KEY, muse::Val(!jubelleCondensingEnabled()));
+    m_jubelleCondensingChanged.notify();
+}
+
+void NotationActionController::setJubelleCondenseOverride(int mode)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    if (!jubelleCondensingEnabled()) {
+        interactive()->info(muse::trc("notation", "Condensed scores are off"),
+                            muse::trc("notation", "Switch them on first: Tools → Condensing → Enable Condensed Scores."));
+        return;
+    }
+    mu::engraving::Score* score = notation->elements()->msScore();
+    if (!jubelle::isCondensedCopy(score)) {
+        interactive()->info(muse::trc("notation", "Not a condensed copy"),
+                            muse::trc("notation", "These choices are made in the condensed copy (“… (condensed)”). "
+                                                  "Your original score is never changed by condensing."));
+        return;
+    }
+    const mu::engraving::Selection& sel = score->selection();
+    if (!sel.isRange()) {
+        interactive()->info(muse::trc("notation", "Select some bars"),
+                            muse::trc("notation", "Highlight the bars on one of the two players’ staves first."));
+        return;
+    }
+    const size_t staff = sel.staffStart();
+    std::optional<size_t> groupStaff;
+    for (const jubelle::CondenseGroup& g : jubelle::condenseGroups(score)) {
+        if (g.first == staff || g.second == staff) {
+            groupStaff = g.first;
+        }
+    }
+    if (!groupStaff) {
+        interactive()->info(muse::trc("notation", "Not a pair of players"),
+                            muse::trc("notation", "The highlighted staff isn’t one of a pair of players that can share a staff."));
+        return;
+    }
+    auto barIndex = [&](const mu::engraving::Measure* m) {
+        int i = 0;
+        for (const mu::engraving::Measure* x = score->firstMeasure(); x && x != m; x = x->nextMeasure()) {
+            ++i;
+        }
+        return i;
+    };
+    const mu::engraving::Measure* first = score->tick2measure(sel.tickStart());
+    const mu::engraving::Measure* last = score->tick2measure(sel.tickEnd() - mu::engraving::Fraction(1, 1920));
+    if (!first || !last) {
+        return;
+    }
+    std::optional<jubelle::CondenseOverride::Mode> m;
+    if (mode == 0) {
+        m = jubelle::CondenseOverride::Mode::Separate;
+    } else if (mode == 1) {
+        m = jubelle::CondenseOverride::Mode::Condense;
+    }
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Set condensing for bars"));
+    jubelle::setOverride(score, *groupStaff, barIndex(first), barIndex(last), m);
+    notation->undoStack()->commitChanges();
+    interactive()->info(muse::trc("notation", "Saved for the next update"),
+                        muse::trc("notation", "Your choice is kept in this condensed copy. It takes effect the next time you update the "
+                                              "copy from the original score (Tools → Condensing → Condensed Score…). Save this copy first."));
 }
 
 void NotationActionController::registerAction(const ActionCode& code,

@@ -51,6 +51,8 @@ qt_add_qml_module(notationscene_qml
         passageplaybackmodel.h
         linkedpassagesmodel.cpp
         linkedpassagesmodel.h
+        condensedscoremodel.cpp
+        condensedscoremodel.h
         engravingpresetsmodel.cpp
         engravingpresetsmodel.h
         continuouspanel.h
@@ -185,6 +187,7 @@ qt_add_qml_module(notationscene_qml
         ApplyPartLayoutDialog.qml
         PassagePlaybackDialog.qml
         LinkedPassagesDialog.qml
+        CondensedScoreDialog.qml
         EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml
@@ -340,6 +343,7 @@ set_source_files_properties(
     applypartlayoutmodel.cpp
     passageplaybackmodel.cpp
     linkedpassagesmodel.cpp
+    condensedscoremodel.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )
