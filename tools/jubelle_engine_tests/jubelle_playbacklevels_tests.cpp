@@ -14,7 +14,7 @@
 #include "audio/engine/internal/synthesizers/fluidsynth/jubellepresetgain.h"
 
 using namespace muse::audio;
-using namespace muse::audio::synth;
+using namespace muse::audio::jubelle;
 
 TEST(Jubelle_SafetyLimiter, LeavesQuieterMusicExactlyUnchanged)
 {
@@ -82,7 +82,7 @@ TEST(Jubelle_SafetyLimiter, ComesBackSmoothlyAfterALoudPeak)
 TEST(Jubelle_PresetGain, TableCoversTheBuiltInSoundFontWithinLimits)
 {
     int count = 0;
-    for (const auto& g : jubelle::MS_BASIC_PRESET_GAINS) {
+    for (const auto& g : MS_BASIC_PRESET_GAINS) {
         EXPECT_LE(std::abs(int(g.correctionCentibels)), 120) << g.bank << ":" << g.program;
         ++count;
     }
@@ -93,17 +93,17 @@ TEST(Jubelle_PresetGain, BigBandInstrumentsAreBroughtTogether)
 {
     // Measured before correction: trombone -13.7, tuba -14.5, piano -23.1,
     // baritone sax -24.6 dBFS. The table must pull them toward each other.
-    EXPECT_LT(jubelle::presetCorrectionCentibels(0, 57), -40);  // trombone down
-    EXPECT_LT(jubelle::presetCorrectionCentibels(0, 58), -40);  // tuba down
-    EXPECT_GT(jubelle::presetCorrectionCentibels(0, 0), 20);    // piano up
-    EXPECT_GT(jubelle::presetCorrectionCentibels(0, 67), 20);   // baritone sax up
-    EXPECT_EQ(jubelle::presetCorrectionCentibels(99, 99), 0);   // unknown: unchanged
+    EXPECT_LT(presetCorrectionCentibels(0, 57), -40);  // trombone down
+    EXPECT_LT(presetCorrectionCentibels(0, 58), -40);  // tuba down
+    EXPECT_GT(presetCorrectionCentibels(0, 0), 20);    // piano up
+    EXPECT_GT(presetCorrectionCentibels(0, 67), 20);   // baritone sax up
+    EXPECT_EQ(presetCorrectionCentibels(99, 99), 0);   // unknown: unchanged
 }
 
 TEST(Jubelle_PresetGain, OnlyTheBuiltInSoundFontIsCorrected)
 {
-    EXPECT_TRUE(jubelle::isBuiltInSoundFont("/usr/share/jubelle/sound/MS Basic.sf3"));
-    EXPECT_TRUE(jubelle::isBuiltInSoundFont("C:\\Program Files\\Jubelle\\sound\\ms basic.SF3"));
-    EXPECT_FALSE(jubelle::isBuiltInSoundFont("/home/me/SoundFonts/GeneralUser GS.sf2"));
-    EXPECT_FALSE(jubelle::isBuiltInSoundFont("/home/me/MS Basic copy.sf3"));
+    EXPECT_TRUE(isBuiltInSoundFont("/usr/share/jubelle/sound/MS Basic.sf3"));
+    EXPECT_TRUE(isBuiltInSoundFont("C:\\Program Files\\Jubelle\\sound\\ms basic.SF3"));
+    EXPECT_FALSE(isBuiltInSoundFont("/home/me/SoundFonts/GeneralUser GS.sf2"));
+    EXPECT_FALSE(isBuiltInSoundFont("/home/me/MS Basic copy.sf3"));
 }

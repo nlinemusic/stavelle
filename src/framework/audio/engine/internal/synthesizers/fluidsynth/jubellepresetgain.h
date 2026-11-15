@@ -17,7 +17,7 @@
 
 #include "jubellepresetgains.h"
 
-namespace muse::audio::synth::jubelle {
+namespace muse::audio::jubelle {
 // + = louder, in centibels (10 cB = 1 dB). 0 when the preset isn't in the table.
 inline int presetCorrectionCentibels(int bank, int program)
 {

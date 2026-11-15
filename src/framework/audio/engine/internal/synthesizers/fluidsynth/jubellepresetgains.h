@@ -3,7 +3,7 @@
 // (one note, velocity 100, expression 80, MuseScore's FluidSynth settings).
 #pragma once
 
-namespace muse::audio::synth::jubelle {
+namespace muse::audio::jubelle {
 struct PresetGain {
     short bank;
     short program;
