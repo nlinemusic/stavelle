@@ -28,7 +28,7 @@
 #include <vector>
 
 #include "global/types/string.h"
-#include "types/types.h"
+#include "../../../types/types.h"
 
 namespace mu::engraving {
 class EngravingItem;
