@@ -260,6 +260,7 @@ MenuItem* AppMenuModel::makeEditMenu()
         makeMenuItem("notation-select-all"),
         makeMenuItem("notation-select-section"),
         makeMenuItem("find"),
+        makeMenuItem("jubelle-find-select"),
         makeSeparator(),
         makeMenuItem("preference-dialog", MenuItemRole::PreferencesRole)
     };

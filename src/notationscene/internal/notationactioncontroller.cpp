@@ -412,6 +412,9 @@ void NotationActionController::init()
     registerAction("jubelle-repeats", [this]() {
         interactive()->open("musescore://notation/jubelle/repeats");
     });
+    registerAction("jubelle-find-select", [this]() {
+        interactive()->open("musescore://notation/jubelle/findselect");
+    });
     registerAction("jubelle-apply-part-layout", [this]() {
         interactive()->open("musescore://notation/jubelle/applypartlayout");
     });

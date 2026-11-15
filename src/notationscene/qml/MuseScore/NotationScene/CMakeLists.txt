@@ -45,6 +45,8 @@ qt_add_qml_module(notationscene_qml
         swingmodel.h
         repeatsmodel.cpp
         repeatsmodel.h
+        findselectmodel.cpp
+        findselectmodel.h
         applypartlayoutmodel.cpp
         applypartlayoutmodel.h
         passageplaybackmodel.cpp
@@ -186,6 +188,7 @@ qt_add_qml_module(notationscene_qml
         ArticulationPlaybackDialog.qml
         SwingDialog.qml
         RepeatsDialog.qml
+        FindSelectDialog.qml
         ApplyPartLayoutDialog.qml
         PassagePlaybackDialog.qml
         LinkedPassagesDialog.qml
@@ -343,6 +346,7 @@ set_source_files_properties(
     articulationplaybackmodel.cpp
     swingmodel.cpp
     repeatsmodel.cpp
+    findselectmodel.cpp
     applypartlayoutmodel.cpp
     passageplaybackmodel.cpp
     linkedpassagesmodel.cpp

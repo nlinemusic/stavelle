@@ -275,11 +275,12 @@ MenuItemList NotationContextMenuModel::makeElementInFretBoxItems()
 MenuItemList NotationContextMenuModel::makeSelectItems()
 {
     if (isSingleSelection()) {
-        return MenuItemList { makeMenuItem("select-similar"), makeMenuItem("select-similar-staff"), makeMenuItem("select-dialog") };
+        return MenuItemList { makeMenuItem("select-similar"), makeMenuItem("select-similar-staff"), makeMenuItem("select-dialog"),
+                              makeMenuItem("jubelle-find-select") };
     } else if (canSelectSimilarInRange()) {
-        return MenuItemList { makeMenuItem("select-similar-range"), makeMenuItem("select-dialog") };
+        return MenuItemList { makeMenuItem("select-similar-range"), makeMenuItem("select-dialog"), makeMenuItem("jubelle-find-select") };
     } else if (canSelectSimilar()) {
-        return MenuItemList{ makeMenuItem("select-dialog") };
+        return MenuItemList{ makeMenuItem("select-dialog"), makeMenuItem("jubelle-find-select") };
     }
 
     return MenuItemList();

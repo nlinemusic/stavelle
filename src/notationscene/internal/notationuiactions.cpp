@@ -499,6 +499,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&wing…"),
              TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
              ),
+    //! Jubelle G5: Find and Select
+    UiAction("jubelle-find-select",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Find and Se&lect…"),
+             TranslatableString("action", "Select every note, rest or marking that matches what you choose: kind, instruments, voices, pitch, note value, articulation and bars")
+             ),
     //! Jubelle Phase 5D: which repeats playback takes
     UiAction("jubelle-repeats",
              mu::context::UiCtxProjectOpened,
