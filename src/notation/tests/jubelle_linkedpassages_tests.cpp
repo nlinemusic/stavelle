@@ -15,6 +15,9 @@
 #include "engraving/dom/note.h"
 #include "engraving/dom/segment.h"
 #include "engraving/dom/textline.h"
+#include "engraving/dom/textlinebase.h"
+#include "engraving/dom/part.h"
+#include "engraving/dom/text.h"
 #include "engraving/rw/xmlreader.h"
 #include "engraving/types/symnames.h"
 
@@ -152,6 +155,28 @@ TEST_F(Jubelle_LinkedPassages, LinkingChangesNothingAndIsHidden)
         EXPECT_FALSE(t.line->visible());
         EXPECT_EQ(t.startTick, 0);
         EXPECT_EQ(t.endTick, 4 * BAR);
+    }
+}
+
+//! R7: on screen the marker reads plainly; its stored settings are unchanged
+TEST_F(Jubelle_LinkedPassages, MarkersShowAPlainLabel)
+{
+    link();
+    score->doLayout();
+    const std::vector<jlp::LinkGroup> groups = jlp::linkGroups(score);
+    ASSERT_EQ(groups.size(), 1u);
+    auto shown = [](const mu::engraving::TextLine* line) {
+        for (const mu::engraving::SpannerSegment* seg : line->spannerSegments()) {
+            const auto* tls = static_cast<const mu::engraving::TextLineBaseSegment*>(seg);
+            return tls->text() ? tls->text()->plainText() : muse::String();
+        }
+        return muse::String();
+    };
+    EXPECT_EQ(shown(groups[0].source.line).toStdString(), "Linked passage · leads");
+    const muse::String leader = groups[0].source.line->part()->partName();
+    for (const jlp::LinkMember& t : groups[0].targets) {
+        EXPECT_EQ(shown(t.line).toStdString(), (u"Linked passage · follows " + leader).toStdString());
+        EXPECT_TRUE(t.line->beginText().startsWith(muse::String(jlp::LINK_PREFIX))) << "the stored settings stay";
     }
 }
 
