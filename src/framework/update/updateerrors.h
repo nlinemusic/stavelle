@@ -33,6 +33,7 @@ enum class Err {
     NoUpdate,
     NetworkError,
     ReleaseInfoParseError,
+    JubelleNotVerified,   // Jubelle R3: the download failed the signature or checksum check
 };
 
 inline muse::Ret make_ret(Err e, const std::string& text = {})

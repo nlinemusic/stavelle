@@ -104,6 +104,8 @@ add_executable(jubelle_engine_tests
     # Falls without snap back (FluidSynth playback)
     jubelle_bendshaping_tests.cpp
     jubelle_playbacklevels_tests.cpp
+    jubelle_updateverify_tests.cpp
+    ${MU_ROOT}/src/framework/update/internal/jubelle/updateverify.cpp
     # Engine baselines (measurements only)
     jubelle_baselines.cpp
     # Engraving tests that run here:

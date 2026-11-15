@@ -67,6 +67,12 @@ private:
 
     RetVal<ReleaseInfo> parseRelease(const QByteArray& json) const;
 
+    // Jubelle R3
+    static bool isJubelleReleasesUrl(const std::string& url);
+    bool m_jubelleFeed = false;
+    RetVal<ReleaseInfo> parseJubelleReleases(const QByteArray& json, bool allowTesting) const;
+    void jubelleVerifyAndSave(const ReleaseInfo& info, std::shared_ptr<QByteArray> installer);
+
     std::string platformFileSuffix() const;
     QJsonObject resolveReleaseAsset(const QJsonObject& release) const;
 

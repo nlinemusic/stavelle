@@ -250,6 +250,16 @@ bool GeneralPreferencesModel::isAppUpdatable() const
     return updateConfiguration()->isAppUpdatable();
 }
 
+bool GeneralPreferencesModel::jubelleTestingReleases() const
+{
+    return updateConfiguration()->allowUpdateOnPreRelease();
+}
+
+void GeneralPreferencesModel::setJubelleTestingReleases(bool include)
+{
+    updateConfiguration()->setAllowUpdateOnPreRelease(include);
+}
+
 bool GeneralPreferencesModel::needCheckForNewAppVersion() const
 {
     return updateConfiguration()->needCheckForUpdate();

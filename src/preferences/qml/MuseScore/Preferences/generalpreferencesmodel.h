@@ -94,6 +94,8 @@ public:
 
     bool needCheckForNewAppVersion() const;
     Q_INVOKABLE bool isAppUpdatable() const;
+    Q_INVOKABLE bool jubelleTestingReleases() const;
+    Q_INVOKABLE void setJubelleTestingReleases(bool include);
     Q_INVOKABLE QString museScorePrivacyPolicyUrl() const;
 
 public slots:

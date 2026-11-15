@@ -126,6 +126,12 @@ PreferencesPage {
             onNeedCheckForNewAppVersionChangeRequested: function(check) {
                 preferencesModel.needCheckForNewAppVersion = check
             }
+
+            testingReleases: preferencesModel.jubelleTestingReleases()
+            onTestingReleasesChangeRequested: function(include) {
+                preferencesModel.setJubelleTestingReleases(include)
+                testingReleases = include
+            }
         }
     }
 }

@@ -195,6 +195,10 @@ jobs:
 
     - name: Build
       shell: cmd
+      env:
+        # Jubelle R3: the public half of the release signing key (a repository
+        # variable, not a secret); without it the build refuses every update
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
       run: |
         IF ${{ env.SENTRY_URL != 0 }} == true ( SET C_URL="${{ env.SENTRY_URL }}" ) ELSE ( SET C_URL="" )
         SET NINJA_EXTRA_ARGS=-k 0
