@@ -28,6 +28,8 @@
 
 #pragma once
 
+#include <string>
+
 #include "global/types/string.h"
 #include "mpe/events.h"
 
@@ -63,7 +65,29 @@ FallShape fallShapeFor(const muse::String& instrumentSoundId, FallLength length,
 //! curve are kept.
 muse::mpe::PitchCurve retimeFall(const muse::mpe::PitchCurve& curve, double noteMs, double fallMs, bool stepped);
 
+//! Jazz gestures MuseScore doesn't play, as pitch shapes in real time:
+//!  - bend: dips about a semitone and comes back, in the first part of the note;
+//!  - lift (rip): rises into the note from below (short/medium/long: 3/5/7
+//!    semitones over 90/160/250 ms);
+//!  - smear: starts a little flat and slides up to the note (120 ms);
+//!  - flip: at the end of the note, a quick flip up and then down, into the next note;
+//!  - valve trill (shake): a fast, narrow wobble on the note.
+enum class JazzGesture {
+    None,
+    Bend,
+    LiftShort,
+    LiftMedium,
+    LiftLong,
+    Smear,
+    Flip,
+    ValveTrill,
+};
+JazzGesture jazzGestureForSymbol(const std::string& symbolName);
+muse::mpe::PitchCurve jazzGestureCurve(JazzGesture gesture, double noteMs);
+
 //! For the note renderer: the note's fall or doit played in real time, or
 //! the event unchanged when there is none or you set the fall start yourself.
+//! Also plays the gestures above when MuseScore's own playback gives the note
+//! no pitch shape.
 muse::mpe::NoteEvent applyJazzFall(const Note* note, muse::mpe::NoteEvent event);
 }

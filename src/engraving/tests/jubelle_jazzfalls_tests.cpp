@@ -200,3 +200,70 @@ TEST(Jubelle_JazzFalls, OnTheRealPlaybackModel)
 
     delete score;
 }
+
+TEST(Jubelle_JazzFalls, OtherJazzGestures)
+{
+    EXPECT_EQ(jazzGestureForSymbol("brassBend"), JazzGesture::Bend);
+    EXPECT_EQ(jazzGestureForSymbol("brassLiftShort"), JazzGesture::LiftShort);
+    EXPECT_EQ(jazzGestureForSymbol("brassLiftSmoothLong"), JazzGesture::LiftLong);
+    EXPECT_EQ(jazzGestureForSymbol("brassSmear"), JazzGesture::Smear);
+    EXPECT_EQ(jazzGestureForSymbol("brassFlip"), JazzGesture::Flip);
+    EXPECT_EQ(jazzGestureForSymbol("brassValveTrill"), JazzGesture::ValveTrill);
+    EXPECT_EQ(jazzGestureForSymbol("articStaccatoAbove"), JazzGesture::None);
+
+    auto lowest = [](const PitchCurve& c) {
+        pitch_level_t v = 0;
+        for (auto it = c.cbegin(); it != c.cend(); ++it) {
+            v = std::min(v, it->second);
+        }
+        return v;
+    };
+    auto highest = [](const PitchCurve& c) {
+        pitch_level_t v = 0;
+        for (auto it = c.cbegin(); it != c.cend(); ++it) {
+            v = std::max(v, it->second);
+        }
+        return v;
+    };
+    // Bend: down a semitone and back, then on pitch
+    const PitchCurve bend = jazzGestureCurve(JazzGesture::Bend, 1000);
+    EXPECT_EQ(lowest(bend), -PITCH_LEVEL_STEP);
+    EXPECT_EQ(bend.cbegin()->second, 0);
+    EXPECT_EQ(bend.rbegin()->second, 0);
+
+    // Lifts start below and arrive on the note, in real time
+    const PitchCurve shortLift = jazzGestureCurve(JazzGesture::LiftShort, 1000);
+    const PitchCurve longLift = jazzGestureCurve(JazzGesture::LiftLong, 1000);
+    EXPECT_EQ(shortLift.cbegin()->second, -3 * PITCH_LEVEL_STEP);
+    EXPECT_EQ(longLift.cbegin()->second, -7 * PITCH_LEVEL_STEP);
+    EXPECT_EQ(longLift.rbegin()->second, 0);
+    EXPECT_EQ(moveStart(jazzGestureCurve(JazzGesture::LiftMedium, 1000)), 0.0);
+    // arrives at 160 ms of a 1 s note, and at 160 ms (not 16%) of a 4 s note
+    auto arrival = [](const PitchCurve& c) {
+        for (auto it = c.cbegin(); it != c.cend(); ++it) {
+            if (it->second == 0) {
+                return double(it->first) / HUNDRED_PERCENT;
+            }
+        }
+        return 1.0;
+    };
+    EXPECT_NEAR(arrival(jazzGestureCurve(JazzGesture::LiftMedium, 1000)), 0.16, 1e-3);
+    EXPECT_NEAR(arrival(jazzGestureCurve(JazzGesture::LiftMedium, 4000)), 0.04, 1e-3);
+
+    // Smear: a little flat, sliding up
+    const PitchCurve smear = jazzGestureCurve(JazzGesture::Smear, 1000);
+    EXPECT_LT(smear.cbegin()->second, 0);
+    EXPECT_GT(smear.cbegin()->second, -PITCH_LEVEL_STEP);
+
+    // Flip: flat until near the end, then up and down
+    const PitchCurve flip = jazzGestureCurve(JazzGesture::Flip, 1000);
+    EXPECT_GE(moveStart(flip), 0.85);
+    EXPECT_EQ(highest(flip), 2 * PITCH_LEVEL_STEP);
+    EXPECT_LT(flip.rbegin()->second, 0);
+
+    // Valve trill: narrow and fast
+    const PitchCurve shake = jazzGestureCurve(JazzGesture::ValveTrill, 1000);
+    EXPECT_LE(highest(shake), PITCH_LEVEL_STEP / 2);
+    EXPECT_GE(lowest(shake), -PITCH_LEVEL_STEP / 2);
+    EXPECT_GE(shake.size(), 12u);   // about 8 a second, both ways
+}

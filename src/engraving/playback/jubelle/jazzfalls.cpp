@@ -137,6 +137,119 @@ PitchCurve retimeFall(const PitchCurve& curve, double noteMs, double fallMs, boo
     return out;
 }
 
+JazzGesture jazzGestureForSymbol(const std::string& n)
+{
+    if (n == "brassBend") {
+        return JazzGesture::Bend;
+    }
+    if (n.rfind("brassLift", 0) == 0) {
+        return n.find("Short") != std::string::npos ? JazzGesture::LiftShort
+               : (n.find("Long") != std::string::npos ? JazzGesture::LiftLong : JazzGesture::LiftMedium);
+    }
+    if (n == "brassSmear") {
+        return JazzGesture::Smear;
+    }
+    if (n == "brassFlip") {
+        return JazzGesture::Flip;
+    }
+    if (n == "brassValveTrill") {
+        return JazzGesture::ValveTrill;
+    }
+    return JazzGesture::None;
+}
+
+PitchCurve jazzGestureCurve(JazzGesture g, double noteMs)
+{
+    PitchCurve c;
+    if (g == JazzGesture::None || noteMs <= 0.0) {
+        return c;
+    }
+    auto at = [&](double ms) { return duration_percentage_t(std::lround(std::clamp(ms / noteMs, 0.0, 1.0) * HUNDRED_PERCENT)); };
+    auto frac = [](double f) { return duration_percentage_t(std::lround(std::clamp(f, 0.0, 1.0) * HUNDRED_PERCENT)); };
+    auto semis = [](double s) { return pitch_level_t(std::lround(s * PITCH_LEVEL_STEP)); };
+    switch (g) {
+    case JazzGesture::Bend: {
+        // down and back within the first ~40% (at most 400 ms)
+        const double span = std::min(0.4 * noteMs, 400.0);
+        c[0] = 0;
+        c[at(span * 0.15)] = 0;
+        c[at(span * 0.55)] = semis(-1.0);
+        c[at(span)] = 0;
+        c[HUNDRED_PERCENT] = 0;
+        break;
+    }
+    case JazzGesture::LiftShort:
+    case JazzGesture::LiftMedium:
+    case JazzGesture::LiftLong: {
+        const double range = g == JazzGesture::LiftShort ? 3 : (g == JazzGesture::LiftLong ? 7 : 5);
+        const double ms = g == JazzGesture::LiftShort ? 90 : (g == JazzGesture::LiftLong ? 250 : 160);
+        const double span = std::min(ms, 0.6 * noteMs);
+        c[0] = semis(-range);
+        c[at(span * 0.5)] = semis(-range * 0.35);   // fast at first, settling into the note
+        c[at(span)] = 0;
+        c[HUNDRED_PERCENT] = 0;
+        break;
+    }
+    case JazzGesture::Smear: {
+        const double span = std::min(120.0, 0.5 * noteMs);
+        c[0] = semis(-0.6);
+        c[at(span)] = 0;
+        c[HUNDRED_PERCENT] = 0;
+        break;
+    }
+    case JazzGesture::Flip: {
+        // the last ~120 ms: up a step, then down past the note
+        const double span = std::min(120.0, 0.4 * noteMs);
+        const double start = 1.0 - span / noteMs;
+        c[0] = 0;
+        c[frac(start)] = 0;
+        c[frac(start + (1.0 - start) * 0.35)] = semis(2.0);
+        c[HUNDRED_PERCENT] = semis(-1.0);
+        break;
+    }
+    case JazzGesture::ValveTrill: {
+        // about 8 wobbles a second, a quarter of a semitone wide, after the attack
+        c[0] = 0;
+        const double periodMs = 125.0;
+        double t = std::min(80.0, 0.2 * noteMs);
+        c[at(t)] = 0;
+        bool up = true;
+        while (t + periodMs / 2 < noteMs) {
+            t += periodMs / 2;
+            c[at(t)] = up ? semis(0.25) : semis(-0.25);
+            up = !up;
+        }
+        c[HUNDRED_PERCENT] = 0;
+        break;
+    }
+    case JazzGesture::None:
+        break;
+    }
+    return c;
+}
+
+static JazzGesture gestureOnChord(const Chord* chord)
+{
+    for (const Articulation* a : chord->articulations()) {
+        const muse::AsciiStringView name = SymNames::nameForSymId(a->symId());
+        const JazzGesture g = jazzGestureForSymbol(std::string(name.ascii() ? name.ascii() : ""));
+        if (g != JazzGesture::None) {
+            return g;
+        }
+    }
+    return JazzGesture::None;
+}
+
+static bool hasPitchShape(const PitchCurve& c)
+{
+    for (auto it = c.cbegin(); it != c.cend(); ++it) {
+        if (it->second != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // What the fall symbol says about its length and manner
 static bool fallFromSymbols(const Chord* chord, FallLength& length, FallStyle& style)
 {
@@ -182,7 +295,17 @@ muse::mpe::NoteEvent applyJazzFall(const Note* note, muse::mpe::NoteEvent event)
     const ArticulationMap& arts = event.expressionCtx().articulations;
     const bool quick = arts.contains(ArticulationType::QuickFall);
     if (!quick && !arts.contains(ArticulationType::Fall) && !arts.contains(ArticulationType::Doit)) {
-        return event;
+        // a bend, lift, smear, flip or valve trill MuseScore leaves flat
+        const Chord* c = note ? note->chord() : nullptr;
+        const JazzGesture g = c ? gestureOnChord(c) : JazzGesture::None;
+        if (g == JazzGesture::None || hasPitchShape(event.pitchCtx().pitchCurve)) {
+            return event;
+        }
+        PitchContext pitch = event.pitchCtx();
+        pitch.pitchCurve = jazzGestureCurve(g, double(event.arrangementCtx().actualDuration) / 1000.0);
+        ArrangementContext arrangement = event.arrangementCtx();
+        ExpressionContext expression = event.expressionCtx();
+        return muse::mpe::NoteEvent(std::move(arrangement), std::move(pitch), std::move(expression));
     }
     const Chord* chord = note ? note->chord() : nullptr;
     const Part* part = chord ? chord->part() : nullptr;
