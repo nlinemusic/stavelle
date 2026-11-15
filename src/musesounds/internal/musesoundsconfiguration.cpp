@@ -62,7 +62,11 @@ void MuseSoundsConfiguration::init()
     settings()->setDescription(CHECK_FOR_MUSESOUNDS_UPDATE_KEY, muse::trc("musesounds", "Show occasional MuseHub promotions"));
     settings()->setDefaultValue(GET_SOUNDS_TEST_MODE_KEY, Val(false));
     settings()->setDefaultValue(MUSESOUNDS_CHECK_FOR_UPDATE_TEST_MODE, Val(false));
-    settings()->setDefaultValue(SHOW_LOADING_FAILED_WARNING_KEY, Val(true));
+    // Jubelle (R0, 15 Nov 2026): MuseSounds is Muse Group's proprietary engine and
+    // doesn't start inside Jubelle, so the "MuseSounds could not be loaded" warning
+    // appeared at every start. It's off by default (the failure is still logged);
+    // MuseScore's warning itself is unchanged and can be switched back on.
+    settings()->setDefaultValue(SHOW_LOADING_FAILED_WARNING_KEY, Val(false));
 }
 
 bool MuseSoundsConfiguration::needCheckForMuseSoundsUpdate() const
