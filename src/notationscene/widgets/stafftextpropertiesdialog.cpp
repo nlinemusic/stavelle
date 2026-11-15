@@ -176,7 +176,7 @@ void StaffTextPropertiesDialog::saveValues()
             const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(m_originStaffText->score());
             if (const mu::engraving::jubelle::SwingFeel* feel = settings.feel(muse::String::fromQString(feelId))) {
                 const double bpm = m_originStaffText->score()->tempomap()->tempo(m_originStaffText->tick().ticks()).val * 60.0;
-                const int ratio = int(std::lround(mu::engraving::jubelle::SwingFeel::ratioToPercent(feel->ratioAt(bpm))));
+                const int ratio = int(std::lround(mu::engraving::jubelle::SwingFeel::ratioToPercent(feel->playedRatioAt(bpm))));
                 const int unit = feel->unit == 16 ? Constants::DIVISION / 4 : Constants::DIVISION / 2;
                 m_staffText->setSwingParameters(unit, std::max(ratio, 50));
             }

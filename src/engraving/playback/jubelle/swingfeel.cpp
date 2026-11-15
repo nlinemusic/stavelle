@@ -19,8 +19,11 @@
 
 #include "dom/chord.h"
 #include "dom/masterscore.h"
+#include "dom/articulation.h"
 #include "dom/measure.h"
 #include "dom/navigate.h"
+#include "dom/note.h"
+#include "dom/instrument.h"
 #include "dom/part.h"
 #include "dom/staff.h"
 #include "dom/tempo.h"
@@ -59,6 +62,55 @@ double SwingFeel::ratioAt(double bpm) const
     return lowTempoRatio + t * (highTempoRatio - lowTempoRatio);
 }
 
+double SwingFeel::playedRatioAt(double bpm) const
+{
+    double r = ratioAt(bpm);
+    if (minShortMs > 0 && bpm > 0) {
+        // the beat of the swing unit (a quarter for eighths) in ms
+        const double beatMs = 60000.0 / bpm * (unit == 16 ? 0.5 : 1.0);
+        const double maxRatio = beatMs / double(minShortMs) - 1.0;
+        r = std::min(r, std::max(1.0, maxRatio));
+    }
+    return r;
+}
+
+double SwingFeel::hornDelayAt(double bpm) const
+{
+    if (!roleAware) {
+        return 0.0;
+    }
+    if (highTempo <= lowTempo || bpm <= lowTempo) {
+        return hornDelayLowMs;
+    }
+    if (bpm >= highTempo) {
+        return hornDelayHighMs;
+    }
+    const double t = (bpm - lowTempo) / (highTempo - lowTempo);
+    return hornDelayLowMs + t * (hornDelayHighMs - hornDelayLowMs);
+}
+
+double SwingFeel::rhythmPlacementAt(double bpm) const
+{
+    // After Lee Bash ("Where's the Groove"): behind when slow, together at
+    // moderate tempos (about 120-180), ahead when fast
+    if (!roleAware) {
+        return 0.0;
+    }
+    if (bpm <= 100.0) {
+        return rhythmSlowMs;
+    }
+    if (bpm < 120.0) {
+        return rhythmSlowMs * (120.0 - bpm) / 20.0;
+    }
+    if (bpm <= 180.0) {
+        return 0.0;
+    }
+    if (bpm < 220.0) {
+        return rhythmFastMs * (bpm - 180.0) / 40.0;
+    }
+    return rhythmFastMs;
+}
+
 void SwingFeel::clampValues()
 {
     unit = (unit == 16) ? 16 : 8;
@@ -73,6 +125,12 @@ void SwingFeel::clampValues()
     ratio = std::clamp(ratio, 1.0, 4.0);
     offbeatLoudness = std::clamp(offbeatLoudness, 50, 120);
     offbeatLength = std::clamp(offbeatLength, 50, 100);
+    minShortMs = std::clamp(minShortMs, 0, 250);
+    hornDelayLowMs = std::clamp(hornDelayLowMs, 0.0, 80.0);
+    hornDelayHighMs = std::clamp(hornDelayHighMs, 0.0, 80.0);
+    rhythmSlowMs = std::clamp(rhythmSlowMs, -40.0, 40.0);
+    rhythmFastMs = std::clamp(rhythmFastMs, -40.0, 40.0);
+    guitarQuarterLength = std::clamp(guitarQuarterLength, 30, 100);
 }
 
 bool SwingFeel::operator==(const SwingFeel& o) const
@@ -81,7 +139,10 @@ bool SwingFeel::operator==(const SwingFeel& o) const
     return id == o.id && name == o.name && builtIn == o.builtIn && unit == o.unit && tempoDependent == o.tempoDependent
            && same(lowTempo, o.lowTempo) && same(highTempo, o.highTempo) && same(lowTempoRatio, o.lowTempoRatio)
            && same(highTempoRatio, o.highTempoRatio) && same(ratio, o.ratio)
-           && offbeatLoudness == o.offbeatLoudness && offbeatLength == o.offbeatLength;
+           && offbeatLoudness == o.offbeatLoudness && offbeatLength == o.offbeatLength
+           && minShortMs == o.minShortMs && roleAware == o.roleAware && same(hornDelayLowMs, o.hornDelayLowMs)
+           && same(hornDelayHighMs, o.hornDelayHighMs) && same(rhythmSlowMs, o.rhythmSlowMs) && same(rhythmFastMs, o.rhythmFastMs)
+           && guitarQuarterLength == o.guitarQuarterLength && hornArticulation == o.hornArticulation;
 }
 
 static SwingFeel makeFixed(const char16_t* id, const char16_t* name, double ratio)
@@ -113,25 +174,64 @@ static SwingFeel makeTempoDependent(const char16_t* id, const char16_t* name, do
 
 const std::vector<SwingFeel>& builtInFeels()
 {
-    // Light, Medium and Heavy follow Dorico's idea of tempo-dependent feels
-    // (more swing when slow, straighter when fast). Basie is as approved on
-    // 14 Nov 2026: about 2.2:1 at 100 bpm and below, easing to about 1.6:1
-    // at 220 bpm and above, offbeats about 8% softer and 90% of their length.
+    // Swing v2 (R5, 15 Nov 2026), from the research summary in "Windows Build
+    // Refinement Phase", section 2. The four swing presets are spread apart so
+    // they are clearly different at real big-band tempos (at 160 bpm the
+    // offbeat lands about 212, 246, 262 and 277 ms after the beat; straight is
+    // 188 ms), instead of the 10-25 ms that separated them before.
+    //  - Light: soloist-like, only slightly uneven (Corcoran & Frieler: about
+    //    1.3:1 is typical in solos).
+    //  - Medium: a moderate triplet feel at medium tempos.
+    //  - Heavy: a strong, shuffle-like swing that stays uneven at speed.
+    //  - Basie: role-aware. Drums and rhythm section follow the drummers' ride
+    //    curve (Friberg & Sundstrom 2002: about 3:1 slow, 2:1 at medium-fast,
+    //    flattening when fast, the short note not much under 100 ms). Horns
+    //    keep their offbeats with the drums and sit a little behind on the
+    //    beat (Friberg & Sundstrom 2002; Datseris et al. 2019). Guitar plays a
+    //    short, light, even four (Freddie Green). The rhythm section is a
+    //    little behind when slow, together at 120-180, a little ahead when fast
+    //    (Lee Bash). Horn phrasing as taught for Basie charts: short quarters,
+    //    long eighths except before a rest, accented syncopations. No study
+    //    measures the Basie band's own recordings, so the delay and placement
+    //    amounts are moderate starting points, adjustable, for listening.
     static const std::vector<SwingFeel> feels = [] {
         std::vector<SwingFeel> v;
         v.push_back(makeFixed(u"straight", u"Straight", 1.0));
-        v.push_back(makeTempoDependent(u"light", u"Light swing", 80, 240, 1.5, 1.2));
-        v.push_back(makeTempoDependent(u"medium", u"Medium swing", 80, 240, 2.0, 1.4));
-        v.push_back(makeTempoDependent(u"heavy", u"Heavy swing", 80, 240, 3.0, 1.5));
+        v.push_back(makeTempoDependent(u"light", u"Light swing", 80, 240, 1.45, 1.15));
+        v.push_back(makeTempoDependent(u"medium", u"Medium swing", 80, 240, 2.1, 1.7));
+        v.push_back(makeTempoDependent(u"heavy", u"Heavy swing", 80, 240, 3.0, 2.6));
         v.push_back(makeFixed(u"fixed21", u"Swing 2:1 (triplet)", 2.0));
         v.push_back(makeFixed(u"fixed31", u"Swing 3:1 (dotted)", 3.0));
-        SwingFeel basie = makeTempoDependent(u"basie", u"Basie swing", 100, 220, 2.2, 1.6);
-        basie.offbeatLoudness = 92;
-        basie.offbeatLength = 90;
+        SwingFeel basie = makeTempoDependent(u"basie", u"Basie swing", 80, 200, 3.0, 2.0);
+        basie.minShortMs = 100;
+        basie.roleAware = true;
+        basie.hornDelayLowMs = 25.0;
+        basie.hornDelayHighMs = 12.0;
+        basie.rhythmSlowMs = 10.0;
+        basie.rhythmFastMs = -8.0;
+        basie.guitarQuarterLength = 55;
+        basie.hornArticulation = true;
         v.push_back(basie);
         return v;
     }();
     return feels;
+}
+
+SwingRole swingRoleFor(const String& id, bool drumStaff)
+{
+    if (drumStaff || id.startsWith(u"drum.") || id.startsWith(u"metal.cymbal") || id.startsWith(u"metal.hi-hat")) {
+        return SwingRole::Drums;
+    }
+    if (id.startsWith(u"pluck.bass") || id == u"strings.contrabass") {
+        return SwingRole::Bass;
+    }
+    if (id.startsWith(u"pluck.guitar")) {
+        return SwingRole::Guitar;
+    }
+    if (id.startsWith(u"keyboard.") || id == u"pitched-percussion.vibraphone") {
+        return SwingRole::Keyboard;
+    }
+    return SwingRole::Horn;
 }
 
 static const SwingFeel* findBuiltIn(const String& id)
@@ -271,7 +371,19 @@ String SwingSettings::toText() const
         out << "feel id=" << encodeName(f.id) << " name=" << encodeName(f.name) << " unit=" << f.unit
             << " tempo=" << (f.tempoDependent ? 1 : 0) << " low=" << f.lowTempo << " high=" << f.highTempo
             << " lowRatio=" << f.lowTempoRatio << " highRatio=" << f.highTempoRatio << " ratio=" << f.ratio
-            << " loud=" << f.offbeatLoudness << " len=" << f.offbeatLength << '\n';
+            << " loud=" << f.offbeatLoudness << " len=" << f.offbeatLength;
+        // Swing v2 values, only when used (older Jubelle builds ignore them)
+        if (f.minShortMs != 0) {
+            out << " minShort=" << f.minShortMs;
+        }
+        if (f.roleAware) {
+            out << " roles=1 hornLow=" << f.hornDelayLowMs << " hornHigh=" << f.hornDelayHighMs
+                << " rhythmSlow=" << f.rhythmSlowMs << " rhythmFast=" << f.rhythmFastMs << " guitarLen=" << f.guitarQuarterLength;
+        }
+        if (f.hornArticulation) {
+            out << " phrasing=1";
+        }
+        out << '\n';
     }
     return String::fromStdString(out.str());
 }
@@ -361,6 +473,22 @@ SwingSettings SwingSettings::fromText(const String& text)
                         f.offbeatLoudness = std::stoi(v);
                     } else if (key == "len") {
                         f.offbeatLength = std::stoi(v);
+                    } else if (key == "minShort") {
+                        f.minShortMs = std::stoi(v);
+                    } else if (key == "roles") {
+                        f.roleAware = std::stoi(v) != 0;
+                    } else if (key == "hornLow") {
+                        f.hornDelayLowMs = std::stod(v);
+                    } else if (key == "hornHigh") {
+                        f.hornDelayHighMs = std::stod(v);
+                    } else if (key == "rhythmSlow") {
+                        f.rhythmSlowMs = std::stod(v);
+                    } else if (key == "rhythmFast") {
+                        f.rhythmFastMs = std::stod(v);
+                    } else if (key == "guitarLen") {
+                        f.guitarQuarterLength = std::stoi(v);
+                    } else if (key == "phrasing") {
+                        f.hornArticulation = std::stoi(v) != 0;
                     }
                 }
                 if (!f.id.isEmpty()) {
@@ -443,6 +571,7 @@ SwingTiming swingTimingForRatio(const Chord* chord, int swingUnit, double ratioP
     if (startTick % swingBeat == swingUnit && !isSubdivided(chord, swingUnit)) {
         t.startShift = adjust;
         t.durationFactor -= adjust;
+        t.offbeat = true;
         if (offbeat) {
             *offbeat = true;
         }
@@ -522,14 +651,89 @@ SwingTiming swingTiming(const Chord* chord)
     }
 
     const double bpm = score->tempomap()->tempo(chord->tick().ticks()).val * 60.0;
-    const double percent = SwingFeel::ratioToPercent(feel->ratioAt(bpm));
-    const int unitTicks = Constants::DIVISION / (feel->unit == 16 ? 4 : 2);
+    SwingRole role = SwingRole::Horn;
+    if (feel->roleAware && chord->part()) {
+        const Instrument* instrument = chord->part()->instrument(chord->tick());
+        role = swingRoleFor(instrument ? instrument->musicXmlId() : String(), chord->staff()->isDrumStaff(chord->tick()));
+    }
+    return swingTimingForFeel(chord, *feel, bpm, role);
+}
+
+static bool hasTieForward(const Chord* chord)
+{
+    for (const Note* n : chord->notes()) {
+        if (n->tieFor()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool followedByRest(const Chord* chord)
+{
+    const ChordRest* next = nextChordRest(chord);
+    return !next || next->isRest();
+}
+
+SwingTiming swingTimingForFeel(const Chord* chord, const SwingFeel& feel, double bpm, SwingRole role)
+{
+    // Horn phrasing amounts (playback only)
+    static constexpr double SHORT_QUARTER = 0.65;   // "dit": short, not staccato
+    static constexpr double CLIPPED_EIGHTH = 0.5;   // the last eighth before a rest
+    static constexpr double ACCENT = 1.12;          // phrase-end and syncopated notes
+
+    const double percent = SwingFeel::ratioToPercent(feel.playedRatioAt(bpm));
+    const int unitTicks = Constants::DIVISION / (feel.unit == 16 ? 4 : 2);
 
     bool offbeat = false;
     SwingTiming t = swingTimingForRatio(chord, unitTicks, percent, &offbeat);
     if (offbeat) {
-        t.durationFactor *= feel->offbeatLength / 100.0;
-        t.loudnessFactor = feel->offbeatLoudness / 100.0;
+        t.durationFactor *= feel.offbeatLength / 100.0;
+        t.loudnessFactor = feel.offbeatLoudness / 100.0;
+    }
+    if (!feel.roleAware || !chord || !chord->measure() || bpm <= 0) {
+        return t;
+    }
+
+    const int ticks = chord->actualTicks().ticks();
+    if (ticks <= 0) {
+        return t;
+    }
+    const double chordMs = double(ticks) / Constants::DIVISION * 60000.0 / bpm;
+    const int startTick = (chord->rtick() + chord->measure()->anacrusisOffset()).ticks();
+    const bool onBeat = startTick % (unitTicks * 2) == 0;
+
+    if (role == SwingRole::Horn) {
+        // On the beat a little behind, ending where it would have; offbeats stay with the drums
+        const double delay = feel.hornDelayAt(bpm);
+        if (onBeat && delay > 0.0) {
+            const double shift = std::min(delay / chordMs, 0.25);
+            t.startShift += shift;
+            t.durationFactor -= shift;
+        }
+        if (feel.hornArticulation && chord->articulations().empty() && !hasTieForward(chord)) {
+            if (ticks == Constants::DIVISION && onBeat) {
+                t.durationFactor *= SHORT_QUARTER;
+            } else if (ticks == unitTicks && followedByRest(chord)) {
+                t.durationFactor *= CLIPPED_EIGHTH;
+                t.loudnessFactor *= ACCENT;
+            }
+        }
+        if (feel.hornArticulation && offbeat && (ticks > unitTicks || hasTieForward(chord))) {
+            t.loudnessFactor *= ACCENT;   // a syncopation: pushed and lifted
+        }
+    } else {
+        // The rhythm section sits behind, with or ahead of the band, by tempo
+        const double placement = feel.rhythmPlacementAt(bpm);
+        if (placement != 0.0) {
+            t.startShift += std::clamp(placement / chordMs, -0.25, 0.25);
+        }
+        if (role == SwingRole::Guitar && ticks == Constants::DIVISION && onBeat && !hasTieForward(chord)) {
+            t.durationFactor *= feel.guitarQuarterLength / 100.0;
+        }
+    }
+    if (t.durationFactor <= 0.05) {
+        t.durationFactor = 0.05;
     }
     return t;
 }

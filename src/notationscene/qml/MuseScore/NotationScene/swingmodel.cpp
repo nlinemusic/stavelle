@@ -39,6 +39,39 @@ QString SwingModel::displayName(const SwingFeel& feel)
     return muse::qtrc("notation", feel.name.toStdString().c_str());
 }
 
+//! Swing v2: one line about each built-in feel, shown under the choice
+static QString describe(const SwingFeel& feel)
+{
+    if (!feel.builtIn) {
+        return muse::qtrc("notation", "Your own feel.");
+    }
+    if (feel.id == u"straight") {
+        return muse::qtrc("notation", "Even eighths, no swing.");
+    }
+    if (feel.id == u"light") {
+        return muse::qtrc("notation", "Only slightly uneven, like many soloists; straighter as the tempo rises.");
+    }
+    if (feel.id == u"medium") {
+        return muse::qtrc("notation", "A moderate triplet feel at medium tempos.");
+    }
+    if (feel.id == u"heavy") {
+        return muse::qtrc("notation", "A strong, shuffle-like swing that stays uneven at fast tempos.");
+    }
+    if (feel.id == u"fixed21") {
+        return muse::qtrc("notation", "Exact triplet swing (2:1) at every tempo.");
+    }
+    if (feel.id == u"fixed31") {
+        return muse::qtrc("notation", "Exact dotted swing (3:1) at every tempo.");
+    }
+    if (feel.id == u"basie") {
+        return muse::qtrc("notation", "Big-band swing in the Basie manner: drums and rhythm section lead the swing, "
+                                      "horns sit slightly behind on the beat, guitar plays a short, even four, and horns "
+                                      "phrase with short quarters and accented syncopations. Based on published research "
+                                      "and Basie practice; adjustable.");
+    }
+    return QString();
+}
+
 // Built-in names, for the translators
 [[maybe_unused]] static const char* JUBELLE_SWING_BUILT_IN_NAMES[] = {
     QT_TRANSLATE_NOOP("notation", "Straight"),
@@ -86,6 +119,7 @@ QVariantList SwingModel::feelChoices() const
         QVariantMap m;
         m["text"] = displayName(f);
         m["id"] = f.id.toQString();
+        m["description"] = describe(f);
         list << m;
     }
     return list;
@@ -198,6 +232,16 @@ QVariantMap SwingModel::editedFeel() const
     m["offbeatLoudness"] = f.offbeatLoudness;
     m["offbeatLength"] = f.offbeatLength;
     m["isStraight"] = f.id == u"straight";
+    m["description"] = describe(f);
+    // Swing v2
+    m["minShortMs"] = f.minShortMs;
+    m["roleAware"] = f.roleAware;
+    m["hornDelayLowMs"] = f.hornDelayLowMs;
+    m["hornDelayHighMs"] = f.hornDelayHighMs;
+    m["rhythmSlowMs"] = f.rhythmSlowMs;
+    m["rhythmFastMs"] = f.rhythmFastMs;
+    m["guitarQuarterLength"] = f.guitarQuarterLength;
+    m["hornArticulation"] = f.hornArticulation;
     return m;
 }
 
@@ -232,6 +276,22 @@ void SwingModel::setFeelValue(const QString& key, const QVariant& value)
         f.offbeatLoudness = value.toInt();
     } else if (key == "offbeatLength") {
         f.offbeatLength = value.toInt();
+    } else if (key == "minShortMs") {
+        f.minShortMs = value.toInt();
+    } else if (key == "roleAware") {
+        f.roleAware = value.toBool();
+    } else if (key == "hornDelayLowMs") {
+        f.hornDelayLowMs = value.toDouble();
+    } else if (key == "hornDelayHighMs") {
+        f.hornDelayHighMs = value.toDouble();
+    } else if (key == "rhythmSlowMs") {
+        f.rhythmSlowMs = value.toDouble();
+    } else if (key == "rhythmFastMs") {
+        f.rhythmFastMs = value.toDouble();
+    } else if (key == "guitarQuarterLength") {
+        f.guitarQuarterLength = value.toInt();
+    } else if (key == "hornArticulation") {
+        f.hornArticulation = value.toBool();
     } else {
         return;
     }

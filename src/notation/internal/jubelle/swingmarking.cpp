@@ -65,7 +65,7 @@ String swingMarkingXmlText(const Score* score, const SwingSettings& settings, co
     // the tempo where the marking stands
     const Segment* seg = markingSegment(score);
     const double bpm = seg ? score->tempomap()->tempo(seg->tick().ticks()).val * 60.0 : 120.0;
-    const bool dotted = feel->ratioAt(bpm) >= 2.75;
+    const bool dotted = feel->playedRatioAt(bpm) >= 2.75;
     TripletFeelType type;
     if (feel->unit == 16) {
         type = dotted ? TripletFeelType::DOTTED_16TH : TripletFeelType::TRIPLET_16TH;

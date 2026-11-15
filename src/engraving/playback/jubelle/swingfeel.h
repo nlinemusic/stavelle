@@ -55,6 +55,22 @@ struct SwingFeel {
     int offbeatLoudness = 100;   // % of the normal loudness for swung offbeats
     int offbeatLength = 100;     // % of their swung length
 
+    // Swing v2 (R5, 15 Nov 2026). All off by default, so older feels play as before.
+    int minShortMs = 0;              // the short note is never shorter than this (0 = no limit)
+    bool roleAware = false;          // drums and rhythm section, and horns, play differently:
+    double hornDelayLowMs = 0.0;     //   horns' on-beat notes this much behind (at lowTempo..highTempo);
+    double hornDelayHighMs = 0.0;    //   their offbeats stay with the drums
+    double rhythmSlowMs = 0.0;       //   rhythm section: + behind / - ahead of the band at 100 bpm and slower,
+    double rhythmFastMs = 0.0;       //   aligned at 120-180, and this at 220 bpm and faster
+    int guitarQuarterLength = 100;   //   guitar quarter notes, % of their length (a short, light "four")
+    bool hornArticulation = false;   // Basie-style horn phrasing, in playback only
+
+    //! The long:short ratio played at a tempo, with the minimum short note applied
+    double playedRatioAt(double bpm) const;
+    //! Horns' delay on the beat, and the rhythm section's placement, at a tempo (ms)
+    double hornDelayAt(double bpm) const;
+    double rhythmPlacementAt(double bpm) const;
+
     //! The long:short ratio played at a tempo (quarter notes per minute)
     double ratioAt(double bpm) const;
     //! Long note as a percentage of the beat (MuseScore's "swing ratio")
@@ -67,6 +83,16 @@ struct SwingFeel {
 
 //! Straight, Light, Medium, Heavy, 2:1, 3:1, Basie
 const std::vector<SwingFeel>& builtInFeels();
+
+//! Swing v2: how an instrument takes part in a role-aware feel
+enum class SwingRole {
+    Horn,       // winds, brass, voices, strings, anything else: the front line
+    Drums,      // drum kit and other unpitched percussion
+    Guitar,
+    Bass,       // double bass, bass guitar
+    Keyboard,   // piano, organ, vibraphone...: with the rhythm section
+};
+SwingRole swingRoleFor(const muse::String& instrumentSoundId, bool drumStaff);
 
 //! Jubelle Phase 5C: the automatic swing marking near the first tempo marking
 enum class SwingMarkingStyle {
@@ -112,6 +138,7 @@ struct SwingTiming {
     double startShift = 0.0;       // fraction of the written duration to start later
     double durationFactor = 1.0;   // multiplies the written duration
     double loudnessFactor = 1.0;   // multiplies the loudness
+    bool offbeat = false;          // a swung (delayed) note
 };
 
 //! Precedence: a Jubelle Swing text in the score, then the instrument's feel,
@@ -124,4 +151,7 @@ SwingTiming swingTiming(const Chord* chord);
 //! The same timing rule MuseScore uses, with a precise ratio (in percent).
 //! `offbeat` is set when the chord is a swung (delayed) note.
 SwingTiming swingTimingForRatio(const Chord* chord, int swingUnitTicks, double ratioPercent, bool* offbeat = nullptr);
+
+//! A feel applied to one chord at a tempo, for an instrument's role
+SwingTiming swingTimingForFeel(const Chord* chord, const SwingFeel& feel, double bpm, SwingRole role);
 }

@@ -17,6 +17,7 @@
       <Instrument>
         <longName>Trumpet</longName>
         <trackName>Trumpet</trackName>
+        <instrumentId>brass.trumpet</instrumentId>
         <Channel>
           <program value="0"/>
           </Channel>
@@ -33,6 +34,7 @@
       <Instrument>
         <longName>Alto Sax</longName>
         <trackName>Alto Sax</trackName>
+        <instrumentId>wind.reed.saxophone.alto</instrumentId>
         <Channel>
           <program value="0"/>
           </Channel>

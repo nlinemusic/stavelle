@@ -313,6 +313,9 @@ void NoteRenderer::applySwingIfNeed(const Note* note, NominalNoteCtx& noteCtx)
     if (feel.jubelleFeel) {
         const duration_t additional = noteCtx.duration - noteCtx.chordCtx.nominalDuration;
         noteCtx.timestamp += static_cast<timestamp_t>(std::llround(noteCtx.chordCtx.nominalDuration * feel.startShift));
+        if (noteCtx.timestamp < 0) {
+            noteCtx.timestamp = 0;   // "ahead of the band" can't start before the music does
+        }
         noteCtx.duration = static_cast<duration_t>(std::llround(noteCtx.chordCtx.nominalDuration * feel.durationFactor)) + additional;
         if (feel.loudnessFactor != 1.0) {
             noteCtx.dynamicLevel = static_cast<dynamic_level_t>(std::lround(noteCtx.dynamicLevel * feel.loudnessFactor));
