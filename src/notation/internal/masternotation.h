@@ -26,6 +26,7 @@
 #include "async/notification.h"
 
 #include "notation.h"
+#include "engraving/iengravingconfiguration.h"
 #include "../imasternotation.h"
 
 namespace mu::engraving {
@@ -39,6 +40,9 @@ class NotationProject;
 namespace mu::notation {
 class MasterNotation : public IMasterNotation, public Notation, public std::enable_shared_from_this<MasterNotation>
 {
+    // Jubelle: to know whether the user has their own default style file
+    muse::GlobalInject<engraving::IEngravingConfiguration> engravingConfiguration;
+
 public:
     ~MasterNotation();
 

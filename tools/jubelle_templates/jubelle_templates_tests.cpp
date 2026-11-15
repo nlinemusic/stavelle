@@ -407,7 +407,15 @@ TEST(Jubelle_TemplateLayout, RefinedOriginalsFitTheirPages)
 {
     REQUIRE_REALISTIC_METRICS();
     jubelle_templates::loadInstrumentData();
+    std::vector<const char*> paths;
     for (const jubelle_templates::Refinement& r : jubelle_templates::refinements()) {
+        paths.push_back(r.path);
+    }
+    for (const jubelle_templates::BigBandFamily& f : jubelle_templates::bigBandFamily()) {
+        paths.push_back(f.path);
+    }
+    for (const char* path : paths) {
+        struct { const char* path; } r { path };
         std::unique_ptr<MasterScore> s(jubelle_templates::readTemplate(TEMPLATES + r.path));
         ASSERT_TRUE(s) << r.path;
         for (bool international : { false, true }) {
@@ -426,4 +434,68 @@ TEST(Jubelle_TemplateLayout, RefinedOriginalsFitTheirPages)
             }
         }
     }
+}
+
+TEST(Jubelle_Templates, BigBandFamily)
+{
+    // T3 new templates, T6 instrumentation
+    jubelle_templates::loadInstrumentData();
+    auto load = [](const char* path) {
+        return std::unique_ptr<MasterScore>(jubelle_templates::readTemplate(TEMPLATES + path));
+    };
+    auto ids = [](const MasterScore* s) {
+        std::vector<String> v;
+        for (const Part* p : s->parts()) {
+            v.push_back(p->hasDrumStaff() ? String(u"drums") : p->instrument()->id());
+        }
+        return v;
+    };
+    auto vocal = load("05-Jazz/04-Big_Band_+_Vocal/04-Big_Band_+_Vocal.mscx");
+    ASSERT_TRUE(vocal);
+    ASSERT_EQ(vocal->parts().size(), 18u);
+    EXPECT_EQ(vocal->parts()[13]->instrument()->id(), String(u"voice")) << "vocal above the rhythm section";
+    EXPECT_EQ(vocal->parts()[14]->instrument()->id(), String(u"piano"));
+    EXPECT_TRUE(near(vocal->style().styleD(Sid::pageWidth), 17.0));
+
+    auto tentet = load("05-Jazz/05-Little_Big_Band/05-Little_Big_Band.mscx");
+    ASSERT_TRUE(tentet);
+    const std::vector<String> tentetIds { u"alto-saxophone", u"tenor-saxophone", u"baritone-saxophone", u"bb-trumpet", u"bb-trumpet",
+                                          u"trombone", u"piano", u"electric-guitar", u"double-bass-plucked", u"drums" };
+    EXPECT_EQ(ids(tentet.get()), tentetIds);
+    EXPECT_EQ(tentet->parts()[0]->longName(), String(u"Alto Sax"));
+
+    auto octet = load("05-Jazz/06-Jazz_Octet/06-Jazz_Octet.mscx");
+    ASSERT_TRUE(octet);
+    const std::vector<String> octetIds { u"alto-saxophone", u"tenor-saxophone", u"bb-trumpet", u"trombone",
+                                         u"piano", u"electric-guitar", u"double-bass-plucked", u"drums" };
+    EXPECT_EQ(ids(octet.get()), octetIds);
+    EXPECT_EQ(octet->parts()[2]->longName(), String(u"Trumpet"));
+
+    auto studio = load("05-Jazz/07-Studio_Orchestra/07-Studio_Orchestra.mscx");
+    ASSERT_TRUE(studio);
+    ASSERT_EQ(studio->parts().size(), 21u);
+    EXPECT_EQ(studio->parts()[19]->instrument()->id(), String(u"viola"));
+    EXPECT_TRUE(near(studio->style().styleD(Sid::pageWidth), 11.0)) << "11x17 portrait";
+    EXPECT_EQ(sectionBracket(studio->parts()[17]->staff(0)), 4u) << "strings bracketed";
+
+    for (const auto* s : { vocal.get(), tentet.get(), octet.get(), studio.get() }) {
+        EXPECT_TRUE(s->first()->isVBox());
+        EXPECT_EQ(s->style().styleSt(Sid::musicalSymbolFont), String(u"Leland"));
+    }
+    EXPECT_EQ(vocal->metaTag(u"workTitle"), String(u"Big Band + Vocal"));
+}
+
+TEST(Jubelle_Templates, GeneralStyleForBlankScores)
+{
+    // Scores made with "Choose instruments": Jubelle's general house style,
+    // keeping the default page and staff size
+    MStyle st = DefaultStyle::baseStyle();
+    const double w = st.styleD(Sid::pageWidth), h = st.styleD(Sid::pageHeight), sp = st.spatium();
+    jt::applyGeneralStyle(st);
+    EXPECT_DOUBLE_EQ(st.styleD(Sid::pageWidth), w);
+    EXPECT_DOUBLE_EQ(st.styleD(Sid::pageHeight), h);
+    EXPECT_DOUBLE_EQ(st.spatium(), sp);
+    EXPECT_TRUE(near(st.styleD(Sid::pageOddLeftMargin), 0.6));
+    EXPECT_TRUE(near(st.styleD(Sid::pagePrintableWidth), w - 1.2));
+    EXPECT_EQ(st.styleS(Sid::minSystemDistance).val(), 9.5);
 }

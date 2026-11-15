@@ -102,6 +102,23 @@ void setPage(MStyle& style, const PageSizeInch& portrait, bool landscape)
     style.set(Sid::pagePrintableWidth, w - left - right);
 }
 
+void applyGeneralStyle(MStyle& style)
+{
+    const double side = 0.6;   // inches
+    const double width = style.styleD(Sid::pageWidth);
+    style.set(Sid::pageOddLeftMargin, side);
+    style.set(Sid::pageEvenLeftMargin, side);
+    style.set(Sid::pagePrintableWidth, width - 2 * side);
+    style.set(Sid::pageOddTopMargin, 0.5);
+    style.set(Sid::pageEvenTopMargin, 0.5);
+    style.set(Sid::pageOddBottomMargin, 0.5);
+    style.set(Sid::pageEvenBottomMargin, 0.5);
+    style.set(Sid::minSystemDistance, Spatium(9.5));
+    style.set(Sid::maxSystemDistance, Spatium(16.0));
+    style.set(Sid::enableIndentationOnFirstSystem, true);
+    style.precomputeValues();
+}
+
 bool applyTemplatePageClass(MasterScore* score, double defaultW, double defaultH)
 {
     if (!score) {

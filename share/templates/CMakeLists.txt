@@ -94,6 +94,10 @@ install(DIRECTORY
       05-Jazz/01-Jazz_Lead_Sheet
       05-Jazz/02-Big_Band
       05-Jazz/03-Jazz_Combo
+      05-Jazz/04-Big_Band_+_Vocal
+      05-Jazz/05-Little_Big_Band
+      05-Jazz/06-Jazz_Octet
+      05-Jazz/07-Studio_Orchestra
       DESTINATION ${Mscore_SHARE_NAME}${Mscore_INSTALL_NAME}templates/05-Jazz
       )
 

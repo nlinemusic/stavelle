@@ -313,6 +313,11 @@ void MasterNotation::applyOptions(mu::engraving::MasterScore* score, const Score
         mu::notation::jubelle::applyTemplatePageClass(score,
                                                       DefaultStyle::defaultStyle().styleD(Sid::pageWidth),
                                                       DefaultStyle::defaultStyle().styleD(Sid::pageHeight));
+    } else if (engravingConfiguration()->defaultStyleFilePath().empty()) {
+        // Jubelle: scores made with "Choose instruments" get Jubelle's general
+        // house style (decided 15 Nov 2026), unless the user has a default style
+        // file of their own; the page size stays the user's default
+        mu::notation::jubelle::applyGeneralStyle(score->style());
     }
 
     score->checkChordList();

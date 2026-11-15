@@ -586,6 +586,102 @@ MasterScore* buildBigBand(const std::string& originalsDir)
     return score;
 }
 
+void setTitle(MasterScore* score, const String& title)
+{
+    score->setMetaTag(u"workTitle", title);
+    MeasureBase* first = score->first();
+    if (!first || !first->isVBox()) {
+        return;
+    }
+    for (EngravingItem* e : first->el()) {
+        if (e->isText() && toText(e)->textStyleType() == TextStyleType::TITLE) {
+            toText(e)->setPlainText(title);
+        }
+    }
+}
+
+const std::vector<BigBandFamily>& bigBandFamily()
+{
+    static const std::vector<BigBandFamily> f {
+        { "05-Jazz/04-Big_Band_+_Vocal/04-Big_Band_+_Vocal.mscx", u"Big Band + Vocal" },
+        { "05-Jazz/05-Little_Big_Band/05-Little_Big_Band.mscx", u"Little Big Band" },
+        { "05-Jazz/06-Jazz_Octet/06-Jazz_Octet.mscx", u"Jazz Octet" },
+        { "05-Jazz/07-Studio_Orchestra/07-Studio_Orchestra.mscx", u"Studio Orchestra" },
+    };
+    return f;
+}
+
+MasterScore* buildBigBandFamily(const std::string& originalsDir, const BigBandFamily& which)
+{
+    MasterScore* score = buildBigBand(originalsDir);
+    if (!score) {
+        return nullptr;
+    }
+    // The Big Band's parts: 0-4 saxes, 5-8 trumpets, 9-12 trombones, 13 piano,
+    // 14 guitar, 15 bass, 16 drums
+    std::vector<Part*> bb(score->parts().begin(), score->parts().end());
+    const String title = which.title;
+    auto removeParts = [&](const std::vector<size_t>& indices) {
+        score->startCmd(muse::TranslatableString::untranslatable("Jubelle template"));
+        for (size_t i : indices) {
+            score->cmdRemovePart(bb[i]);
+        }
+        score->endCmd();
+    };
+    auto appendPart = [&](const char16_t* id, const char16_t* longName, const char16_t* shortName) -> Part* {
+        score->startCmd(muse::TranslatableString::untranslatable("Jubelle template"));
+        score->appendPart(searchTemplate(id));
+        score->endCmd();
+        Part* p = score->parts().back();
+        setNames(p, longName, shortName);
+        return p;
+    };
+
+    HouseStyle style = bigBandStyle();
+    if (title == u"Big Band + Vocal") {
+        Part* voc = appendPart(u"voice", u"Vocal", u"Voc.");
+        std::vector<Part*> order(bb.begin(), bb.begin() + 13);
+        order.push_back(voc);                       // above the rhythm section
+        order.insert(order.end(), bb.begin() + 13, bb.end());
+        reorderParts(score, order);
+    } else if (title == u"Little Big Band") {
+        removeParts({ 1, 3, 7, 8, 10, 11, 12 });    // alto 2, tenor 2, trumpets 3-4, trombones 2-4
+        setNames(bb[0], u"Alto Sax", u"A. Sx.");
+        setNames(bb[2], u"Tenor Sax", u"T. Sx.");
+        setNames(bb[9], u"Trombone", u"Tbn.");
+    } else if (title == u"Jazz Octet") {
+        removeParts({ 1, 3, 4, 6, 7, 8, 10, 11, 12 });
+        setNames(bb[0], u"Alto Sax", u"A. Sx.");
+        setNames(bb[2], u"Tenor Sax", u"T. Sx.");
+        setNames(bb[5], u"Trumpet", u"Tpt.");
+        setNames(bb[9], u"Trombone", u"Tbn.");
+    } else if (title == u"Studio Orchestra") {
+        std::vector<Part*> strings;
+        strings.push_back(appendPart(u"violin", u"Violins I", u"Vln. I"));
+        strings.push_back(appendPart(u"violin", u"Violins II", u"Vln. II"));
+        strings.push_back(appendPart(u"viola", u"Violas", u"Vla."));
+        strings.push_back(appendPart(u"violoncello", u"Cellos", u"Vc."));
+        style.pageClass = u"11x17";                 // portrait: 22 staves (T6)
+        style.spatiumMm = 1.3;
+        style.values.push_back({ Sid::minMeasureWidth, Spatium(24.0), true });  // portrait: fewer bars a system
+    }
+    applyScoreOrder(score, u"bigband");
+    if (title == u"Studio Orchestra") {
+        // The strings (not part of the big-band order) under their own bracket
+        const staff_idx_t first = score->parts()[17]->staff(0)->idx();
+        for (staff_idx_t i = first; i < first + 4; ++i) {
+            Staff* st = score->staff(i);
+            st->setBracketType(0, i == first ? BracketType::NORMAL : BracketType::NO_BRACKET);
+            st->setBracketSpan(0, i == first ? 4 : 0);
+            st->setBarLineSpan(i + 1 < first + 4);
+        }
+    }
+    applyHouseStyle(score, style);
+    setTitle(score, title);
+    fitStaffSize(score);
+    return score;
+}
+
 int buildAll(const std::string& originalsDir, const std::string& outDir)
 {
     int failures = 0;
@@ -610,6 +706,14 @@ int buildAll(const std::string& originalsDir, const std::string& outDir)
     } else {
         ++failures;
     }
+    for (const BigBandFamily& f : bigBandFamily()) {
+        MasterScore* s = buildBigBandFamily(originalsDir, f);
+        if (!s || !writeTemplate(s, outDir + "/" + f.path)) {
+            ++failures;
+        }
+        delete s;
+    }
+
     // MuseScore's original templates, refined in place (T5) with Jubelle's
     // house styles and page sizes (T4, T6)
     for (const Refinement& r : refinements()) {

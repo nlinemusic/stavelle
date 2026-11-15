@@ -63,6 +63,11 @@ bool isUsPaper(double widthInch, double heightInch);
 //! width becomes the page width minus both side margins.
 void setPage(mu::engraving::MStyle& style, const PageSizeInch& portrait, bool landscape);
 
+//! Jubelle's general house style for scores made without a template ("Choose
+//! instruments"): margins, system spacing and the first-system indent. The page
+//! size and staff size are left as the user's defaults.
+void applyGeneralStyle(mu::engraving::MStyle& style);
+
 //! Applies the template's page class to a newly created score, choosing US or
 //! international by the default page size, then removes the tag. Does nothing
 //! (and returns false) if the score has no page class.

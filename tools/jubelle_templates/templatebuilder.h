@@ -111,6 +111,18 @@ const std::vector<SoloWithPiano>& soloWithPianoTemplates();
 //! The Big Band redesign (T1): order, bass trombone, names, house style.
 mu::engraving::MasterScore* buildBigBand(const std::string& originalsDir);
 
+//! The new big-band-family templates (T3, instrumentation T6), made from the
+//! redesigned Big Band: Big Band + Vocal, Little Big Band, Jazz Octet, Studio Orchestra
+struct BigBandFamily {
+    const char* path;
+    const char16_t* title;
+};
+const std::vector<BigBandFamily>& bigBandFamily();
+mu::engraving::MasterScore* buildBigBandFamily(const std::string& originalsDir, const BigBandFamily& which);
+
+//! Sets the title in the title frame (New Score lists templates by it) and the work title
+void setTitle(mu::engraving::MasterScore* score, const muse::String& title);
+
 //! Builds every template that has been designed so far into outDir (same
 //! relative paths as share/templates). Returns the number of failures.
 int buildAll(const std::string& originalsDir, const std::string& outDir);
