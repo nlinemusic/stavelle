@@ -88,6 +88,15 @@ Column {
         ]
     }
 
+    JubelleRepeatPlaybackHeader {
+        id: jubelleRepeatHeader
+        visible: root.model.showPlayCount
+        model: root.model
+        note: qsTrc("inspector", "Only playback changes; the repeat signs stay in the score.")
+        navigationPanel: root.navigationPanel
+        navigationRowStart: repeatStyleSection.navigationRowEnd + 1
+    }
+
     SpinBoxPropertyView {
         id: playCount
         visible: root.model.showPlayCount
@@ -97,7 +106,7 @@ Column {
 
         navigationName: "Play count"
         navigationPanel: root.navigationPanel
-        navigationRowStart: repeatStyleSection.navigationRowEnd + 1
+        navigationRowStart: jubelleRepeatHeader.navigationRowEnd + 1
 
         step: 1
         minValue: 2

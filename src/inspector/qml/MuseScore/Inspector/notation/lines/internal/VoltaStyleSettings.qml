@@ -45,6 +45,13 @@ FocusableItem {
 
         spacing: 12
 
+        JubelleRepeatPlaybackHeader {
+            model: root.model
+            note: qsTrc("inspector", "Which passes play this ending, and whether this repeat plays at all.")
+            navigationPanel: root.navigationPanel
+            navigationRowStart: root.navigationRowStart + 1
+        }
+
         TextSection {
             id: repeatList
             width: parent.width / 2

@@ -49,6 +49,13 @@ Column {
         horizontalAlignment: Text.AlignLeft
     }
 
+    JubelleRepeatPlaybackHeader {
+        model: root.model
+        note: qsTrc("inspector", "A segno or coda is where a jump (D.S., D.C., To Coda) goes; select the jump to change how it plays.")
+        navigationPanel: root.navigationPanel
+        navigationRowStart: root.navigationRowStart + 50
+    }
+
     TextSection {
         id: labelSection
         titleText: qsTrc("inspector", "Label")
