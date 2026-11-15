@@ -111,6 +111,10 @@ private:
     int setControllerValue(int channel, int ctrl, int value);
     int setPitchBend(int channel, int pitchBend);
 
+    // Jubelle (P1): even instrument levels for the built-in soundfont
+    void applyJubellePresetGain(int channel);
+    bool m_jubelleEvenLevels = false;
+
     OutputSpec m_outputSpec;
 
     std::shared_ptr<Fluid> m_fluid;

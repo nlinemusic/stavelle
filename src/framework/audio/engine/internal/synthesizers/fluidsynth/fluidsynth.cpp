@@ -28,6 +28,7 @@
 #include "audio/common/audiotypes.h"
 
 #include "sfcachedloader.h"
+#include "jubellepresetgain.h"
 
 #include "log.h"
 
@@ -238,6 +239,7 @@ bool FluidSynth::handleEvent(const midi::Event& event)
     } break;
     case Event::Opcode::ProgramChange: {
         fluid_synth_program_change(m_fluid->synth, event.channel(), event.program());
+        applyJubellePresetGain(event.channel());
     } break;
     case Event::Opcode::PitchBend: {
         ret = setPitchBend(event.channel(), event.pitchBend14());
@@ -307,7 +309,28 @@ Ret FluidSynth::addSoundFonts(const std::vector<io::path_t>& sfonts)
         m_sfontPaths.insert(sfont);
     }
 
+    // Jubelle (P1): the level table is measured for MS Basic only
+    m_jubelleEvenLevels = !m_sfontPaths.empty();
+    for (const io::path_t& path : m_sfontPaths) {
+        if (!jubelle::isBuiltInSoundFont(path.toStdString())) {
+            m_jubelleEvenLevels = false;
+        }
+    }
+
     return ok ? make_ret(Err::NoError) : make_ret(Err::SoundFontFailedLoad);
+}
+
+void FluidSynth::applyJubellePresetGain(int channel)
+{
+    int correctionCb = 0;
+    if (m_jubelleEvenLevels) {
+        int sfontId = 0, bank = 0, program = 0;
+        if (fluid_synth_get_program(m_fluid->synth, channel, &sfontId, &bank, &program) == FLUID_OK) {
+            correctionCb = jubelle::presetCorrectionCentibels(bank, program);
+        }
+    }
+    // attenuation is the opposite of gain: +10 cB attenuation = 1 dB quieter
+    fluid_synth_set_gen(m_fluid->synth, channel, GEN_ATTENUATION, float(-correctionCb));
 }
 
 void FluidSynth::setPreset(const std::optional<midi::Program>& preset)
@@ -338,6 +361,7 @@ void FluidSynth::setupSound(const PlaybackSetupData& setupData)
         fluid_synth_pitch_wheel_sens(m_fluid->synth, channelIdx, 24);
         fluid_synth_bank_select(m_fluid->synth, channelIdx, program.bank);
         fluid_synth_program_change(m_fluid->synth, channelIdx, program.program);
+        applyJubellePresetGain(channelIdx);
         fluid_synth_cc(m_fluid->synth, channelIdx, 7, DEFAULT_MIDI_VOLUME);
         fluid_synth_cc(m_fluid->synth, channelIdx, muse::midi::EXPRESSION_CONTROLLER, m_sequencer.naturalExpressionLevel());
         fluid_synth_cc(m_fluid->synth, channelIdx, 74, 0);

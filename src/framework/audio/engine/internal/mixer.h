@@ -37,6 +37,7 @@
 #include "mixerchannel.h"
 #include "igetplaybackposition.h"
 #include "audiosignalnotifier.h"
+#include "dsp/jubellesafetylimiter.h"
 
 namespace muse {
 class TaskScheduler;
@@ -125,6 +126,7 @@ private:
     std::set<IClockPtr> m_clocks;
 
     mutable AudioSignalsNotifier m_audioSignalNotifier;
+    dsp::JubelleSafetyLimiter m_jubelleLimiter; // Jubelle: stops clipping near 0 dBFS
 
     bool m_isSilence = false;
     bool m_shouldProcessMasterFxDuringSilence = false;
