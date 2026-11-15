@@ -208,6 +208,11 @@ TEST_F(Jubelle_CondensedScore, LabelsNamesAndMarkings)
 
     // The shared staff is named for both players; the separate system for its own
     Part* p = copy->staff(0)->part();
+    EXPECT_EQ(p->instruments().size(), 2u) << "a hidden instrument change renames it";
+    // The pair is still recognised in the copy (for the override commands there)
+    const std::vector<jc::CondenseGroup> inCopy = jc::condenseGroups(copy);
+    ASSERT_EQ(inCopy.size(), 1u);
+    EXPECT_EQ(inCopy[0].first, 0u);
     EXPECT_EQ(p->longName(Fraction(0, 1)), u"Trumpet 1.2");
     EXPECT_EQ(p->shortName(Fraction(0, 1)), u"Tpt. 1.2");
     EXPECT_EQ(p->longName(Fraction::fromTicks(8 * BAR)), u"Trumpet 1");

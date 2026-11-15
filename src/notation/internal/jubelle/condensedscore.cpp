@@ -636,9 +636,14 @@ std::vector<CondenseGroup> condenseGroups(const Score* score)
         if (!st->isPitchedStaff(Fraction(0, 1)) || in->useDrumset()) {
             return std::nullopt;
         }
-        // Instrument changes would make the pairing unreliable
-        if (p->instruments().size() != 1) {
-            return std::nullopt;
+        // A real change of instrument (say flute to piccolo) makes the pairing
+        // unreliable. Changes to the same instrument are fine: a condensed copy
+        // uses them to rename the staff "Trumpet 1.2" on shared systems.
+        for (const auto& [tick, other] : p->instruments()) {
+            (void)tick;
+            if (other->id() != in->id() || other->musicXmlId() != in->musicXmlId() || !(other->transpose() == in->transpose())) {
+                return std::nullopt;
+            }
         }
         // Woodwinds and brass only: strings use divisi on their own staves,
         // and keyboards, voices and percussion aren't condensed
