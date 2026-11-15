@@ -90,7 +90,7 @@ StyledDialogView {
             horizontalAlignment: Text.AlignLeft
             wrapMode: Text.Wrap
             color: root.jubellePurple
-            text: qsTrc("notation", "This is a condensed copy. To update it, save and close it, open the original score and use this command there. To choose how some bars are condensed, highlight them on a player's staff and right-click → Condensing; your choices are kept here and used at the next update.")
+            text: qsTrc("notation", "This is a condensed copy. To update it, save and close it, open the original score and use this command there. To choose how some bars are condensed, highlight them on a player’s staff and right-click → Condensing; your choices are kept here and used at the next update.")
         }
 
         // ---- In the original ----

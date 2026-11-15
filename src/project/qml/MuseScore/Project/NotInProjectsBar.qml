@@ -51,7 +51,7 @@ Rectangle {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignLeft
             elide: Text.ElideMiddle
-            text: qsTrc("project", "“%1” isn't in your Jubelle Projects.").arg(barModel.fileName)
+            text: qsTrc("project", "“%1” isn’t in your Jubelle Projects.").arg(barModel.fileName)
         }
         FlatButton {
             text: qsTrc("project", "Add to Projects…")
@@ -67,7 +67,7 @@ Rectangle {
             onClicked: barModel.notNow()
         }
         FlatButton {
-            text: qsTrc("project", "Don't ask for this file")
+            text: qsTrc("project", "Don’t ask for this file")
             transparent: true
             navigation.panel: navPanel
             navigation.column: 2

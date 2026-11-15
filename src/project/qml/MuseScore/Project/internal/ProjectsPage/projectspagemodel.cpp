@@ -965,8 +965,8 @@ void ProjectsPageModel::openPicturesFolder(const QString& projectFolder)
     // P4: made the first time you open it
     const std::string dir = pl::picturesFolder(toStd(projectFolder), true);
     if (dir.empty()) {
-        interactive()->error(muse::trc("project", "Couldn't open the Pictures folder"),
-                             muse::trc("project", "The project's Pictures folder couldn't be made."));
+        interactive()->error(muse::trc("project", "Couldn’t open the Pictures folder"),
+                             muse::trc("project", "The project’s Pictures folder couldn’t be made."));
         return;
     }
     interactive()->openUrl(QUrl::fromLocalFile(fromStd(dir)));

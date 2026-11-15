@@ -1977,7 +1977,7 @@ void ProjectActionsController::saveAsTemplate()
     const std::string pathStr = path.toStdString();
     if (pathStr.rfind(rootStr, 0) != 0) {
         const auto answer = interactive()->warningSync(
-            muse::trc("project", "This folder isn't in your Templates folder"),
+            muse::trc("project", "This folder isn’t in your Templates folder"),
             muse::trc("project", "New Score only lists templates saved in your Templates folder (Preferences → Folders) "
                                  "or in a folder inside it. Save here anyway?"),
             { IInteractive::Button::Cancel, IInteractive::Button::Save });
@@ -1988,7 +1988,7 @@ void ProjectActionsController::saveAsTemplate()
     if (saveProjectLocally(path, SaveMode::SaveCopy)) {
         const std::string category = usertemplates::categoryFor(pathStr.rfind(rootStr, 0) == 0 ? pathStr.substr(rootStr.size()) : "");
         interactive()->info(muse::trc("project", "Saved as template"),
-                            muse::qtrc("project", "It's listed in New Score under “%1”.")
+                            muse::qtrc("project", "It’s listed in New Score under “%1”.")
                             .arg(category.empty() ? muse::qtrc("project", "My templates") : QString::fromStdString(category))
                             .toStdString());
     }
@@ -2019,7 +2019,7 @@ bool ProjectActionsController::addCurrentScoreToProjects()
             const int AGAIN = OPEN + 1;
             const auto answer = interactive()->questionSync(
                 muse::trc("project", "This score was added before"),
-                muse::qtrc("project", "It's already in your Jubelle Projects as “%1”. Open that project instead?")
+                muse::qtrc("project", "It’s already in your Jubelle Projects as “%1”. Open that project instead?")
                 .arg(QString::fromStdString(io::filename(io::path_t(existing)).toStdString())).toStdString(),
                 { IInteractive::ButtonData(OPEN, muse::trc("project", "Open project"), true),
                   IInteractive::ButtonData(AGAIN, muse::trc("project", "Add again")),
@@ -2054,7 +2054,7 @@ bool ProjectActionsController::addCurrentScoreToProjects()
 
     const jpl::Result created = jpl::createProject(main, category, name);
     if (!created.ok) {
-        interactive()->error(muse::trc("project", "Couldn't add the score to Jubelle Projects"), created.error);
+        interactive()->error(muse::trc("project", "Couldn’t add the score to Jubelle Projects"), created.error);
         return false;
     }
     // Save As into the project: the open score continues as the project's copy,
@@ -2089,12 +2089,12 @@ bool ProjectActionsController::offerAddToProjectsOnSave(bool& handled)
     const int HERE = ADD + 1;
     const int NEVER = ADD + 2;
     const auto answer = interactive()->questionSync(
-        muse::trc("project", "This score isn't in your Jubelle Projects"),
+        muse::trc("project", "This score isn’t in your Jubelle Projects"),
         muse::trc("project", "Add it to Jubelle Projects? A copy is saved in a new project folder, and your original file "
                              "is left as it was. Or save it where it is."),
         { IInteractive::ButtonData(ADD, muse::trc("project", "Add to Projects…"), true),
           IInteractive::ButtonData(HERE, muse::trc("project", "Save here")),
-          IInteractive::ButtonData(NEVER, muse::trc("project", "Save here, don't ask again")) });
+          IInteractive::ButtonData(NEVER, muse::trc("project", "Save here, don’t ask again")) });
     if (answer.button() == NEVER) {
         jpl::silenceAddToProjects(main, path);
         return false;

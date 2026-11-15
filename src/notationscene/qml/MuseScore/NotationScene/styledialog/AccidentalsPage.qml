@@ -141,7 +141,7 @@ StyledFlickable {
 
                 StyledTextLabel {
                     Layout.fillWidth: true
-                    text: qsTrc("notation/editstyle/accidentals", "Standard: the bar after a change, same octave, this staff. Thorough: two bars, every octave, the instrument's other staves too, in parentheses. Courtesy accidentals update by themselves as you edit, and you can switch them on or off any time from Format › Courtesy accidentals.")
+                    text: qsTrc("notation/editstyle/accidentals", "Standard: the bar after a change, same octave, this staff. Thorough: two bars, every octave, the instrument’s other staves too, in parentheses. Courtesy accidentals update by themselves as you edit, and you can switch them on or off any time from Format › Courtesy accidentals.")
                     horizontalAlignment: Text.AlignLeft
                     wrapMode: Text.Wrap
                     opacity: 0.75
@@ -191,7 +191,7 @@ StyledFlickable {
                     checked: courtesyBox.m.courtesyAccidentalsOtherStaves.value === true
                     onClicked: courtesyBox.m.courtesyAccidentalsOtherStaves.value = !courtesyBox.m.courtesyAccidentalsOtherStaves.value
                 }
-                Example { text: qsTrc("notation/editstyle/accidentals", "right hand F♯, left hand ") + (courtesyBox.m.courtesyAccidentalsOtherStaves.value === true ? courtesyBox.natural : "") + "F" }
+                Example { text: qsTrc("notation/editstyle/accidentals", "right hand F♯, left hand %1").arg((courtesyBox.m.courtesyAccidentalsOtherStaves.value === true ? courtesyBox.natural : "") + "F") }
 
                 CheckBox {
                     text: qsTrc("notation/editstyle/accidentals", "Show courtesy accidentals in parentheses")

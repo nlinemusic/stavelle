@@ -76,7 +76,7 @@ BaseSection {
     StyledTextLabel {
         width: parent.width
 
-        text: qsTrc("preferences", "Jubelle looks only at its own releases on GitHub, and installs an update only if it is signed with Jubelle's release key and arrived unchanged. Nothing about you or your scores is sent. You can always check by hand with Help › Check for updates.")
+        text: qsTrc("preferences", "Jubelle looks only at its own releases on GitHub, and installs an update only if it is signed with Jubelle’s release key and arrived unchanged. Nothing about you or your scores is sent. You can always check by hand with Help › Check for updates.")
 
         horizontalAlignment: Qt.AlignLeft
         wrapMode: Text.WordWrap

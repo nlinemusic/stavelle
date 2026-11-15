@@ -245,7 +245,7 @@ void ExtensionsListModel::installFromFile()
         return;
     }
     if (!installer()->isFileSupported(path)) {
-        interactive()->error(muse::trc("extensions", "This file isn't a plugin package"),
+        interactive()->error(muse::trc("extensions", "This file isn’t a plugin package"),
                              muse::trc("extensions", "Choose a plugin package file (.mext). To add a plugin kept as a folder, "
                                                      "copy it into the plugins folder and press Reload plugins."));
         return;

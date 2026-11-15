@@ -511,7 +511,7 @@ const UiActionList NotationUiActions::s_actions = {
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
              TranslatableString("action", "Apply &Part Layout…"),
-             TranslatableString("action", "Copy one part's system and page breaks and other layout to other parts, without changing any music")
+             TranslatableString("action", "Copy one part’s system and page breaks and other layout to other parts, without changing any music")
              ),
     //! Jubelle Phase 4 / G2: link the highlighted passage to other staves; manage links
     //! Jubelle R7: from a linked passage's marker

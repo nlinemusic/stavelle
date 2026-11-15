@@ -239,7 +239,7 @@ void LinkedPassagesModel::link(bool rhythm, bool durations, bool articulations, 
     apply("Link passages", [&](Score* s) { id = jlp::linkPassages(s, source, a, b, targets, o); });
     if (id == 0 && m_messages.isEmpty()) {
         m_messages << muse::qtrc("notation", "Nothing was linked. A staff may already be linked in these bars, "
-                                             "or the bars don't line up.");
+                                             "or the bars don’t line up.");
         emit changed();
     }
 }

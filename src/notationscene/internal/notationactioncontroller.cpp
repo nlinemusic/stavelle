@@ -2461,7 +2461,7 @@ void NotationActionController::jubelleLinkMarkerAction(bool resync)
     const auto member = items.size() == 1 ? mu::notation::jubelle::linkMember(items.front()) : std::nullopt;
     if (!member || !member->line) {
         interactive()->info(muse::trc("notation", "No linked passage selected"),
-                            muse::trc("notation", "Select a linked passage's marker first (shown with View › Show › Show invisible)."));
+                            muse::trc("notation", "Select a linked passage’s marker first (shown with View › Show › Show invisible)."));
         return;
     }
     if (resync && member->source) {

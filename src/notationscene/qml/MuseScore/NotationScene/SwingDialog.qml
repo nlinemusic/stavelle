@@ -125,7 +125,7 @@ StyledDialogView {
         StyledDropdown {
             id: scoreFeel
             Layout.fillWidth: true
-            model: [{ text: qsTrc("notation", "Not set (the score's swing setting in Format → Style)"), description: "" }].concat(swingModel.feelChoices)
+            model: [{ text: qsTrc("notation", "Not set (the score’s swing setting in Format → Style)"), description: "" }].concat(swingModel.feelChoices)
             currentIndex: swingModel.scoreFeelIndex
             navigation.panel: panel
             onActivated: function(index, value) { swingModel.scoreFeelIndex = index }

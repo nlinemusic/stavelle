@@ -72,7 +72,7 @@ QString EngravingPresetsModel::validateName(const QString& name) const
     static const QString forbidden = QStringLiteral("\\/:*?\"<>|");
     for (const QChar c : n) {
         if (forbidden.contains(c) || c.unicode() < 32) {
-            return muse::qtrc("notation", "A preset name can’t contain \\ / : * ? \" < > |");
+            return muse::qtrc("notation", "A preset name can’t contain \\ / : * ? < > | or double quote marks");
         }
     }
     if (n.startsWith('.') || n.endsWith('.')) {

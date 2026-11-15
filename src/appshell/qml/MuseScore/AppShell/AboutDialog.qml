@@ -164,7 +164,7 @@ StyledDialogView {
                     "<b>Gootville</b>: Grzegorz Pruchniakowski, SIL Open Font License 1.1",
                     "<b>Campania</b>: Marc Sabatella, SIL Open Font License 1.1",
                     "<b>FreeSerif</b>, FreeSans: GNU FreeFont, GPL with font exception",
-                    qsTrc("appshell/about", "The licence texts are in the fonts folder of Jubelle's source code and installation.")
+                    qsTrc("appshell/about", "The licence texts are in the fonts folder of Jubelle’s source code and installation.")
                 ].join("<br>")
             }
         }

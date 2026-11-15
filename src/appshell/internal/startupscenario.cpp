@@ -288,22 +288,22 @@ void StartupScenario::offerCrashReportIfNeed()
     const int DONT = REVIEW + 2;
 
     const std::string question = report.frames.empty()
-                                 ? muse::trc("appshell", "Jubelle didn't close normally last time.")
+                                 ? muse::trc("appshell", "Jubelle didn’t close normally last time.")
                                  : muse::trc("appshell", "Jubelle closed because of a problem last time.");
     std::string explanation = muse::trc("appshell",
-                                        "A short report can help fix it. It holds only Jubelle's version, your system's version, "
-                                        "the kind of problem and where in Jubelle's code it happened. Names, folders, file names "
+                                        "A short report can help fix it. It holds only Jubelle’s version, your system’s version, "
+                                        "the kind of problem and where in Jubelle’s code it happened. Names, folders, file names "
                                         "and score titles are removed. Send opens your browser on a filled-in report in your private "
                                         "crash-report repository; you look at it and submit it yourself.");
     if (knownCrash) {
-        explanation += "\n\n" + muse::trc("appshell", "You've sent this problem before: Send opens that report so you can add a note.");
+        explanation += "\n\n" + muse::trc("appshell", "You’ve sent this problem before: Send opens that report so you can add a note.");
     }
 
     auto ask = std::make_shared<std::function<void()> >();
     *ask = [this, ask, question, explanation, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND, DONT]() {
         auto promise = interactive()->question(question, explanation,
                                                { IInteractive::ButtonData(REVIEW, muse::trc("appshell", "Review report…")),
-                                                 IInteractive::ButtonData(DONT, muse::trc("appshell", "Don't send")),
+                                                 IInteractive::ButtonData(DONT, muse::trc("appshell", "Don’t send")),
                                                  IInteractive::ButtonData(SEND, muse::trc("appshell", "Send…"), true) });
         promise.onResolve(this, [this, ask, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND](
                               const IInteractive::Result& res) {

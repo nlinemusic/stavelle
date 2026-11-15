@@ -138,7 +138,7 @@ StyledDialogView {
             horizontalAlignment: Text.AlignLeft
             wrapMode: Text.Wrap
             opacity: 0.7
-            text: qsTrc("notation", "System breaks, page breaks and keep-together marks are always copied. The parts' own items of each kind you copy are replaced. Notes and other music are never copied or changed.")
+            text: qsTrc("notation", "System breaks, page breaks and keep-together marks are always copied. The parts’ own items of each kind you copy are replaced. Notes and other music are never copied or changed.")
         }
         Option {
             text: qsTrc("notation", "System locks")
@@ -161,7 +161,7 @@ StyledDialogView {
             onClicked: layoutModel.pageAndSpacing = !checked
         }
         Option {
-            text: qsTrc("notation", "Also copy breaks that fall inside a part's multi-measure rests (they have no effect there until rests are split)")
+            text: qsTrc("notation", "Also copy breaks that fall inside a part’s multi-measure rests (they have no effect there until rests are split)")
             checked: layoutModel.breaksInsideMMRests
             onClicked: layoutModel.breaksInsideMMRests = !checked
         }

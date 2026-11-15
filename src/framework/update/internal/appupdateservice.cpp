@@ -580,11 +580,11 @@ void AppUpdateService::jubelleVerifyAndSave(const ReleaseInfo& info, std::shared
     const std::string sumsUrl = get("jubelleSumsUrl");
     const std::string sigUrl = get("jubelleSigUrl");
     if (!isGitHubDownload(info.fileUrl) || !isGitHubDownload(sumsUrl) || !isGitHubDownload(sigUrl)) {
-        fail(muse::trc("update", "The update didn't come from Jubelle's GitHub releases."));
+        fail(muse::trc("update", "The update didn’t come from Jubelle’s GitHub releases."));
         return;
     }
     if (jubelle::releasePublicKeyHex().empty()) {
-        fail(muse::trc("update", "This build of Jubelle has no release key, so it can't check updates. Install new versions by hand."));
+        fail(muse::trc("update", "This build of Jubelle has no release key, so it can’t check updates. Install new versions by hand."));
         return;
     }
 
@@ -624,10 +624,10 @@ void AppUpdateService::jubelleVerifyAndSave(const ReleaseInfo& info, std::shared
                 fail(muse::trc("update", "This build of Jubelle has no release key."));
                 return;
             case jubelle::Verdict::BadSignature:
-                fail(muse::trc("update", "The update's checksum list isn't signed with Jubelle's release key. Nothing was installed."));
+                fail(muse::trc("update", "The update’s checksum list isn’t signed with Jubelle’s release key. Nothing was installed."));
                 return;
             case jubelle::Verdict::NotListed:
-                fail(muse::trc("update", "The installer isn't listed in the release's signed checksums. Nothing was installed."));
+                fail(muse::trc("update", "The installer isn’t listed in the release’s signed checksums. Nothing was installed."));
                 return;
             case jubelle::Verdict::WrongChecksum:
                 fail(muse::trc("update", "The downloaded installer is damaged or was changed. It was deleted and nothing was installed."));
