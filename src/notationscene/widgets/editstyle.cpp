@@ -21,6 +21,9 @@
  */
 
 #include "editstyle.h"
+#include <QIcon>
+#include <QPixmap>
+#include <QPainter>
 
 #include <QAnyStringView>
 #include <QButtonGroup>
@@ -762,10 +765,33 @@ EditStyle::EditStyle(QWidget* parent)
     musicalSymbolFont->clear();
     dynamicsFont->clear();
     musicalTextFont->clear();
+    // Jubelle (fonts T2): each music font is shown with a short sample in that
+    // font (clef, notes, sharp, flat, rest, forte), so you can see it before choosing
+    auto jubelleFontSample = [](const QString& family) {
+        const QSize size(132, 30);
+        QPixmap pm(size * 2);
+        pm.setDevicePixelRatio(2.0);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QColor(120, 120, 128));
+        for (int line = 0; line < 5; ++line) {
+            const qreal y = 7 + line * 4;
+            p.drawLine(QPointF(2, y), QPointF(size.width() - 2, y));
+        }
+        QFont f(family);
+        f.setPixelSize(16);
+        p.setFont(f);
+        p.setPen(QColor(235, 235, 240));
+        const QString sample = QString::fromUcs4(U"\uE050 \uE0A4\uE262\uE0A4 \uE260\uE0A4 \uE4E5 \uE522");
+        p.drawText(QRectF(4, -8, size.width(), size.height() + 8), Qt::AlignLeft | Qt::AlignVCenter, sample);
+        return QIcon(pm);
+    };
+    musicalSymbolFont->setIconSize(QSize(132, 30));
     for (const auto& i : engravingFonts()->fonts()) {
         QString fontDisplayName = QString::fromStdString(i->name());
         QString fontFamilyName = QString::fromStdString(i->family());
-        musicalSymbolFont->addItem(fontDisplayName, fontDisplayName);
+        musicalSymbolFont->addItem(jubelleFontSample(fontFamilyName), fontDisplayName, fontDisplayName);
         dynamicsFont->addItem(fontDisplayName, fontDisplayName);
         // musicalTextFont must be a font family name!
         musicalTextFont->addItem(fontDisplayName + " Text", fontFamilyName + " Text");
