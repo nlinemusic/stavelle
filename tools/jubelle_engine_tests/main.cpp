@@ -87,6 +87,12 @@ int main(int argc, char** argv)
     const std::string fontsDir = std::string(MU_ROOT_DIR) + "/fonts/";
     fonts->addExternalFont("Leland", "Leland", fontsDir + "leland/Leland.otf", fontsDir + "leland/leland_metadata.json");
     fonts->addExternalFont("Bravura", "Bravura", fontsDir + "bravura/Bravura.otf", fontsDir + "bravura/bravura_metadata.json");
+    // Jubelle: the jazz and newly bundled fonts too (font tests)
+    fonts->addExternalFont("MuseJazz", "MuseJazz", fontsDir + "musejazz/MuseJazz.otf", fontsDir + "musejazz/metadata.json");
+    fonts->addExternalFont("Petaluma", "Petaluma", fontsDir + "petaluma/Petaluma.otf", fontsDir + "petaluma/petaluma_metadata.json");
+    fonts->addExternalFont("Sebastian", "Sebastian", fontsDir + "sebastian/Sebastian.otf", fontsDir + "sebastian/Sebastian.json");
+    fonts->addExternalFont("Eugene", "Eugene", fontsDir + "eugene/Eugene.otf", fontsDir + "eugene/Eugene.json");
+    fonts->addExternalFont("Leipzig", "Leipzig", fontsDir + "leipzig/Leipzig.ttf", fontsDir + "leipzig/leipzig_metadata.json");
     fonts->setFallbackFont("Bravura");
     ioc->registerExport<IEngravingFontsProvider>("jubelle_engine_tests", fonts);
 

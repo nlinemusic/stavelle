@@ -93,6 +93,9 @@ static void engraving_init_qrc()
     Q_INIT_RESOURCE(fonts_Petaluma);
     Q_INIT_RESOURCE(fonts_FinaleMaestro);
     Q_INIT_RESOURCE(fonts_FinaleBroadway);
+    Q_INIT_RESOURCE(fonts_Sebastian);
+    Q_INIT_RESOURCE(fonts_Eugene);
+    Q_INIT_RESOURCE(fonts_Leipzig);
     Q_INIT_RESOURCE(fonts_Tabulature);
 #endif
 }
@@ -198,6 +201,12 @@ void EngravingModule::onInit(const IApplication::RunMode&)
         fdb->addFont(FontDataKey(u"Petaluma Text"), ":/fonts/petaluma/PetalumaText.otf");
         addMusicFont("Finale Maestro", FontDataKey(u"Finale Maestro"), ":/fonts/finalemaestro/FinaleMaestro.otf");
         fdb->addFont(FontDataKey(u"Finale Maestro Text"), ":/fonts/finalemaestro/FinaleMaestroText.otf");
+        // Jubelle: free SMuFL fonts that pass Jubelle's coverage check (tools/jubelle_fonts)
+        addMusicFont("Sebastian", FontDataKey(u"Sebastian"), ":/fonts/sebastian/Sebastian.otf");
+        fdb->addFont(FontDataKey(u"Sebastian Text"), ":/fonts/sebastian/SebastianText.otf");
+        addMusicFont("Eugene", FontDataKey(u"Eugene"), ":/fonts/eugene/Eugene.otf");
+        fdb->addFont(FontDataKey(u"Eugene Text"), ":/fonts/eugene/EugeneText.otf");
+        addMusicFont("Leipzig", FontDataKey(u"Leipzig"), ":/fonts/leipzig/Leipzig.ttf");
         addMusicFont("Finale Broadway", FontDataKey(u"Finale Broadway"), ":/fonts/finalebroadway/FinaleBroadway.otf");
         fdb->addFont(FontDataKey(u"Finale Broadway Text"), ":/fonts/finalebroadway/FinaleBroadwayText.otf");
 
