@@ -167,6 +167,7 @@ target_include_directories(project_qml PRIVATE
     internal
     internal/Export
     internal/NewScore
+    internal/NotInProjects
     internal/ProjectsPage
     internal/Properties
     internal/ScoresPage
