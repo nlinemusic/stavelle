@@ -114,9 +114,11 @@ struct SwingTiming {
     double loudnessFactor = 1.0;   // multiplies the loudness
 };
 
-//! Precedence: a Swing text in the score, then the instrument's feel, then
-//! the score's feel. Where none of these chooses a Jubelle feel, MuseScore's
-//! own swing is used unchanged.
+//! Precedence: a Jubelle Swing text in the score, then the instrument's feel,
+//! then the score's feel. An ordinary MuseScore "Swing" text switches swing on
+//! with the chosen feel (or MuseScore's ratio if none is chosen); "Straight"
+//! texts play straight. Where nothing chooses a Jubelle feel, MuseScore's own
+//! swing is used unchanged.
 SwingTiming swingTiming(const Chord* chord);
 
 //! The same timing rule MuseScore uses, with a precise ratio (in percent).

@@ -127,6 +127,11 @@ SwingMarkingResult updateSwingMarking(Score* score, SwingSettings& settings, con
             existing->undoChangeProperty(Pid::TEXT, text);
             result.updated = true;
         }
+        // R0 (15 Nov 2026): markings made before used the small system-text style
+        if (existing->textStyleType() != TextStyleType::TEMPO) {
+            existing->undoChangeProperty(Pid::TEXT_STYLE, TextStyleType::TEMPO);
+            result.updated = true;
+        }
         return result;
     }
 
@@ -135,7 +140,9 @@ SwingMarkingResult updateSwingMarking(Score* score, SwingSettings& settings, con
         master->undoRemoveElement(existing);
     }
 
-    SystemText* marking = Factory::createSystemText(seg);
+    // Tempo-marking style (R0, 15 Nov 2026): the note symbols of the equation
+    // are drawn at metronome-mark size, matching the tempo marking beside it
+    SystemText* marking = Factory::createSystemText(seg, TextStyleType::TEMPO);
     marking->setParent(seg);
     marking->setTrack(0);
     marking->setXmlText(text);

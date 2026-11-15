@@ -482,21 +482,35 @@ SwingTiming swingTiming(const Chord* chord)
     const SwingParameters sp = chord->staff()->swing(chord->tick());
     const SwingSettings settings = cachedSettings(score);
 
+    const uint64_t partId = chord->part() ? chord->part()->id().toUint64() : 0;
+    auto chosen = [&]() {
+        auto it = settings.partFeels.find(partId);
+        return it != settings.partFeels.end() ? it->second : settings.scoreFeel;
+    };
+
     String feelId;
-    if (sp.fromText) {
-        if (sp.jubelleFeel.isEmpty()) {
-            return none;   // an ordinary MuseScore Swing text
-        }
+    if (sp.fromText && !sp.jubelleFeel.isEmpty()) {
         if (sp.swingUnit == 0) {
             SwingTiming off;   // the text switches swing off
             off.jubelleFeel = true;
             return off;
         }
         feelId = sp.jubelleFeel;
+    } else if (sp.fromText) {
+        // An ordinary MuseScore Swing or Straight text. "Straight" plays straight.
+        // "Swing" switches swing on, and the feel chosen in the Swing dialog (for
+        // the instrument, else the score) decides how it swings; before R0 (15 Nov
+        // 2026) MuseScore's ratio in the text silently replaced the chosen feel.
+        // With no feel chosen, MuseScore's own swing plays, as before.
+        if (sp.swingUnit == 0) {
+            return none;
+        }
+        feelId = chosen();
+        if (feelId.isEmpty() || feelId == u"straight") {
+            return none;
+        }
     } else {
-        const uint64_t partId = chord->part() ? chord->part()->id().toUint64() : 0;
-        auto it = settings.partFeels.find(partId);
-        feelId = it != settings.partFeels.end() ? it->second : settings.scoreFeel;
+        feelId = chosen();
         if (feelId.isEmpty()) {
             return none;   // MuseScore's style swing
         }

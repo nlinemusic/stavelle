@@ -327,6 +327,42 @@ TEST_F(Jubelle_Swing, InstrumentOverrideAndSwingText)
     }
 }
 
+//! R0 (15 Nov 2026): an ordinary MuseScore "Swing" text no longer replaces the
+//! feel chosen in the Swing dialog; it switches swing on with that feel
+TEST_F(Jubelle_Swing, OrdinarySwingTextUsesTheChosenFeel)
+{
+    auto addText = [&](const char16_t* xml, int unit, int ratio) {
+        Segment* seg = score->firstMeasure()->first(SegmentType::ChordRest);
+        score->startCmd(muse::TranslatableString::untranslatable("swing text"));
+        StaffText* text = Factory::createStaffText(seg);
+        text->setParent(seg);
+        text->setTrack(0);
+        text->setXmlText(xml);
+        text->setSwing(true);
+        text->setSwingParameters(unit, ratio);
+        score->undoAddElement(text);
+        score->updateSwing();
+        score->endCmd();
+    };
+    // MuseScore's palette "Swing" text: eighths at 60%
+    addText(u"Swing", Constants::DIVISION / 2, 60);
+
+    // Nothing chosen: MuseScore's own swing from the text, as before
+    const double museScore60 = 2 * EIGHTH * 0.60;   // the offbeat starts at 60% of the beat
+    EXPECT_NEAR(played(trumpet)[1].start, museScore60, 2.0);
+
+    // A feel chosen in the dialog: the text no longer overrides it
+    SwingSettings s;
+    s.scoreFeel = u"fixed21";
+    write(s);
+    EXPECT_NEAR(played(trumpet)[1].start, offbeatStart(2.0), 2.0);
+
+    // Different feels sound different under the same text
+    s.scoreFeel = u"heavy";
+    write(s);
+    EXPECT_NEAR(played(trumpet)[1].start, offbeatStart(2.625), 2.0);
+}
+
 //! Jubelle Phase 5D, on MuseScore's real playback model: switching a repeat
 //! off changes what is played straight away, and undo brings it back.
 TEST(Jubelle_RepeatsPlayback, PlayThisRepeatReachesPlayback)

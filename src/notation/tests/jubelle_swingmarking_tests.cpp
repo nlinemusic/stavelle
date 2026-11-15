@@ -75,6 +75,7 @@ TEST(Jubelle_SwingMarking, PlacedAtTheTempoMarkingAndNeverTwice)
     ASSERT_TRUE(marking);
     EXPECT_EQ(marking->explicitParent(), tempoSeg);                 // with the tempo marking
     EXPECT_EQ(marking->placement(), PlacementV::ABOVE);
+    EXPECT_EQ(marking->textStyleType(), TextStyleType::TEMPO) << "readable: tempo-marking size (R0)";
     EXPECT_TRUE(marking->xmlText().startsWith(u"Basie swing "));
     EXPECT_TRUE(marking->xmlText().contains(u"textTuplet3ShortStem"));   // triplet equation
 
