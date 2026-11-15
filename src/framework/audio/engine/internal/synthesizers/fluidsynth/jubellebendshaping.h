@@ -22,6 +22,12 @@
 //     otherwise by this synthesizer) now follows the gesture down, to about
 //     -16 dB at the end, and is restored with the pitch.
 //
+//  3. The pitch path was straight lines between the pattern's points (every
+//     10% of the note), so a fall changed speed abruptly at each point, which
+//     sounds mechanical. It is now a smooth
+//     monotone curve through the same points (no overshoot, so glissandos and
+//     bends still end exactly where they should).
+//
 // Header-only and free of audio-engine dependencies, so it is tested on its own
 // (tools/jubelle_engine_tests).
 
@@ -71,6 +77,60 @@ inline midi::Event volumeEvent(midi::channel_t channel, uint32_t value)
     e.setIndex(CHANNEL_VOLUME_CC);
     e.setData(value);
     return e;
+}
+
+struct CurvePoint {
+    double time = 0.0;
+    double value = 0.0;
+};
+
+//! Monotone cubic (Fritsch-Carlson) samples through the points: for each
+//! segment, max(minSamples, |change| / valueStep) samples, from its start;
+//! the last point is included.
+inline std::vector<CurvePoint> smoothCurve(const std::vector<CurvePoint>& pts, size_t minSamples, double valueStep)
+{
+    std::vector<CurvePoint> out;
+    const size_t n = pts.size();
+    if (n < 2) {
+        return pts;
+    }
+    std::vector<double> h(n - 1), delta(n - 1), m(n, 0.0);
+    for (size_t i = 0; i + 1 < n; ++i) {
+        h[i] = std::max(pts[i + 1].time - pts[i].time, 1e-9);
+        delta[i] = (pts[i + 1].value - pts[i].value) / h[i];
+    }
+    m[0] = delta[0];
+    m[n - 1] = delta[n - 2];
+    for (size_t i = 1; i + 1 < n; ++i) {
+        m[i] = (delta[i - 1] * delta[i] <= 0) ? 0.0 : (delta[i - 1] + delta[i]) / 2.0;
+    }
+    for (size_t i = 0; i + 1 < n; ++i) {
+        if (delta[i] == 0.0) {
+            m[i] = m[i + 1] = 0.0;
+            continue;
+        }
+        const double a = m[i] / delta[i];
+        const double b = m[i + 1] / delta[i];
+        const double s2 = a * a + b * b;
+        if (s2 > 9.0) {
+            const double t = 3.0 / std::sqrt(s2);
+            m[i] = t * a * delta[i];
+            m[i + 1] = t * b * delta[i];
+        }
+    }
+    for (size_t i = 0; i + 1 < n; ++i) {
+        const double change = std::abs(pts[i + 1].value - pts[i].value);
+        const size_t samples = std::max(minSamples, static_cast<size_t>(valueStep > 0 ? change / valueStep : 0));
+        for (size_t k = 0; k < samples; ++k) {
+            const double t = double(k) / double(samples);
+            const double t2 = t * t, t3 = t2 * t;
+            const double v = (2 * t3 - 3 * t2 + 1) * pts[i].value + (t3 - 2 * t2 + t) * h[i] * m[i]
+                             + (-2 * t3 + 3 * t2) * pts[i + 1].value + (t3 - t2) * h[i] * m[i + 1];
+            out.push_back({ pts[i].time + t * h[i], v });
+        }
+    }
+    out.push_back(pts.back());
+    return out;
 }
 
 //! Puts each pending reset after the note's release, or just before the next

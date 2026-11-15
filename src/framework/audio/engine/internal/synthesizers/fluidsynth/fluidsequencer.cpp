@@ -279,47 +279,32 @@ void FluidSequencer::addPitchCurve(EventSequenceMap& destination, const mpe::Not
     }
     uint32_t prevVolume = jubelle::FULL_VOLUME;
 
-    auto currIt = noteEvent.pitchCtx().pitchCurve.cbegin();
-    auto nextIt = std::next(currIt);
-    auto endIt = noteEvent.pitchCtx().pitchCurve.cend();
-
+    // Jubelle: a smooth monotone curve through the pattern's points instead of
+    // straight lines between them (no abrupt changes of speed at each point)
+    std::vector<jubelle::CurvePoint> points;
+    for (const auto& point : noteEvent.pitchCtx().pitchCurve) {
+        const timestamp_t time = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(point.first);
+        points.push_back({ static_cast<double>(time), static_cast<double>(pitchBendLevel(point.second)) });
+    }
+    //! NOTE: MuseScore's interpolation density: about one step per 1/25 semitone
+    const double bendPerStep = std::max(1.0, std::abs(pitchBendLevel(mpe::PITCH_LEVEL_STEP / 25) - 8192.0));
     int prevBendValue = -1;
+    for (const jubelle::CurvePoint& point : jubelle::smoothCurve(points, 8, bendPerStep)) {
+        const timestamp_t time = static_cast<timestamp_t>(std::round(point.time));
+        const int bendValue = std::clamp(static_cast<int>(std::round(point.value)), 0, 16383);
 
-    for (; nextIt != endIt; currIt = nextIt, nextIt = std::next(currIt)) {
-        const int currValue = pitchBendLevel(currIt->second);
-        const int nextValue = pitchBendLevel(nextIt->second);
-
-        const timestamp_t currTime = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(currIt->first);
-        const timestamp_t nextTime = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(nextIt->first);
-
-        using namespace muse::interpolation;
-        const Point currPoint { static_cast<double>(currTime), static_cast<double>(currValue) };
-        const Point nextPoint { static_cast<double>(nextTime), static_cast<double>(nextValue) };
-
-        //! NOTE: Increasing this number results in fewer points being interpolated
-        constexpr mpe::pitch_level_t POINT_WEIGHT = mpe::PITCH_LEVEL_STEP / 25;
-        size_t pointCount = std::abs(nextIt->second - currIt->second) / POINT_WEIGHT;
-        pointCount = std::max(pointCount, size_t(1));
-
-        const std::vector<Point> points = lerp(currPoint, nextPoint, pointCount);
-
-        for (const Point& point : points) {
-            const timestamp_t time = static_cast<timestamp_t>(std::round(point.x));
-            const int bendValue = static_cast<int>(std::round(point.y));
-
-            if (time < pitchBendTimestampTo && bendValue != prevBendValue) {
-                addPitchBend(destination, time, channelIdx, bendValue);
-                if (fades && maxBendDistance > 0) {
-                    const uint32_t volume = jubelle::fadedVolume(std::abs(bendValue - 8192) / double(maxBendDistance));
-                    if (volume != prevVolume) {
-                        destination[time].push_back(jubelle::volumeEvent(channelIdx, volume));
-                        prevVolume = volume;
-                    }
+        if (time < pitchBendTimestampTo && bendValue != prevBendValue) {
+            addPitchBend(destination, time, channelIdx, bendValue);
+            if (fades && maxBendDistance > 0) {
+                const uint32_t volume = jubelle::fadedVolume(std::abs(bendValue - 8192) / double(maxBendDistance));
+                if (volume != prevVolume) {
+                    destination[time].push_back(jubelle::volumeEvent(channelIdx, volume));
+                    prevVolume = volume;
                 }
             }
-
-            prevBendValue = bendValue;
         }
+
+        prevBendValue = bendValue;
     }
 }
 
