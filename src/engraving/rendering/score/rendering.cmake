@@ -103,4 +103,6 @@ set(RENDERING_SCORE_SRC
     ${CMAKE_CURRENT_LIST_DIR}/jubelle/overlapchecker.h
     ${CMAKE_CURRENT_LIST_DIR}/jubelle/magneticlayout.cpp
     ${CMAKE_CURRENT_LIST_DIR}/jubelle/magneticlayout.h
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/engravingrules.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle/engravingrules.h
 )

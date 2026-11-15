@@ -21,6 +21,8 @@
  */
 #pragma once
 
+#include <QVariantList>
+
 #include "abstractstyledialogmodel.h"
 
 namespace mu::notation {
@@ -35,6 +37,13 @@ class JubelleLayoutPageModel : public AbstractStyleDialogModel
     Q_PROPERTY(mu::notation::StyleItem * nudgeLimit READ nudgeLimit CONSTANT)
     Q_PROPERTY(mu::notation::StyleItem * collisionAvoidance READ collisionAvoidance CONSTANT)
 
+    // engraving rules (G7 step 2): each {kind, scope, placement, distance, hasDistance}
+    Q_PROPERTY(QVariantList rules READ rules NOTIFY rulesChanged)
+    Q_PROPERTY(QVariantList kindOptions READ kindOptions CONSTANT)
+    Q_PROPERTY(QVariantList scopeOptions READ scopeOptions NOTIFY rulesChanged)
+    Q_PROPERTY(QVariantList placementOptions READ placementOptions CONSTANT)
+    Q_PROPERTY(QVariantList presetOptions READ presetOptions CONSTANT)
+
     QML_ELEMENT
 
 public:
@@ -45,5 +54,25 @@ public:
     StyleItem* sidewaysNudge() const { return styleItem(StyleId::jubelleSidewaysNudge); }
     StyleItem* nudgeLimit() const { return styleItem(StyleId::jubelleNudgeLimit); }
     StyleItem* collisionAvoidance() const { return styleItem(StyleId::jubelleCollisionAvoidance); }
+
+    QVariantList rules() const;
+    QVariantList kindOptions() const;
+    QVariantList scopeOptions() const;
+    QVariantList placementOptions() const;
+    QVariantList presetOptions() const;
+
+    Q_INVOKABLE void addRule();
+    Q_INVOKABLE void removeRule(int index);
+    //! field: "kind", "scope", "placement" or "distance" ("" or a number of spaces)
+    Q_INVOKABLE void setRuleField(int index, const QString& field, const QVariant& value);
+    //! Replaces the rules with a preset: "standard", "jazz", "choral", "orchestral"
+    Q_INVOKABLE void applyPreset(const QString& presetId);
+
+signals:
+    void rulesChanged();
+
+private:
+    QString rulesText() const;
+    void setRulesText(const QString& text);
 };
 }

@@ -116,7 +116,7 @@ int main(int argc, char** argv)
     }
 
     if (realisticPass) {
-        ::testing::GTEST_FLAG(filter) = "Jubelle_TemplateLayout.*:Jubelle_Baselines.*:Jubelle_MagneticLayout.*";
+        ::testing::GTEST_FLAG(filter) = "Jubelle_TemplateLayout.*:Jubelle_Baselines.*:Jubelle_MagneticLayout.*:Jubelle_EngravingRules.*";
         return RUN_ALL_TESTS();
     }
     int result = RUN_ALL_TESTS();

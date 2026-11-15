@@ -109,6 +109,101 @@ StyledFlickable {
             }
         }
 
+        StyledGroupBox {
+            Layout.fillWidth: true
+            title: qsTrc("notation/editstyle/jubellelayout", "Engraving rules")
+
+            ColumnLayout {
+                width: parent.width
+                spacing: 8
+
+                StyledTextLabel {
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignLeft
+                    wrapMode: Text.Wrap
+                    opacity: 0.75
+                    text: qsTrc("notation/editstyle/jubellelayout", "Say where a kind of marking goes, and how far from the staff it stays at least, for all instruments, a group or one instrument. The most specific rule wins. Anything you set by hand in Properties still wins over a rule.")
+                }
+
+                RowLayout {
+                    spacing: 8
+                    StyledTextLabel { text: qsTrc("notation/editstyle/jubellelayout", "Start from:") }
+                    StyledDropdown {
+                        id: presetDropdown
+                        Layout.preferredWidth: 220
+                        model: pageModel.presetOptions
+                        textRole: "text"
+                        valueRole: "value"
+                        currentIndex: -1
+                        displayText: qsTrc("notation/editstyle/jubellelayout", "Choose a preset…")
+                        onActivated: function(index, value) { pageModel.applyPreset(value) }
+                    }
+                }
+
+                Repeater {
+                    model: pageModel.rules
+
+                    delegate: RowLayout {
+                        id: ruleRow
+                        required property var modelData
+                        required property int index
+                        spacing: 6
+
+                        StyledDropdown {
+                            Layout.preferredWidth: 130
+                            model: pageModel.kindOptions
+                            textRole: "text"
+                            valueRole: "value"
+                            currentIndex: indexOfValue(ruleRow.modelData.kind)
+                            onActivated: function(i, value) { pageModel.setRuleField(ruleRow.index, "kind", value) }
+                        }
+                        StyledDropdown {
+                            Layout.preferredWidth: 180
+                            model: pageModel.scopeOptions
+                            textRole: "text"
+                            valueRole: "value"
+                            currentIndex: indexOfValue(ruleRow.modelData.scope)
+                            onActivated: function(i, value) { pageModel.setRuleField(ruleRow.index, "scope", value) }
+                        }
+                        StyledDropdown {
+                            Layout.preferredWidth: 150
+                            model: pageModel.placementOptions
+                            textRole: "text"
+                            valueRole: "value"
+                            currentIndex: indexOfValue(ruleRow.modelData.placement)
+                            onActivated: function(i, value) { pageModel.setRuleField(ruleRow.index, "placement", value) }
+                        }
+                        CheckBox {
+                            text: qsTrc("notation/editstyle/jubellelayout", "At least")
+                            checked: ruleRow.modelData.hasDistance
+                            onClicked: pageModel.setRuleField(ruleRow.index, "distance", ruleRow.modelData.hasDistance ? "" : 1.0)
+                        }
+                        IncrementalPropertyControl {
+                            Layout.preferredWidth: 80
+                            enabled: ruleRow.modelData.hasDistance
+                            currentValue: ruleRow.modelData.distance
+                            measureUnitsSymbol: qsTrc("global", "sp")
+                            step: 0.25
+                            decimals: 2
+                            minValue: -10
+                            maxValue: 20
+                            onValueEditingFinished: function(newValue) { pageModel.setRuleField(ruleRow.index, "distance", newValue) }
+                        }
+                        FlatButton {
+                            icon: IconCode.DELETE_TANK
+                            toolTipTitle: qsTrc("notation/editstyle/jubellelayout", "Remove this rule")
+                            onClicked: pageModel.removeRule(ruleRow.index)
+                        }
+                    }
+                }
+
+                FlatButton {
+                    text: qsTrc("notation/editstyle/jubellelayout", "Add rule")
+                    onClicked: pageModel.addRule()
+                }
+            }
+        }
+
         StyledTextLabel {
             Layout.fillWidth: true
             horizontalAlignment: Text.AlignLeft

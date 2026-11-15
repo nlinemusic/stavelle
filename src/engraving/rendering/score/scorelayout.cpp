@@ -21,6 +21,8 @@
  */
 #include "scorelayout.h"
 
+#include "jubelle/engravingrules.h"
+
 #include "dom/score.h"
 #include "dom/masterscore.h"
 #include "dom/system.h"
@@ -89,6 +91,10 @@ void ScoreLayout::layoutRange(Score* score, const Fraction& st, const Fraction& 
             etick = next->endTick();
         }
     }
+
+    // Jubelle G7: engraving rules decide placement and distance of markings
+    // that follow the style (nothing happens without rules)
+    jubelle::applyEngravingRules(score);
 
     ctx.mutState().setIsLayoutAll(isLayoutAll);
 

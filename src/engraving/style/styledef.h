@@ -2206,6 +2206,7 @@ enum class Sid : short {
     jubelleSidewaysNudge,           // text-like items may move a little sideways instead of far away
     jubelleNudgeLimit,              // how far sideways, in staff spaces (default 0.5, at most 2)
     jubelleCollisionAvoidance,      // resolve the overlaps MuseScore leaves, by the priority table
+    jubelleEngravingRules,          // engraving rules (placement and distance), one per line; empty = none
 
     STYLES
 };

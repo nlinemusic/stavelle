@@ -23,6 +23,8 @@
 
 #include "tlayout.h"
 
+#include "jubelle/engravingrules.h"
+
 #include "global/realfn.h"
 #include "global/types/number.h"
 #include "draw/fontmetrics.h"
@@ -1867,8 +1869,8 @@ void TLayout::layoutExpression(const Expression* item, Expression::LayoutData* l
         return;
     }
 
-    const_cast<Expression*>(item)->setPlacementBasedOnVoiceAssignment(item->style().styleV(
-                                                                          Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
+    const_cast<Expression*>(item)->setPlacementBasedOnVoiceAssignment(jubelle::ruleDirection(item, item->style().styleV(
+                                                                                              Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>()));
 
     TextLayout::layoutBaseTextBase(item, ldata);
 
@@ -6669,7 +6671,8 @@ SpannerSegment* TLayout::layoutSystemSLine(SLine* line, System* system, LayoutCo
             sst = SpannerSegmentType::BEGIN;
         }
         if (line->hasVoiceAssignmentProperties()) {
-            line->setPlacementBasedOnVoiceAssignment(ctx.conf().styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
+            line->setPlacementBasedOnVoiceAssignment(jubelle::ruleDirection(line,
+                                                                            ctx.conf().styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>()));
         }
     } else if (line->tick() < stick
                && (line->tick2() > etick || (line->tick2() == etick && line->isPedal() && toPedal(line)->connect45HookToNext()))) {

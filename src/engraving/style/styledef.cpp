@@ -2179,6 +2179,7 @@ const std::array<StyleDef::StyleValue, size_t(Sid::STYLES)> StyleDef::styleValue
     styleDef(jubelleSidewaysNudge,                       true),
     styleDef(jubelleNudgeLimit,                          0.5_sp),
     styleDef(jubelleCollisionAvoidance,                  false),
+    styleDef(jubelleEngravingRules,                      PropertyValue(String())),
 } };
 
 #undef styleDef

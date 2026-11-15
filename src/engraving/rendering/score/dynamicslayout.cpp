@@ -21,6 +21,8 @@
  */
 
 #include "dynamicslayout.h"
+
+#include "jubelle/engravingrules.h"
 #include "layoutcontext.h"
 #include "tlayout.h"
 #include "textlayout.h"
@@ -61,7 +63,8 @@ void DynamicsLayout::doLayoutDynamic(Dynamic* item, Dynamic::LayoutData* ldata, 
     }
     ldata->setIsSkipDraw(false);
 
-    item->setPlacementBasedOnVoiceAssignment(conf.styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
+    item->setPlacementBasedOnVoiceAssignment(jubelle::ruleDirection(item,
+                                                                     conf.styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>()));
 
     // If "Center on notehead" is on, override user position. Restore later
     AlignH userPosition = item->getProperty(Pid::POSITION).value<AlignH>();

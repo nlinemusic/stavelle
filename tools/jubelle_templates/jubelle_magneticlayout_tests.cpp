@@ -338,3 +338,104 @@ TEST(Jubelle_MagneticLayout, EverythingOnLeavesNoMoreOverlapsInTheBigBandChart)
     std::cout << "[ Magnetic ] Big Band chart overlaps: " << off << " off, " << on << " on\n";
     EXPECT_LE(on, off);
 }
+
+// ---------------------------------------------------------------------------
+// G7 step 2: engraving rules
+// ---------------------------------------------------------------------------
+#include "engraving/rendering/score/jubelle/engravingrules.h"
+
+TEST(Jubelle_EngravingRules, StoredTextRoundTripsAndSkipsWhatIsntARule)
+{
+    const muse::String text = u"dynamics group:vocals above\n"
+                              u"# a comment\n"
+                              u"chordsymbols all default 1.5\n"
+                              u"nonsense line here\n"
+                              u"dynamics somewhere above\n"
+                              u"lyrics instrument:soprano below";
+    const auto rules = jl::parseRules(text);
+    ASSERT_EQ(rules.size(), 3u);
+    EXPECT_EQ(rules[0].kind, jl::RuleKind::Dynamics);
+    EXPECT_EQ(rules[0].scope, u"group:vocals");
+    EXPECT_EQ(rules[0].placement, jl::RulePlacement::Above);
+    EXPECT_FALSE(rules[0].minDistanceSp.has_value());
+    ASSERT_TRUE(rules[1].minDistanceSp.has_value());
+    EXPECT_DOUBLE_EQ(*rules[1].minDistanceSp, 1.5);
+    EXPECT_EQ(jl::parseRules(jl::formatRules(rules)), rules);
+    EXPECT_TRUE(jl::parseRules(u"").empty());
+}
+
+TEST(Jubelle_EngravingRules, TheMostSpecificRuleWins)
+{
+    const auto rules = jl::parseRules(u"dynamics all below\n"
+                                      u"dynamics group:vocals above\n"
+                                      u"dynamics instrument:soprano below\n"
+                                      u"dynamics all above");
+    const jl::EngravingRule* r = jl::ruleFor(rules, jl::RuleKind::Dynamics, u"brass", u"trumpet");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->placement, jl::RulePlacement::Above) << "between equals, the later rule wins";
+    r = jl::ruleFor(rules, jl::RuleKind::Dynamics, u"vocals", u"alto");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->scope, u"group:vocals");
+    r = jl::ruleFor(rules, jl::RuleKind::Dynamics, u"vocals", u"soprano");
+    ASSERT_TRUE(r);
+    EXPECT_EQ(r->placement, jl::RulePlacement::Below);
+    EXPECT_EQ(jl::ruleFor(rules, jl::RuleKind::Lyrics, u"vocals", u"soprano"), nullptr);
+}
+
+TEST(Jubelle_EngravingRules, PresetsFollowBehindBars)
+{
+    EXPECT_TRUE(jl::presetRules(u"standard").empty());
+    for (const char16_t* id : { u"jazz", u"choral", u"orchestral" }) {
+        const auto rules = jl::presetRules(id);
+        ASSERT_FALSE(rules.empty()) << muse::String(id).toStdString();
+        // vocal dynamics go above the staff in every preset that sets them
+        const jl::EngravingRule* r = jl::ruleFor(rules, jl::RuleKind::Dynamics, u"vocals", u"soprano");
+        ASSERT_TRUE(r);
+        EXPECT_EQ(r->placement, jl::RulePlacement::Above);
+        EXPECT_EQ(jl::parseRules(jl::formatRules(rules)), rules);
+    }
+}
+
+TEST(Jubelle_EngravingRules, ARulePlacesMarkingsAndRemovingItRestoresMuseScores)
+{
+    REQUIRE_REALISTIC();
+    ThreeDynamics t;
+    ASSERT_TRUE(t.s);
+    ASSERT_FALSE(t.high->placeAbove());
+    const double yBelow = t.high->pagePos().y();
+
+    // violin is in the "strings" group
+    setStyle(t.s.get(), Sid::jubelleEngravingRules, muse::String(u"dynamics group:strings above"));
+    EXPECT_TRUE(t.high->placeAbove());
+    EXPECT_TRUE(t.low1->placeAbove());
+    EXPECT_LT(t.high->pagePos().y(), yBelow - t.s->style().spatium());
+    // the rule changes nothing in the music: the direction is still automatic
+    EXPECT_EQ(t.high->getProperty(Pid::DIRECTION).value<DirectionV>(), DirectionV::AUTO);
+
+    // a rule for another group doesn't apply
+    setStyle(t.s.get(), Sid::jubelleEngravingRules, muse::String(u"dynamics group:vocals above"));
+    EXPECT_FALSE(t.high->placeAbove());
+    EXPECT_NEAR(t.high->pagePos().y(), yBelow, 0.01 * t.s->style().spatium());
+
+    // rules removed: exactly MuseScore's placement again
+    setStyle(t.s.get(), Sid::jubelleEngravingRules, muse::String(u"dynamics all above"));
+    t.s->style().set(Sid::jubelleEngravingRules, muse::String());
+    t.s->styleChanged();
+    t.s->update();
+    t.s->doLayout();
+    EXPECT_FALSE(t.high->placeAbove());
+    EXPECT_NEAR(t.high->pagePos().y(), yBelow, 0.01 * t.s->style().spatium());
+}
+
+TEST(Jubelle_EngravingRules, PlacementSetByHandWins)
+{
+    REQUIRE_REALISTIC();
+    ThreeDynamics t;
+    ASSERT_TRUE(t.s);
+    // Properties › Dynamics: "below" chosen by hand (MuseScore 4 keeps it as the direction)
+    t.high->setProperty(Pid::DIRECTION, PropertyValue(DirectionV::DOWN));
+    setStyle(t.s.get(), Sid::jubelleEngravingRules, muse::String(u"dynamics all above 2"));
+    EXPECT_FALSE(t.high->placeAbove()) << "set by hand in Properties";
+    EXPECT_TRUE(t.low2->placeAbove());
+    EXPECT_DOUBLE_EQ(t.low2->minDistance().val(), 2.0);
+}
