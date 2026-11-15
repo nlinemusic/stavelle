@@ -62,6 +62,8 @@ private:
     muse::uicomponents::MenuItemList makeHairpinItems();
     muse::uicomponents::MenuItemList makeGradualTempoChangeItems();
     muse::uicomponents::MenuItemList makeTextItems();
+    muse::uicomponents::MenuItemList makeJubelleLinkMarkerItems();   // Jubelle R7
+    bool isJubelleLinkMarkerSelected() const;
 
     muse::uicomponents::MenuItem* makeEditStyle(const EngravingItem* element);
 

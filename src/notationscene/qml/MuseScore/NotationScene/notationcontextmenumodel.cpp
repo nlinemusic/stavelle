@@ -80,6 +80,11 @@ MenuItemList NotationContextMenuModel::makeItemsByElementType(ElementType elemen
         return makeGradualTempoChangeItems();
     case ElementType::TEXT:
         return makeTextItems();
+    case ElementType::TEXTLINE_SEGMENT:
+        if (isJubelleLinkMarkerSelected()) {
+            return makeJubelleLinkMarkerItems();   // R7
+        }
+        break;
     default:
         break;
     }
@@ -525,6 +530,29 @@ bool NotationContextMenuModel::isDrumsetStaff() const
 
     Fraction tick = ctx.element ? ctx.element->tick() : Fraction { -1, 1 };
     return ctx.staff->part()->instrument(tick)->drumset() != nullptr;
+}
+
+bool NotationContextMenuModel::isJubelleLinkMarkerSelected() const
+{
+    INotationSelectionPtr sel = selection();
+    if (!sel || sel->elements().size() != 1) {
+        return false;
+    }
+    return mu::notation::jubelle::linkMember(sel->elements().front()).has_value();
+}
+
+MenuItemList NotationContextMenuModel::makeJubelleLinkMarkerItems()
+{
+    // Jubelle R7: what you can do with a linked passage, from its marker
+    MenuItemList items;
+    const auto member = mu::notation::jubelle::linkMember(selection()->elements().front());
+    if (member && !member->source) {
+        items << makeMenuItem("jubelle-link-resync");
+    }
+    items << makeMenuItem("jubelle-link-unlink");
+    items << makeSeparator();
+    items << makeMenuItem("jubelle-linked-passages");
+    return items;
 }
 
 bool NotationContextMenuModel::isJubelleCondensedCopy() const

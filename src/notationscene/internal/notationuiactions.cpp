@@ -514,6 +514,19 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Copy one part's system and page breaks and other layout to other parts, without changing any music")
              ),
     //! Jubelle Phase 4 / G2: link the highlighted passage to other staves; manage links
+    //! Jubelle R7: from a linked passage's marker
+    UiAction("jubelle-link-resync",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Re-sync with the leading staff"),
+             TranslatableString("action", "Make this passage follow its leading staff again, replacing your own changes in it")
+             ),
+    UiAction("jubelle-link-unlink",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Unlink this passage"),
+             TranslatableString("action", "Stop this passage following (or leading); the notes stay as they are")
+             ),
     UiAction("jubelle-linked-passages",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

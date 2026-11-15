@@ -41,6 +41,7 @@
 
 #include "notation/internal/jubelle/pagealignment.h"
 #include "notation/internal/jubelle/condensedscore.h"
+#include "notation/internal/jubelle/linkedpassages.h"
 
 #include <QGuiApplication>
 
@@ -420,6 +421,8 @@ void NotationActionController::init()
     registerAction("jubelle-linked-passages", [this]() {
         interactive()->open("musescore://notation/jubelle/linkedpassages");
     });
+    registerAction("jubelle-link-resync", [this]() { jubelleLinkMarkerAction(true); });
+    registerAction("jubelle-link-unlink", [this]() { jubelleLinkMarkerAction(false); });
     // Jubelle: title-page alignment (Format → Align, right-click, Properties panel)
     static const std::vector<std::pair<const char*, jubelle::AlignCommand> > alignCommands {
         { "jubelle-align-left", jubelle::AlignCommand::Left },
@@ -2446,6 +2449,38 @@ void NotationActionController::setJubelleAlignReference(int reference)
 {
     muse::settings()->setSharedValue(JUBELLE_ALIGN_REFERENCE_KEY, muse::Val(reference));
     m_jubelleAlignReferenceChanged.notify();
+}
+
+void NotationActionController::jubelleLinkMarkerAction(bool resync)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    const std::vector<EngravingItem*> items = notation->interaction()->selection()->elements();
+    const auto member = items.size() == 1 ? mu::notation::jubelle::linkMember(items.front()) : std::nullopt;
+    if (!member || !member->line) {
+        interactive()->info(muse::trc("notation", "No linked passage selected"),
+                            muse::trc("notation", "Select a linked passage's marker first (shown with View › Show › Show invisible)."));
+        return;
+    }
+    if (resync && member->source) {
+        return;
+    }
+    if (!notation->elements()->msScore()->isMaster()) {
+        interactive()->info(muse::trc("notation", "Open the full score"),
+                            muse::trc("notation", "Linked passages are changed in the full score, not in a part."));
+        return;
+    }
+    notation->undoStack()->prepareChanges(resync ? muse::TranslatableString("undoableAction", "Re-sync linked passage")
+                                          : muse::TranslatableString("undoableAction", "Unlink passage"));
+    if (resync) {
+        mu::notation::jubelle::resyncTarget(notation->elements()->msScore(), member->line);
+    } else {
+        mu::notation::jubelle::unlinkMember(notation->elements()->msScore(), member->line);
+    }
+    notation->undoStack()->commitChanges();
+    notation->notationChanged().notify();
 }
 
 void NotationActionController::jubelleToggleCourtesy()
