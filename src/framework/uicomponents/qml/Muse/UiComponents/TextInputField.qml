@@ -139,7 +139,7 @@ FocusScope {
         color: ui.theme.textFieldColor
         border.color: ui.theme.strokeColor
         border.width: Math.max(ui.theme.borderWidth, 1)
-        radius: 3
+        radius: 6   // Jubelle R4
     }
 
     RowLayout {

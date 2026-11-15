@@ -61,8 +61,13 @@ StyledDialogView {
                 id: logo
                 Layout.alignment: Qt.AlignHCenter
 
-                source: "resources/mu_logo.svg"
+                // Jubelle: the approved Jubelle icon
+                source: "resources/jubelle_logo.png"
                 sourceSize: Qt.size(100, 100)
+                Layout.preferredWidth: 100
+                Layout.preferredHeight: 100
+                smooth: true
+                mipmap: true
 
                 MouseArea {
                     anchors.fill: parent

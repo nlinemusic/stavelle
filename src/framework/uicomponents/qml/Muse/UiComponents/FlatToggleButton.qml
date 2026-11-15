@@ -70,7 +70,7 @@ FocusScope {
 
         border.width: ui.theme.borderWidth
         border.color: ui.theme.strokeColor
-        radius: 2
+        radius: 4   // Jubelle R4
     }
 
     StyledIconLabel {

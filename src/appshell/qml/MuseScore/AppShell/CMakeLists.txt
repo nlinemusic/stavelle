@@ -64,6 +64,7 @@ qt_add_qml_module(appshell_qml
         FirstLaunchSetup/Page.qml
         FirstLaunchSetup/PlaybackPage.qml
         FirstLaunchSetup/ThemesPage.qml
+        HomePage/HomeHeader.qml
         HomePage/HomeMenu.qml
         HomePage/HomePage.qml
         HomePage/LearningCenterPage.qml
@@ -81,6 +82,7 @@ qt_add_qml_module(appshell_qml
     RESOURCES
         FirstLaunchSetup/resources/MuseSounds.png
         resources/mu_logo.svg
+        resources/jubelle_logo.png
     IMPORTS
         TARGET muse_ui_qml
         TARGET muse_uicomponents_qml

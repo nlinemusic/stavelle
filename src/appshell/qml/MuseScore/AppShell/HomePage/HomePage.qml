@@ -76,48 +76,59 @@ DockPage {
         }
     }
 
-    panels: [
-        DockPanel {
-            id: menuPanel
-
-            objectName: "homeMenu"
-
-            readonly property int maxFixedWidth: 232
-            readonly property int minFixedWidth: 76
-            readonly property bool iconsOnly: root.window
-                                                ? root.window.width < (root.window.minimumWidth + maxFixedWidth - minFixedWidth)
-                                                : false
-            readonly property int currentFixedWidth: iconsOnly ? minFixedWidth : maxFixedWidth
-
-            width: currentFixedWidth
-            minimumWidth: currentFixedWidth
-            maximumWidth: currentFixedWidth
-
-            floatable: false
-            closable: false
-
-            HomeMenu {
-                currentPageName: root.section
-                iconsOnly: menuPanel.iconsOnly
-
-                onSelected: function(name) {
-                    root.subSection = ""
-                    root.setCurrentCentral(name)
-                }
-            }
-        }
-    ]
+    // Jubelle R4 (approved mockup): the sections are tabs in a top bar
+    // (HomeHeader) instead of MuseScore's left sidebar
+    panels: []
 
     central: scoresComp
+
+    function selectSection(name) {
+        root.subSection = ""
+        root.setCurrentCentral(name)
+    }
+
+    // Inline components do not share the file's scope, so the current section
+    // and the tab clicks are passed through properties at each use.
+    component WithHeader: Item {
+        id: withHeader
+        default property alias page: pageHolder.data
+        property string currentPageName: ""
+        signal sectionSelected(string name)
+
+        HomeHeader {
+            id: header
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            currentPageName: withHeader.currentPageName
+            onSelected: function(name) {
+                withHeader.sectionSelected(name)
+            }
+        }
+
+        Item {
+            id: pageHolder
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: header.bottom
+            anchors.bottom: parent.bottom
+        }
+    }
 
     Component {
         id: scoresComp
 
-        ScoresPage {
-            subSection: root.subSection
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
 
-            onSubSectionApplied: {
-                root.subSection = ""
+            ScoresPage {
+                anchors.fill: parent
+                subSection: root.subSection
+
+                onSubSectionApplied: {
+                    root.subSection = ""
+                }
             }
         }
     }
@@ -125,25 +136,53 @@ DockPage {
     Component {
         id: extensionsComp
 
-        PluginsPage {}
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            PluginsPage {
+                anchors.fill: parent
+            }
+        }
     }
 
     Component {
         id: templatesComp
 
-        TemplateLibraryPage {}
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            TemplateLibraryPage {
+                anchors.fill: parent
+            }
+        }
     }
 
     Component {
         id: learningComp
 
-        LearningCenterPage {}
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            LearningCenterPage {
+                anchors.fill: parent
+            }
+        }
     }
 
     Component {
         id: settingsComp
 
-        SettingsPage {}
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            SettingsPage {
+                anchors.fill: parent
+            }
+        }
     }
 
 }

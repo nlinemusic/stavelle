@@ -85,7 +85,7 @@ FocusScope {
     property real margins: isNarrow ? 12 : 16
     property real minWidth: isNarrow ? 24 : 132
 
-    property real backgroundRadius: 3
+    property real backgroundRadius: 6   // Jubelle R4: 6 px corners (was 3)
 
     property bool drawFocusBorderInsideRect: false
 

@@ -39,7 +39,7 @@ Rectangle {
 
     opacity: enabled ? 1 : ui.theme.itemOpacityDisabled
 
-    radius: 3
+    radius: 6   // Jubelle R4
     color: "#000000"
 
     NavigationFocusBorder { navigationCtrl: navCtrl }

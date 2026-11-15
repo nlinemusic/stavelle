@@ -43,7 +43,7 @@ GroupBox {
 
         color: ui.theme.backgroundPrimaryColor
         border.color: ui.theme.strokeColor
-        radius: 3
+        radius: 8   // Jubelle R4
     }
 
     label: StyledTextLabel {
