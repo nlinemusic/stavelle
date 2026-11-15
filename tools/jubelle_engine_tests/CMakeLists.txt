@@ -99,6 +99,8 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/tools/jubelle_templates/templatebuilder.cpp
     ${MU_ROOT}/tools/jubelle_templates/bigbandtestmusic.cpp
     ${MU_ROOT}/tools/jubelle_templates/jubelle_templates_tests.cpp
+    # Engine baselines (measurements only)
+    jubelle_baselines.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp
