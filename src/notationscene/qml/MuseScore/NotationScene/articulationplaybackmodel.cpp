@@ -59,6 +59,8 @@ const std::vector<ParamText>& paramTexts()
         { ArtParam::GlissandoStart,      QT_TRANSLATE_NOOP("notation", "Glissandos"),       QT_TRANSLATE_NOOP("notation", "Slide starts at"), "%" },
         { ArtParam::GlissandoCurve,      QT_TRANSLATE_NOOP("notation", "Glissandos"),       QT_TRANSLATE_NOOP("notation", "Speed"), "curve" },
         { ArtParam::TurnSpeed,           QT_TRANSLATE_NOOP("notation", "Jazz turn"),        QT_TRANSLATE_NOOP("notation", "Speed"), "% of normal" },
+        { ArtParam::TurnWidth,           QT_TRANSLATE_NOOP("notation", "Jazz turn"),        QT_TRANSLATE_NOOP("notation", "Width (0 key, 1 half steps, 2 whole steps)"), "" },
+        { ArtParam::TurnStart,           QT_TRANSLATE_NOOP("notation", "Jazz turn"),        QT_TRANSLATE_NOOP("notation", "Start (0 on the beat, 1 before it)"), "" },
     };
     return texts;
 }

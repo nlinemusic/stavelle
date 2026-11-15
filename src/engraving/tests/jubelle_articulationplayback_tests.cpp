@@ -454,3 +454,86 @@ TEST(Jubelle_ArticulationPlayback, RealScoreStaccatoTurnUndo)
     EXPECT_EQ(p.turnChord->articulations().size(), 1u);
     delete p.score;
 }
+
+//! P3 (15 Nov 2026): the jazz turn as big bands play it, a quick turn into the
+//! note: turn notes of a sixth of the beat (triplet sixteenths) in real time,
+//! with adjustable width (key, half steps, whole steps) and start (on the beat,
+//! or just before it so the written note lands on the beat)
+TEST(Jubelle_ArticulationPlayback, JazzTurnAsBigBandsPlayIt)
+{
+    PlayedScore p = loadPlayedScore();
+    ASSERT_TRUE(p.score && p.part && p.turnChord);
+    auto repository = std::make_shared<::testing::NiceMock<ArticulationProfilesRepositoryMock> >();
+    ON_CALL(*repository, defaultProfile(::testing::_)).WillByDefault(::testing::Return(playbackProfile()));
+    PlaybackModel model(muse::modularity::globalCtx());
+    model.profilesRepository.set(repository);
+    model.load(p.score);
+    const PlaybackEventsMap& events = model.resolveTrackPlaybackData(p.part->id(), p.part->instrumentId()).originEvents;
+
+    // The lowest of the chord's notes (E) at each moment, in time order
+    struct Step {
+        timestamp_t start;
+        duration_t length;
+        pitch_level_t pitch;
+    };
+    auto lowestLine = [&]() {
+        std::map<timestamp_t, Step> byTime;
+        for (const muse::mpe::NoteEvent& n : notesAt(events, WHOLE_NOTE - 500000, 2 * WHOLE_NOTE)) {
+            const timestamp_t t = n.arrangementCtx().actualTimestamp;
+            const pitch_level_t pitch = n.pitchCtx().nominalPitchLevel;
+            auto it = byTime.find(t);
+            if (it == byTime.end() || pitch < it->second.pitch) {
+                byTime[t] = { t, n.arrangementCtx().actualDuration, pitch };
+            }
+        }
+        std::vector<Step> line;
+        for (const auto& [t, s] : byTime) {
+            line.push_back(s);
+        }
+        return line;
+    };
+
+    // On the beat, neighbours from the key (C major): E - F E D - E
+    std::vector<Step> line = lowestLine();
+    ASSERT_EQ(line.size(), 4u);
+    const double turnNote = 500000.0 / 6;   // a sixth of a beat at 120 bpm: 83 ms
+    EXPECT_EQ(line[0].start, WHOLE_NOTE);
+    EXPECT_NEAR(double(line[0].length), turnNote, 1500.0);
+    EXPECT_NEAR(double(line[3].start - WHOLE_NOTE), 3 * turnNote, 3000.0);
+    const pitch_level_t e = line[3].pitch;
+    EXPECT_EQ(line[0].pitch - e, 1 * PITCH_LEVEL_STEP);   // F
+    EXPECT_EQ(line[1].pitch, e);
+    EXPECT_EQ(line[2].pitch - e, -2 * PITCH_LEVEL_STEP);  // D
+
+    // Half steps: E - F E D# - E
+    ArticulationPlaybackSettings s;
+    s.scoreValues.set(ArtParam::TurnWidth, 1);
+    writeSettings(p.score, s);
+    line = lowestLine();
+    ASSERT_EQ(line.size(), 4u);
+    EXPECT_EQ(line[0].pitch - line[3].pitch, 1 * PITCH_LEVEL_STEP);
+    EXPECT_EQ(line[2].pitch - line[3].pitch, -1 * PITCH_LEVEL_STEP);
+
+    // Whole steps: E - F# E D - E
+    s.scoreValues.set(ArtParam::TurnWidth, 2);
+    writeSettings(p.score, s);
+    line = lowestLine();
+    ASSERT_EQ(line.size(), 4u);
+    EXPECT_EQ(line[0].pitch - line[3].pitch, 2 * PITCH_LEVEL_STEP);
+    EXPECT_EQ(line[2].pitch - line[3].pitch, -2 * PITCH_LEVEL_STEP);
+
+    // Just before the beat: the turn comes first, the written note lands on the beat
+    // and still ends where it did
+    s.scoreValues.set(ArtParam::TurnStart, 1);
+    writeSettings(p.score, s);
+    line = lowestLine();
+    ASSERT_EQ(line.size(), 4u);
+    EXPECT_NEAR(double(WHOLE_NOTE - line[0].start), 3 * turnNote, 3000.0);
+    EXPECT_EQ(line[3].start, WHOLE_NOTE);
+    EXPECT_NEAR(double(line[3].start + line[3].length), 2.0 * WHOLE_NOTE, 3000.0);
+
+    // The written music never changed
+    EXPECT_EQ(p.turnChord->notes().size(), 3u);
+    EXPECT_EQ(p.turnChord->ticks(), Fraction(1, 1));
+    delete p.score;
+}

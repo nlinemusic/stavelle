@@ -101,7 +101,7 @@ std::set<ArtParam> paramsInPassage(const Score* score, const PassageRange& range
                         out.insert(ArtParam::AccentLoudness);
                     }
                     if (a->symId() == SymId::brassJazzTurn) {
-                        out.insert(ArtParam::TurnSpeed);
+                        out.insert({ ArtParam::TurnSpeed, ArtParam::TurnWidth, ArtParam::TurnStart });
                     }
                 }
                 if (const ChordLine* cl = c->chordLine()) {
@@ -313,6 +313,8 @@ const std::vector<Wording>& wordings()
         { ArtParam::GlissandoStart,      "Glissandos",       "Slide starts at", "%" },
         { ArtParam::GlissandoCurve,      "Glissandos",       "Speed", "curve" },
         { ArtParam::TurnSpeed,           "Jazz turn",        "Speed", "% of normal" },
+        { ArtParam::TurnWidth,           "Jazz turn",        "Width (0 key, 1 half steps, 2 whole steps)", "" },
+        { ArtParam::TurnStart,           "Jazz turn",        "Start (0 on the beat, 1 before it)", "" },
     };
     return w;
 }
@@ -381,7 +383,7 @@ std::vector<ArtParam> paramsForItems(const std::vector<EngravingItem*>& items)
             found.insert(ArtParam::AccentLoudness);
         }
         if (a->symId() == SymId::brassJazzTurn) {
-            found.insert(ArtParam::TurnSpeed);
+            found.insert({ ArtParam::TurnSpeed, ArtParam::TurnWidth, ArtParam::TurnStart });
         }
     }
     std::vector<ArtParam> out;

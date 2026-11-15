@@ -52,6 +52,8 @@ enum class ArtParam : int {
     GlissandoStart,          // % of the note at which the slide begins
     GlissandoCurve,          // -1 / 0 / +1
     TurnSpeed,               // % of normal speed (jazz turn)
+    TurnWidth,               // jazz turn neighbours: 0 = from the key, 1 = half steps, 2 = whole steps
+    TurnStart,               // jazz turn: 0 = on the beat, 1 = just before it (the note lands on the beat)
     Count
 };
 
@@ -140,5 +142,7 @@ ArticulationPlaybackValues mergedPassageValues(const std::vector<PassageAt>& pas
 
 //! Turn speed for a part at a tick (1.0 = normal). Cheap to call repeatedly.
 double turnSpeedFactor(const Score* score, const Part* part, int tick);
+//! Any value at a point in the score: a passage, else the instrument, else the score, else the default
+int effectiveValue(const Score* score, const Part* part, int tick, ArtParam param);
 double turnSpeedFactor(const Score* score, uint64_t partId);
 }

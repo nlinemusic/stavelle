@@ -45,6 +45,8 @@ static const std::array<ArtParamInfo, size_t(ArtParam::Count)> PARAMS = { {
     { ArtParam::GlissandoStart,      "glissandoStart",     0,  90,  0 },
     { ArtParam::GlissandoCurve,      "glissandoCurve",    -1,   1,  0 },
     { ArtParam::TurnSpeed,           "turnSpeed",         50, 200, 100 },
+    { ArtParam::TurnWidth,           "turnWidth",          0,   2,  0 },
+    { ArtParam::TurnStart,           "turnStart",          0,   1,  0 },
 } };
 
 const std::array<ArtParamInfo, size_t(ArtParam::Count)>& artParams()
@@ -550,5 +552,29 @@ double turnSpeedFactor(const Score* score, const Part* part, int tick)
         return *v / 100.0;
     }
     return turnSpeedFactor(score, part ? part->id().toUint64() : 0);
+}
+
+int effectiveValue(const Score* score, const Part* part, int tick, ArtParam param)
+{
+    const ArticulationPlaybackValues passage = mergedPassageValues(passagesAt(score, part, tick));
+    if (auto v = passage.get(param)) {
+        return *v;
+    }
+    if (!score || !score->masterScore()) {
+        return artParamInfo(param).defaultValue;
+    }
+    const String text = score->masterScore()->metaTag(String(ArticulationPlaybackSettings::META_TAG));
+    if (text.isEmpty()) {
+        return artParamInfo(param).defaultValue;
+    }
+    static std::mutex mutex;
+    static String cachedText;
+    static ArticulationPlaybackSettings cached;
+    std::lock_guard<std::mutex> lock(mutex);
+    if (text != cachedText) {
+        cached = ArticulationPlaybackSettings::fromText(text);
+        cachedText = text;
+    }
+    return cached.effective(part ? part->id().toUint64() : 0).valueOrDefault(param);
 }
 }
