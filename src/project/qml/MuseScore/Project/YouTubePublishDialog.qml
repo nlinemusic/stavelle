@@ -93,6 +93,11 @@ StyledDialogView {
                 }
 
                 FlatButton {
+                    text: qsTrc("project", "How connecting works")
+                    onClicked: connectPreview.visible = !connectPreview.visible
+                }
+
+                FlatButton {
                     text: qsTrc("project", "Connect")
                     enabled: false
                     toolTipTitle: qsTrc("project", "Not available yet")
@@ -103,6 +108,14 @@ StyledDialogView {
                     navigation.order: 1
                 }
             }
+        }
+
+        // Jubelle G10: the sign-in design, shown before connecting is switched on
+        YouTubeConnectPreview {
+            id: connectPreview
+            width: parent.width
+            visible: false
+            onCloseRequested: connectPreview.visible = false
         }
 
         NavigationPanel {

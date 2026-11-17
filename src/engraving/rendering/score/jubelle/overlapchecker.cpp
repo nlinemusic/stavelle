@@ -11,6 +11,8 @@
 #include "overlapchecker.h"
 
 #include <algorithm>
+#include <cmath>
+#include <unordered_map>
 
 #include "dom/articulation.h"
 #include "dom/chord.h"
@@ -305,28 +307,107 @@ void addChordRestEntries(std::vector<Entry>& out, ChordRest* cr, double pad)
 }
 
 struct OverlapIndex::Impl {
-    std::vector<Entry> obstacles;      // never move; sorted by coarse.left
-    std::vector<double> maxRight;      // largest coarse.right among obstacles[0..i]
+    std::vector<Entry> obstacles;      // never move
     std::vector<Entry> candidates;
     double tol = 0.0;
 
-    //! calls f(other) for every entry whose coarse box meets `c`'s
+    // obstacles filed in a grid of cells, so a candidate only meets what is near it on the page
+    // (a large score has thousands of obstacles per system, spread over dozens of staves)
+    double cell = 1.0;
+    std::unordered_map<int64_t, std::vector<uint32_t> > grid;
+    mutable std::vector<uint32_t> seen;
+    mutable uint32_t epoch = 0;
+
+    static int64_t key(int cx, int cy) { return (int64_t(cx) << 32) ^ int64_t(uint32_t(cy)); }
+
+    void cellRange(const RectF& r, int* x0, int* x1, int* y0, int* y1) const
+    {
+        *x0 = int(std::floor(r.left() / cell));
+        *x1 = int(std::floor(r.right() / cell));
+        *y0 = int(std::floor(r.top() / cell));
+        *y1 = int(std::floor(r.bottom() / cell));
+    }
+
+    void buildGrid(double cellSize)
+    {
+        cell = cellSize;
+        seen.assign(obstacles.size(), 0);
+        candSeen.assign(candidates.size(), 0);
+        for (uint32_t i = 0; i < candidates.size(); ++i) {
+            fileCandidate(i, true);
+        }
+        for (uint32_t i = 0; i < obstacles.size(); ++i) {
+            int x0, x1, y0, y1;
+            cellRange(obstacles[i].coarse, &x0, &x1, &y0, &y1);
+            for (int cx = x0; cx <= x1; ++cx) {
+                for (int cy = y0; cy <= y1; ++cy) {
+                    grid[key(cx, cy)].push_back(i);
+                }
+            }
+        }
+    }
+
+    //! calls f(other) for every entry whose coarse box may meet `c`'s
     template<typename F>
     void forNear(const Entry& c, F f) const
     {
-        // obstacles left of c.coarse.right(), walking back while any earlier one can still reach c
-        auto end = std::upper_bound(obstacles.begin(), obstacles.end(), c.coarse.right(), [](double x, const Entry& e) {
-            return x < e.coarse.left();
-        });
-        for (size_t i = size_t(end - obstacles.begin()); i-- > 0;) {
-            if (maxRight[i] < c.coarse.left()) {
-                break;
-            }
-            f(obstacles[i]);
+        if (++epoch == 0) {   // wrapped: start the marks again
+            std::fill(seen.begin(), seen.end(), 0);
+            epoch = 1;
         }
-        for (const Entry& other : candidates) {
-            if (&other != &c) {
-                f(other);
+        int x0, x1, y0, y1;
+        cellRange(c.coarse, &x0, &x1, &y0, &y1);
+        for (int cx = x0; cx <= x1; ++cx) {
+            for (int cy = y0; cy <= y1; ++cy) {
+                auto it = grid.find(key(cx, cy));
+                if (it == grid.end()) {
+                    continue;
+                }
+                for (uint32_t i : it->second) {
+                    if (seen[i] != epoch) {
+                        seen[i] = epoch;
+                        f(obstacles[i]);
+                    }
+                }
+            }
+        }
+        // the other candidates, from their own grid (they move, so it is kept up to date by itemMoved)
+        if (++candEpoch == 0) {
+            std::fill(candSeen.begin(), candSeen.end(), 0);
+            candEpoch = 1;
+        }
+        for (int cx = x0; cx <= x1; ++cx) {
+            for (int cy = y0; cy <= y1; ++cy) {
+                auto it = candGrid.find(key(cx, cy));
+                if (it == candGrid.end()) {
+                    continue;
+                }
+                for (uint32_t i : it->second) {
+                    if (candSeen[i] != candEpoch && &candidates[i] != &c) {
+                        candSeen[i] = candEpoch;
+                        f(candidates[i]);
+                    }
+                }
+            }
+        }
+    }
+
+    std::unordered_map<int64_t, std::vector<uint32_t> > candGrid;
+    mutable std::vector<uint32_t> candSeen;
+    mutable uint32_t candEpoch = 0;
+
+    void fileCandidate(uint32_t i, bool add)
+    {
+        int x0, x1, y0, y1;
+        cellRange(candidates[i].coarse, &x0, &x1, &y0, &y1);
+        for (int cx = x0; cx <= x1; ++cx) {
+            for (int cy = y0; cy <= y1; ++cy) {
+                std::vector<uint32_t>& v = candGrid[key(cx, cy)];
+                if (add) {
+                    v.push_back(i);
+                } else {
+                    v.erase(std::remove(v.begin(), v.end(), i), v.end());
+                }
             }
         }
     }
@@ -374,15 +455,7 @@ OverlapIndex::OverlapIndex(const System* system, IsCandidate isCandidate, double
     for (Entry& e : all) {
         (isCandidate && isCandidate(e.item) ? m_impl->candidates : m_impl->obstacles).push_back(std::move(e));
     }
-    std::sort(m_impl->obstacles.begin(), m_impl->obstacles.end(), [](const Entry& a, const Entry& b) {
-        return a.coarse.left() < b.coarse.left();
-    });
-    m_impl->maxRight.reserve(m_impl->obstacles.size());
-    double reach = -1e300;
-    for (const Entry& e : m_impl->obstacles) {
-        reach = std::max(reach, e.coarse.right());
-        m_impl->maxRight.push_back(reach);
-    }
+    m_impl->buildGrid(8.0 * system->spatium());
 }
 
 OverlapIndex::~OverlapIndex()
@@ -426,11 +499,14 @@ size_t OverlapIndex::overlapCountOf(const EngravingItem* candidate) const
 
 void OverlapIndex::itemMoved(const EngravingItem* candidate)
 {
-    for (Entry& e : m_impl->candidates) {
+    for (uint32_t i = 0; i < m_impl->candidates.size(); ++i) {
+        Entry& e = m_impl->candidates[i];
         if (e.item == candidate) {
+            m_impl->fileCandidate(i, false);
             const double pad = 2.0 * e.item->spatium();
             e.coarse = e.item->ldata()->bbox(LD_ACCESS::MAYBE_NOTINITED).translated(e.item->pagePos()).adjusted(-pad, -pad, pad, pad);
             e.exact = false;
+            m_impl->fileCandidate(i, true);
             return;
         }
     }

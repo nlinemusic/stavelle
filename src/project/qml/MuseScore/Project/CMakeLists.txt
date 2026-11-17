@@ -140,6 +140,7 @@ qt_add_qml_module(project_qml
         TemplateLibraryPage.qml
         UploadProgressDialog.qml
         YouTubePublishDialog.qml
+        YouTubeConnectPreview.qml
     RESOURCES
         internal/Migration/migration.png
         internal/SaveToCloud/images/Cloud.png
