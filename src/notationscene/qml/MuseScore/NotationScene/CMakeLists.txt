@@ -49,6 +49,8 @@ qt_add_qml_module(notationscene_qml
         findselectmodel.h
         proofreadmodel.cpp
         proofreadmodel.h
+        temporecordmodel.cpp
+        temporecordmodel.h
         applypartlayoutmodel.cpp
         applypartlayoutmodel.h
         passageplaybackmodel.cpp
@@ -192,6 +194,7 @@ qt_add_qml_module(notationscene_qml
         RepeatsDialog.qml
         FindSelectDialog.qml
         ProofreadPanel.qml
+        TempoRecordDialog.qml
         ApplyPartLayoutDialog.qml
         PassagePlaybackDialog.qml
         LinkedPassagesDialog.qml
@@ -351,6 +354,7 @@ set_source_files_properties(
     repeatsmodel.cpp
     findselectmodel.cpp
     proofreadmodel.cpp
+    temporecordmodel.cpp
     applypartlayoutmodel.cpp
     passageplaybackmodel.cpp
     linkedpassagesmodel.cpp

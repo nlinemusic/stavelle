@@ -415,6 +415,9 @@ void NotationActionController::init()
     registerAction("jubelle-find-select", [this]() {
         interactive()->open("musescore://notation/jubelle/findselect");
     });
+    registerAction("jubelle-record-tempo", [this]() {
+        interactive()->open("musescore://notation/jubelle/temporecord");
+    });
     registerAction("jubelle-apply-part-layout", [this]() {
         interactive()->open("musescore://notation/jubelle/applypartlayout");
     });

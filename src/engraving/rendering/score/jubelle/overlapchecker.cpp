@@ -248,9 +248,13 @@ bool exactOverlap(const Entry& a, const Entry& b, double tol, RectF* area)
     if (a.priority == b.priority || (a.owner && a.owner == b.owner) || !a.coarse.intersects(b.coarse)) {
         return false;
     }
+    // one outline at a time: most near misses are settled by the first, so the second is never read
     a.ensureExact();
+    if (a.shape.empty() || !a.box.intersects(b.coarse)) {
+        return false;
+    }
     b.ensureExact();
-    if (a.shape.empty() || b.shape.empty()) {
+    if (b.shape.empty() || !a.box.intersects(b.box)) {
         return false;
     }
     *area = a.box.intersected(b.box);

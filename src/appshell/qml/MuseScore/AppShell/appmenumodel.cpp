@@ -410,6 +410,8 @@ MenuItem* AppMenuModel::makePlaybackMenu()
 {
     MenuItemList playbackItems {
         makeMenuItem("jubelle-repeats"),
+        makeSeparator(),
+        makeMenuItem("jubelle-record-tempo"),
     };
 
     return makeMenu(TranslatableString("appshell/menu/playback", "&Playback"), playbackItems, "menu-jubelle-playback");

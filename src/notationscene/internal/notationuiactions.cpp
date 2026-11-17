@@ -499,6 +499,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&wing…"),
              TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
              ),
+    //! Jubelle G6: live tempo recording by tapping
+    UiAction("jubelle-record-tempo",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Record &tempo…"),
+             TranslatableString("action", "Tap the beat while the score plays to record tempo changes, ritardandos and rubato as hidden tempo markings")
+             ),
     //! Jubelle G5: Find and Select
     UiAction("jubelle-find-select",
              mu::context::UiCtxProjectOpened,
