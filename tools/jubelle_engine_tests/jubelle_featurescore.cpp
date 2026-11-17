@@ -19,7 +19,11 @@
 
 #include "engraving/compat/scoreaccess.h"
 #include "engraving/compat/mscxcompat.h"
+#include "engraving/dom/articulation.h"
+#include "engraving/dom/chord.h"
 #include "engraving/dom/excerpt.h"
+#include "engraving/dom/factory.h"
+#include "engraving/dom/segment.h"
 #include "engraving/dom/masterscore.h"
 #include "engraving/dom/measure.h"
 #include "engraving/dom/tempotext.h"
@@ -82,6 +86,24 @@ TEST(Jubelle_FeatureScore, MadeFromTheBigBandChartAndReread)
     const Fraction to = bar(s.get(), 17)->tick();
     jf::applyTempoPoints(s.get(), { { bar(s.get(), 13)->tick(), 150 }, { bar(s.get(), 14)->tick(), 138 },
                              { bar(s.get(), 15)->tick(), 124 }, { bar(s.get(), 16)->tick(), 108 } }, from, to);
+    // a jazz turn on the first chord of bar 5 in the lead trumpet (the first staff with a chord there)
+    Chord* turned = nullptr;
+    for (Segment* seg = bar(s.get(), 5)->first(SegmentType::ChordRest); seg && !turned; seg = seg->next(SegmentType::ChordRest)) {
+        for (EngravingItem* e : seg->elist()) {
+            if (e && e->isChord()) {
+                turned = toChord(e);
+                break;
+            }
+        }
+    }
+    ASSERT_TRUE(turned);
+    Articulation* jazzTurn = Factory::createArticulation(turned);
+    jazzTurn->setSymId(SymId::brassJazzTurn);
+    jazzTurn->setParent(turned);
+    jazzTurn->setTrack(turned->track());
+    s->undoAddElement(jazzTurn);
+    const Fraction turnTick = turned->tick();
+    const track_idx_t turnTrack = turned->track();
     // timeline markers
     jf::addTimelineMarker(s.get(), bar(s.get(), 9)->tick(), u"Shout chorus");
     jf::addTimelineMarker(s.get(), bar(s.get(), 21)->tick(), u"Check trumpet 1 voicing");
@@ -117,6 +139,17 @@ TEST(Jubelle_FeatureScore, MadeFromTheBigBandChartAndReread)
     EXPECT_EQ(tempoMap(back.get()), before) << "the tempo plays the same after saving";
     EXPECT_EQ(jf::timelineMarkers(back.get()).size(), markers);
     EXPECT_EQ(jf::recordedTempoPoints(back.get()).size(), jf::recordedTempoPoints(s.get()).size());
+    {
+        Segment* seg = back->tick2segment(turnTick, true, SegmentType::ChordRest);
+        ASSERT_TRUE(seg);
+        EngravingItem* e = seg->element(turnTrack);
+        ASSERT_TRUE(e && e->isChord());
+        bool kept = false;
+        for (const Articulation* a : toChord(e)->articulations()) {
+            kept = kept || a->symId() == SymId::brassJazzTurn;
+        }
+        EXPECT_TRUE(kept) << "the jazz turn is saved and reopened as itself";
+    }
 
     // the tempo map, for the Windows check to compare MuseScore's MIDI against
     std::ofstream map(std::filesystem::path(out).replace_extension(".tempo.txt"));

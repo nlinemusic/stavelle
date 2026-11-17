@@ -26,6 +26,11 @@
 #include "palettecreator.h"
 #include "../palettetypes.h"
 
+#include <QSettings>
+
+#include "engraving/dom/articulation.h"
+#include "engraving/dom/chord.h"
+#include "engraving/dom/factory.h"
 #include "engraving/dom/masterscore.h"
 #include "engraving/rw/xmlreader.h"
 #include "engraving/rw/xmlwriter.h"
@@ -39,6 +44,44 @@ using namespace muse::io;
 using namespace muse::workspace;
 
 static const AsciiStringView PALETTE_XML_TAG("PaletteBox");
+
+
+//! Jubelle: palettes saved in a workspace before the jazz turn existed get it once, next to the
+//! brass mutes in Articulations. Once added (or if you remove it later) it is never added again.
+static void jubelleAddJazzTurnOnce(const PaletteTreePtr& tree)
+{
+    static const char* KEY = "jubelle/palettes/jazzTurnAdded";
+    QSettings settings;
+    if (!tree || settings.value(KEY, false).toBool()) {
+        return;
+    }
+    using namespace mu::engraving;
+    for (PalettePtr palette : tree->palettes) {
+        if (!palette || palette->type() != Palette::Type::Articulation) {
+            continue;
+        }
+        size_t insertAt = palette->cells().size();
+        for (size_t i = 0; i < palette->cells().size(); ++i) {
+            const PaletteCellPtr& cell = palette->cells()[i];
+            const EngravingItem* e = cell && cell->element ? cell->element.get() : nullptr;
+            if (e && e->isArticulation()) {
+                const SymId id = toArticulation(e)->symId();
+                if (id == SymId::brassJazzTurn) {
+                    settings.setValue(KEY, true);
+                    return;   // already there
+                }
+                if (id == SymId::brassMuteClosed) {
+                    insertAt = i + 1;
+                }
+            }
+        }
+        auto turn = Factory::makeArticulation(gpaletteScore->dummy()->chord());
+        turn->setSymId(SymId::brassJazzTurn);
+        palette->insertElement(insertAt, turn, turn->subtypeUserName());
+        settings.setValue(KEY, true);
+        return;
+    }
+}
 
 PaletteTreePtr PaletteWorkspaceSetup::readPalette(const ByteArray& data, const muse::modularity::ContextPtr& iocCtx)
 {
@@ -111,6 +154,7 @@ void PaletteWorkspaceSetup::setup()
             LOGD() << "no palette data in workspace, will use default";
             tree = PaletteCreator(iocContext()).newDefaultPaletteTree();
         }
+        jubelleAddJazzTurnOnce(tree);
         paletteProvider()->setUserPaletteTree(tree);
 
         if (engraving::gpaletteScore->mscVersion() < engraving::Constants::MSC_VERSION) {

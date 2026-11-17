@@ -714,6 +714,7 @@ PalettePtr PaletteCreator::newArticulationsPalette(bool defaultPalette)
         SymId::articUnstressAbove,
         SymId::brassMuteOpen,
         SymId::brassMuteClosed,
+        SymId::brassJazzTurn,   // Jubelle: the jazz turn, with its own playback (not the classical turn's)
         SymId::stringsHarmonic,
         SymId::stringsUpBow,
         SymId::stringsDownBow
@@ -749,6 +750,7 @@ PalettePtr PaletteCreator::newArticulationsPalette(bool defaultPalette)
         SymId::wiggleVibratoLargeSlowest,
         SymId::brassMuteOpen,
         SymId::brassMuteClosed,
+        SymId::brassJazzTurn,   // Jubelle: the jazz turn, with its own playback (not the classical turn's)
         SymId::stringsHarmonic,
         SymId::stringsUpBow,
         SymId::stringsDownBow,
