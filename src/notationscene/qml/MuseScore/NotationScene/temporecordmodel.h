@@ -35,6 +35,7 @@ class TempoRecordModel : public QObject, public muse::Contextable, public muse::
     Q_PROPERTY(bool followMe READ followMe NOTIFY changed)
     Q_PROPERTY(bool midiTap READ midiTap NOTIFY changed)
     Q_PROPERTY(int recordedPoints READ recordedPoints NOTIFY changed)
+    Q_PROPERTY(QVariantList points READ points NOTIFY changed)
     Q_PROPERTY(QString startText READ startText NOTIFY changed)
     Q_PROPERTY(QString resultText READ resultText NOTIFY changed)
 
@@ -58,6 +59,8 @@ public:
     bool followMe() const { return m_followMe; }
     bool midiTap() const { return m_midiTap; }
     int recordedPoints() const;
+    //! Jubelle's recorded tempo points, to look at and correct: bar, beat and tempo
+    QVariantList points() const;
     QString startText() const;
     QString resultText() const { return m_resultText; }
 
@@ -76,6 +79,9 @@ public:
     Q_INVOKABLE void cancel();
     //! Removes Jubelle's recorded tempo from the selection, or from the whole score
     Q_INVOKABLE void clearRecorded();
+    //! Changes the tempo of one recorded point (one undo step)
+    Q_INVOKABLE void setPointBpm(int index, double bpm);
+    Q_INVOKABLE void goToPoint(int index);
 
 signals:
     void changed();

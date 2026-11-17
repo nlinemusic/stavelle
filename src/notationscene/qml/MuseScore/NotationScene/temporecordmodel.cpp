@@ -6,6 +6,7 @@
 #include "temporecordmodel.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <QVariantMap>
 
@@ -13,6 +14,7 @@
 
 #include "engraving/dom/measure.h"
 #include "engraving/dom/score.h"
+#include "engraving/dom/tempotext.h"
 
 #include "notation/inotation.h"
 #include "notation/inotationelements.h"
@@ -299,4 +301,60 @@ void TempoRecordModel::clearRecorded()
     notation->undoStack()->commitChanges();
     m_resultText = muse::qtrc("notation/temporecord", "Recorded tempo removed. Your own tempo markings are untouched.");
     emit changed();
+}
+
+QVariantList TempoRecordModel::points() const
+{
+    QVariantList out;
+    Score* s = score();
+    if (!s) {
+        return out;
+    }
+    int index = 0;
+    for (TempoText* t : jt::recordedTempoPoints(s)) {
+        QVariantMap m;
+        m["index"] = index++;
+        const Measure* measure = s->tick2measure(t->tick());
+        const int bar = measure ? measure->no() + 1 : 0;
+        // the beat inside the bar, counted in quarter notes from 1
+        const double beat = measure ? 1.0 + (t->tick() - measure->tick()).toDouble() * 4.0 : 1.0;
+        m["where"] = muse::qtrc("notation/temporecord", "Bar %1, beat %2").arg(bar).arg(beat, 0, 'g', 3);
+        m["bpm"] = std::round(s->tempo(t->tick()).toBPM().val * 10.0) / 10.0;
+        out << m;
+    }
+    return out;
+}
+
+void TempoRecordModel::setPointBpm(int index, double bpm)
+{
+    INotationPtr notation = globalContext() ? globalContext()->currentNotation() : nullptr;
+    Score* s = score();
+    if (!notation || !s || m_recording) {
+        return;
+    }
+    const std::vector<TempoText*> all = jt::recordedTempoPoints(s);
+    if (index < 0 || index >= int(all.size())) {
+        return;
+    }
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Edit recorded tempo"));
+    jt::setRecordedPointTempo(s, all[size_t(index)], std::clamp(bpm, 20.0, 400.0));
+    notation->undoStack()->commitChanges();
+    emit changed();
+}
+
+void TempoRecordModel::goToPoint(int index)
+{
+    INotationPtr notation = globalContext() ? globalContext()->currentNotation() : nullptr;
+    Score* s = score();
+    if (!notation || !s) {
+        return;
+    }
+    const std::vector<TempoText*> all = jt::recordedTempoPoints(s);
+    if (index < 0 || index >= int(all.size())) {
+        return;
+    }
+    if (Measure* m = s->tick2measure(all[size_t(index)]->tick())) {
+        notation->interaction()->select({ m }, SelectType::SINGLE, 0);
+        notation->interaction()->showItem(m, 0);
+    }
 }

@@ -16,7 +16,7 @@ StyledDialogView {
     objectName: "TempoRecordDialog"
 
     contentWidth: 520
-    contentHeight: 470
+    contentHeight: 640
     margins: 24
 
     TempoRecordModel {
@@ -117,7 +117,62 @@ StyledDialogView {
             text: tr.resultText
         }
 
-        Item { Layout.fillHeight: true }
+        // the recorded tempo, point by point: look at it and correct single values
+        StyledTextLabel {
+            Layout.fillWidth: true
+            horizontalAlignment: Text.AlignLeft
+            font: ui.theme.bodyBoldFont
+            visible: tr.recordedPoints > 0 && !tr.recording
+            text: qsTrc("notation/temporecord", "Recorded tempo (%n point(s)): click one to go there, or type a new tempo", "", tr.recordedPoints)
+        }
+
+        StyledListView {
+            id: pointList
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: tr.recordedPoints > 0 && !tr.recording
+            clip: true
+            spacing: 2
+            model: tr.points
+
+            delegate: ListItemBlank {
+                id: pointRow
+                required property var modelData
+                width: pointList.width
+                height: 34
+                radius: 4
+                normalColor: ui.theme.backgroundSecondaryColor
+
+                onClicked: tr.goToPoint(pointRow.modelData.index)
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 6
+                    spacing: 8
+                    StyledTextLabel {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignLeft
+                        text: pointRow.modelData.where
+                    }
+                    StyledTextLabel { text: "♩ =" }
+                    IncrementalPropertyControl {
+                        Layout.preferredWidth: 90
+                        currentValue: pointRow.modelData.bpm
+                        step: 1
+                        decimals: 1
+                        minValue: 20
+                        maxValue: 400
+                        onValueEditingFinished: function(v) { tr.setPointBpm(pointRow.modelData.index, v) }
+                    }
+                }
+            }
+        }
+
+        Item {
+            Layout.fillHeight: true
+            visible: !(tr.recordedPoints > 0 && !tr.recording)
+        }
 
         RowLayout {
             Layout.fillWidth: true
