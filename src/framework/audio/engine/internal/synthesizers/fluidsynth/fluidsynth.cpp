@@ -29,6 +29,7 @@
 
 #include "sfcachedloader.h"
 #include "jubellepresetgain.h"
+#include "jubelledynamics.h"
 
 #include "log.h"
 
@@ -117,7 +118,8 @@ Ret FluidSynth::init(const OutputSpec& spec)
     m_outputSpec = spec;
 
     m_fluid->settings = new_fluid_settings();
-    fluid_settings_setnum(m_fluid->settings, "synth.gain", FLUID_GLOBAL_VOLUME_GAIN);
+    // Jubelle: mf sits lower on the MIDI scale now; the make-up gain keeps it as loud as before
+    fluid_settings_setnum(m_fluid->settings, "synth.gain", FLUID_GLOBAL_VOLUME_GAIN * jubelle::makeupGain());
     fluid_settings_setint(m_fluid->settings, "synth.audio-channels", FLUID_AUDIO_CHANNELS_PAIR); // 1 pair of audio channels
     fluid_settings_setint(m_fluid->settings, "synth.lock-memory", 0);
     fluid_settings_setint(m_fluid->settings, "synth.threadsafe-api", 0);
@@ -340,7 +342,7 @@ void FluidSynth::applyJubelleEnsembleTrim()
     }
     m_jubelleTrimForCount = count;
     const double trim = std::pow(10.0, jubelle::ensembleTrimDb(count) / 20.0);
-    fluid_synth_set_gain(m_fluid->synth, float(FLUID_GLOBAL_VOLUME_GAIN * trim));
+    fluid_synth_set_gain(m_fluid->synth, float(FLUID_GLOBAL_VOLUME_GAIN * jubelle::makeupGain() * trim));
 }
 
 void FluidSynth::applyJubellePresetGain(int channel)

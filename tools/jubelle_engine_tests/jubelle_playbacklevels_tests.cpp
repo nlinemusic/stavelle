@@ -12,6 +12,7 @@
 
 #include "audio/engine/internal/dsp/jubellesafetylimiter.h"
 #include "audio/engine/internal/synthesizers/fluidsynth/jubellepresetgain.h"
+#include "audio/engine/internal/synthesizers/fluidsynth/jubelledynamics.h"
 
 using namespace muse::audio;
 using namespace muse::audio::jubelle;
@@ -117,5 +118,89 @@ TEST(Jubelle_PresetGain, EnsembleTrimGrowsWithTheBand)
     EXPECT_DOUBLE_EQ(ensembleTrimDb(200), -15.0);   // never more than 15 dB
     for (int n = 5; n < 60; ++n) {
         EXPECT_LE(ensembleTrimDb(n + 1), ensembleTrimDb(n));   // more players, never louder
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Dynamics (17 Nov 2026): the loudness of each marking, in decibels
+// ---------------------------------------------------------------------------
+namespace {
+//! what a soundfont synth does with a MIDI level (SoundFont 2 standard curve)
+double heardDb(int midiLevel)
+{
+    return 40.0 * std::log10(midiLevel / 127.0);
+}
+
+const muse::audio::jubelle::DynamicsFamily ALL_FAMILIES[] = {
+    muse::audio::jubelle::DynamicsFamily::Generic, muse::audio::jubelle::DynamicsFamily::Brass,
+    muse::audio::jubelle::DynamicsFamily::Reeds, muse::audio::jubelle::DynamicsFamily::Flutes,
+    muse::audio::jubelle::DynamicsFamily::Strings, muse::audio::jubelle::DynamicsFamily::Keyboards,
+    muse::audio::jubelle::DynamicsFamily::Percussion, muse::audio::jubelle::DynamicsFamily::Voices,
+};
+}
+
+TEST(Jubelle_Dynamics, MuseScoresMappingMadeLoudMarkingsNearlyEqual)
+{
+    // the reason for the change: MuseScore's levels 80 (mf), 96 (f), 112 (ff), 127 (fff)
+    EXPECT_NEAR(heardDb(96) - heardDb(80), 3.2, 0.1);
+    EXPECT_NEAR(heardDb(127) - heardDb(112), 2.2, 0.1);
+}
+
+TEST(Jubelle_Dynamics, EveryStepIsClearlyAudibleForEveryFamily)
+{
+    using namespace muse::audio::jubelle;
+    for (DynamicsFamily f : ALL_FAMILIES) {
+        int previous = 0;
+        for (int step = 0; step <= 7; ++step) {
+            const int level = midiLevel(step, f);
+            EXPECT_GT(level, previous) << "step " << step;
+            if (step > 0 && step < 7) {
+                // at least 3 dB between neighbouring markings, even for flutes (the top one may meet the ceiling)
+                EXPECT_GE(heardDb(level) - heardDb(previous), 3.0) << "family " << int(f) << " step " << step;
+            }
+            previous = level;
+        }
+        EXPECT_EQ(midiLevel(4, f), MF_MIDI_LEVEL) << "mf is the anchor for every family";
+        EXPECT_GE(heardDb(midiLevel(5, f)) - heardDb(midiLevel(4, f)), 4.0) << "mf to f";
+        EXPECT_LE(midiLevel(7, f), 127);
+        EXPECT_GE(midiLevel(0, f), 1);
+    }
+}
+
+TEST(Jubelle_Dynamics, MezzoForteAndUnmarkedMusicAreAsLoudAsBefore)
+{
+    using namespace muse::audio::jubelle;
+    const double makeupDb = 20.0 * std::log10(makeupGain());
+    // mf: MuseScore's level 80 against Jubelle's 64 plus the make-up gain
+    EXPECT_NEAR(heardDb(MF_MIDI_LEVEL) + makeupDb, heardDb(80), 0.05);
+    // no dynamic at all: MuseScore's level 64
+    EXPECT_NEAR(heardDb(naturalMidiLevel()) + makeupDb, heardDb(64), 0.35);
+}
+
+TEST(Jubelle_Dynamics, InstrumentsRespondDifferently)
+{
+    using namespace muse::audio::jubelle;
+    EXPECT_EQ(familyFor(2, "trumpet"), DynamicsFamily::Brass);
+    EXPECT_EQ(familyFor(2, "trombone"), DynamicsFamily::Brass);
+    EXPECT_EQ(familyFor(2, "saxophone"), DynamicsFamily::Reeds);
+    EXPECT_EQ(familyFor(2, "flute"), DynamicsFamily::Flutes);
+    EXPECT_EQ(familyFor(1, "violin"), DynamicsFamily::Strings);
+    EXPECT_EQ(familyFor(3, "drumset"), DynamicsFamily::Percussion);
+    // brass has the widest range, flutes the narrowest
+    const double brass = heardDb(midiLevel(6, DynamicsFamily::Brass)) - heardDb(midiLevel(2, DynamicsFamily::Brass));
+    const double flute = heardDb(midiLevel(6, DynamicsFamily::Flutes)) - heardDb(midiLevel(2, DynamicsFamily::Flutes));
+    EXPECT_GT(brass, flute + 3.0);
+}
+
+TEST(Jubelle_Dynamics, ACrescendoRisesSmoothly)
+{
+    using namespace muse::audio::jubelle;
+    // p to ff in small steps, as a hairpin over a held note sends them
+    double last = heardDb(midiLevel(2.0, DynamicsFamily::Strings));
+    for (double s = 2.05; s <= 6.0; s += 0.05) {
+        const double now = heardDb(midiLevel(s, DynamicsFamily::Strings));
+        EXPECT_GE(now, last);
+        EXPECT_LE(now - last, 0.6) << "no audible jump at " << s;
+        last = now;
     }
 }

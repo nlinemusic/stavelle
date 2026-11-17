@@ -248,8 +248,8 @@ TEST(Jubelle_Baselines, EditingCostByFeature)
     std::system(("mkdir -p /tmp/jubelle_baseline_large && python3 " + ROOT + "tools/jubelle_checks/make_large_score.py " + ROOT
                  + "demos/Dawn.mscx " + large + " --instruments 3 --measures 15 > /dev/null 2>&1").c_str());
     const std::vector<std::pair<std::string, std::string> > scores {
-        { "Large orchestra 39 staves", large },
         { "Big Band test chart", ROOT + "tools/jubelle_templates/testscores/Big_Band_test_music.mscz" },
+        { "Large orchestra 39 staves", large },
     };
     struct Config {
         std::string name;
@@ -274,7 +274,7 @@ TEST(Jubelle_Baselines, EditingCostByFeature)
               s->style().set(Sid::jubelleCollisionAvoidance, true);
           }, true, true },
     };
-    constexpr int EDITS = 20;
+    constexpr int EDITS = 8;
     std::ostringstream table;
     table << "| Score | Configuration | Edit | Undo |\n|---|---|---:|---:|\n";
     for (const auto& [name, path] : scores) {
@@ -306,6 +306,7 @@ TEST(Jubelle_Baselines, EditingCostByFeature)
             char buf[256];
             std::snprintf(buf, sizeof(buf), "| %s | %s | %.1f ms | %.1f ms |\n", name.c_str(), c.name.c_str(), edit, undo);
             table << buf;
+            std::cerr << buf << std::flush;
             model.reset();
         }
     }

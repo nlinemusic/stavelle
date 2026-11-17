@@ -14,6 +14,7 @@
 
 #include "dom/engravingitem.h"
 #include "dom/measure.h"
+#include "dom/segment.h"
 #include "dom/system.h"
 #include "infrastructure/shape.h"
 #include "infrastructure/skyline.h"
@@ -215,26 +216,42 @@ int resolveCollisions(System* system)
     const double limit = nudgeLimitSp(system->style()) * sp;
     const double clearance = CLEARANCE_SP * sp;
 
-    auto overlapsOf = [system](const EngravingItem* item) {
-        std::vector<Overlap> mine;
-        for (const Overlap& o : findOverlaps(system)) {
-            if (o.moves == item || o.stays == item) {
-                mine.push_back(o);
+    // nothing here that collision avoidance may move: nothing to read or do
+    bool anyCandidate = false;
+    for (const MeasureBase* mb : system->measures()) {
+        if (!mb->isMeasure()) {
+            continue;
+        }
+        for (const Segment* seg = toMeasure(mb)->first(); seg && !anyCandidate; seg = seg->next()) {
+            for (const EngravingItem* a : seg->annotations()) {
+                if (a && collisionMovableKind(a) && mayMove(a)) {
+                    anyCandidate = true;
+                    break;
+                }
             }
         }
-        return mine;
-    };
+        if (anyCandidate) {
+            break;
+        }
+    }
+    if (!anyCandidate) {
+        return 0;
+    }
+
+    // the system's outlines are read once; moving an item re-reads only that item
+    OverlapIndex index(system);
+    auto overlapCount = [&index](const EngravingItem* item) { return index.overlapCountOf(item); };
 
     int moved = 0;
     std::set<EngravingItem*> done;
     for (int round = 0; round < 3; ++round) {
         bool changed = false;
-        for (const Overlap& o : findOverlaps(system)) {
+        for (const Overlap& o : index.overlaps()) {
             EngravingItem* item = o.moves;
             if (done.count(item) || !collisionMovableKind(item) || !mayMove(item)) {
                 continue;
             }
-            const size_t before = overlapsOf(item).size();
+            const size_t before = overlapCount(item);
 
             // outlines in page coordinates
             const RectF mine = item->shape().translated(item->pagePos()).bbox();
@@ -252,11 +269,13 @@ int resolveCollisions(System* system)
                         continue;
                     }
                     item->mutldata()->moveX(dx);
-                    if (overlapsOf(item).size() < before) {
+                    index.itemMoved(item);
+                    if (overlapCount(item) < before) {
                         solved = true;
                         break;
                     }
                     item->mutldata()->moveX(-dx);
+                    index.itemMoved(item);
                 }
             }
 
@@ -266,11 +285,13 @@ int resolveCollisions(System* system)
                 const double dy = above ? other.top() - clearance - mine.bottom() : other.bottom() + clearance - mine.top();
                 if ((above ? dy < 0.0 : dy > 0.0) && std::abs(dy) <= MAX_VERTICAL_MOVE_SP * sp) {
                     item->mutldata()->moveY(dy);
-                    if (overlapsOf(item).size() < before) {
+                    index.itemMoved(item);
+                    if (overlapCount(item) < before) {
                         SystemLayout::updateSkylineForElement(item, system, dy);
                         solved = true;
                     } else {
                         item->mutldata()->moveY(-dy);
+                        index.itemMoved(item);
                     }
                 }
             }

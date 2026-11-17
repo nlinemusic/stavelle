@@ -177,38 +177,107 @@ size_t checkedItemCount(const System* system)
     return system ? collect(system).size() : 0;
 }
 
-std::vector<Overlap> findOverlaps(const System* system, double toleranceSp)
+namespace {
+bool overlapBetween(const Item& a, const Item& b, double tol, RectF* area)
+{
+    if (a.priority == b.priority) {
+        return false;   // same kind: MuseScore stacks these itself
+    }
+    if (a.owner && a.owner == b.owner) {
+        return false;   // a marking against its own chord
+    }
+    *area = a.box.intersected(b.box);
+    if (area->width() <= tol || area->height() <= tol) {
+        return false;
+    }
+    return a.shape.intersects(b.shape);   // boxes can touch where outlines don't
+}
+
+std::vector<Overlap> overlapsIn(std::vector<Item>& items, double tol)
 {
     std::vector<Overlap> result;
-    if (!system) {
-        return result;
-    }
-    std::vector<Item> items = collect(system);
     std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) { return a.box.left() < b.box.left(); });
-    const double tol = toleranceSp * system->spatium();
-
     for (size_t i = 0; i < items.size(); ++i) {
         const Item& a = items[i];
         for (size_t j = i + 1; j < items.size() && items[j].box.left() < a.box.right() - tol; ++j) {
             const Item& b = items[j];
-            if (a.priority == b.priority) {
-                continue;   // same kind: MuseScore stacks these itself
-            }
-            if (a.owner && a.owner == b.owner) {
-                continue;   // a marking against its own chord
-            }
-            const RectF area = a.box.intersected(b.box);
-            if (area.width() <= tol || area.height() <= tol) {
+            RectF area;
+            if (!overlapBetween(a, b, tol, &area)) {
                 continue;
-            }
-            if (!a.shape.intersects(b.shape)) {
-                continue;   // boxes touch, outlines don't
             }
             const bool aStays = int(a.priority) < int(b.priority);
             result.push_back({ aStays ? a.item : b.item, aStays ? b.item : a.item, area });
         }
     }
     return result;
+}
+}
+
+std::vector<Overlap> findOverlaps(const System* system, double toleranceSp)
+{
+    if (!system) {
+        return {};
+    }
+    std::vector<Item> items = collect(system);
+    return overlapsIn(items, toleranceSp * system->spatium());
+}
+
+struct OverlapIndex::Impl {
+    std::vector<Item> items;
+    double tol = 0.0;
+};
+
+OverlapIndex::OverlapIndex(const System* system, double toleranceSp)
+    : m_impl(new Impl)
+{
+    if (system) {
+        m_impl->items = collect(system);
+        m_impl->tol = toleranceSp * system->spatium();
+    }
+}
+
+OverlapIndex::~OverlapIndex()
+{
+    delete m_impl;
+}
+
+std::vector<Overlap> OverlapIndex::overlaps() const
+{
+    return overlapsIn(m_impl->items, m_impl->tol);
+}
+
+size_t OverlapIndex::overlapCountOf(const EngravingItem* item) const
+{
+    const Item* mine = nullptr;
+    for (const Item& it : m_impl->items) {
+        if (it.item == item) {
+            mine = &it;
+            break;
+        }
+    }
+    if (!mine) {
+        return 0;
+    }
+    size_t n = 0;
+    for (const Item& other : m_impl->items) {
+        RectF area;
+        if (&other != mine && other.box.right() > mine->box.left() && other.box.left() < mine->box.right()
+            && overlapBetween(*mine, other, m_impl->tol, &area)) {
+            ++n;
+        }
+    }
+    return n;
+}
+
+void OverlapIndex::itemMoved(const EngravingItem* item)
+{
+    for (Item& it : m_impl->items) {
+        if (it.item == item) {
+            it.shape = item->shape().translated(item->pagePos());
+            it.box = it.shape.bbox();
+            return;
+        }
+    }
 }
 
 std::vector<Overlap> findOverlaps(const Score* score, double toleranceSp)

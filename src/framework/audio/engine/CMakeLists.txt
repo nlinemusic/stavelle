@@ -139,6 +139,7 @@ else()
         internal/synthesizers/fluidsynth/jubellebendshaping.h
         internal/synthesizers/fluidsynth/jubellepresetgain.h
         internal/synthesizers/fluidsynth/jubellepresetgains.h
+        internal/synthesizers/fluidsynth/jubelledynamics.h
         internal/synthesizers/fluidsynth/fluidsequencer.cpp
         internal/synthesizers/fluidsynth/fluidsequencer.h
         internal/synthesizers/fluidsynth/fluidresolver.cpp

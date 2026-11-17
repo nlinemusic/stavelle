@@ -30,6 +30,7 @@
 #include "../../abstracteventsequencer.h"
 #include "soundmapping.h"
 #include "jubellebendshaping.h"
+#include "jubelledynamics.h"
 
 namespace muse::audio::synth {
 class FluidSequencer : public engine::AbstractEventSequencer<midi::Event>
@@ -76,6 +77,7 @@ private:
     // Jubelle: pitch-bend (and volume) resets waiting to be placed after the release
     std::vector<jubelle::PendingReset> m_jubellePendingResets;
     bool m_useDynamicEvents = false;
+    jubelle::DynamicsFamily m_jubelleDynamicsFamily = jubelle::DynamicsFamily::Generic;
     int m_lastStaff = -1;
 };
 }

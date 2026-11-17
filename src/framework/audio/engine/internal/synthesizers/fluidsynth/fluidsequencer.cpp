@@ -42,6 +42,7 @@ void FluidSequencer::init(const PlaybackSetupData& setupData, const std::optiona
 
     m_channels.init(setupData, programOverride);
     m_useDynamicEvents = useDynamicEvents;
+    m_jubelleDynamicsFamily = jubelle::familyFor(int(setupData.category), setupData.id.toLower().toStdString());
 }
 
 int FluidSequencer::currentExpressionLevel() const
@@ -383,29 +384,16 @@ velocity_t FluidSequencer::noteVelocity(const mpe::NoteEvent& noteEvent) const
 int FluidSequencer::expressionLevel(const mpe::dynamic_level_t dynamicLevel) const
 {
     static constexpr mpe::dynamic_level_t MIN_SUPPORTED_DYNAMICS_LEVEL = mpe::dynamicLevelFromType(DynamicType::ppp);
-    static constexpr mpe::dynamic_level_t MAX_SUPPORTED_DYNAMICS_LEVEL = mpe::dynamicLevelFromType(DynamicType::fff);
-    static constexpr int MIN_SUPPORTED_VOLUME = 16; // MIDI equivalent for PPP
-    static constexpr int MAX_SUPPORTED_VOLUME = 127; // MIDI equivalent for FFF
-    static constexpr int VOLUME_STEP = 16;
 
-    if (dynamicLevel <= MIN_SUPPORTED_DYNAMICS_LEVEL) {
-        return MIN_SUPPORTED_VOLUME;
-    }
-
-    if (dynamicLevel >= MAX_SUPPORTED_DYNAMICS_LEVEL) {
-        return MAX_SUPPORTED_VOLUME;
-    }
-
-    float stepCount = ((dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL)
-                       / static_cast<float>(mpe::DYNAMIC_LEVEL_STEP));
-
+    // Jubelle: each marking's loudness is chosen in decibels and by instrument
+    // family, then turned into the MIDI level that gives it (see jubelledynamics.h).
+    // MuseScore's own mapping was 16 + 16 per marking for every instrument.
     if (dynamicLevel == mpe::dynamicLevelFromType(DynamicType::Natural)) {
-        stepCount -= 0.5;
+        return jubelle::naturalMidiLevel();
     }
 
-    dynamic_level_t result = RealRound(MIN_SUPPORTED_VOLUME + (stepCount * VOLUME_STEP), 0);
-
-    return std::clamp((int)result, MIN_SUPPORTED_VOLUME, MAX_SUPPORTED_VOLUME);
+    const double steps = (dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL) / static_cast<double>(mpe::DYNAMIC_LEVEL_STEP);
+    return jubelle::midiLevel(steps, m_jubelleDynamicsFamily);
 }
 
 int FluidSequencer::pitchBendLevel(const mpe::pitch_level_t pitchLevel) const

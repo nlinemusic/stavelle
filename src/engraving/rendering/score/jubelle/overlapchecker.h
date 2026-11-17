@@ -65,4 +65,25 @@ size_t checkedItemCount(const System* system);
 
 //! Overlaps in the whole laid-out score
 std::vector<Overlap> findOverlaps(const Score* score, double toleranceSp = 0.1);
+
+//! One system's outlines, read once. Collision avoidance asks many questions
+//! about the same system while it moves a few items; reading every outline
+//! again for each question made layout slow (measured 17 Nov 2026).
+class OverlapIndex
+{
+public:
+    explicit OverlapIndex(const System* system, double toleranceSp = 0.1);
+    ~OverlapIndex();
+
+    //! every overlap, as findOverlaps(system) gives
+    std::vector<Overlap> overlaps() const;
+    //! how many overlaps this item is part of
+    size_t overlapCountOf(const EngravingItem* item) const;
+    //! the item was moved: read its outline again
+    void itemMoved(const EngravingItem* item);
+
+private:
+    struct Impl;
+    Impl* m_impl = nullptr;
+};
 }
