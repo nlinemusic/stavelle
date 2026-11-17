@@ -69,6 +69,7 @@ qt_add_resources(appshell appshell_resources
         /
     FILES
         resources/LoadingScreen.svg
+        resources/jubelle_splash_logo.png
         resources/win_opengl_buglist.json
 )
 
