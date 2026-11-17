@@ -51,7 +51,7 @@ A new Claude project does **not** automatically get the old workspace, repositor
 - **The user's email is private;** never put it in commits.
 - **Known limits of the old session's GitHub access:**
   - tag pushes, changes to repository settings and REST ref writes were refused (403); branch pushes and cancelling runs worked;
-  - the default branch is still `jubelle/phase-2`, and switching it to `main` is the user's step;
+  - the default branch is still `stavelle/phase-1` (so the GitHub front page shows old MuseScore text), and switching it to `main` is the user's step;
   - artifact downloads from inside the session were blocked.
 
 ## 4. Current state (17 Nov 2026, 18:30 CT)
