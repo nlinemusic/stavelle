@@ -46,6 +46,7 @@
 #include "engraving/infrastructure/localfileinfoprovider.h"
 #include "engraving/playback/playbackmodel.h"
 #include "engraving/rw/rwregister.h"
+#include "engraving/style/style.h"
 #include "global/io/buffer.h"
 #include "mpe/tests/mocks/articulationprofilesrepositorymock.h"
 
@@ -226,4 +227,88 @@ TEST(Jubelle_Baselines, EngineTimings)
     std::cout << "\n[ Baselines ]\n" << table.str() << std::endl;
     std::ofstream("engine_baselines.json") << json.str();
     std::ofstream("engine_baselines.md") << table.str();
+}
+
+// ---------------------------------------------------------------------------
+// Where does the time of one edit go? (17 Nov 2026: editing felt slower than
+// MuseScore.) Each row enters the same notes with one Jubelle feature switched
+// on at a time; "MuseScore path" has every Jubelle feature and hook off, so it
+// is MuseScore 4.7.7's own code. JUBELLE_BASELINES=1 to run.
+// ---------------------------------------------------------------------------
+TEST(Jubelle_Baselines, EditingCostByFeature)
+{
+    const char* want = std::getenv("JUBELLE_BASELINES");
+    if (!want || std::string(want) != "1") {
+        GTEST_SKIP() << "set JUBELLE_BASELINES=1 to measure";
+    }
+    if (!muse::draw::FontProviderStub::realisticMetrics()) {
+        GTEST_SKIP() << "needs realistic metrics (second pass)";
+    }
+    const std::string large = "/tmp/jubelle_baseline_large/score.mscx";
+    std::system(("mkdir -p /tmp/jubelle_baseline_large && python3 " + ROOT + "tools/jubelle_checks/make_large_score.py " + ROOT
+                 + "demos/Dawn.mscx " + large + " --instruments 3 --measures 15 > /dev/null 2>&1").c_str());
+    const std::vector<std::pair<std::string, std::string> > scores {
+        { "Large orchestra 39 staves", large },
+        { "Big Band test chart", ROOT + "tools/jubelle_templates/testscores/Big_Band_test_music.mscz" },
+    };
+    struct Config {
+        std::string name;
+        std::function<void(MasterScore*)> setup;
+        bool hook = false;
+        bool playback = false;
+    };
+    const std::vector<Config> configs {
+        { "MuseScore path (all Jubelle features off)", [](MasterScore*) {}, false, false },
+        { "+ linked-passages hook", [](MasterScore*) {}, true, false },
+        { "+ courtesy accidentals", [](MasterScore* s) { s->style().set(Sid::jubelleCourtesyAccidentals, true); }, false, false },
+        { "+ magnetic layout", [](MasterScore* s) { s->style().set(Sid::jubelleMagneticLayout, true); }, false, false },
+        { "+ collision avoidance", [](MasterScore* s) { s->style().set(Sid::jubelleCollisionAvoidance, true); }, false, false },
+        { "+ engraving rules (jazz preset)", [](MasterScore* s) {
+              s->style().set(Sid::jubelleEngravingRules,
+                             muse::String(u"dynamics all below\nhairpins all below\ndynamics group:vocals above\nchordsymbols all above 1"));
+          }, false, false },
+        { "MuseScore path + playback model", [](MasterScore*) {}, false, true },
+        { "everything on (a new Jubelle score) + playback", [](MasterScore* s) {
+              s->style().set(Sid::jubelleCourtesyAccidentals, true);
+              s->style().set(Sid::jubelleMagneticLayout, true);
+              s->style().set(Sid::jubelleCollisionAvoidance, true);
+          }, true, true },
+    };
+    constexpr int EDITS = 20;
+    std::ostringstream table;
+    table << "| Score | Configuration | Edit | Undo |\n|---|---|---:|---:|\n";
+    for (const auto& [name, path] : scores) {
+        if (!std::ifstream(path).good()) {
+            continue;
+        }
+        for (const Config& c : configs) {
+            std::unique_ptr<MasterScore> s(load(path));
+            ASSERT_TRUE(s);
+            c.setup(s.get());
+            s->setLayoutAll();
+            s->doLayout();
+            Score::jubelleCmdHook = nullptr;
+            if (c.hook) {
+                mu::notation::jubelle::installLinkedPassagesHook();
+            }
+            auto repo = std::make_shared<NiceMock<muse::mpe::ArticulationProfilesRepositoryMock> >();
+            ON_CALL(*repo, defaultProfile(_)).WillByDefault(Return(std::make_shared<muse::mpe::ArticulationsProfile>()));
+            std::unique_ptr<PlaybackModel> model;
+            if (c.playback) {
+                model = std::make_unique<PlaybackModel>(muse::modularity::globalCtx());
+                model->profilesRepository.set(repo);
+                model->load(s.get());
+            }
+            editAverage(s.get(), 3);   // warm up
+            const double edit = editAverage(s.get(), EDITS);
+            const double undo = undoAverage(s.get(), EDITS);
+            Score::jubelleCmdHook = nullptr;
+            char buf[256];
+            std::snprintf(buf, sizeof(buf), "| %s | %s | %.1f ms | %.1f ms |\n", name.c_str(), c.name.c_str(), edit, undo);
+            table << buf;
+            model.reset();
+        }
+    }
+    std::cout << "\n[ Editing cost ]\n" << table.str() << std::endl;
+    std::ofstream("engine_editing_cost.md") << table.str();
 }

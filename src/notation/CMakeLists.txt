@@ -84,6 +84,8 @@ target_sources(notation PRIVATE
     internal/jubelle/proofread.h
     internal/jubelle/timelinemarkers.cpp
     internal/jubelle/timelinemarkers.h
+    internal/jubelle/tempotap.cpp
+    internal/jubelle/tempotap.h
     internal/jubelle/partlayout.cpp
     internal/jubelle/partlayout.h
     internal/jubelle/articulationpassage.cpp
@@ -168,6 +170,7 @@ set_source_files_properties(
     internal/jubelle/findselect.cpp
     internal/jubelle/proofread.cpp
     internal/jubelle/timelinemarkers.cpp
+    internal/jubelle/tempotap.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )
