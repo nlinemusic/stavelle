@@ -25,17 +25,19 @@ StyledDialogView {
 
     Component.onCompleted: tr.load()
 
-    // any key taps while recording (Esc still closes)
-    Keys.onPressed: function(event) {
-        if (tr.recording && event.key !== Qt.Key_Escape && !event.isAutoRepeat) {
-            tr.tap()
-            event.accepted = true
-        }
-    }
-
     ColumnLayout {
+        id: body
         anchors.fill: parent
         spacing: 12
+
+        // any key taps while recording (Esc still closes)
+        focus: true
+        Keys.onPressed: function(event) {
+            if (tr.recording && event.key !== Qt.Key_Escape && !event.isAutoRepeat) {
+                tr.tap()
+                event.accepted = true
+            }
+        }
 
         StyledTextLabel {
             Layout.fillWidth: true
@@ -206,7 +208,7 @@ StyledDialogView {
                         tr.finish()
                     } else {
                         tr.start()
-                        tapButton.forceActiveFocus()
+                        body.forceActiveFocus()
                     }
                 }
             }
