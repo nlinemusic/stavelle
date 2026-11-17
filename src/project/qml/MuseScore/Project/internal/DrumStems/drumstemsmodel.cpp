@@ -389,7 +389,8 @@ bool DrumStemsModel::exportOne(const Output& output, const QString& path)
 
     bool ok = false;
     if (playing > 0) {
-        muse::io::FileStream file(muse::io::path_t(path));
+        const muse::io::path_t filePath = muse::io::path_t(path);
+        muse::io::FileStream file(filePath);
         file.setMeta("file_path", path.toStdString());
         if (file.open(muse::io::IODevice::WriteOnly)) {
             ok = bool(writer->write(notation, file));

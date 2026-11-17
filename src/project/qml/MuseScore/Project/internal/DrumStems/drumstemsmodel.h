@@ -11,8 +11,8 @@
 #include "modularity/ioc.h"
 #include "async/asyncable.h"
 #include "context/iglobalcontext.h"
-#include "iglobalconfiguration.h"
-#include "iinteractive.h"
+#include "global/iglobalconfiguration.h"
+#include "global/iinteractive.h"
 
 #include "project/inotationwritersregister.h"
 #include "notation/internal/jubelle/drumstems.h"
