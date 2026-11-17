@@ -99,6 +99,7 @@ void NotationSceneModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://notation/jubelle/repeats"), "MuseScore.NotationScene", "RepeatsDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/findselect"), "MuseScore.NotationScene", "FindSelectDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/temporecord"), "MuseScore.NotationScene", "TempoRecordDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/pageturns"), "MuseScore.NotationScene", "PageTurnsDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/applypartlayout"), "MuseScore.NotationScene", "ApplyPartLayoutDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/passageplayback"), "MuseScore.NotationScene", "PassagePlaybackDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/linkedpassages"), "MuseScore.NotationScene", "LinkedPassagesDialog");

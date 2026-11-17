@@ -51,6 +51,8 @@ qt_add_qml_module(notationscene_qml
         proofreadmodel.h
         temporecordmodel.cpp
         temporecordmodel.h
+        pageturnsmodel.cpp
+        pageturnsmodel.h
         applypartlayoutmodel.cpp
         applypartlayoutmodel.h
         passageplaybackmodel.cpp
@@ -195,6 +197,7 @@ qt_add_qml_module(notationscene_qml
         FindSelectDialog.qml
         ProofreadPanel.qml
         TempoRecordDialog.qml
+        PageTurnsDialog.qml
         ApplyPartLayoutDialog.qml
         PassagePlaybackDialog.qml
         LinkedPassagesDialog.qml
@@ -355,6 +358,7 @@ set_source_files_properties(
     findselectmodel.cpp
     proofreadmodel.cpp
     temporecordmodel.cpp
+    pageturnsmodel.cpp
     applypartlayoutmodel.cpp
     passageplaybackmodel.cpp
     linkedpassagesmodel.cpp

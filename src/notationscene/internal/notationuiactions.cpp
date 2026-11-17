@@ -499,6 +499,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&wing…"),
              TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
              ),
+    //! Jubelle G8: page-turn optimisation
+    UiAction("jubelle-page-turns",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Page &turns…"),
+             TranslatableString("action", "See where the page turns fall in each part and move poor turns to places with enough rest")
+             ),
     //! Jubelle G6: live tempo recording by tapping
     UiAction("jubelle-record-tempo",
              mu::context::UiCtxProjectOpened,

@@ -389,6 +389,7 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("reset"),
         makeMenuItem("reset-to-default-layout"),
         makeMenuItem("jubelle-apply-part-layout"),
+        makeMenuItem("jubelle-page-turns"),
         makeMenuItem("jubelle-courtesy-toggle"),
         makeSeparator(),
         makeMenuItem("jubelle-articulation-playback"),
