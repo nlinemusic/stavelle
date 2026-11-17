@@ -155,4 +155,5 @@ target_include_directories(appshell_qml PRIVATE
     DevTools/Settings
     FirstLaunchSetup
     PublishPage
+    HomePage
 )
