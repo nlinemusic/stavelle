@@ -42,6 +42,8 @@ namespace muse::draw {
 class Painter;
 }
 
+#include "jubelle/videopages.h"
+
 namespace mu::iex::videoexport {
 class VideoWriter : public project::INotationWriter, public muse::Contextable, public muse::async::Asyncable
 {
@@ -78,6 +80,7 @@ private:
         double canvasDpi = 300.0;
         ViewMode viewMode = ViewMode::PageFull;
         muse::PointF moveToCenter;
+        std::string pageList;      // Jubelle: pages to show and their order; empty = all
     };
 
     Config makeConfig() const;
@@ -119,5 +122,9 @@ private:
     project::INotationWriterPtr m_audioWriter;
     bool m_audioCompleted = false;
     muse::Ret m_audioRet;
+
+    //! Jubelle: the pieces of music the video shows (seconds of music), worked out once the pages are laid out
+    std::vector<jubelle::VideoSegment> m_segments;
+    bool m_usePageList = false;
 };
 }

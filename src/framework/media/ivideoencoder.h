@@ -23,6 +23,8 @@
 #pragma once
 
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <QImage>
 
@@ -57,6 +59,13 @@ public:
     virtual bool encodeVideo(const muse::ByteArray& videoData, int maxFrames = -1) = 0;
 
     virtual bool addAudio(const muse::io::path_t& audioPath) = 0;
+
+    //! Jubelle: keep only these pieces of the audio file (start and end in seconds), joined in this
+    //! order, when addAudio() puts the sound into the video. Empty = the whole sound.
+    void setAudioSegments(std::vector<std::pair<double, double> > segments) { m_jubelleAudioSegments = std::move(segments); }
+
+protected:
+    std::vector<std::pair<double, double> > m_jubelleAudioSegments;
 };
 using IVideoEncoderPtr = std::shared_ptr<IVideoEncoder>;
 }

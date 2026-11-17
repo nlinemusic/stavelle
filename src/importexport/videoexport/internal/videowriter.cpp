@@ -104,6 +104,15 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
 
     Config cfg = makeConfig();
 
+    // Jubelle: check the page list against the score's pages first
+    if (!cfg.pageList.empty()) {
+        const int pageCount = int(notation->elements()->pages().size());
+        const jubelle::PageList list = jubelle::parsePageList(cfg.pageList, pageCount);
+        if (!list.ok) {
+            return make_ret(muse::Ret::Code::UnknownError, list.error);
+        }
+    }
+
     muse::io::path_t finalPath(filePath);
     muse::io::path_t tempAudioPath = finalPath + ".tmp_audio.aac";
 
@@ -156,6 +165,20 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
 
     if (withAudio) {
         if (result && m_audioRet) {
+            // Jubelle: with a page list, only the music of those pages is heard (the title time and end time stay)
+            std::vector<std::pair<double, double> > pieces;
+            if (m_usePageList) {
+                const double lead = cfg.leadingSec;
+                pieces.push_back({ 0.0, lead });
+                for (const jubelle::VideoSegment& seg : m_segments) {
+                    pieces.push_back({ lead + seg.start, lead + seg.end });
+                }
+                if (cfg.trailingSec > 0.0) {
+                    const double total = notation->masterNotation()->playback()->totalPlayTime();
+                    pieces.push_back({ lead + total, lead + total + cfg.trailingSec });
+                }
+            }
+            encoder->setAudioSegments(pieces);
             if (!encoder->addAudio(tempAudioPath)) {
                 result = make_ret(muse::Ret::Code::UnknownError);
             }
@@ -225,6 +248,7 @@ VideoWriter::Config VideoWriter::makeConfig() const
     cfg.trailingSec = configuration()->trailingSec();
 
     cfg.viewMode = configuration()->viewMode();
+    cfg.pageList = configuration()->pageList();
 
     return cfg;
 }
@@ -421,6 +445,29 @@ void VideoWriter::doGenerate(muse::media::IVideoEncoderPtr encoder, INotationPtr
     INotationPlaybackPtr playback = notation->masterNotation()->playback();
     float totalPlayTimeSec = playback->totalPlayTime();
 
+    // Jubelle: which pieces of the music to show, from the pages as laid out for the video
+    m_segments.clear();
+    m_usePageList = false;
+    {
+        PageList laidOut = notation->elements()->pages();
+        const jubelle::PageList list = jubelle::parsePageList(actualConfig.pageList, int(laidOut.size()));
+        if (list.ok && !list.pages.empty()) {
+            auto pageAt = [&](double secs) -> int {
+                const tick_t tick = playback->secToTick(secs);
+                for (const Page* p : laidOut) {
+                    if (tick < static_cast<tick_t>(p->endTick().ticks())) {
+                        return p->firstMeasure() ? int(p->pageNumber()) + 1 : 0;
+                    }
+                }
+                return 0;
+            };
+            const double step = 1.0 / std::max(1, actualConfig.fps);
+            m_segments = jubelle::planSegments(jubelle::pageVisits(totalPlayTimeSec, step, pageAt), list);
+            m_usePageList = true;
+            totalPlayTimeSec = float(jubelle::totalLength(m_segments));
+        }
+    }
+
     int leadingFrameCount = static_cast<int>(actualConfig.leadingSec * actualConfig.fps);
     int scoreFrameCount = static_cast<int>(totalPlayTimeSec * actualConfig.fps);
     int trailingFrameCount = static_cast<int>(actualConfig.trailingSec * actualConfig.fps);
@@ -593,9 +640,22 @@ bool VideoWriter::generateScoreFrames(muse::media::IVideoEncoderPtr encoder, INo
             currentTimeSec = totalPlayTimeSec;
         }
 
+        // Jubelle: with a page list, video time runs through the chosen pieces of music, each on its own page
+        const Page* forcedPage = nullptr;
+        if (m_usePageList) {
+            double musicSecs = 0.0;
+            const int seg = jubelle::segmentAt(m_segments, currentTimeSec, &musicSecs);
+            if (seg < 0) {
+                break;
+            }
+            currentTimeSec = float(musicSecs);
+            const size_t idx = size_t(m_segments[size_t(seg)].page - 1);
+            forcedPage = idx < pages.size() ? pages[idx] : nullptr;
+        }
+
         tick_t tick = playback->secToTick(currentTimeSec);
 
-        const Page* page = pageByTick(pages, tick);
+        const Page* page = forcedPage ? forcedPage : pageByTick(pages, tick);
         if (!page) {
             break;
         }

@@ -27,6 +27,7 @@
 #include <QTimer>
 
 #include "media/mediatypes.h"
+#include "notation/inotationelements.h"
 
 #include "app_config.h"
 
@@ -620,6 +621,30 @@ void ExportDialogModel::setVideoResolution(const QString& resolution)
 
     videoExportConfiguration()->setResolution(resolution.toStdString());
     emit videoResolutionChanged(resolution);
+}
+
+QString ExportDialogModel::videoPageList() const
+{
+    return QString::fromStdString(videoExportConfiguration()->pageList());
+}
+
+void ExportDialogModel::setVideoPageList(const QString& pages)
+{
+    if (pages == videoPageList()) {
+        return;
+    }
+    videoExportConfiguration()->setPageList(pages.trimmed().toStdString());
+    emit videoPageListChanged();
+}
+
+QString ExportDialogModel::videoPageListProblem() const
+{
+    const std::string pages = videoExportConfiguration()->pageList();
+    INotationPtr notation = context() ? context()->currentNotation() : nullptr;
+    if (pages.empty() || !notation || !notation->elements()) {
+        return QString();
+    }
+    return QString::fromStdString(videoExportConfiguration()->checkPageList(pages, int(notation->elements()->pages().size())));
 }
 
 QVariantList ExportDialogModel::availableViewModes() const

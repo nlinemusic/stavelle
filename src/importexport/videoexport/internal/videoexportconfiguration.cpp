@@ -21,6 +21,8 @@
  */
 #include "videoexportconfiguration.h"
 
+#include "jubelle/videopages.h"
+
 using namespace mu::iex::videoexport;
 
 static const ViewMode DEFAULT_VIEW_MODE = ViewMode::PageFull;
@@ -107,4 +109,10 @@ double VideoExportConfiguration::trailingSec() const
 void VideoExportConfiguration::setTrailingSec(std::optional<double> trailingSec)
 {
     m_trailingSec = trailingSec;
+}
+
+std::string VideoExportConfiguration::checkPageList(const std::string& pages, int pageCount) const
+{
+    const jubelle::PageList list = jubelle::parsePageList(pages, pageCount);
+    return list.ok ? std::string() : list.error;
 }
