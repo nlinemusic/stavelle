@@ -28,17 +28,8 @@ qt_add_qml_module(muse_cloud_qml
         cloudsmodel.h
         enums.cpp
         enums.h
-        musescorecomauthorizationmodel.cpp
-        musescorecomauthorizationmodel.h
     QML_FILES
         AccountAvatar.qml
-        AccountInfoButton.qml
-        AccountPage.qml
-        CloudScoresView.qml
-        internal/CloudItem.qml
-        internal/CloudScoresGridView.qml
-        internal/CloudScoresListView.qml
-        internal/CloudsListView.qml
         RequireAuthorizationDialog.qml
     IMPORTS
         TARGET muse_ui_qml

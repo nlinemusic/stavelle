@@ -68,9 +68,6 @@ public:
     //! NOTE: best-guess directory to start browsing from in an "open file" dialog
     virtual muse::io::path_t defaultOpenProjectsPath() const = 0;
 
-    //! NOTE: best-guess directory to start browsing from in the convert-to-score "open file" dialog
-    virtual muse::io::path_t defaultConvertFilePath() const = 0;
-    virtual void setLastOpenedConvertFilePath(const muse::io::path_t& path) = 0;
 
     virtual bool shouldAskSaveLocationType() const = 0;
     virtual void setShouldAskSaveLocationType(bool shouldAsk) = 0;
@@ -93,9 +90,6 @@ public:
 
     virtual bool shouldWarnBeforeSavingPubliclyToCloud() const = 0;
     virtual void setShouldWarnBeforeSavingPubliclyToCloud(bool shouldWarn) = 0;
-
-    virtual int homeScoresPageTabIndex() const = 0;
-    virtual void setHomeScoresPageTabIndex(int index) = 0;
 
     enum class HomeScoresPageViewType {
         Grid,
@@ -148,8 +142,6 @@ public:
 
     virtual QUrl dotComBugReportUrl() const = 0;
 
-    virtual QUrl scoreUploadingGuidelinesUrl() const = 0;
-    virtual QUrl termsOfUseUrl() const = 0;
 
     virtual bool openDetailedProjectUploadedDialog() const = 0;
     virtual void setOpenDetailedProjectUploadedDialog(bool show) = 0;
@@ -178,10 +170,7 @@ public:
     virtual bool createBackupBeforeSaving() const = 0;
     virtual void setCreateBackupBeforeSaving(bool create) = 0;
 
-    virtual bool showConvertFileProcessingDialog() const = 0;
-    virtual void setShowConvertFileProcessingDialog(bool show) = 0;
 
-    virtual muse::io::path_t watchedConvertsJsonPath() const = 0;
 };
 }
 

@@ -33,11 +33,13 @@ class VoltaSettingsModel : public TextLineSettingsModel
     QML_UNCREATABLE("Not creatable from QML")
 
     Q_PROPERTY(mu::inspector::PropertyItem * repeatCount READ repeatCount CONSTANT)
+    Q_PROPERTY(mu::inspector::PropertyItem * jubellePlayRepeat READ jubellePlayRepeat CONSTANT)
 
 public:
     explicit VoltaSettingsModel(QObject* parent, const muse::modularity::ContextPtr& iocCtx, IElementRepositoryService* repository);
 
     PropertyItem* repeatCount() const;
+    PropertyItem* jubellePlayRepeat() const;
 
 protected:
     void updateStartAndEndHookTypes() override;
@@ -48,5 +50,6 @@ private:
     void resetProperties() override;
 
     PropertyItem* m_repeatCount = nullptr;
+    PropertyItem* m_jubellePlayRepeat = nullptr;   // Jubelle: playback takes this repeat
 };
 }

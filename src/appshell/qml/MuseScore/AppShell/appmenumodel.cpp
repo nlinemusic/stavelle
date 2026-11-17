@@ -72,6 +72,7 @@ void AppMenuModel::load()
         makeViewMenu(),
         makeAddMenu(),
         makeFormatMenu(),
+        makePlaybackMenu(),
         makeToolsMenu(),
         makePluginsMenu()
     };
@@ -208,8 +209,8 @@ MenuItem* AppMenuModel::makeFileMenu()
         makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems()),
         makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems()),
         makeSeparator(),
-        makeMenuItem("file-convert-to-score"),
         makeMenuItem("file-export"),
+        makeMenuItem("jubelle-export-drum-stems"),
         makeSeparator(),
         makeMenuItem("project-properties"),
         makeMenuItem("parts", TranslatableString("action", "Parts…")),
@@ -226,6 +227,8 @@ MenuItemList AppMenuModel::makeSaveOtherSubItems()
 {
     MenuItemList subItems {
         makeMenuItem("file-save-a-copy"),
+        makeMenuItem("jubelle-save-as-template"),
+        makeMenuItem("jubelle-add-to-projects"),
         makeMenuItem("file-save-selection"),
     };
     return subItems;
@@ -258,6 +261,7 @@ MenuItem* AppMenuModel::makeEditMenu()
         makeMenuItem("notation-select-all"),
         makeMenuItem("notation-select-section"),
         makeMenuItem("find"),
+        makeMenuItem("jubelle-find-select"),
         makeSeparator(),
         makeMenuItem("preference-dialog", MenuItemRole::PreferencesRole)
     };
@@ -302,6 +306,7 @@ MenuItem* AppMenuModel::makeViewMenu()
         makeMenuItem("toggle-instruments"),
         makeMenuItem("inspector"),
         makeMenuItem("toggle-selection-filter"),
+        makeMenuItem("jubelle-toggle-proofread"),
         historyItem,
         makeMenuItem("toggle-navigator"),
         makeMenuItem("toggle-braille-panel"),
@@ -347,6 +352,25 @@ MenuItem* AppMenuModel::makeAddMenu()
 
 MenuItem* AppMenuModel::makeFormatMenu()
 {
+    // Jubelle: title-page alignment
+    MenuItemList alignItems {
+        makeMenuItem("jubelle-align-left"),
+        makeMenuItem("jubelle-align-hcenter"),
+        makeMenuItem("jubelle-align-right"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-top"),
+        makeMenuItem("jubelle-align-vcenter"),
+        makeMenuItem("jubelle-align-bottom"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-center"),
+        makeMenuItem("jubelle-distribute-h"),
+        makeMenuItem("jubelle-distribute-v"),
+        makeSeparator(),
+        makeMenuItem("jubelle-align-to-margins"),
+        makeMenuItem("jubelle-align-to-page"),
+        makeMenuItem("jubelle-align-to-each-other"),
+    };
+
     MenuItemList stretchItems {
         makeMenuItem("stretch+"),
         makeMenuItem("stretch-"),
@@ -358,18 +382,41 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("page-settings"),
         makeSeparator(),
         makeMenuItem("measures-per-system"),
+        makeMenu(TranslatableString("appshell/menu/format", "&Align"), alignItems, "menu-jubelle-align"),
         makeMenu(TranslatableString("appshell/menu/format", "Str&etch"), stretchItems, "menu-stretch"),
         makeSeparator(),
         makeMenuItem("reset-text-style-overrides"),
         makeMenuItem("reset-beammode"),
         makeMenuItem("reset"),
         makeMenuItem("reset-to-default-layout"),
+        makeMenuItem("jubelle-apply-part-layout"),
+        makeMenuItem("jubelle-page-turns"),
+        makeMenuItem("jubelle-courtesy-toggle"),
+        makeSeparator(),
+        makeMenuItem("jubelle-articulation-playback"),
+        makeMenuItem("jubelle-passage-playback"),
+        makeMenuItem("jubelle-swing"),
         makeSeparator(),
         makeMenuItem("load-style"),
-        makeMenuItem("save-style")
+        makeMenuItem("save-style"),
+        makeMenuItem("jubelle-engraving-presets"),
+        makeMenuItem("jubelle-look-jazz"),
+        makeMenuItem("jubelle-look-standard")
     };
 
     return makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format");
+}
+
+//! Jubelle Phase 5D: playback controls
+MenuItem* AppMenuModel::makePlaybackMenu()
+{
+    MenuItemList playbackItems {
+        makeMenuItem("jubelle-repeats"),
+        makeSeparator(),
+        makeMenuItem("jubelle-record-tempo"),
+    };
+
+    return makeMenu(TranslatableString("appshell/menu/playback", "&Playback"), playbackItems, "menu-jubelle-playback");
 }
 
 MenuItem* AppMenuModel::makeToolsMenu()
@@ -395,6 +442,9 @@ MenuItem* AppMenuModel::makeToolsMenu()
     };
 
     MenuItemList toolsItems {
+        makeMenuItem("jubelle-identify-chords"),
+        makeMenuItem("jubelle-toggle-proofread"),
+        makeSeparator(),
         makeMenuItem("transpose"),
         makeSeparator(),
         makeMenuItem("explode"),
@@ -403,6 +453,16 @@ MenuItem* AppMenuModel::makeToolsMenu()
         makeMenu(TranslatableString("appshell/menu/tools", "&Voices"), voicesItems, "menu-voices"),
         makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
         makeMenuItem("time-delete"),
+        makeSeparator(),
+        makeMenuItem("jubelle-linked-passages"),
+        makeMenu(TranslatableString("appshell/menu/tools", "Condensin&g"), {
+            makeMenuItem("jubelle-condensing-enabled"),
+            makeMenuItem("jubelle-condensed-score"),
+            makeSeparator(),
+            makeMenuItem("jubelle-condense-keep-separate"),
+            makeMenuItem("jubelle-condense-share"),
+            makeMenuItem("jubelle-condense-automatic"),
+        }, "menu-jubelle-condensing"),
         makeSeparator(),
         makeMenuItem("slash-fill"),
         makeMenuItem("slash-rhythm"),

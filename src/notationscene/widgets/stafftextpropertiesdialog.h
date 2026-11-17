@@ -26,6 +26,8 @@
 #include "modularity/ioc.h"
 #include "context/iglobalcontext.h"
 
+class QComboBox;
+
 namespace mu::engraving {
 class StaffTextBase;
 }
@@ -53,5 +55,6 @@ private:
 
     engraving::StaffTextBase* m_originStaffText = nullptr;
     engraving::StaffTextBase* m_staffText = nullptr;
+    QComboBox* m_jubelleFeel = nullptr;   // Jubelle: named rhythmic feel
 };
 }

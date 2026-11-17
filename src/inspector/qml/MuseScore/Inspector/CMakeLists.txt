@@ -240,6 +240,8 @@ qt_add_qml_module(inspector_qml
     QML_FILES
         common/CheckBoxPropertyView.qml
         common/ColorSection.qml
+        common/JubelleRepeatPlaybackHeader.qml
+        common/JubelleLinkedPassageHeader.qml
         common/DirectionSection.qml
         common/DropdownPropertyView.qml
         common/FlatRadioButtonGroupPropertyView.qml

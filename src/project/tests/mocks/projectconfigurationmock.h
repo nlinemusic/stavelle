@@ -54,8 +54,6 @@ public:
     MOCK_METHOD(muse::io::path_t, defaultUserProjectsPath, (), (const, override));
     MOCK_METHOD(muse::io::path_t, defaultOpenProjectsPath, (), (const, override));
 
-    MOCK_METHOD(muse::io::path_t, defaultConvertFilePath, (), (const, override));
-    MOCK_METHOD(void, setLastOpenedConvertFilePath, (const muse::io::path_t&), (override));
 
     MOCK_METHOD(bool, shouldAskSaveLocationType, (), (const, override));
     MOCK_METHOD(void, setShouldAskSaveLocationType, (bool), (override));
@@ -81,8 +79,6 @@ public:
     MOCK_METHOD(HomeScoresPageViewType, homeScoresPageViewType, (), (const, override));
     MOCK_METHOD(void, setHomeScoresPageViewType, (HomeScoresPageViewType), (override));
 
-    MOCK_METHOD(int, homeScoresPageTabIndex, (), (const, override));
-    MOCK_METHOD(void, setHomeScoresPageTabIndex, (int), (override));
 
     MOCK_METHOD(QColor, templatePreviewBackgroundColor, (), (const, override));
     MOCK_METHOD(muse::async::Notification, templatePreviewBackgroundChanged, (), (const, override));
@@ -122,8 +118,6 @@ public:
 
     MOCK_METHOD(QUrl, dotComBugReportUrl, (), (const, override));
 
-    MOCK_METHOD(QUrl, scoreUploadingGuidelinesUrl, (), (const, override));
-    MOCK_METHOD(QUrl, termsOfUseUrl, (), (const, override));
 
     MOCK_METHOD(bool, openDetailedProjectUploadedDialog, (), (const, override));
     MOCK_METHOD(void, setOpenDetailedProjectUploadedDialog, (bool), (override));
@@ -152,10 +146,7 @@ public:
     MOCK_METHOD(bool, createBackupBeforeSaving, (), (const, override));
     MOCK_METHOD(void, setCreateBackupBeforeSaving, (bool), (override));
 
-    MOCK_METHOD(bool, showConvertFileProcessingDialog, (), (const, override));
-    MOCK_METHOD(void, setShowConvertFileProcessingDialog, (bool), (override));
 
-    MOCK_METHOD(muse::io::path_t, watchedConvertsJsonPath, (), (const, override));
 };
 }
 

@@ -61,6 +61,8 @@ public:
     const std::vector<ChannelActions>& channelActions() const { return m_channelActions; }
     std::vector<ChannelActions>& channelActions() { return m_channelActions; }
     const SwingParameters& swingParameters() const { return m_swingParameters; }
+    //! Jubelle: named rhythmic feel for this swing text (empty = fixed ratio)
+    void setJubelleSwingFeel(const String& feelId) { m_swingParameters.jubelleFeel = feelId; }
     void clearAeolusStops();
     void setAeolusStop(int group, int idx, bool val);
     void setAeolusStop(int group, int val);

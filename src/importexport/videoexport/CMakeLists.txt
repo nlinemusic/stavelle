@@ -30,6 +30,8 @@ target_sources(iex_videoexport PRIVATE
     internal/videoexportconfiguration.h
     internal/videowriter.cpp
     internal/videowriter.h
+    internal/jubelle/videopages.cpp
+    internal/jubelle/videopages.h
 )
 
 target_link_libraries(iex_videoexport PRIVATE Qt::Concurrent muse::media engraving)

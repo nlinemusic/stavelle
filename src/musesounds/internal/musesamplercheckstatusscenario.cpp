@@ -125,13 +125,13 @@ void MuseSamplerCheckStatusScenario::showCriticalUpdateNotification()
     muse::IInteractive::ButtonData launchBtn(int(muse::IInteractive::Button::CustomButton) + 2,
                                              muse::trc("musesounds", "Quit & launch MuseSounds Manager"), true /*accent*/);
 
-    std::string msg = muse::trc("musesounds", "To apply this update, MuseScore Studio will need to close briefly and MuseSounds Manager will open. "
+    std::string msg = muse::trc("musesounds", "To apply this update, Jubelle will need to close briefly and MuseSounds Manager will open. "
                                               "Your MuseSounds libraries won’t work until the update is complete.");
 #else
     muse::IInteractive::ButtonData launchBtn(int(muse::IInteractive::Button::CustomButton) + 2,
                                              muse::trc("musesounds", "Quit & launch MuseHub"), true /*accent*/);
 
-    std::string msg = muse::trc("musesounds", "To apply this update, MuseScore Studio will need to close briefly and MuseHub will open. "
+    std::string msg = muse::trc("musesounds", "To apply this update, Jubelle will need to close briefly and MuseHub will open. "
                                               "Your MuseSounds libraries won’t work until the update is complete.");
 #endif
 

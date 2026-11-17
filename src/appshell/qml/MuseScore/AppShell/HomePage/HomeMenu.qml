@@ -28,7 +28,6 @@ import QtQuick.Layouts
 
 import Muse.Ui
 import Muse.UiComponents
-import Muse.Cloud
 
 Item {
     id: root
@@ -56,27 +55,21 @@ Item {
         accessible.name: qsTrc("appshell", "Home menu") + " " + navPanel.directionInfo
     }
 
+    // Jubelle: Home sidebar. Projects, Extensions, Template Library and Learning Center,
+    // with Settings pinned at the bottom. Account, MuseSounds and Learn were removed.
+    readonly property var mainSections: [
+        { "name": "scores", "title": qsTrc("appshell", "Projects"), "iconCode": IconCode.OPEN_FILE },
+        { "name": "extensions", "title": qsTrc("appshell", "Plugins"), "iconCode": IconCode.PLUGIN },
+        { "name": "templates", "title": qsTrc("appshell", "Template Library"), "iconCode": IconCode.NEW_FILE },
+        { "name": "learning", "title": qsTrc("appshell", "Learning Center"), "iconCode": IconCode.GRADUATION_CAP }
+    ]
+
     ColumnLayout {
         anchors.fill: parent
+        anchors.topMargin: 20
+        anchors.bottomMargin: 16
 
         spacing: 0
-
-        AccountInfoButton {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 60
-            Layout.topMargin: 20
-
-            navigation.name: "AccountInfo"
-            navigation.panel: navPanel
-            navigation.row: 1
-
-            checked: root.currentPageName === "account"
-            iconOnly: root.iconsOnly
-
-            onToggled: {
-                root.selected("account")
-            }
-        }
 
         RadioButtonGroup {
             id: radioButtonList
@@ -85,49 +78,69 @@ Item {
             Layout.fillWidth: true
 
             orientation: ListView.Vertical
-            spacing: 0
+            spacing: 4
 
-            model: [
-                { "name": "scores", "title": qsTrc("appshell", "Scores"), "iconCode": IconCode.MUSIC_NOTES },
-                { "name": "extensions", "title": qsTrc("appshell", "Plugins"), "iconCode":  IconCode.PLUGIN },
-                { "name": "musesounds", "title": qsTrc("appshell", "MuseSounds"), "iconCode": IconCode.PLAY },
-                { "name": "learn", "title": qsTrc("appshell", "Learn"), "iconCode":  IconCode.MORTAR_BOARD }
-            ]
+            model: root.mainSections
 
             currentIndex: 0
 
-            delegate: PageTabButton {
-                id: radioButtonDelegate
-
-                required title
-                required property int iconCode
-                required property string name
+            delegate: SidebarButton {
                 required property int index
+                required property var modelData
 
                 width: radioButtonList.width
 
-                navigation.name: title
-                navigation.panel: navPanel
-                navigation.row: 2 + index
-
-                spacing: 30
-                leftPadding: spacing
-
-                ButtonGroup.group: radioButtonList.radioButtonGroup
-                orientation: Qt.Horizontal
-                checked: name === root.currentPageName
-
-                iconOnly: root.iconsOnly
-
-                iconComponent: StyledIconLabel {
-                    iconCode: radioButtonDelegate.iconCode
-                }
-
-                onToggled: {
-                    radioButtonList.currentIndex = index
-                    root.selected(name)
-                }
+                sectionName: modelData.name
+                title: modelData.title
+                sectionIconCode: modelData.iconCode
+                navigationRow: 1 + index
             }
+        }
+
+        SeparatorLine {
+            Layout.fillWidth: true
+            Layout.leftMargin: 12
+            Layout.rightMargin: 12
+            Layout.bottomMargin: 8
+        }
+
+        SidebarButton {
+            Layout.fillWidth: true
+
+            sectionName: "settings"
+            title: qsTrc("appshell", "Settings")
+            sectionIconCode: IconCode.SETTINGS_COG
+            navigationRow: 1 + root.mainSections.length
+        }
+    }
+
+    component SidebarButton: PageTabButton {
+        id: button
+
+        property string sectionName: ""
+        property int sectionIconCode: IconCode.NONE
+        property int navigationRow: 0
+
+        navigation.name: title
+        navigation.panel: navPanel
+        navigation.row: navigationRow
+
+        height: 44
+        spacing: 14
+        leftPadding: 18
+
+        ButtonGroup.group: radioButtonList.radioButtonGroup
+        orientation: Qt.Horizontal
+        checked: sectionName === root.currentPageName
+
+        iconOnly: root.iconsOnly
+
+        iconComponent: StyledIconLabel {
+            iconCode: button.sectionIconCode
+        }
+
+        onToggled: {
+            root.selected(sectionName)
         }
     }
 }

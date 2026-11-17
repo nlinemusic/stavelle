@@ -21,6 +21,9 @@
  */
 #include "templatesmodel.h"
 
+#include "translation.h"
+#include "project/internal/templatesuggestions.h"
+
 #include "log.h"
 
 using namespace mu::project;
@@ -62,6 +65,10 @@ void TemplatesModel::loadAllCategories()
     TRACEFUNC;
 
     QStringList visibleCategories;
+
+    if (!m_suggestedTemplates.isEmpty()) {
+        visibleCategories << m_suggestionsTitle;
+    }
 
     for (const Template& templ: m_allTemplates) {
         if (!visibleCategories.contains(templ.categoryTitle)) {
@@ -172,13 +179,69 @@ void TemplatesModel::updateTemplatesByCurrentCategory()
 
     Templates newVisibleTemplates;
 
-    for (const Template& templ: m_allTemplates) {
-        if (templ.categoryTitle == m_currentCategory) {
-            newVisibleTemplates << templ;
+    if (!m_suggestedTemplates.isEmpty() && m_currentCategory == m_suggestionsTitle) {
+        newVisibleTemplates = m_suggestedTemplates;
+    } else {
+        for (const Template& templ: m_allTemplates) {
+            if (templ.categoryTitle == m_currentCategory) {
+                newVisibleTemplates << templ;
+            }
         }
     }
 
     setVisibleTemplates(newVisibleTemplates);
+}
+
+void TemplatesModel::setProjectCategory(const QString& projectCategory, bool showSuggestions)
+{
+    Templates suggested;
+    if (!projectCategory.isEmpty()) {
+        for (const Template& templ : m_allTemplates) {
+            const QString title = templ.isCustom ? templ.meta.fileName(false).toQString() : templ.meta.title;
+            if (templatesuggestions::isSuggested(projectCategory.toStdString(), templ.categoryTitle.toStdString(),
+                                                 title.toStdString())) {
+                suggested << templ;
+            }
+        }
+    }
+
+    const QString newTitle = suggested.isEmpty() ? QString()
+                             : muse::qtrc("project/newscore", "Suggested for %1").arg(projectCategory);
+    if (newTitle == m_suggestionsTitle && suggested == m_suggestedTemplates) {
+        return;
+    }
+
+    const Template keptTemplate = m_currentTemplate;
+    const bool wasOnSuggestions = !m_suggestionsTitle.isEmpty() && m_currentCategory == m_suggestionsTitle;
+
+    m_suggestionsTitle = newTitle;
+    m_suggestedTemplates = suggested;
+
+    if (isSearching()) {
+        return; // the search results stay as they are; suggestions return when the search is cleared
+    }
+
+    if (showSuggestions && !suggested.isEmpty()) {
+        loadAllCategories(); // the suggestions are the first category, so they are selected
+        return;
+    }
+
+    // Keep what the user was looking at. If they were on the old suggestions,
+    // go to the real category of the selected template instead.
+    m_saveCurrentCategory = true;
+    if (wasOnSuggestions || m_currentCategory.isEmpty()) {
+        m_currentCategory = keptTemplate.categoryTitle;
+    }
+    loadAllCategories();
+    m_saveCurrentCategory = false;
+    if (!m_visibleCategoriesTitles.contains(m_currentCategory)) {
+        m_currentCategory = m_visibleCategoriesTitles.value(0);
+        updateTemplatesByCurrentCategory();
+    }
+    if (m_visibleTemplates.contains(keptTemplate)) {
+        setCurrentTemplate(keptTemplate);
+    }
+    emit currentCategoryChanged();
 }
 
 void TemplatesModel::setCurrentTemplateIndex(int index)
@@ -188,6 +251,25 @@ void TemplatesModel::setCurrentTemplateIndex(int index)
     if (isSearching()) {
         setCurrentCategory(m_currentTemplate.categoryTitle);
     }
+}
+
+bool TemplatesModel::selectTemplateByPath(const QString& path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    const muse::io::path_t wanted(path);
+    for (const Template& templ : m_allTemplates) {
+        if (templ.meta.filePath == wanted) {
+            setCurrentCategory(templ.categoryTitle);
+            updateTemplatesByCurrentCategory();
+            setCurrentTemplate(templ);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void TemplatesModel::saveCurrentCategory()

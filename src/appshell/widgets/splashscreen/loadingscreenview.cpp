@@ -27,6 +27,8 @@
 #include <QScreen>
 #include <QSvgRenderer>
 
+#include <QPixmap>
+
 #include "translation.h"
 
 using namespace mu::appshell;
@@ -35,12 +37,14 @@ static const QString imagePath(":/resources/LoadingScreen.svg");
 
 static constexpr QSize loadingScreenSize(800, 380);
 
-static const QColor messageColor("#F1F1EE");
+static const QColor messageColor("#B4B4C0");
 
-static const QString website("www.musescore.org");
+// Jubelle: the startup screen shows Jubelle's logo and name (MuseScore's notices stay in About)
+static const QString website("Based on MuseScore Studio");
+static const QString logoPath(":/resources/jubelle_splash_logo.png");
 static constexpr QRectF websiteRect(loadingScreenSize.width() - 48, loadingScreenSize.height() - 48, 0, 0);
 
-static const QColor versionNumberColor("#19F3FF");
+static const QColor versionNumberColor("#D8B4FE");
 static constexpr qreal versionNumberSpacing = 5.0;
 
 LoadingScreenView::LoadingScreenView(QWidget* parent)
@@ -68,6 +72,27 @@ void LoadingScreenView::draw(QPainter* painter)
 
     // Draw background
     m_backgroundRenderer->render(painter);
+
+    // Jubelle: logo and name
+    static const QPixmap logo(logoPath);
+    const QRectF logoRect(64, 110, 120, 120);
+    if (!logo.isNull()) {
+        painter->drawPixmap(logoRect, logo, QRectF(logo.rect()));
+    }
+    QFont nameFont(QString::fromStdString(uiConfiguration()->fontFamily()));
+    nameFont.setPixelSize(64);
+    nameFont.setBold(true);
+    painter->setFont(nameFont);
+    painter->setPen(QColor("#EDEDF2"));
+    painter->drawText(QRectF(logoRect.right() + 28, logoRect.top(), 500, logoRect.height() - 28),
+                      Qt::AlignVCenter | Qt::AlignLeft | Qt::TextDontClip, QStringLiteral("Jubelle"));
+    QFont tagFont(nameFont);
+    tagFont.setPixelSize(16);
+    tagFont.setBold(false);
+    painter->setFont(tagFont);
+    painter->setPen(QColor("#B4B4C0"));
+    painter->drawText(QRectF(logoRect.right() + 32, logoRect.bottom() - 30, 500, 24),
+                      Qt::AlignVCenter | Qt::AlignLeft | Qt::TextDontClip, muse::qtrc("appshell", "Music composition and notation"));
 
     // Draw message
     QFont font(QString::fromStdString(uiConfiguration()->fontFamily()));

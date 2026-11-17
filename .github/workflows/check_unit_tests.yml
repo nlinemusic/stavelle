@@ -2,7 +2,7 @@ name: 'Check: Unit Tests (utest)'
 
 on:
   push:
-    branches: [ main, 'stavelle/**' ]
+    branches: [ main, 'stavelle/**', 'jubelle/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -12,7 +12,7 @@ on:
         type: boolean
         default: false
 
-# Stavelle: new repositories give workflows read-only tokens by default; the
+# Jubelle: new repositories give workflows read-only tokens by default; the
 # "Cancel Previous Runs" step needs to manage runs.
 permissions:
   contents: read
@@ -124,3 +124,66 @@ jobs:
       with:
         key: ${{ steps.restore-ccache.outputs.cache-primary-key }}${{ steps.prepare-save-ccache.outputs.CCACHE_TIMESTAMP }}
         path: ${{ github.workspace }}/.ccache
+
+  # Jubelle: compiles the whole application (every module, including the home
+  # screen, menus, Properties panel and dialogs, which the utest configuration
+  # leaves out), without packaging. Runs alongside the unit tests when the
+  # workflow is started by hand.
+  jubelle_app_compile:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v6
+    - name: Restore ccache files
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ${{runner.os}}-${{runner.arch}}-jubelle-app-ccache-
+        restore-keys: |
+          ${{runner.os}}-${{runner.arch}}-jubelle-app-ccache-
+          ${{runner.os}}-${{runner.arch}}-ccache-
+    - name: Setup ccache
+      run: |
+        sudo apt-get update && sudo apt-get install -y ccache
+        bash ./buildscripts/ci/tools/setup_ccache_config.sh
+    - name: Free up disk space
+      run: |
+        sudo docker system prune -a -f
+        sudo rm -rf /usr/local/lib/android
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.10.2
+        host: 'linux'
+        target: 'desktop'
+        arch: 'linux_gcc_64'
+        modules: 'qt5compat qtnetworkauth qtshadertools qtwebsockets'
+        cache: true
+    - name: Setup environment
+      run: |
+        bash ./buildscripts/ci/linux/setup.sh
+    - name: Compile the application
+      run: |
+        source $HOME/build_tools/environment.sh
+        MUSE_APP_BUILD_MODE=dev \
+        MUSESCORE_BUILD_NUMBER=1 \
+        MUSESCORE_REVISION=$(git rev-parse --short=7 HEAD) \
+        MUSESCORE_DOWNLOAD_SOUNDFONT=OFF \
+        MUSESCORE_MODULE_UPDATE=ON \
+        MUSESCORE_BUILD_VST_MODULE=ON \
+        bash ./ninja_build.sh -t release 2>&1 | tee build.log
+        test ${PIPESTATUS[0]} -eq 0
+    - name: List compile errors
+      if: failure()
+      run: |
+        grep -n -E "error:|undefined reference|Error [0-9]" build.log | head -200 || true
+    - name: Show ccache stats
+      if: always()
+      run: ccache -sv || true
+    - name: Save ccache files
+      if: always()
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ${{runner.os}}-${{runner.arch}}-jubelle-app-ccache-${{ github.run_id }}

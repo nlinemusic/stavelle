@@ -55,6 +55,9 @@ target_sources(muse_vst PRIVATE
     internal/vstpluginmetareader.cpp
     internal/vstpluginmetareader.h
 
+    internal/jubelle/vstpresetfile.cpp
+    internal/jubelle/vstpresetfile.h
+
     internal/synth/vstsynthesiser.cpp
     internal/synth/vstsynthesiser.h
     internal/synth/vstiresolver.cpp

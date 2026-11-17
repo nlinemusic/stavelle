@@ -22,6 +22,9 @@
 
 #pragma once
 
+#include <set>
+#include <string>
+
 #include "iprojectfilescontroller.h"
 
 #include <QObject>
@@ -39,7 +42,6 @@
 #include "playback/iplaybackcontroller.h"
 #include "print/iprintprovider.h"
 #include "iexportprojectscenario.h"
-#include "iconvertfiletoscorescenario.h"
 #include "inotationreadersregister.h"
 #include "iopensaveprojectscenario.h"
 #include "imscmetareader.h"
@@ -71,7 +73,6 @@ class ProjectActionsController : public IProjectFilesController, public muse::mi
     muse::ContextInject<IProjectAutoSaver> projectAutoSaver = { this };
     muse::ContextInject<IOpenSaveProjectScenario> openSaveProjectScenario = { this };
     muse::ContextInject<IExportProjectScenario> exportProjectScenario = { this };
-    muse::ContextInject<IConvertFileToScoreScenario> convertFileToScoreScenario = { this };
     muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
     muse::ContextInject<context::IGlobalContext> globalContext = { this };
@@ -118,7 +119,7 @@ private:
     notation::INotationInteractionPtr currentInteraction() const;
     notation::INotationSelectionPtr currentNotationSelection() const;
 
-    void newProject();
+    void newProject(const QString& templatePath = QString());
 
     void openProject(const muse::actions::ActionData& args);
     muse::Ret openProject(const muse::io::path_t& path, const QString& displayNameOverride = QString());
@@ -138,6 +139,13 @@ private:
     muse::Ret canSaveProject() const;
     bool saveProject(SaveMode saveMode, SaveLocationType saveLocationType = SaveLocationType::Undefined, bool force = false);
     void saveProjectAt(const muse::actions::ActionData& args);
+    void saveAsTemplate();   // Jubelle
+    // Jubelle R1: bring a score from outside Jubelle Projects into a project
+    bool addCurrentScoreToProjects();
+    //! Asked once when saving a score that isn't in Jubelle Projects: true if
+    //! it was added (and saved there), false to save where it is
+    bool offerAddToProjectsOnSave(bool& handled);
+    std::set<std::string> m_jubelleAskedToAdd;
     bool saveProjectAt(const SaveLocation& saveLocation, SaveMode saveMode = SaveMode::Save, bool force = false);
     bool saveProjectToCloud(CloudProjectInfo info, SaveMode saveMode = SaveMode::Save);
 
@@ -197,7 +205,6 @@ private:
 
     void moveProject(INotationProjectPtr project, const muse::io::path_t& newPath, bool replace);
 
-    void convertFileToScore(const muse::actions::ActionData& args);
 
     void clearRecentScores();
 

@@ -1290,6 +1290,14 @@ struct SwingParameters {
     int swingUnit = 0;
     int swingRatio = 0;
 
+    // Jubelle: a named rhythmic feel chosen on a swing text (empty = MuseScore's
+    // fixed ratio). swingRatio still holds an equivalent fixed ratio, which is
+    // what MuseScore itself plays.
+    String jubelleFeel;
+    // Jubelle: true when these come from a swing text in the score rather than
+    // from the score's style
+    bool fromText = false;
+
     bool isOn() const { return swingUnit != 0; }
 };
 

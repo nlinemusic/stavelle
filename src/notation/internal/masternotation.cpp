@@ -21,6 +21,8 @@
  */
 #include "masternotation.h"
 
+#include "jubelle/templatepage.h"
+
 #include <cmath>
 #include <QFileInfo>
 
@@ -305,6 +307,17 @@ void MasterNotation::applyOptions(mu::engraving::MasterScore* score, const Score
                 score->style().set(st, DefaultStyle::defaultStyle().value(st));
             }
         }
+
+        // Jubelle: templates designed for a US page size use it, or the nearest
+        // international size if the user's default page is an A or B size
+        mu::notation::jubelle::applyTemplatePageClass(score,
+                                                      DefaultStyle::defaultStyle().styleD(Sid::pageWidth),
+                                                      DefaultStyle::defaultStyle().styleD(Sid::pageHeight));
+    } else if (engravingConfiguration()->defaultStyleFilePath().empty()) {
+        // Jubelle: scores made with "Choose instruments" get Jubelle's general
+        // house style (decided 15 Nov 2026), unless the user has a default style
+        // file of their own; the page size stays the user's default
+        mu::notation::jubelle::applyGeneralStyle(score->style());
     }
 
     score->checkChordList();

@@ -88,6 +88,15 @@ Column {
         ]
     }
 
+    JubelleRepeatPlaybackHeader {
+        id: jubelleRepeatHeader
+        visible: root.model.showPlayCount
+        model: root.model
+        note: qsTrc("inspector", "Only playback changes; the repeat signs stay in the score.")
+        navigationPanel: root.navigationPanel
+        navigationRowStart: repeatStyleSection.navigationRowEnd + 1
+    }
+
     SpinBoxPropertyView {
         id: playCount
         visible: root.model.showPlayCount
@@ -97,7 +106,7 @@ Column {
 
         navigationName: "Play count"
         navigationPanel: root.navigationPanel
-        navigationRowStart: repeatStyleSection.navigationRowEnd + 1
+        navigationRowStart: jubelleRepeatHeader.navigationRowEnd + 1
 
         step: 1
         minValue: 2
@@ -107,6 +116,18 @@ Column {
         propertyItem: root.model ? root.model.playCount : null
     }
 
+    CheckBoxPropertyView {
+        id: jubellePlayRepeat
+        visible: root.model.showPlayCount
+
+        navigationName: "Play this repeat"
+        navigationPanel: root.navigationPanel
+        navigationRowStart: playCount.navigationRowEnd + 1
+
+        titleText: qsTrc("inspector", "Play this repeat")
+        propertyItem: root.model ? root.model.jubellePlayRepeat : null
+    }
+
     PlayCountSettings {
         id: playCountSection
 
@@ -114,7 +135,7 @@ Column {
 
         model: root.model
         navigationPanel: root.navigationPanel
-        navigationRowStart: playCount.navigationRowEnd + 1
+        navigationRowStart: jubellePlayRepeat.navigationRowEnd + 1
     }
 
     ExpandableBlank {

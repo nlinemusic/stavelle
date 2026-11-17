@@ -58,6 +58,12 @@ public:
 
     virtual double trailingSec() const = 0;
     virtual void setTrailingSec(std::optional<double> trailingSec) = 0;
+
+    //! Jubelle: the pages to show and their order, like "1-3, 5"; empty = every page
+    virtual std::string pageList() const { return std::string(); }
+    virtual void setPageList(std::optional<std::string>) {}
+    //! Jubelle: what is wrong with a page list for a score of `pageCount` pages; empty = fine
+    virtual std::string checkPageList(const std::string&, int) const { return std::string(); }
 };
 }
 

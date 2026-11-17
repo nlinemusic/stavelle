@@ -21,6 +21,9 @@
  */
 
 #include "editstyle.h"
+#include <QIcon>
+#include <QPixmap>
+#include <QPainter>
 
 #include <QAnyStringView>
 #include <QButtonGroup>
@@ -98,7 +101,8 @@ static const QStringList ALL_PAGE_CODES {
     "chord-symbols",
     "fretboard-diagrams",
     "tablature-styles",
-    "text-styles"
+    "text-styles",
+    "jubelle-layout"   // Jubelle G7: magnetic layout and collision avoidance (added at the end)
 };
 
 static const QStringList ALL_TEXT_STYLE_SUBPAGE_CODES {
@@ -762,10 +766,33 @@ EditStyle::EditStyle(QWidget* parent)
     musicalSymbolFont->clear();
     dynamicsFont->clear();
     musicalTextFont->clear();
+    // Jubelle (fonts T2): each music font is shown with a short sample in that
+    // font (clef, notes, sharp, flat, rest, forte), so you can see it before choosing
+    auto jubelleFontSample = [](const QString& family) {
+        const QSize size(132, 30);
+        QPixmap pm(size * 2);
+        pm.setDevicePixelRatio(2.0);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(QColor(120, 120, 128));
+        for (int line = 0; line < 5; ++line) {
+            const qreal y = 7 + line * 4;
+            p.drawLine(QPointF(2, y), QPointF(size.width() - 2, y));
+        }
+        QFont f(family);
+        f.setPixelSize(16);
+        p.setFont(f);
+        p.setPen(QColor(235, 235, 240));
+        const QString sample = QString::fromUcs4(U"\uE050 \uE0A4\uE262\uE0A4 \uE260\uE0A4 \uE4E5 \uE522");
+        p.drawText(QRectF(4, -8, size.width(), size.height() + 8), Qt::AlignLeft | Qt::AlignVCenter, sample);
+        return QIcon(pm);
+    };
+    musicalSymbolFont->setIconSize(QSize(132, 30));
     for (const auto& i : engravingFonts()->fonts()) {
         QString fontDisplayName = QString::fromStdString(i->name());
         QString fontFamilyName = QString::fromStdString(i->family());
-        musicalSymbolFont->addItem(fontDisplayName, fontDisplayName);
+        musicalSymbolFont->addItem(jubelleFontSample(fontFamilyName), fontDisplayName, fontDisplayName);
         dynamicsFont->addItem(fontDisplayName, fontDisplayName);
         // musicalTextFont must be a font family name!
         musicalTextFont->addItem(fontDisplayName + " Text", fontFamilyName + " Text");
@@ -1234,6 +1261,22 @@ EditStyle::EditStyle(QWidget* parent)
 
     connect(textStyles, &QListWidget::currentRowChanged, this, &EditStyle::textStyleChanged);
     textStyles->setCurrentRow(configuration()->styleDialogLastSubPageIndex());
+
+    // ====================================================
+    // Jubelle G7: JUBELLE LAYOUT (QML), the last page
+    // ====================================================
+    {
+        QWidget* jubelleLayoutPage = new QWidget(pageStack);
+        jubelleLayoutPage->setObjectName("PageJubelleLayout");
+        auto* jubelleLayoutBox = new QVBoxLayout(jubelleLayoutPage);
+        jubelleLayoutBox->setContentsMargins(0, 0, 0, 0);
+        auto jubelleLayoutQml = createQmlWidget(
+            jubelleLayoutPage,
+            QUrl(QString::fromUtf8("qrc:/qt/qml/MuseScore/NotationScene/styledialog/JubelleLayoutPage.qml")));
+        jubelleLayoutBox->addWidget(jubelleLayoutQml.widget);
+        pageStack->addWidget(jubelleLayoutPage);
+        pageList->addItem(muse::qtrc("notation", "Jubelle layout"));
+    }
 
     connect(pageList, &QListWidget::currentRowChanged, pageStack, &QStackedWidget::setCurrentIndex);
     connect(pageList, &QListWidget::currentRowChanged, this, &EditStyle::on_pageRowSelectionChanged);

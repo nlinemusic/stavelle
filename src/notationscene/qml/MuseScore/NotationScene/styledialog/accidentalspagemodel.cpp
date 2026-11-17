@@ -30,7 +30,13 @@ AccidentalsPageModel::AccidentalsPageModel(QObject* parent)
     StyleId::accidentalOrderFollowsNoteDisplacement,
     StyleId::alignAccidentalOctavesAcrossSubChords,
     StyleId::keepAccidentalSecondsTogether,
-    StyleId::alignOffsetOctaveAccidentals
+    StyleId::alignOffsetOctaveAccidentals,
+
+    StyleId::jubelleCourtesyAccidentals,
+    StyleId::jubelleCourtesyAccidentalsAllOctaves,
+    StyleId::jubelleCourtesyAccidentalsBars,
+    StyleId::jubelleCourtesyAccidentalsOtherStaves,
+    StyleId::jubelleCourtesyAccidentalsParentheses
 })
 {
 }
@@ -58,4 +64,29 @@ StyleItem* AccidentalsPageModel::keepAccidentalSecondsTogether() const
 StyleItem* AccidentalsPageModel::alignOffsetOctaveAccidentals() const
 {
     return styleItem(StyleId::alignOffsetOctaveAccidentals);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentals() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentals);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsAllOctaves() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsAllOctaves);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsBars() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsBars);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsOtherStaves() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsOtherStaves);
+}
+
+StyleItem* AccidentalsPageModel::courtesyAccidentalsParentheses() const
+{
+    return styleItem(StyleId::jubelleCourtesyAccidentalsParentheses);
 }

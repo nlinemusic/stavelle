@@ -97,6 +97,7 @@ else()
         internal/dsp/compressor.h
         internal/dsp/limiter.cpp
         internal/dsp/limiter.h
+        internal/dsp/jubellesafetylimiter.h
         internal/dsp/audiomathutils.h
 
         # FX
@@ -135,6 +136,10 @@ else()
         internal/synthesizers/fluidsynth/sfcachedloader.h
         internal/synthesizers/fluidsynth/fluidsynth.cpp
         internal/synthesizers/fluidsynth/fluidsynth.h
+        internal/synthesizers/fluidsynth/jubellebendshaping.h
+        internal/synthesizers/fluidsynth/jubellepresetgain.h
+        internal/synthesizers/fluidsynth/jubellepresetgains.h
+        internal/synthesizers/fluidsynth/jubelledynamics.h
         internal/synthesizers/fluidsynth/fluidsequencer.cpp
         internal/synthesizers/fluidsynth/fluidsequencer.h
         internal/synthesizers/fluidsynth/fluidresolver.cpp

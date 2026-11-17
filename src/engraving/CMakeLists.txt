@@ -42,6 +42,10 @@ muse_module_add_qrc(engraving BIG_RESOURCES
     data/fonts/fonts_Petaluma.qrc
     data/fonts/fonts_FinaleMaestro.qrc
     data/fonts/fonts_FinaleBroadway.qrc
+    # Jubelle: more free SMuFL fonts (F1, 15 Nov 2026; SIL OFL)
+    data/fonts/fonts_Sebastian.qrc
+    data/fonts/fonts_Eugene.qrc
+    data/fonts/fonts_Leipzig.qrc
     data/fonts/fonts_Tabulature.qrc
 )
 
@@ -292,6 +296,8 @@ target_sources(engraving PRIVATE
     style/style.cpp
     style/style.h
     style/defaultstyle.cpp
+    style/jubelle/jazzlook.cpp
+    style/jubelle/jazzlook.h
     style/defaultstyle.h
 
     rendering/iscorerenderer.h

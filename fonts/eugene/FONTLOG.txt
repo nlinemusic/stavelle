@@ -1,0 +1,1116 @@
+FONTLOG for Eugene music font
+
+Eugene is a free music font inspired by the hand-engraved scores of Parisian publishers. It is named after Eugène Fromont — the house that first published Debussy's Suite Bergamasque in 1905.
+
+The font is licensed under the SIL Open Font License, Version 1.1.
+
+https://github.com/mikkopatama/eugenefont
+https://mikkopatama.com/eugenefont
+
+
+Change log
+----------
+
+28 July 2026 (v. 1.44)
+
+The big flag update. Since 1.42 saw new 8th note flags, this update brings new flags from 16th note flags all the way to 1024th note flags, so the style is now consistent and tidy.
+
+- Modified:
+	flag16thUp
+	flag16thDown
+	flag32ndUp
+	flag32ndDown
+	flag64thUp
+	flag64thDown
+	flag128thUp
+	flag128thDown
+	flag256thUp
+	flag256thDown
+	flag512thUp
+	flag512thDown
+	flag1024thUp
+	flag1024thDown
+
+
+26 July 2026 (v. 1.43)
+
+Updated metadata with proper markings for oversized noteheads. Now Eugene has functional larger noteheads and doesn't fall back to Bravura.
+
+- Modified
+	noteheadBlackOversized
+	noteheadHalfOversized
+	noteheadWholeOversized
+	noteheadDoubleWholeOversized
+
+9 July 2026 (v. 1.42)
+
+Redesigned both 8th note flags, added improved tuplet numbers to Eugene Text.otf, copied some new symbols to Eugene Text.
+
+- Modified:
+	flag8thUp
+	flag8thDown
+
+- Added:
+	metNote16thUp
+
+3 July 2026 (v. 1.41)
+
+Improvements to all tuplet numbers and time signature number 9
+
+1 July 2026 (v. 1.4)
+
+- Corrected wiggleTrill spacing issue: now the trill wiggles with different speeds should connect smoothly
+
+- noteheadHalf turned out to be too small when using smaller staff sizes (the noteheads in a 
+chord would not connect), should be fixed now
+
+- noteheadXBlack glyph was replaced with the Bravura glyph, since the old design would not 
+anchor properly when using Diamond and X Noteheads.
+
+
+- Modified:
+
+	gClef8vbOld
+
+	articMarcatoStaccatoAbove
+	articMarcatoStaccatoBelow
+
+	wiggleTrill
+	wiggleTrillFast
+	wiggleTrillFaster
+	wiggleTrillFasterStill
+	wiggleTrillFastest
+	wiggleTrillSlow
+	wiggleTrillSlower
+	wiggleTrillSlowerStill
+	wiggleTrillSlowest
+
+	fingering1
+
+
+13 June 2026 (v. 1.311)
+
+Minor patch, correcting arpeggiatoline swash ending position and tuplet number spacing.
+
+
+11 June 2026 (v. 1.31)
+
+Improvements to dynamic letter spacing, time signature kerning, tuplet number spacing and arpeggiato lines with swash ends. Also some tweaks to engraving defaults.
+
+
+11 June 2026 (v. 1.3)
+
+Focusing on improving ottava, quindicesima and ventiduesima glyphs and adding fingering numbers.
+Also added some missing articulation glyphs.
+
+- Modified:
+
+	articTenutoAbove
+	articTenutoBelow
+	articStaccatoAbove
+	articStaccatoBelow
+
+	ottavaAlta
+	ottavaBassa
+	ottavaBassaBa
+	ottavaBassaVb
+	quindicesima
+	quindicesimaAlta
+	quindicesimaBassa
+	quindicesimaBassaMb
+	ventiduesima
+	ventiduesimaAlta
+	ventiduesimaBassa
+	ventiduesimaBassaMb
+
+
+- Added:
+
+	articAccentStaccatoAbove
+	articAccentStaccatoBelow
+	articMarcatoTenutoAbove
+	articMarcatoTenutoBelow
+	articTenutoAccentAbove
+	articTenutoAccentBelow
+	articTenutoStaccatoAbove
+	articTenutoStaccatoBelow
+
+	articSoftAccentAbove
+	articSoftAccentBelow
+	articSoftAccentStaccatoAbove
+	articSoftAccentStaccatoBelow
+	articSoftAccentTenutoAbove
+	articSoftAccentTenutoBelow
+	articSoftAccentTenutoStaccatoAbove
+	articSoftAccentTenutoStaccatoBelow
+
+	fingering0
+	fingering1
+	fingering2
+	fingering3
+	fingering4
+	fingering5
+	fingeringSubstitutionDash
+
+	accidental1CommaFlat
+	accidental1CommaSharp
+	accidental2CommaFlat
+	accidental2CommaSharp
+	accidental3CommaFlat
+	accidental3CommaSharp
+	accidental4CommaFlat
+	accidental5CommaSharp
+
+	octaveBaselineA
+	octaveBaselineB
+	octaveBaselineM
+	octaveSuperscriptA
+	octaveSuperscriptB
+	octaveSuperscriptM
+
+
+
+- Modified
+	gClefSmall
+	cClefSmall
+	fClefSmall
+
+	accidentalFiveQuarterTonesFlatArrowDown
+	accidentalThreeQuarterTonesFlatArrowUp
+	accidentalQuarterToneFlatNaturalArrowDown
+
+	tuplet7
+	timeSig2
+	timeSig3
+	timeSig5
+
+
+
+9 June 2026
+
+Small additions and modifications. Also testing a new workflow for Windows installer creation.
+
+- Modified:
+	bracket
+	coda
+
+- Added
+	noteheadWholeWithX
+	noteheadDoubleWholeWithX
+	
+	dynamicPianoSmall
+	dynamicMezzoSmall
+	dynamicForteSmall
+	dynamicRinforzandoSmall
+	dynamicSforzandoSmall
+	dynamicZSmall
+	dynamicNienteSmall
+
+
+
+8 June 2026 (v. 1.251)
+
+This time focusing on trill line, bracket and brace fixes. The brace glyph variants are now more consistent in style.
+Also added opticalCenter anchors to dynamics.
+
+- Modified
+	bracketTop
+	bracketBottom
+	reversedBracketTop
+	reversedBracketBottom
+	braceSmall
+	braceLarge
+	braceLarger
+
+	wiggleTrillFaster
+	wiggleTrillFasterStill
+	wiggleTrillFastest
+	wiggleTrillFast
+	wiggleTrill
+	wiggleTrillSlow
+	wiggleTrillSlower
+	wiggleTrillSlowerStill
+	wiggleTrillSlowest
+	wiggleArpeggiatoUp
+	wiggleArpeggiatoDown
+	wiggleArpeggiatoUpSwash
+	wiggleArpeggiatoDownSwash
+	wiggleArpeggiatoUpArrow
+	wiggleArpeggiatoDownArrow
+	wiggleGlissando
+
+
+
+7 June 2026 (v. 1.25)
+
+Brace and pedal glyph update. The braces will no longer fall back to Bravura.
+keyboardpedalPed has a totally new symbol, traced from a 1913 Fromont publication "Musique de chant. 11, Mignonne : XVIe siècle : [chant et piano] / poésie de Ronsard" (composer Gabriel de Saint-Quentin).
+Larger noteheads should now load properly in Dorico.
+
+
+- Modified
+	brace
+	bracket
+	keyboardPedalPed
+	keyboardPedalP
+	keyboardPedalDot
+	keyboardPedalPedNoDot
+	noteheadWholeOversized
+	noteheadHalfOversized
+	noteheadBlackOversized
+
+
+- Added
+
+	keyboardPedalE
+	keyboardPedalD
+	noteheadDoubleWholeOversized
+	braceSmall
+	braceLarge
+	braceLarger
+
+
+
+
+3 June 2026 (v. 1.2)
+
+- Major improvements to ~40 glyphs, including many letters like dynamics and ottava signs.
+- Experimental new bold variant: EugeneStrong. Hopefully slightly more legible on smaller screens and from a distance; not as inky as Bravura, closer to Leland.
+
+- Modified
+
+	brace
+	reversedBrace
+
+	restQuarterZ
+	
+	dynamicMezzo
+	dynamicRinforzando
+	dynamicSforzando
+	dynamicZ
+	dynamicNiente
+	dynamicMP
+	dynamicMF
+	dynamicSforzando1
+	dynamicSforzandoPiano
+	dynamicSforzandoPianissimo
+	dynamicSforzato
+	dynamicSforzatoPiano
+	dynamicSforzatoFF
+	dynamicRinforzando1
+	dynamicRinforzando2
+
+	ottavaAlta
+	ottavaBassa
+	ottavaBassaBa
+	quindicesimaAlta
+	quindicesimaBassa
+	ventiduesimaAlta
+	ventiduesimaBassa
+	octaveBassa
+
+	articAccentAbove
+	articAccentBelow
+	articMarcatoAbove
+	articMarcatoBelow
+	articMarcatoStaccatoAbove
+	articMarcatoStaccatoBelow
+
+
+	keyboardPedalPed
+	keyboardPedalP
+	uniF434
+
+	wiggleGlissando
+
+	textTuplet3ShortStem
+	textTuplet3LongStem
+
+
+1 June 2026 (v. 1.100)
+
+- Modified:
+	All tuplet numbers are now tidier, especially number 2
+	Cutout anchors were added to standard accidentals
+	ornamentTrill is tidier
+	All double whole noteheads now have noteheadOrigin anchors
+	New text font suggestions in the metadata: Nepomuk and Old Music Standard are first option before Academico and Edwin
+
+- Added:
+50 new glyphs, mainly playing techniques for brass, string and wind instruments
+
+	cClefArrowUp
+	cClefArrowDown
+
+	ornamentSchleifer
+
+	brassMuteClosed
+	brassMuteHalfClosed
+	brassMuteOpen
+	brassHarmonMuteClosed
+	brassHarmonMuteStemHalfLeft
+	brassHarmonMuteStemHalfRight
+	brassHarmonMuteStemOpen
+	brassValveTrill
+	doubleTongueAbove
+	doubleTongueBelow
+	tripleTongueAbove
+	tripleTongueBelow
+	windClosedHole
+	windThreeQuartersClosedHole
+	windHalfClosedHole1
+	windHalfClosedHole2
+	windHalfClosedHole3
+	windOpenHole
+	windTrillKey
+	windFlatEmbouchure
+	windSharpEmbouchure
+	windRelaxedEmbouchure
+	windLessRelaxedEmbouchure
+	windTightEmbouchure
+	stringsHarmonic
+	stringsHalfHarmonic
+	stringsMuteOn
+	stringsMuteOff
+	stringsBowBehindBridge
+	stringsBowOnBridge
+	stringsBowOnTailpiece
+	stringsOverpressureDownBow
+	stringsOverpressureUpBow
+	stringsOverpressurePossibileDownBow
+	stringsOverpressurePossibileUpBow
+	stringsOverpressureNoDirection
+	stringsJeteAbove
+	stringsJeteBelow
+	stringsFouette
+	stringsVibratoPulse
+	stringsThumbPosition
+	stringsThumbPositionTurned
+	stringsChangeBowDirection
+	stringsBowBehindBridgeOneString
+	stringsBowBehindBridgeTwoStrings
+	stringsBowBehindBridgeThreeStrings
+	stringsBowBehindBridgeFourStrings
+
+
+29 May 2026 (v. 1.0)
+
+The project has reached the initial goal of ~500 glyphs (513 in total in this update).
+Version number jumped to 1.0 to signify the reaching of this goal.
+Modifications to current glyphs are guaranteed, but additions will slow down from now on.
+
+
+- Modified
+	brassScoop
+	brassLiftShort
+	brassLiftMedium
+	brassLiftLong
+	brassDoitShort
+	brassDoitMedium
+	brassDoitLong
+	brassFallLipShort
+	brassFallLipMedium
+	brassFallLipLong
+	uniE5DA
+	uniE5DB
+	uniE5DC
+	brassFallRoughShort
+	brassFallRoughMedium
+	brassFallRoughLong
+	brassPlop
+	uniE5E1
+	brassSmear
+	uniE5E3
+	brassJazzTurn
+
+
+- Added
+	fClefArrowUp
+	fClefArrowDown
+	unpitchedPercussionClef1
+	unpitchedPercussionClef2
+	
+	keyboardPedalP
+	EF434
+
+
+28 May 2026 (v. 0.661)
+
+- Modified
+	- quindicesima and ventiduesima numbers are now thinner, closer in weight to ottava 8
+
+- Added
+	arpeggiatoUp
+	arpeggiatoDown
+	arpeggiato
+	wiggleTrillFaster
+	wiggleTrillFast
+	wiggleTrill
+	wiggleTrillSlow
+	wiggleTrillSlower
+	wiggleArpeggiatoUp
+	wiggleArpeggiatoDown
+	wiggleArpeggiatoUpSwash
+	wiggleArpeggiatoDownSwash
+	wiggleArpeggiatoUpArrow
+	wiggleArpeggiatoDownArrow
+	
+	uniE05A
+	uniE05B
+
+	Work in progress:
+	uniE5D0
+	uniE5D1
+	uniE5D2
+	uniE5D3
+	uniE5D4
+	uniE5D5
+	uniE5D6
+	uniE5D7
+	uniE5D8
+	uniE5D9
+	uniE5DA
+	uniE5DB
+	uniE5DC
+	uniE5DD
+	uniE5DE
+	uniE5DF
+	uniE5E0
+	uniE5E1
+	uniE5E2
+	uniE5E3
+	uniE5E4
+
+
+
+27 May 2026 (v. 0.66)
+
+- Modified
+	- Corrected misplaced anchor in flag8thUp
+	- Corrected all other Up flags, removing unecessary nodes and rounding paths
+	- Better accidentalNatural glyph
+	- Adjusted compound dynamic kerning in EugeneText
+	- Added ottava, quindicesima and ventiduesima letters to EugeneText
+	- Adjusted bracketTop and bracketBottom positions so they attach to bracket correctly
+
+- Added:
+	ottavaBassaBa
+	ottavaBassaVb
+	quindicesima
+	quindicesimaAlta
+	quindicesimaBassa
+	ventiduesima
+	ventiduesimaAlta
+	ventiduesimaBassa
+	quindicesimaBassaMb
+	ventiduesimaBassaMb
+	octaveBassa
+	octaveParensLeft
+	octaveParensRight
+
+	noteheadPlusBlack
+	noteheadCircleX
+	noteheadTriangleUpDoubleWhole
+	noteheadTriangleUpWhole
+	noteheadTriangleUpHalf
+	noteheadTriangleUpWhite
+	noteheadTriangleUpBlack
+	noteheadTriangleLeftWhite
+	noteheadTriangleLeftBlack
+	noteheadTriangleRightWhite
+	noteheadTriangleRightBlack
+	noteheadTriangleDownDoubleWhole
+	noteheadTriangleDownWhole
+	noteheadTriangleDownHalf
+	noteheadTriangleDownWhite
+	noteheadTriangleDownBlack
+	noteheadMoonWhite
+	noteheadMoonBlack
+	noteheadTriangleRoundDownWhite
+	noteheadTriangleRoundDownBlack
+	noteheadDiamondDoubleWhole
+	noteheadDiamondWhole
+	noteheadDiamondHalf
+	noteheadDiamondHalfWide
+	noteheadDiamondBlack
+	noteheadDiamondBlackWide
+	noteheadDiamondWhite
+	noteheadDiamondWhiteWide
+	noteheadCircledBlack
+	noteheadCircledHalf
+	noteheadCircledWhole
+	noteheadCircledDoubleWhole
+	noteheadClusterSquareWhite
+	noteheadClusterSquareBlack
+
+	fermataLongHenzeAbove
+	fermataLongHenzeBelow
+	breathMarkTick
+	breathMarkUpbow
+	breathMarkSalzedo
+
+	accidentalBuyukMucennebFlat
+	accidentalBakiyeFlat
+	accidentalKucukMucennebSharp
+	accidentalBuyukMucennebSharp
+
+
+	dynamicNiente
+
+	keyboardPedalParensLeft
+	keyboardPedalParensRight
+
+
+
+25 May 2026 (v. 0.65)
+
+- Modified:
+	- Significant improvements to gclef shape
+	- 8th note flags have now slightly thicker tips
+	- Redrawing restQuarter with less nodes and smoother contours
+	- 8th note rest ball sits slightly higher between the stafflines
+	- Improvements to flat signs
+
+
+- Added:
+
+	Staff brackets and dividers
+	---------------------------
+	bracket
+	splitBarDivider
+	staffDivideArrowDown
+	staffDivideArrowUp
+	staffDivideArrowUpDown
+
+
+	Noteheads
+	---------
+
+	noteheadSquareWhite
+	noteheadSquareBlack
+	noteheadSlashedHalf2
+	noteheadSlashedWhole1
+	noteheadSlashedWhole2
+	noteheadSlashedDoubleWhole1
+	noteheadSlashedDoubleWhole2
+
+	Gould arrow quartertone accidentals
+	-----------------------------------
+
+	accidentalQuarterToneFlatArrowUp
+	accidentalThreeQuarterTonesFlatArrowDown
+	accidentalQuarterToneSharpNaturalArrowUp
+	accidentalQuarterToneFlatNaturalArrowDown
+	accidentalThreeQuarterTonesSharpArrowUp
+	accidentalQuarterToneSharpArrowDown
+	accidentalFiveQuarterTonesSharpArrowUp
+	accidentalThreeQuarterTonesSharpArrowDown
+	accidentalThreeQuarterTonesFlatArrowUp
+	accidentalFiveQuarterTonesFlatArrowDown
+	accidentalArrowUp
+	accidentalArrowDown
+
+
+	Stein-Zimmermann accidentals
+	----------------------------
+
+	accidentalQuarterToneSharpStein
+	accidentalThreeQuarterTonesSharpStein
+	accidentalNarrowReversedFlat
+	accidentalNarrowReversedFlatAndFlat
+
+	Tremolos
+	--------
+	tremoloFingered1
+	tremoloFingered2
+	tremoloFingered3
+	tremoloFingered4
+	tremoloFingered5
+	tremolo4
+	tremolo5
+
+
+	Holds and pauses
+	----------------
+	caesura
+	caesuraShort
+	caesuraCurved
+	caesuraSingleStroke
+
+
+
+
+24 May 2026 (v. 0.600)
+
++100 new glyphs.
+A version jump to 0.6 to signify that the project is now much closer to its initial
+glyph target (~500 glyphs, similar to Leland in its current form) at 371 glyphs.
+
+
+- Modified:
+
+	timeSig2
+	timeSig3
+	timeSig6
+	timeSig9
+
+
+- Added:
+	
+	timeSigPlus
+	timeSigPlusSmall
+	timeSigFractionalSlash
+	timeSigEquals
+	timeSigMinus
+	timeSigMultiply
+	timeSigParensLeftSmall
+	timeSigParensRightSmall
+	timeSigParensLeft
+	timeSigParensRight
+	timeSigFractionQuarter
+	timeSigFractionHalf
+	timeSigFractionThreeQuarters
+	timeSigFractionOneThird
+	timeSigFractionTwoThirds
+	timeSigX
+	timeSigOpenPenderecki
+
+
+	articStaccatoAbove
+	articStaccatoBelow
+	articStaccatissimoAbove
+	articStaccatissimoBelow
+	articStaccatissimoWedgeAbove
+	articStaccatissimoWedgeBelow
+	articStaccatissimoStrokeAbove
+	articStaccatissimoStrokeBelow
+	articStressAbove
+	articStressBelow
+	articUnstressAbove
+	articUnstressBelow
+	articLaissezVibrerAbove
+	articLaissezVibrerBelow
+
+	ornamentPrecompMordentUpperPrefix
+	ornamentPrecompInvertedMordentUpperPrefix
+	ornamentPrecompTrillLowerSuffix
+	ornamentPrecompPortDeVoixMordent
+
+	keyboardPedalPed
+	keyboardPedalDot
+	keyboardPedalUp
+	keyboardPedalHalf2
+	keyboardPedalHalf3
+
+	textBlackNoteShortStem
+	textBlackNoteLongStem
+	textBlackNoteFrac8thShortStem
+	textBlackNoteFrac8thLongStem
+	textBlackNoteFrac16thShortStem
+	textBlackNoteFrac16thLongStem
+	textBlackNoteFrac32ndLongStem
+	textCont8thBeamShortStem
+	textCont8thBeamLongStem
+	textCont16thBeamShortStem
+	textCont16thBeamLongStem
+	textCont32ndBeamLongStem
+	textAugmentationDot
+	textTie
+	textTupletBracketStartShortStem
+	textTuplet3ShortStem
+	textTupletBracketEndShortStem
+	textTupletBracketStartLongStem
+	textTuplet3LongStem
+	textTupletBracketEndLongStem
+	textHeadlessBlackNoteShortStem
+	textHeadlessBlackNoteLongStem
+	textHeadlessBlackNoteFrac8thShortStem
+	textHeadlessBlackNoteFrac8thLongStem
+	textHeadlessBlackNoteFrac16thShortStem
+	textHeadlessBlackNoteFrac16thLongStem
+	textHeadlessBlackNoteFrac32ndLongStem
+
+
+	timeSigBracketLeft
+	timeSigBracketRight
+	timeSigBracketLeftSmall
+	timeSigBracketRightSmall
+	timeSigSlash
+	timeSigCut2
+	timeSigCut3
+
+	timeSig0Turned
+	timeSig0Reversed
+	timeSig1Turned
+	timeSig1Reversed
+	timeSig2Turned
+	timeSig2Reversed
+	timeSig3Turned
+	timeSig3Reversed
+	timeSig4Turned
+	timeSig4Reversed
+	timeSig5Turned
+	timeSig5Reversed
+	timeSig6Turned
+	timeSig6Reversed
+	timeSig7Turned
+	timeSig7Reversed
+	timeSig8Turned
+	timeSig8Reversed
+	timeSig9Turned
+	timeSig9Reversed
+	timeSigCommonTurned
+	timeSigCommonReversed
+	timeSigCutCommonTurned
+	timeSigCutCommonReversed
+
+
+	
+
+23 May 2026 (v. 0.515)
+
+- Modified:
+	ornamentShortTrill
+	ornamentMordent
+	ornamentTreblement
+
+
+- Added:
+	ornamentPrecompSlideTrillMuffat
+	ornamentPrecompSlideTrillSuffixMuffat
+	ornamentPrecompSlide
+	ornamentPrecompDescendingSlide
+	ornamentPrecompAppoggTrill
+	ornamentPrecompAppoggTrillSuffix
+	ornamentPrecompTurnTrillDAnglebert
+	ornamentPrecompTurnTrillBach
+	ornamentPrecompSlideTrillDAnglebert
+	ornamentPrecompSlideTrillMarpurg
+	ornamentPrecompSlideTrillBach
+	ornamentPrecompTrillSuffixDandrieu
+	ornamentPrecompTrillWithMordent
+	ornamentPrecompCadence
+	ornamentPrecompCadenceWithTurn
+	ornamentPrecompDoubleCadenceLowerPrefix
+	ornamentPrecompCadenceUpperPrefix
+	ornamentPrecompCadenceUpperPrefixTurn
+	ornamentPrecompDoubleCadenceUpperPrefix
+	ornamentPrecompDoubleCadenceUpperPrefixTurn
+	ornamentPrecompMordentRelease
+
+	repeat1Bar
+	repeat2Bars
+	repeat4Bars
+	repeatBarUpperDot
+	repeatBarSlash
+	repeatBarLowerDot
+
+
+
+20 May 2026 (v. 0.514)
+
+- Modified:
+	Common time and cut common time glyphs improved
+	Standard accidentals modified
+	Clef ottava numbers resized (smaller than before)
+
+- Added:
+	graceNoteAcciaccaturaStemUp
+	graceNoteAcciaccaturaStemDown
+	graceNoteAppoggiaturaStemUp
+	graceNoteAppoggiaturaStemDown
+	graceNoteSlashStemUp
+	graceNoteSlashStemDown
+	stringsDownBow
+	stringsDownBowTurned
+	stringsUpBow
+	stringsUpBowTurned
+
+
+
+17 May 2026 (v. 0.513)
+
+- Added:
+	clef8
+	clef15
+	noteheadXBlack
+	noteheadSlashedHalf2
+	noteheadSlashedWhole1
+	noteheadSlashedWhole2
+	noteheadWholeFilled
+	noteheadHalfFilled
+	augmentationDot
+	fermataShortAbove
+	fermataShortBelow
+	fermataLongAbove
+	fermataLongBelow
+	fermataVeryLongAbove
+	fermataVeryLongBelow
+
+- Modified:
+	- Improved all dynamics letters, resized clef ottava numbers, modified 8th note flags 
+
+15 May 2026 (v. 0.512)
+
+All common accidentals, including Parenthesis glyphs, are now included.
+Also all Slash noteheads (U+E100–U+E10F) are included.
+
+- Added:
+	noteheadParenthesis
+	noteheadParenthesisLeft
+	noteheadParenthesisRight
+	noteheadSlashVerticalEnds
+	noteheadSlashHorizontalEnds
+	noteheadSlashWhiteWhole
+	noteheadSlashWhiteHalf
+	noteheadSlashDiamondWhite
+	noteheadSlashVerticalEndsSmall
+	noteheadSlashX
+	noteheadSlashVerticalEndsMuted
+	noteheadSlashHorizontalEndsMuted
+	noteheadSlashWhiteMuted
+	noteheadSlashWhiteDoubleWhole
+	accidentalDoubleFlat
+	accidentalParensLeft
+	accidentalParensRight
+	accidentalBracketLeft
+	accidentalBracketRight
+	accidentalFlatParens
+	accidentalNaturalParens
+	accidentalSharpParens
+	accidentalDoubleSharpParens
+	accidentalDoubleFlatParens
+
+
+14 May 2026 (v. 0.511)
+
+EugeneText.otf should now be functional and allow Musescore Evolution and Musescore Studio 4 use the correct segno, coda and dynamic glyphs.
+
+- Added:
+	note16thUp
+	note16thDown
+	restMaxima
+	restLonga
+	restDoubleWhole
+	rest256th
+	rest512th
+	rest1024th
+	restHBar
+	restHBarLeft
+	restHBarMiddle
+	restHBarRight
+	restDoubleWholeLegerLine
+	restWholeLegerLine
+	restHalfLegerLine
+	dynamicFFFFFF
+
+
+13 May 2026 (v. 0.51)
+
+Biggest update for a while. Jumped to version number 0.51, since the font now includes includes:
+	- ALL common Flags from U+E240 to U+E24F
+	- Almost ALL Dynamics letters from U+E520 to E+53D, excluding U+E526 dynamicNiente
+	- Most commonly found g, f and c clef variants
+	- ALL basic tuplet numbers from U+E880 to U0E889. 2, 3, 5 and 6 were traced from reference, all others were modified from time signature glyphs. Will need some fine tuning later.
+
+- Modified:
+	- All clefs were improved in shape and in ottava number glyph placement
+	- Most time signature numbers were tweaked
+	- Flags were made more consistent in style
+	- noteheadHalf is now closer to reference
+
+- Added:
+	bracketTop
+	bracketBottom
+	reversedBracketTop
+	reversedBracketBottom
+	gClef8vbOld
+	gClefChange
+	cClefChange
+	fClefChange
+	
+	flag32ndUp
+	flag32ndDown
+	flag64thUp
+	flag64thDown
+	flag128thUp
+	flag128thDown
+	flag256thUp
+	flag256thDown
+	flag512thUp
+	flag512thDown
+	flag1024thUp
+	flag1024thDown
+	
+	dynamicZ
+	dynamicSforzato
+	dynamicSforzatoPiano
+	dynamicSforzatoFF
+	dynamicRinforzando2
+
+	tuplet0
+	tuplet1
+	tuplet4
+	tuplet5
+	tuplet7
+	tuplet8
+	tuplet9
+
+Known issues:
+	- The EugeneText.otf file is a placeholder for now, it will need a thorough glyph resizing at later point
+	- The compound dynamic signs are not visible in Musescore 3.7 Evolution (fallback to Leland/Bravura compound glyphs). Will need to investigate. Musescore 4.6.5 should show the compound dynamic signs correctly
+
+
+11 May 2026 (v. 0.507)
+
+- Modified:
+	- Created a new empty Glyphs project and imported all current 146 glyphs to get rid of some bugs in the .otf file. Dorico 6 shows everything correctly now, and Musescore loads the correct notehead glyphs instead of falling back to Bravura
+	- Eugene.otf doesn't include Bravura fallback glyphs anymore, since missing glyphs are automatically replaced in both Dorico and Musescore.
+
+- Known issues:
+	- Currently Musescore seems to ignore the stemUpSE x-anchorpoint metadata, which causes the upside stemlines to be separate from the noteheads. Will try to rebuild the .json file or find some other solution.
+
+
+10 May 2026 (v. 0.506)
+
+- Modified:
+	- EugeneText.otf, Musescore 3.7.0.25622582284 mac build is now showing the compound dynamic signs and segno and coda signs correctly
+	- Corrected anchor points for the new half notehead
+	- noteheadSlashedBlack1 now has the modified black notehead shape and correct anchor points
+	- flag32thUp looks much tidier now
+	- flag8thUp has tidier top
+
+- Added:
+	U+E0D0	noteheadSlashedBlack2
+	U+E0D1	noteheadSlashedHalf1
+
+9 May 2026 (v. 0.505)
+
+- Modified:
+	- Ligatures, so that Musescore 4.6 will now also load the compound dynamic symbols like ff and pp correctly.
+	- Quarter and half noteheads: the shapes are now closer to Fromont references and the notehead anchors are set correctly in the metadata
+
+- Added:
+	Added EugeneText.otf, mostly BravuraText.otf glyphs for now but will update later with wider coverage.
+
+	U+E048 Coda
+	U+E0AA Ornate X notehead noteheadXOrnate
+	U+E0B6 Half notehead with X noteheadHalfWithX
+	U+E1D0 noteDoubleWhole
+	U+E1D7 note8thUp
+	U+E1D8 note8thDown
+	U+E523 dynamicRinforzando
+	U+E53C dynamicRinforzando1
+	U+ECA0 metNoteDoubleWhole
+	U+ECA2 metNoteWhole
+	U+ECA3 metNoteHalfUp
+	U+ECA4 metNoteHalfDown
+	U+ECA5 metNoteQuarterUp
+	U+ECA6 metNoteQuarterDown
+	U+ECA7 metNote8thUp
+	U+ECA8 metNote8thDown
+
+
+8 May 2026 (v. 0.5042)
+
+- Pdf list now has the glyph names in the same format as in the .json metadata.
+- Added
+	U+E280	Reversed flat (quarter-tone flat) (Stein)
+	U+E281	Reversed flat and flat (three-quarter-tones flat) (Zimmermann)
+
+7 May 2026 (v. 0.504)
+
+- Created a pdf list of all currently available glyphs, replacing "Glyph list.txt"
+
+- Added
+	U+E007–E009  System dividers
+	U+E263	Double sharp
+	U+E265	Triple sharp
+	U+E266	Triple flat
+	U+E267	Natural flat
+	U+E268	Natural sharp
+	U+E269	Sharp sharp
+	
+	U+F408  French style C clef, as found on Prélude à "l'Après-midi d'un faune" from 1895
+	U+E4CC-E4CD  Short fermata above and below
+
+- Modified:
+	- Several time signature numbers are now much more balanced and consistent in style
+	- Ottava number 8 was redrawn from a better reference, updated all glyphs that include 8, including clefs and ottava signs
+	- Ottava alta and ottava bassa got a new letter "a", similar to E. Fromont editions which either use just "8" or "8a" for ottava signs
+	- All p and f signs got a new look
+	- mezzo m is not as weird anymore
+
+---------------------------------
+
+6 May 2026
+- Added:
+	U+E056  G clef ottava bassa with C clef
+	U+E057  G clef, optionally ottava bassa
+	U+E064  F clef ottava bassa
+	U+E065  F clef ottava alta
+
+	U+E1D2	Whole note (semibreve)
+	U+E1D3	Half note (minim) stem up
+	U+E1D4	Half note (minim) stem down
+	U+E1D5	Quarter note (crotchet) stem up
+	U+E1D6	Quarter note (crotchet) stem down
+
+	U+E244	Combining flag 3 (32th) above (will improve later)
+
+- Fixed:
+	- Flat signs should now include the whole also in MuseScore 3.7 Evolution and MuseScore Studio 4.6 and later, corrected path directions.
+	- Tidying up Time signature 9 and comma signs
+
+---------------------------------
+
+5 May 2026
+
+v. 0.502
+- Updated most of the existing glyphs, especially clefs and time signature numbers, for more consistent rendering on different notation apps. Lots of tidying up done, removing unnecessary overlaps, correcting path directions and simplifying paths and making complex shapes more symmetrical.
+
+---------------------------------
+
+4 May 2026
+
+v. 0.501
+- Added:
+	U+E4CE  Breath mark (comma)
+	U+E567  Turn
+	U+E568  Inverted turn
+	U+E569  Turn with slash
+	U+E56A  Turn up
+	U+E56B  Inverted turn up
+	U+E56C  Short trill
+	U+E56D  Mordent
+	U+E56E  Treblement
+
+- Fixed:
+	Time signature 0
+
+---------------------------------
+
+3 May 2026
+
+- Published the font on Github
+
+- Added: 
+	U+E4AC  Marcato above
+	U+E4AC  Marcato below
+	U+E4AE  Marcato-staccato above
+	U+E4AF  Marcato-staccato below
+	U+E4B0  Accent-staccato above
+	U+E4B1  Accent-staccato below
+	U+E4B2  Tenuto-staccato above
+	U+E4B3  Tenuto-staccato below
+	U+E4B4  Tenuto-accent above
+	U+E4B5  Tenuto-accent below
+	U+E4BC  Marcato-tenuto above
+	U+E4BD  Marcato-tenuto below
+- Modified: 
+	- Placements of U+E4A0 Accent above and E4A1 Accent below, changed `glyphAdvanceWidths` in Eugene.json
+
+- Fixed:
+	- Black notehead's `stemDownNW` anchor point
+	- Fixed inner contour directions in G clef glyphs, half- and wholenote noteheads and accidentals.
+

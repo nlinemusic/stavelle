@@ -37,6 +37,32 @@ qt_add_qml_module(notationscene_qml
         abstractnotationpaintview.cpp
         abstractnotationpaintview.h
         continuouspanel.cpp
+        chordidentifiermodel.cpp
+        chordidentifiermodel.h
+        articulationplaybackmodel.cpp
+        articulationplaybackmodel.h
+        swingmodel.cpp
+        swingmodel.h
+        repeatsmodel.cpp
+        repeatsmodel.h
+        findselectmodel.cpp
+        findselectmodel.h
+        proofreadmodel.cpp
+        proofreadmodel.h
+        temporecordmodel.cpp
+        temporecordmodel.h
+        pageturnsmodel.cpp
+        pageturnsmodel.h
+        applypartlayoutmodel.cpp
+        applypartlayoutmodel.h
+        passageplaybackmodel.cpp
+        passageplaybackmodel.h
+        linkedpassagesmodel.cpp
+        linkedpassagesmodel.h
+        condensedscoremodel.cpp
+        condensedscoremodel.h
+        engravingpresetsmodel.cpp
+        engravingpresetsmodel.h
         continuouspanel.h
         editgridsizedialogmodel.cpp
         editgridsizedialogmodel.h
@@ -119,6 +145,8 @@ qt_add_qml_module(notationscene_qml
         styledialog/abstractstyledialogmodel.h
         styledialog/accidentalspagemodel.cpp
         styledialog/accidentalspagemodel.h
+        styledialog/jubellelayoutpagemodel.cpp
+        styledialog/jubellelayoutpagemodel.h
         styledialog/beamspagemodel.cpp
         styledialog/beamspagemodel.h
         styledialog/bendspagemodel.cpp
@@ -162,6 +190,19 @@ qt_add_qml_module(notationscene_qml
         AbstractElementPopup.qml
         ConcertPitchControl.qml
         EditGridSizeDialog.qml
+        ChordIdentifierDialog.qml
+        ArticulationPlaybackDialog.qml
+        SwingDialog.qml
+        RepeatsDialog.qml
+        FindSelectDialog.qml
+        ProofreadPanel.qml
+        TempoRecordDialog.qml
+        PageTurnsDialog.qml
+        ApplyPartLayoutDialog.qml
+        PassagePlaybackDialog.qml
+        LinkedPassagesDialog.qml
+        CondensedScoreDialog.qml
+        EngravingPresetsDialog.qml
         EditPercussionShortcutDialog.qml
         elementpopups/CapoPopup.qml
         elementpopups/DynamicPopup.qml
@@ -199,6 +240,7 @@ qt_add_qml_module(notationscene_qml
         SelectionFilterPanel.qml
         SelectMeasuresCountDialog.qml
         styledialog/AccidentalsPage.qml
+        styledialog/JubelleLayoutPage.qml
         styledialog/BeamsPage.qml
         styledialog/BendsPage.qml
         styledialog/ChordSymbolsPage.qml
@@ -306,3 +348,21 @@ target_link_libraries(notationscene_qml PRIVATE
 if(MUE_BUILD_NOTATIONSCENE_TESTS)
     add_subdirectory(tests)
 endif()
+
+# Jubelle: keep these out of unity batches so their file-local helpers and
+# using-directives can't clash with neighbouring sources.
+set_source_files_properties(
+    articulationplaybackmodel.cpp
+    swingmodel.cpp
+    repeatsmodel.cpp
+    findselectmodel.cpp
+    proofreadmodel.cpp
+    temporecordmodel.cpp
+    pageturnsmodel.cpp
+    applypartlayoutmodel.cpp
+    passageplaybackmodel.cpp
+    linkedpassagesmodel.cpp
+    condensedscoremodel.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+)

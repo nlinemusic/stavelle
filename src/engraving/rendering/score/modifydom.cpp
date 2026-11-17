@@ -21,6 +21,10 @@
  */
 #include "modifydom.h"
 
+#include <algorithm>
+#include <array>
+#include <map>
+
 #include "dom/measure.h"
 #include "dom/staff.h"
 #include "dom/spannermap.h"
@@ -28,6 +32,8 @@
 #include "dom/trill.h"
 #include "dom/ornament.h"
 #include "dom/note.h"
+#include "dom/pitchspelling.h"
+#include "dom/key.h"
 #include "dom/utils.h"
 #include "dom/chord.h"
 #include "dom/keysig.h"
@@ -78,6 +84,240 @@ void ModifyDom::connectTremolo(Measure* m)
     m->connectTremolo();
 }
 
+//! Jubelle: automatic courtesy (cautionary) accidentals.
+//! A staff line whose pitch a note altered in the previous measure, and which the
+//! key of this measure spells differently, has its accidental restated on its first
+//! note in this measure (for example F♯ in bar 1, then F in bar 2 shows ♮).
+//! Uses the engine's own "force restate" mechanism, so the accidental is an
+//! ordinary automatic one: it updates and disappears by itself as notes change.
+//!
+//! G2 rules, each its own style setting (defaults = the behaviour above):
+//! - jubelleCourtesyAccidentalsBars: look back up to N bars, not just one
+//!   (F♯ in bar 1, nothing on that line in bar 2, F in bar 3 shows ♮ with N ≥ 2);
+//! - jubelleCourtesyAccidentalsOtherStaves: also alterations on the other staves
+//!   of the same instrument, in earlier bars and earlier in the same bar
+//!   (piano: F♯ in the right hand, then F in the left hand shows ♮);
+//! - jubelleCourtesyAccidentalsParentheses: courtesy accidentals are drawn in
+//!   parentheses (see Accidental::displayBracket; nothing stored changes).
+namespace mu::engraving::rendering::score {
+//! Restates `line` (or every octave of it) where the reader last saw `seen`
+static void forceJubelleCourtesy(AccidentalState& as, int line, AccidentalVal seen, bool allOctaves)
+{
+    auto mark = [&](int l) {
+        if (seen != as.accidentalVal(l)) {
+            as.setForceRestateAccidental(l, true);
+            as.setJubelleCourtesy(l, true);
+        } else if (as.jubelleCourtesy(l)) {
+            as.setForceRestateAccidental(l, false);
+        }
+    };
+    if (!allOctaves) {
+        mark(line);
+        return;
+    }
+    for (int other = line % 7; other < MAX_ACC_STATE; other += 7) {
+        mark(other);
+    }
+}
+
+//! The staves whose notes count for courtesy accidentals on `staffIdx`
+static std::vector<staff_idx_t> jubelleCourtesyStaves(const Score* score, staff_idx_t staffIdx, const Staff* staff)
+{
+    std::vector<staff_idx_t> staves { staffIdx };
+    if (score->style().styleB(Sid::jubelleCourtesyAccidentalsOtherStaves)) {
+        for (const Staff* s : staff->part()->staves()) {
+            if (s->idx() != staffIdx && !s->isTabStaff(Fraction(0, 1))) {
+                staves.push_back(s->idx());
+            }
+        }
+    }
+    return staves;
+}
+
+//! Calls f(chord) for every chord (grace notes included) in a ChordRest segment
+//! that is drawn on staff `onStaff`, in the given part
+template<typename F>
+static void forEachJubelleChord(const Segment& segment, const Staff* staff, staff_idx_t onStaff, F f)
+{
+    for (track_idx_t t = staff->part()->startTrack(); t < staff->part()->endTrack(); ++t) {
+        const EngravingItem* e = segment.element(t);
+        if (!e || !e->isChord()) {
+            continue;
+        }
+        const Chord* chord = toChord(e);
+        auto one = [&](const Chord* ch) {
+            if (ch->vStaffIdx() == onStaff) {
+                f(ch);
+            }
+        };
+        for (const Chord* grace : chord->graceNotesBefore()) {
+            one(grace);
+        }
+        one(chord);
+        for (const Chord* grace : chord->graceNotesAfter()) {
+            one(grace);
+        }
+    }
+}
+
+static void markCourtesyAccidentals(const Measure* measure, staff_idx_t staffIdx, const Staff* staff, AccidentalState& as)
+{
+    const Score* score = measure->score();
+    if (!score->style().styleB(Sid::jubelleCourtesyAccidentals)) {
+        return;
+    }
+
+    const Measure* prev = measure->prevMeasure();
+    if (!prev) {
+        return;
+    }
+
+    // Only pitched, non-tablature staves use accidentals this way.
+    if (staff->isTabStaff(prev->tick()) || staff->part()->instrument(prev->tick())->useDrumset()) {
+        return;
+    }
+
+    // The bars to look back over, oldest first
+    const int bars = std::clamp(score->style().styleI(Sid::jubelleCourtesyAccidentalsBars), 1, 4);
+    std::vector<const Measure*> window;
+    for (const Measure* m = prev; m && int(window.size()) < bars; m = m->prevMeasure()) {
+        window.insert(window.begin(), m);
+    }
+
+    // Per line: the last altered value a reader saw, and when
+    struct Pending {
+        bool on = false;
+        AccidentalVal val = AccidentalVal::NATURAL;
+        int tick = -1;
+    };
+    std::array<Pending, MAX_ACC_STATE> pending;
+
+    for (staff_idx_t s : jubelleCourtesyStaves(score, staffIdx, staff)) {
+        const Staff* st = score->staff(s);
+        std::array<Pending, MAX_ACC_STATE> mine;
+        for (const Measure* m : window) {
+            AccidentalState state;
+            state.init(st->keySigEvent(m->tick()));
+            std::array<bool, MAX_ACC_STATE> altered;
+            altered.fill(false);
+            std::array<bool, MAX_ACC_STATE> played;
+            played.fill(false);
+            std::array<int, MAX_ACC_STATE> lastTick;
+            lastTick.fill(-1);
+
+            for (const Segment& segment : m->segments()) {
+                if (segment.isJustType(SegmentType::KeySig)) {
+                    if (segment.element(s * VOICES)) {
+                        // A key change cancels what came before it
+                        state.init(st->keySigEvent(segment.tick()));
+                        altered.fill(false);
+                        mine.fill(Pending());
+                    }
+                } else if (segment.isJustType(SegmentType::ChordRest)) {
+                    forEachJubelleChord(segment, st, s, [&](const Chord* ch) {
+                        for (const Note* note : ch->notes()) {
+                            const int line = absStep(note->tpc(), note->epitch());
+                            if (line < MIN_ACC_STATE || line >= MAX_ACC_STATE) {
+                                continue;
+                            }
+                            const AccidentalVal val = tpc2alter(note->tpc());
+                            if (val != state.accidentalVal(line)) {
+                                altered[line] = true;
+                            }
+                            state.setAccidentalVal(line, val);
+                            played[line] = true;
+                            lastTick[line] = segment.tick().ticks();
+                        }
+                    });
+                }
+            }
+            for (int line = MIN_ACC_STATE; line < MAX_ACC_STATE; ++line) {
+                if (played[line]) {
+                    // A bar that plays this line settles it: pending only if it was altered
+                    mine[line] = altered[line] ? Pending { true, state.accidentalVal(line), lastTick[line] } : Pending();
+                }
+            }
+        }
+        for (int line = MIN_ACC_STATE; line < MAX_ACC_STATE; ++line) {
+            if (mine[line].on && (!pending[line].on || mine[line].tick > pending[line].tick)) {
+                pending[line] = mine[line];
+            }
+        }
+    }
+
+    const bool allOctaves = score->style().styleB(Sid::jubelleCourtesyAccidentalsAllOctaves);
+    for (int line = MIN_ACC_STATE; line < MAX_ACC_STATE; ++line) {
+        if (pending[line].on) {
+            forceJubelleCourtesy(as, line, pending[line].val, allOctaves);
+        }
+    }
+}
+
+//! Altered notes on the other staves of the instrument in this measure, in time
+//! order, for courtesy accidentals within the bar (empty unless switched on)
+struct JubelleStaffEvent {
+    int tick = 0;
+    int line = 0;
+    AccidentalVal val = AccidentalVal::NATURAL;
+};
+
+static std::vector<JubelleStaffEvent> jubelleOtherStaffEvents(const Measure* measure, staff_idx_t staffIdx, const Staff* staff)
+{
+    std::vector<JubelleStaffEvent> events;
+    const Score* score = measure->score();
+    if (!score->style().styleB(Sid::jubelleCourtesyAccidentals)
+        || !score->style().styleB(Sid::jubelleCourtesyAccidentalsOtherStaves)
+        || staff->isTabStaff(measure->tick()) || staff->part()->instrument(measure->tick())->useDrumset()) {
+        return events;
+    }
+    for (staff_idx_t s : jubelleCourtesyStaves(score, staffIdx, staff)) {
+        if (s == staffIdx) {
+            continue;
+        }
+        const Staff* st = score->staff(s);
+        AccidentalState state;
+        state.init(st->keySigEvent(measure->tick()));
+        for (const Segment& segment : measure->segments()) {
+            if (segment.isJustType(SegmentType::KeySig) && segment.element(s * VOICES)) {
+                state.init(st->keySigEvent(segment.tick()));
+            } else if (segment.isJustType(SegmentType::ChordRest)) {
+                forEachJubelleChord(segment, st, s, [&](const Chord* ch) {
+                    for (const Note* note : ch->notes()) {
+                        const int line = absStep(note->tpc(), note->epitch());
+                        if (line < MIN_ACC_STATE || line >= MAX_ACC_STATE) {
+                            continue;
+                        }
+                        const AccidentalVal val = tpc2alter(note->tpc());
+                        if (val != state.accidentalVal(line)) {
+                            events.push_back({ segment.tick().ticks(), line, val });
+                        }
+                        state.setAccidentalVal(line, val);
+                    }
+                });
+            }
+        }
+    }
+    std::stable_sort(events.begin(), events.end(), [](const JubelleStaffEvent& a, const JubelleStaffEvent& b) {
+        return a.tick < b.tick;
+    });
+    return events;
+}
+
+//! Applies the other staves' alterations up to and including `tick`
+static void applyJubelleOtherStaffEvents(const std::vector<JubelleStaffEvent>& events, size_t& next, int tick, AccidentalState& as,
+                                         bool allOctaves)
+{
+    std::map<int, AccidentalVal> latest;
+    while (next < events.size() && events[next].tick <= tick) {
+        latest[events[next].line] = events[next].val;
+        ++next;
+    }
+    for (const auto& [line, val] : latest) {
+        forceJubelleCourtesy(as, line, val, allOctaves);
+    }
+}
+}
+
 void ModifyDom::cmdUpdateNotes(const Measure* measure, const DomAccessor& dom)
 {
     for (staff_idx_t staffIdx = 0; staffIdx < dom.nstaves(); ++staffIdx) {
@@ -107,11 +347,18 @@ void ModifyDom::cmdUpdateNotes(const Measure* measure, const DomAccessor& dom)
                     as.setForceRestateAccidental(line, true);
                 }
             }
+
+            markCourtesyAccidentals(measure, staffIdx, staff, as);
         }
 
         track_idx_t startTrack = staff->part()->startTrack();
         track_idx_t mainTrack = staffIdx * VOICES;
         track_idx_t endTrack = staff->part()->endTrack();
+
+        // Jubelle: alterations earlier in this bar on the instrument's other staves
+        const std::vector<JubelleStaffEvent> otherStaffEvents = jubelleOtherStaffEvents(measure, staffIdx, staff);
+        const bool courtesyAllOctaves = measure->score()->style().styleB(Sid::jubelleCourtesyAccidentalsAllOctaves);
+        size_t nextOtherStaffEvent = 0;
 
         for (const Segment& segment : measure->segments()) {
             if (segment.isJustType(SegmentType::KeySig)) {
@@ -121,6 +368,9 @@ void ModifyDom::cmdUpdateNotes(const Measure* measure, const DomAccessor& dom)
                     as.init(staff->keySigEvent(tick));
                 }
             } else if (segment.isJustType(SegmentType::ChordRest)) {
+                if (!otherStaffEvents.empty()) {
+                    applyJubelleOtherStaffEvents(otherStaffEvents, nextOtherStaffEvent, segment.tick().ticks(), as, courtesyAllOctaves);
+                }
                 for (track_idx_t t = startTrack; t < endTrack; ++t) {
                     Chord* chord = item_cast<Chord*>(segment.element(t), CastMode::MAYBE_BAD); // maybe Rest
                     if (chord) {

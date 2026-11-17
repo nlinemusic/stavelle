@@ -70,6 +70,20 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Save a &copy…"),
              TranslatableString("action", "Save a copy")
              ),
+    // Jubelle: your own templates (saved into your Templates folder; a folder
+    // inside it is a category in New Score)
+    UiAction("jubelle-add-to-projects",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Add to Jubelle &Projects…"),
+             TranslatableString("action", "Copy this score into a new Jubelle project; the original stays as it is")
+             ),
+    UiAction("jubelle-save-as-template",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Save as &template…"),
+             TranslatableString("action", "Save the score as a template for New Score")
+             ),
     UiAction("file-save-selection",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
@@ -104,12 +118,21 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Export"),
              IconCode::Code::SHARE_FILE
              ),
-    UiAction("file-convert-to-score",
+    //! Jubelle G9: one audio file per drum of a kit, or per group of drums
+    UiAction("jubelle-export-drum-stems",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Export &drum stems…"),
+             TranslatableString("action", "Export each drum of a drum kit, or groups of drums, as separate audio files")
+             ),
+    //! Jubelle: an extra Publish destination. It opens YouTube Studio in the browser
+    //! with the chosen video ready to drag in; nothing is uploaded by Jubelle itself.
+    UiAction("jubelle-publish-youtube",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
-             TranslatableString("action", "Convert &file…"),
-             TranslatableString("action", "Convert file"),
-             IconCode::Code::IMPORT
+             TranslatableString("action", "Publish to &YouTube…"),
+             TranslatableString("action", "Publish to YouTube"),
+             IconCode::Code::VIDEO
              ),
     UiAction("project-properties",
              mu::context::UiCtxAny,

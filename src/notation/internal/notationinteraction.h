@@ -267,6 +267,9 @@ public:
 
     void realizeSelectedChordSymbols(bool literal, Voicing voicing, HarmonyDurationType durationType) override;
     void extendToNextNote() override;
+    chordidentifier::Scope chordIdentifierScope() const override;
+    chordidentifier::Report identifyChords(const chordidentifier::Options& options) override;
+    chordidentifier::Report removeChordToneHighlight() override;
     void removeSelectedMeasures() override;
     void removeSelectedRange() override;
     void removeEmptyTrailingMeasures() override;

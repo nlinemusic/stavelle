@@ -26,6 +26,7 @@ import Muse.UiComponents
 import Muse.Vst
 
 Rectangle {
+    id: root
 
     // in
     property alias instanceId: view.instanceId
@@ -35,15 +36,70 @@ Rectangle {
 
     color: ui.theme.backgroundPrimaryColor
 
-    implicitWidth: view.implicitWidth
-    implicitHeight: view.implicitHeight
+    implicitWidth: Math.max(view.implicitWidth, presetBar.implicitWidth + 24)
+    // Jubelle: the plugin's own window sits below the Presets bar
+    implicitHeight: view.implicitHeight + view.topPadding
 
     Component.onCompleted: {
         view.init()
     }
 
+    // Jubelle: Presets bar. Lists this plugin's .vstpreset files (from the
+    // standard VST3 preset folders) and loads one; the result saves with the
+    // score like any other change to the plugin's settings.
+    VstPresetsModel {
+        id: presetsModel
+        instanceId: view.instanceId
+    }
+
+    Row {
+        id: presetBar
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        anchors.left: parent.left
+        anchors.leftMargin: 12
+        height: 32
+        spacing: 8
+
+        StyledTextLabel {
+            anchors.verticalCenter: parent.verticalCenter
+            text: qsTrc("vst", "Preset")
+        }
+
+        StyledDropdown {
+            id: presetDropdown
+            width: 260
+            anchors.verticalCenter: parent.verticalCenter
+            enabled: presetsModel.presets.length > 0
+            model: presetsModel.presets
+            textRole: "title"
+            valueRole: "path"
+            currentIndex: -1
+            displayText: presetsModel.currentPresetTitle !== "" ? presetsModel.currentPresetTitle
+                                                                : (presetsModel.presets.length > 0 ? qsTrc("vst", "Choose a preset…")
+                                                                                                   : qsTrc("vst", "No preset files"))
+            onActivated: function(index, value) {
+                presetsModel.applyPreset(index)
+            }
+        }
+
+        FlatButton {
+            anchors.verticalCenter: parent.verticalCenter
+            text: qsTrc("vst", "Open preset file…")
+            onClicked: presetsModel.openPresetFile()
+        }
+
+        StyledTextLabel {
+            anchors.verticalCenter: parent.verticalCenter
+            visible: text !== ""
+            text: presetsModel.message
+            opacity: 0.75
+        }
+    }
+
     VstView {
         id: view
         anchors.fill: parent
+        topPadding: presetBar.height + 16
     }
 }

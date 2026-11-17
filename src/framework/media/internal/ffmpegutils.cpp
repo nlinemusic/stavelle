@@ -24,6 +24,8 @@
 
 #include <algorithm>
 
+#include <QCoreApplication>
+
 #include "io/fileinfo.h"
 #include "io/path.h"
 
@@ -35,9 +37,31 @@ using namespace muse::media;
 using namespace muse;
 
 namespace muse::media {
+static FFmpegLibPaths libraryPathsForVersion(int ffmpegVer, const io::path_t& searchDir, FFmpegCandidateOrigin origin);
+
+//! Jubelle: the FFmpeg libraries that come with Jubelle (LGPL build, in the "ffmpeg" folder next to
+//! the program, with their licence and notices). Empty if this installation has none.
+static io::path_t bundledFFmpegDir()
+{
+    const io::path_t dir = io::path_t(QCoreApplication::applicationDirPath()) + "/ffmpeg";
+    for (const auto& [ffmpegVersion, _] : FFMPEG_COMPONENTS_VERSIONS) {
+        if (!libraryPathsForVersion(ffmpegVersion, dir, FFmpegCandidateOrigin::Automatic).avFormatPath.empty()) {
+            return dir;
+        }
+    }
+    return io::path_t();
+}
+
 io::paths_t defaultSearchPaths()
 {
     io::paths_t paths;
+    // Jubelle: video export is built in. The bundled libraries are used, not whatever else is on the
+    // computer; a folder chosen in the export settings still comes first.
+    const io::path_t bundled = bundledFFmpegDir();
+    if (!bundled.empty()) {
+        paths.push_back(bundled);
+        return paths;
+    }
 #if defined(Q_OS_WIN)
     QSettings settings(
         "HKEY_LOCAL_MACHINE\\Software\\FFmpeg\\Providers",

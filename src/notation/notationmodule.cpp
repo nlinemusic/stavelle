@@ -29,6 +29,7 @@
 #include "internal/mscnotationwriter.h"
 #include "internal/instrumentsrepository.h"
 #include "internal/engravingfontscontroller.h"
+#include "internal/jubelle/linkedpassages.h"
 
 #include "diagnostics/idiagnosticspathsregister.h"
 
@@ -69,6 +70,9 @@ void NotationModule::onInit(const IApplication::RunMode&)
 {
     m_configuration->init();
     m_instrumentsRepository->init();
+
+    // Jubelle: keep linked passages in step after every edit
+    mu::notation::jubelle::installLinkedPassagesHook();
 
 #ifdef MUE_BUILD_ENGRAVING_FONTSCONTROLLER
     m_engravingFontsController->init();

@@ -70,12 +70,20 @@ Column {
         navigationRowStart: playUntil.navigationRowEnd + 1
     }
 
+    JubelleRepeatPlaybackHeader {
+        id: jubelleRepeatHeader
+        model: root.model
+        note: qsTrc("inspector", "Whether repeats are played again after this jump.")
+        navigationPanel: root.navigationPanel
+        navigationRowStart: continueAt.navigationRowEnd + 1
+    }
+
     PropertyCheckBox {
         text: qsTrc("inspector", "Play repeats")
         propertyItem: root.model ? root.model.hasToPlayRepeats : null
 
         navigation.name: "PlayRepeats"
         navigation.panel: root.navigationPanel
-        navigation.row: continueAt.navigationRowEnd + 1
+        navigation.row: jubelleRepeatHeader.navigationRowEnd + 1
     }
 }

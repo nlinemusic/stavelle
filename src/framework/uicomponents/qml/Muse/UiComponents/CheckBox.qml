@@ -86,7 +86,7 @@ FocusScope {
             border.color: ui.theme.strokeColor
             color: ui.theme.buttonColor
 
-            radius: 2
+            radius: 3   // Jubelle R4
 
             NavigationFocusBorder { navigationCtrl: navCtrl }
 

@@ -2882,7 +2882,12 @@ void TWrite::writeProperties(const StaffTextBase* item, XmlWriter& xml, WriteCon
             swingUnit = DurationType::V_ZERO;
         }
         int swingRatio = item->swingParameters().swingRatio;
-        xml.tag("swing", { { "unit", TConv::toXml(swingUnit) }, { "ratio", swingRatio } });
+        XmlWriter::Attributes swingAttrs { { "unit", TConv::toXml(swingUnit) }, { "ratio", swingRatio } };
+        if (!item->swingParameters().jubelleFeel.isEmpty()) {
+            // Jubelle: the named feel; MuseScore reads the ratio and ignores this
+            swingAttrs.push_back({ "jubelleFeel", item->swingParameters().jubelleFeel });
+        }
+        xml.tag("swing", swingAttrs);
     }
 
     writeProperties(toTextBase(item), xml, ctx, true);

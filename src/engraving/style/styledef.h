@@ -2188,6 +2188,26 @@ enum class Sid : short {
     palmMuteEndFilledArrowHeight,
     palmMuteEndFilledArrowWidth,
 
+    // Jubelle: automatic courtesy (cautionary) accidentals. Off by default, so
+    // scores look exactly as in MuseScore unless the user turns it on.
+    jubelleCourtesyAccidentals,
+    jubelleCourtesyAccidentalsAllOctaves,
+    // Jubelle G2: more courtesy rules. Each is independent; the defaults
+    // give exactly the behaviour above (1 bar, this staff, no parentheses).
+    jubelleCourtesyAccidentalsBars,          // how many bars after the change (1–4)
+    jubelleCourtesyAccidentalsOtherStaves,   // also for other staves of the same instrument
+    jubelleCourtesyAccidentalsParentheses,   // draw courtesy accidentals in parentheses
+
+    // Jubelle G7 (G3 design approved 15 Nov 2026): magnetic layout and
+    // collision avoidance. All off by default, so existing scores lay out
+    // exactly as in MuseScore; new Jubelle scores switch them on.
+    jubelleMagneticLayout,          // the master switch for the three behaviours below
+    jubelleMagneticRows,            // dynamics, expressions, rehearsal marks and tempo line up in rows
+    jubelleSidewaysNudge,           // text-like items may move a little sideways instead of far away
+    jubelleNudgeLimit,              // how far sideways, in staff spaces (default 0.5, at most 2)
+    jubelleCollisionAvoidance,      // resolve the overlaps MuseScore leaves, by the priority table
+    jubelleEngravingRules,          // engraving rules (placement and distance), one per line; empty = none
+
     STYLES
 };
 

@@ -29,7 +29,7 @@ set(EXECUTABLE_NAME mscore)
 ###########################################
 include(GetPlatformInfo)
 if (OS_IS_WIN)
-    set(EXECUTABLE_NAME ${MUSE_APP_NAME}) # Stavelle.exe
+    set(EXECUTABLE_NAME ${MUSE_APP_NAME}) # Jubelle.exe
 
     include(GetCompilerInfo)
 
@@ -128,7 +128,6 @@ add_to_link_if_exists(muse::diagnostics)
 add_to_link_if_exists(muse::dockwindow)
 add_to_link_if_exists(muse::extensions)
 add_to_link_if_exists(muse::languages)
-add_to_link_if_exists(muse::learn)
 add_to_link_if_exists(muse::media)
 add_to_link_if_exists(muse::midi)
 add_to_link_if_exists(muse::midiremote)

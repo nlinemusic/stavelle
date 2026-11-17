@@ -34,7 +34,9 @@
           "03-Chamber_Music/03-Wind_Quintet/03-Wind_Quintet.mscx",
           "03-Chamber_Music/04-Saxophone_Quartet/04-Saxophone_Quartet.mscx",
           "03-Chamber_Music/05-Brass_Quartet/05-Brass_Quartet.mscx",
-          "03-Chamber_Music/06-Brass_Quintet/06-Brass_Quintet.mscx"
+          "03-Chamber_Music/06-Brass_Quintet/06-Brass_Quintet.mscx",
+          "03-Chamber_Music/07-Piano_Trio/07-Piano_Trio.mscx",
+          "03-Chamber_Music/08-String_Trio/08-String_Trio.mscx"
       ]
     },
     {
@@ -48,12 +50,33 @@
       ]
     },
     {
+      "title": "Solo with Piano",
+      "files":
+      [
+          "09-Solo_with_Piano/01-Violin_+_Piano/01-Violin_+_Piano.mscx",
+          "09-Solo_with_Piano/02-Viola_+_Piano/02-Viola_+_Piano.mscx",
+          "09-Solo_with_Piano/03-Cello_+_Piano/03-Cello_+_Piano.mscx",
+          "09-Solo_with_Piano/04-Flute_+_Piano/04-Flute_+_Piano.mscx",
+          "09-Solo_with_Piano/05-Oboe_+_Piano/05-Oboe_+_Piano.mscx",
+          "09-Solo_with_Piano/06-Clarinet_+_Piano/06-Clarinet_+_Piano.mscx",
+          "09-Solo_with_Piano/07-Alto_Saxophone_+_Piano/07-Alto_Saxophone_+_Piano.mscx",
+          "09-Solo_with_Piano/08-Tenor_Saxophone_+_Piano/08-Tenor_Saxophone_+_Piano.mscx",
+          "09-Solo_with_Piano/09-Trumpet_+_Piano/09-Trumpet_+_Piano.mscx",
+          "09-Solo_with_Piano/10-Horn_+_Piano/10-Horn_+_Piano.mscx",
+          "09-Solo_with_Piano/11-Trombone_+_Piano/11-Trombone_+_Piano.mscx"
+      ]
+    },
+    {
       "title": "Jazz",
       "files":
       [
           "05-Jazz/01-Jazz_Lead_Sheet/01-Jazz_Lead_Sheet.mscx",
           "05-Jazz/02-Big_Band/02-Big_Band.mscx",
-          "05-Jazz/03-Jazz_Combo/03-Jazz_Combo.mscx"
+          "05-Jazz/03-Jazz_Combo/03-Jazz_Combo.mscx",
+          "05-Jazz/04-Big_Band_+_Vocal/04-Big_Band_+_Vocal.mscx",
+          "05-Jazz/05-Little_Big_Band/05-Little_Big_Band.mscx",
+          "05-Jazz/06-Jazz_Octet/06-Jazz_Octet.mscx",
+          "05-Jazz/07-Studio_Orchestra/07-Studio_Orchestra.mscx"
       ]
     },
     {

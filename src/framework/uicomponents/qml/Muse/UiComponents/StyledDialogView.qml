@@ -101,7 +101,7 @@ DialogView {
             id: contentBackground
             anchors.fill: parent
             color: ui.theme.backgroundPrimaryColor
-            radius: root.frameless ? 4 : 0
+            radius: root.frameless ? 8 : 0   // Jubelle R4
             border.width: root.frameless ? 1 : 0
             border.color: ui.theme.strokeColor
         }

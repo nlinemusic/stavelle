@@ -40,11 +40,6 @@ void ScoresPageModel::createNewScore()
     dispatcher()->dispatch("file-new");
 }
 
-void ScoresPageModel::convertFileToScore()
-{
-    dispatcher()->dispatch("file-convert-to-score");
-}
-
 void ScoresPageModel::openOther()
 {
     dispatcher()->dispatch("file-open");
@@ -87,26 +82,6 @@ void ScoresPageModel::viewOnline(int scoreId)
 void ScoresPageModel::deleteScore(int scoreId, const QString& scoreName)
 {
     deleteCloudScoreScenario()->deleteScore(scoreId, scoreName);
-}
-
-void ScoresPageModel::openScoreManager()
-{
-    interactive()->openUrl(museScoreComService()->scoreManagerUrl());
-}
-
-int ScoresPageModel::tabIndex() const
-{
-    return configuration()->homeScoresPageTabIndex();
-}
-
-void ScoresPageModel::setTabIndex(int index)
-{
-    if (index == tabIndex()) {
-        return;
-    }
-
-    configuration()->setHomeScoresPageTabIndex(index);
-    emit tabIndexChanged();
 }
 
 ScoresPageModel::ViewType ScoresPageModel::viewType() const

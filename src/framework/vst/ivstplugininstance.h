@@ -21,6 +21,8 @@
  */
 #pragma once
 
+#include <string>
+
 #include "global/async/notification.h"
 
 #include "vsttypes.h"
@@ -48,5 +50,16 @@ public:
     virtual void updatePluginConfig(const muse::audio::AudioUnitConfig& config) = 0;
     virtual void refreshConfig() = 0;
     virtual async::Channel<muse::audio::AudioUnitConfig> pluginSettingsChanged() const = 0;
+
+    // Jubelle: presets. The plugin's vendor, name and class ID (used to find
+    // its .vstpreset files), and loading a preset's states, which then saves
+    // with the score like any other change to the plugin's settings.
+    virtual std::string jubellePluginVendor() const { return {}; }
+    virtual std::string jubellePluginName() const { return {}; }
+    virtual std::string jubellePluginClassId() const { return {}; }
+    virtual bool jubelleApplyPresetStates(const std::string& /*componentState*/, const std::string& /*controllerState*/)
+    {
+        return false;
+    }
 };
 }

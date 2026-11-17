@@ -33,8 +33,8 @@ FirstLaunchSetupModel::FirstLaunchSetupModel(QObject* parent)
 {
     m_pages = {
         Page { "ThemesPage.qml", "musescore://notation" },
-        Page { "PlaybackPage.qml", "musescore://notation" },
-        Page { "TutorialsPage.qml", "musescore://home?section=learn" }
+        Page { "PlaybackPage.qml", "musescore://notation" }
+        // Jubelle: the Tutorials page was removed together with the Learn section.
     };
 }
 

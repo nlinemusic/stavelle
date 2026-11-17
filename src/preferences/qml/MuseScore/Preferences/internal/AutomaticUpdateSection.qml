@@ -33,13 +33,16 @@ BaseSection {
     property alias needCheckForNewAppVersion: needCheckBox.checked
     property string museScorePrivacyPolicyUrl
 
+    property alias testingReleases: testingBox.checked
+
     signal needCheckForNewAppVersionChangeRequested(bool check)
+    signal testingReleasesChangeRequested(bool include)
 
     CheckBox {
         id: needCheckBox
         width: parent.width
 
-        text: qsTrc("preferences", "Check to see if a new version of MuseScore Studio is available")
+        text: qsTrc("preferences", "Check for a new version of Jubelle when it starts")
 
         visible: root.isAppUpdatable
 
@@ -52,12 +55,28 @@ BaseSection {
         }
     }
 
+    // Jubelle R3: testing releases are GitHub pre-releases; off unless you want them
+    CheckBox {
+        id: testingBox
+        width: parent.width
+
+        text: qsTrc("preferences", "Also offer testing releases")
+
+        visible: root.isAppUpdatable
+
+        navigation.name: "TestingReleasesBox"
+        navigation.panel: root.navigation
+        navigation.row: 1
+
+        onClicked: {
+            root.testingReleasesChangeRequested(!checked)
+        }
+    }
+
     StyledTextLabel {
         width: parent.width
 
-        text: qsTrc("preferences", "Update checking requires network access. In order to protect your privacy, MuseScore Studio does not store any personal information. See our <a href=\"%1\">privacy policy</a> for more info.")
-              .arg(root.museScorePrivacyPolicyUrl)
-              .replace("\n", "<br>")
+        text: qsTrc("preferences", "Jubelle looks only at its own releases on GitHub, and installs an update only if it is signed with Jubelle’s release key and arrived unchanged. Nothing about you or your scores is sent. You can always check by hand with Help › Check for updates.")
 
         horizontalAlignment: Qt.AlignLeft
         wrapMode: Text.WordWrap

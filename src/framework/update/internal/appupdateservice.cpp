@@ -30,6 +30,7 @@
 #include <QJsonDocument>
 
 #include "update/updateerrors.h"
+#include "jubelle/updateverify.h"
 
 #include "defer.h"
 #include "translation.h"
@@ -133,7 +134,9 @@ Promise<RetVal<ReleaseInfo> > AppUpdateService::checkForUpdate()
             LOGE() << historyRv.ret.toString();
         }
 
-        QUrl url = QString::fromStdString(configuration()->checkForAppUpdateUrl());
+        const std::string urlText = configuration()->checkForAppUpdateUrl();
+        m_jubelleFeed = isJubelleReleasesUrl(urlText);   // Jubelle R3: asked once, kept for the download
+        QUrl url = QString::fromStdString(urlText);
         RequestHeaders headers = prepareHeaders(historyRv.val);
         auto buff = std::make_shared<QBuffer>();
 
@@ -158,6 +161,34 @@ Promise<RetVal<ReleaseInfo> > AppUpdateService::checkForUpdate()
                 LOGE() << writeHistoryRet.toString();
             }
 
+            if (m_jubelleFeed) {
+                // Jubelle R3: Jubelle's own GitHub Releases. The stable feed is one
+                // release; "Testing" releases (GitHub pre-releases) come as a list.
+                // Drafts are never offered.
+                QByteArray json = buff->data();
+                RetVal<ReleaseInfo> releaseInfo = parseJubelleReleases(json, configuration()->allowUpdateOnPreRelease());
+
+                if (!releaseInfo.ret) {
+                    m_lastCheckResult.ret = releaseInfo.ret;
+                    (void)resolve(m_lastCheckResult);
+                    return;
+                }
+
+                // Jubelle versions are numbered 4.7.7.<build>; every part counts
+                const std::string current = application()->version().toString().toStdString() + "."
+                                            + application()->build().toStdString();
+                if (jubelle::compareVersions(releaseInfo.val.version, current) <= 0) {
+                    m_lastCheckResult.ret = make_ret(Err::NoUpdate);
+                    (void)resolve(m_lastCheckResult);
+                    return;
+                }
+
+                m_lastCheckResult = releaseInfo;
+                (void)resolve(m_lastCheckResult);
+                return;
+            }
+
+            // MuseScore's own update feed (kept unchanged)
             QByteArray json = buff->data();
             RetVal<ReleaseInfo> releaseInfo = parseRelease(json);
 
@@ -232,6 +263,13 @@ RetVal<Progress> AppUpdateService::downloadRelease()
     downloadProgress.val.finished().onReceive(this, [this, info, buff](const ProgressResult& res) {
         if (!res.ret) {
             m_updateProgress.finish(ProgressResult::make_ret(res.ret));
+            return;
+        }
+
+        // Jubelle R3: from Jubelle's releases, check the signature and the
+        // checksum before the installer is saved where it can be run
+        if (m_jubelleFeed) {
+            jubelleVerifyAndSave(info, std::make_shared<QByteArray>(buff->data()));
             return;
         }
 
@@ -448,3 +486,166 @@ void AppUpdateService::clear()
     fileSystem()->remove(configuration()->updateDataPath());
 #endif
 }
+
+// ---------------------------------------------------------------------------
+// Jubelle R3 (decision D6): Jubelle's GitHub Releases, verified
+// ---------------------------------------------------------------------------
+
+RetVal<ReleaseInfo> AppUpdateService::parseJubelleReleases(const QByteArray& json, bool allowTesting) const
+{
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(json, &err);
+    if (err.error != QJsonParseError::NoError) {
+        return make_ret(Err::ReleaseInfoParseError, err.errorString().toStdString());
+    }
+
+    QJsonArray releases;
+    if (doc.isArray()) {
+        releases = doc.array();
+    } else if (doc.isObject()) {
+        releases.append(doc.object());
+    }
+
+    RetVal<ReleaseInfo> best = make_ret(Err::NoUpdate);
+    for (const QJsonValue& value : releases) {
+        const QJsonObject release = value.toObject();
+        if (release.value("draft").toBool()) {
+            continue;
+        }
+        const bool testing = release.value("prerelease").toBool();
+        if (testing && !allowTesting) {
+            continue;
+        }
+        const QJsonObject installer = resolveReleaseAsset(release);
+        if (installer.empty()) {
+            continue;
+        }
+        std::string version = release.value("tag_name").toString().toStdString();
+        if (!version.empty() && (version.front() == 'v' || version.front() == 'V')) {
+            version.erase(0, 1);
+        }
+        if (version.empty() || (best.ret && jubelle::compareVersions(version, best.val.version) <= 0)) {
+            continue;
+        }
+
+        ReleaseInfo info;
+        info.version = version;
+        info.fileName = installer.value("name").toString().toStdString();
+        info.fileUrl = installer.value("browser_download_url").toString().toStdString();
+        info.notes = release.value("body").toString().toStdString();
+        info.additionInfo["jubelleTesting"] = Val(testing);
+        for (const QJsonValue& a : release.value("assets").toArray()) {
+            const QJsonObject asset = a.toObject();
+            const QString name = asset.value("name").toString();
+            const std::string url = asset.value("browser_download_url").toString().toStdString();
+            if (name == "SHA256SUMS") {
+                info.additionInfo["jubelleSumsUrl"] = Val(url);
+            } else if (name == "SHA256SUMS.sig") {
+                info.additionInfo["jubelleSigUrl"] = Val(url);
+            }
+        }
+        if (info.additionInfo.find("jubelleSumsUrl") == info.additionInfo.end()
+            || info.additionInfo.find("jubelleSigUrl") == info.additionInfo.end()) {
+            LOGW() << "Jubelle release " << version << " has no signed checksums: not offered";
+            continue;   // an unsigned release is never offered
+        }
+        best = RetVal<ReleaseInfo>::make_ok(info);
+    }
+    return best;
+}
+
+bool AppUpdateService::isJubelleReleasesUrl(const std::string& url)
+{
+    return QUrl(QString::fromStdString(url)).host().toLower() == "api.github.com";
+}
+
+static bool isGitHubDownload(const std::string& url)
+{
+    const QUrl u(QString::fromStdString(url));
+    const QString host = u.host().toLower();
+    return u.scheme() == "https" && (host == "github.com" || host.endsWith(".githubusercontent.com"));
+}
+
+void AppUpdateService::jubelleVerifyAndSave(const ReleaseInfo& info, std::shared_ptr<QByteArray> installer)
+{
+    auto fail = [this](const std::string& why) {
+        LOGE() << "Jubelle update not verified: " << why;
+        m_updateProgress.finish(ProgressResult::make_ret(make_ret(Err::JubelleNotVerified, why)));
+    };
+
+    auto get = [&](const char* key) {
+        auto it = info.additionInfo.find(key);
+        return it == info.additionInfo.end() ? std::string() : it->second.toString();
+    };
+    const std::string sumsUrl = get("jubelleSumsUrl");
+    const std::string sigUrl = get("jubelleSigUrl");
+    if (!isGitHubDownload(info.fileUrl) || !isGitHubDownload(sumsUrl) || !isGitHubDownload(sigUrl)) {
+        fail(muse::trc("update", "The update didn’t come from Jubelle’s GitHub releases."));
+        return;
+    }
+    if (jubelle::releasePublicKeyHex().empty()) {
+        fail(muse::trc("update", "This build of Jubelle has no release key, so it can’t check updates. Install new versions by hand."));
+        return;
+    }
+
+    auto sums = std::make_shared<QBuffer>();
+    RetVal<Progress> sumsProgress = m_networkManager->get(QUrl(QString::fromStdString(sumsUrl)), sums);
+    if (!sumsProgress.ret) {
+        fail(sumsProgress.ret.toString());
+        return;
+    }
+    sumsProgress.val.finished().onReceive(this, [this, info, installer, sums, sigUrl, fail](const ProgressResult& res) {
+        if (!res.ret) {
+            fail(res.ret.toString());
+            return;
+        }
+        auto sig = std::make_shared<QBuffer>();
+        RetVal<Progress> sigProgress = m_networkManager->get(QUrl(QString::fromStdString(sigUrl)), sig);
+        if (!sigProgress.ret) {
+            fail(sigProgress.ret.toString());
+            return;
+        }
+        sigProgress.val.finished().onReceive(this, [this, info, installer, sums, sig, fail](const ProgressResult& res2) {
+            if (!res2.ret) {
+                fail(res2.ret.toString());
+                return;
+            }
+            const jubelle::Bytes installerBytes(installer->begin(), installer->end());
+            const QByteArray sumsData = sums->data();
+            const QByteArray sigData = sig->data();
+            const jubelle::Verdict verdict = jubelle::verifyInstaller(installerBytes, info.fileName,
+                                                                      std::string(sumsData.constData(), size_t(sumsData.size())),
+                                                                      jubelle::Bytes(sigData.begin(), sigData.end()),
+                                                                      jubelle::releasePublicKeyHex());
+            switch (verdict) {
+            case jubelle::Verdict::Ok:
+                break;
+            case jubelle::Verdict::NoReleaseKey:
+                fail(muse::trc("update", "This build of Jubelle has no release key."));
+                return;
+            case jubelle::Verdict::BadSignature:
+                fail(muse::trc("update", "The update’s checksum list isn’t signed with Jubelle’s release key. Nothing was installed."));
+                return;
+            case jubelle::Verdict::NotListed:
+                fail(muse::trc("update", "The installer isn’t listed in the release’s signed checksums. Nothing was installed."));
+                return;
+            case jubelle::Verdict::WrongChecksum:
+                fail(muse::trc("update", "The downloaded installer is damaged or was changed. It was deleted and nothing was installed."));
+                return;
+            }
+
+            // Verified: saved next to earlier downloads, which are kept so a
+            // previous version can be reinstalled
+            const path_t installerPath = configuration()->updateDataPath() + "/" + info.fileName;
+            fileSystem()->makePath(muse::io::absoluteDirpath(installerPath));
+            const Ret ret = fileSystem()->writeFile(installerPath, ByteArray(reinterpret_cast<const uint8_t*>(installer->constData()),
+                                                                             size_t(installer->size())));
+            if (!ret) {
+                m_updateProgress.finish(ProgressResult::make_ret(ret));
+                return;
+            }
+            m_updateProgress.finish(ProgressResult::make_ok(Val(installerPath)));
+        });
+    });
+}
+

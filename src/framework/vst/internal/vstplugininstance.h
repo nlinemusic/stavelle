@@ -72,6 +72,11 @@ public:
 
     async::Channel<muse::audio::AudioUnitConfig> pluginSettingsChanged() const override;
 
+    std::string jubellePluginVendor() const override;
+    std::string jubellePluginName() const override;
+    std::string jubellePluginClassId() const override;
+    bool jubelleApplyPresetStates(const std::string& componentState, const std::string& controllerState) override;
+
 private:
     void syncControllerToComponentState();
     void rescanParams();
@@ -88,6 +93,10 @@ private:
     VstMemoryStream m_componentStateBuffer;
     VstMemoryStream m_controllerStateBuffer;
     mutable async::Channel<muse::audio::AudioUnitConfig> m_pluginSettingsChanges;
+
+    std::string m_jubelleVendor;
+    std::string m_jubelleClassName;
+    std::string m_jubelleClassId;
 
     std::atomic_bool m_isLoaded = false;
     async::Notification m_loadingCompleted;

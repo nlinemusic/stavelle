@@ -103,8 +103,10 @@ Item {
                     id: titleLabel
                     Layout.fillWidth: true
 
-                    text: root.titleBarCpp?.title ?? ""
+                    // Jubelle R4 (approved mockup): panel titles in purple capitals
+                    text: (root.titleBarCpp?.title ?? "").toLocaleUpperCase()
                     font: ui.theme.bodyBoldFont
+                    color: ui.theme.isDark ? "#C084FC" : "#7E22CE"
                     horizontalAlignment: Qt.AlignLeft
                 }
 

@@ -120,11 +120,16 @@ public:
     bool tieContext(int line) const;
     void setAccidentalVal(int line, AccidentalVal val, bool tieContext = false);
     void setForceRestateAccidental(int line, bool forceRestate);
+    //! Jubelle: the forced restatement on this line is a courtesy accidental
+    //! (it may be shown in parentheses). Cleared with the forced restatement.
+    bool jubelleCourtesy(int line) const { return line >= MIN_ACC_STATE && line < MAX_ACC_STATE && m_jubelleCourtesy[line]; }
+    void setJubelleCourtesy(int line, bool v) { if (line >= MIN_ACC_STATE && line < MAX_ACC_STATE) { m_jubelleCourtesy[line] = v; } }
 
 private:
 
     uint8_t m_state[MAX_ACC_STATE] = {};      // (0 -- 4) | TIE_CONTEXT
     std::array<bool, MAX_ACC_STATE> m_forceRestateAccidental;
+    std::array<bool, MAX_ACC_STATE> m_jubelleCourtesy = {};
 };
 
 struct Interval;

@@ -149,12 +149,6 @@ ApplicationActionController::DragTarget ApplicationActionController::dragTarget(
             return DragTarget::SoundFont;
         } else if (extensionInstaller()->isFileSupported(filePath)) {
             return DragTarget::Extension;
-        } else {
-            bool scorePageWithProjectOpen = interactive()->currentUri().val == NOTATION_URI
-                                            && globalContext()->currentProject() != nullptr;
-            if (!scorePageWithProjectOpen && convertFileToScoreScenario()->isFileSupported(filePath)) {
-                return DragTarget::ConvertibleFile;
-            }
         }
     }
     return DragTarget::Unknown;
@@ -210,17 +204,6 @@ bool ApplicationActionController::onDropEvent(QDropEvent* event)
             muse::io::path_t filePath = url.toLocalFile();
             async::Async::call(this, [this, filePath]() {
                     extensionInstaller()->installExtension(filePath);
-                });
-        } break;
-        case DragTarget::ConvertibleFile: {
-            muse::io::paths_t paths;
-            for (const QUrl& u : urls) {
-                if (u.isLocalFile()) {
-                    paths.push_back(muse::io::path_t(u.toLocalFile()));
-                }
-            }
-            async::Async::call(this, [this, paths]() {
-                    convertFileToScoreScenario()->convertFiles(paths);
                 });
         } break;
         case DragTarget::Unknown:
@@ -382,8 +365,8 @@ void ApplicationActionController::revertToFactorySettings()
         static constexpr bool NOTIFY_OTHER_INSTANCES = false;
         configuration()->revertToFactorySettings(KEEP_DEFAULT_SETTINGS, NOTIFY_ABOUT_CHANGES, NOTIFY_OTHER_INSTANCES);
 
-        std::string title = muse::trc("appshell", "Would you like to restart MuseScore Studio now?");
-        std::string question = muse::trc("appshell", "MuseScore Studio needs to be restarted for these changes to take effect.");
+        std::string title = muse::trc("appshell", "Would you like to restart Jubelle now?");
+        std::string question = muse::trc("appshell", "Jubelle needs to be restarted for these changes to take effect.");
 
         int restartBtn = int(IInteractive::Button::Apply);
         auto promise = interactive()->question(title, question,

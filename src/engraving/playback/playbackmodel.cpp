@@ -22,6 +22,10 @@
 
 #include "playbackmodel.h"
 
+#include "jubelle/articulationplayback.h"
+#include "jubelle/swingfeel.h"
+#include "dom/textline.h"
+
 #include <limits>
 
 #include "dom/fret.h"
@@ -71,11 +75,27 @@ void PlaybackModel::load(Score* score)
     }
 
     m_score = score;
+    jubelleSwingSettingsChanged();
 
     auto changesChannel = score->changesChannel();
     changesChannel.disconnect(this);
 
     changesChannel.onReceive(this, [this](const ScoreChanges& changes) {
+        // Jubelle: articulation playback or swing settings changed (or were
+        // undone): everything has to be rendered again with the new values
+        const bool swingChanged = jubelleSwingSettingsChanged();
+        bool passageChanged = false;   // a passage line was added, moved, edited or removed
+        for (const auto& pair : changes.changedObjects) {
+            if (pair.first->isEngravingItem() && jubelle::passageLine(toEngravingItem(pair.first))) {
+                passageChanged = true;
+                break;
+            }
+        }
+        if (jubelleArticulationSettingsChanged() || swingChanged || passageChanged) {
+            reload();
+            return;
+        }
+
         if (shouldSkipChanges(changes)) {
             return;
         }
@@ -291,8 +311,7 @@ void PlaybackModel::triggerEventsForItems(const std::vector<const EngravingItem*
     }
 
     PlaybackData& trackPlaybackData = trackPlaybackDataIt->second;
-    ArticulationsProfilePtr profile
-        = profilesRepository() ? profilesRepository()->defaultProfile(trackPlaybackData.setupData.category) : nullptr;
+    ArticulationsProfilePtr profile = defaultActiculationProfile(trackId);
     if (!profile) {
         LOGE() << "unsupported instrument family: " << trackId.partId.toUint64();
         return;
@@ -562,7 +581,8 @@ void PlaybackModel::processSegment(const int tickPositionOffset, const Segment* 
             continue;
         }
 
-        ArticulationsProfilePtr profile = defaultActiculationProfile(trackId);
+        // Jubelle: the profile at this note's tick (passage overrides)
+        ArticulationsProfilePtr profile = defaultActiculationProfile(trackId, item->tick().ticks());
         if (!profile) {
             LOGE() << "unsupported instrument family: " << item->part()->id();
             continue;
@@ -773,6 +793,7 @@ bool PlaybackModel::hasToReloadScore(const ScoreChanges& changes) const
         mu::engraving::Pid::REPEAT_END,
         mu::engraving::Pid::REPEAT_JUMP,
         mu::engraving::Pid::REPEAT_COUNT,
+        mu::engraving::Pid::JUBELLE_PLAY_REPEAT,   // Jubelle: "Play this repeat"
     };
 
     for (const Pid pid: changes.changedPropertyIdSet) {
@@ -1159,7 +1180,7 @@ InstrumentTrackId PlaybackModel::idKey(const ID& partId, const String& instrumen
     return { partId, instrumentId };
 }
 
-muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(const InstrumentTrackId& trackId) const
+muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(const InstrumentTrackId& trackId, int tick) const
 {
     auto it = m_playbackDataMap.find(trackId);
     if (it == m_playbackDataMap.cend()) {
@@ -1170,7 +1191,74 @@ muse::mpe::ArticulationsProfilePtr PlaybackModel::defaultActiculationProfile(con
         return nullptr;
     }
 
-    return profilesRepository()->defaultProfile(it->second.setupData.category);
+    const ArticulationsProfilePtr base = profilesRepository()->defaultProfile(it->second.setupData.category);
+
+    // Jubelle: the score's own articulation playback settings, if any
+    jubelleArticulationSettingsChanged();
+    if (!base) {
+        return base;
+    }
+
+    // Level 3: passage lines covering this tick
+    if (tick >= 0 && m_score) {
+        const Part* part = m_score->partById(trackId.partId);
+        const std::vector<jubelle::PassageAt> passages = jubelle::passagesAt(m_score, part, tick);
+        if (!passages.empty()) {
+            String key = trackId.instrumentId + u"|" + String::number(int64_t(trackId.partId.toUint64()));
+            for (const jubelle::PassageAt& pa : passages) {
+                key += u"|" + String::number(pa.line->tick().ticks()) + u":" + pa.line->beginText();
+            }
+            JubelleProfile& cached = m_jubellePassageProfiles[key.toStdString()];
+            if (cached.base != base || !cached.profile) {
+                const jubelle::ArticulationPlaybackSettings settings
+                    = jubelle::ArticulationPlaybackSettings::fromText(m_jubelleArticulationText);
+                const jubelle::ArticulationPlaybackValues values
+                    = jubelle::mergedPassageValues(passages).over(settings.effective(trackId.partId.toUint64()));
+                cached.base = base;
+                cached.profile = jubelle::applyArticulationPlayback(base, values);
+            }
+            return cached.profile;
+        }
+    }
+
+    if (m_jubelleArticulationText.isEmpty()) {
+        return base;
+    }
+
+    JubelleProfile& cached = m_jubelleProfiles[trackId];
+    if (cached.base != base || !cached.profile) {
+        const jubelle::ArticulationPlaybackSettings settings
+            = jubelle::ArticulationPlaybackSettings::fromText(m_jubelleArticulationText);
+        cached.base = base;
+        cached.profile = jubelle::applyArticulationPlayback(base, settings.effective(trackId.partId.toUint64()));
+    }
+    return cached.profile;
+}
+
+bool PlaybackModel::jubelleSwingSettingsChanged() const
+{
+    const String text = m_score && m_score->masterScore()
+                        ? m_score->masterScore()->metaTag(String(jubelle::SwingSettings::META_TAG))
+                        : String();
+    if (text == m_jubelleSwingText) {
+        return false;
+    }
+    m_jubelleSwingText = text;
+    return true;
+}
+
+bool PlaybackModel::jubelleArticulationSettingsChanged() const
+{
+    const String text = m_score && m_score->masterScore()
+                        ? m_score->masterScore()->metaTag(String(jubelle::ArticulationPlaybackSettings::META_TAG))
+                        : String();
+    if (text == m_jubelleArticulationText) {
+        return false;
+    }
+    m_jubelleArticulationText = text;
+    m_jubelleProfiles.clear();
+    m_jubellePassageProfiles.clear();
+    return true;
 }
 
 PlaybackContextPtr PlaybackModel::playbackCtx(const InstrumentTrackId& trackId)

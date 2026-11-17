@@ -33,13 +33,21 @@ StyledDialogView {
 
     title: qsTrc("project", "New score")
 
-    contentHeight: 600
+    contentHeight: 680
     contentWidth: 1024
     resizable: true
 
     objectName: "NewScoreDialog"
 
+    //! Jubelle: opened from the Template Library with a template already chosen
+    //! (musescore://project/newscore?templatePath=...).
+    property string templatePath: ""
+
     function onDone() {
+        if (!projectSetup.isValid) {
+            return
+        }
+
         var result = {}
 
         var instrumentsAndTemplatePageResult = chooseInstrumentsAndTemplatePage.result()
@@ -52,9 +60,17 @@ StyledDialogView {
             result[key] = scoreInfoPageResult[key]
         }
 
-        if (newScoreModel.createScore(result)) {
+        // Jubelle: the project folder (composition name and category)
+        var projectResult = projectSetup.result()
+        for (key in projectResult) {
+            result[key] = projectResult[key]
+        }
+
+        if (theNewScoreModel.createScore(result)) {
             root.activateParentOnClose = false
-            root.accept()
+            // The new score is saved into its project folder once it has opened.
+            root.ret = { errcode: 0, value: { scorePath: theNewScoreModel.createdScorePath() } }
+            root.hide()
         }
     }
 
@@ -63,7 +79,7 @@ StyledDialogView {
     }
 
     NewScoreModel {
-        id: newScoreModel
+        id: theNewScoreModel
     }
 
     Item {
@@ -72,10 +88,25 @@ StyledDialogView {
         anchors.margins: 8
     }
 
+    ProjectSetupRow {
+        id: projectSetup
+
+        anchors.top: parent.top
+        anchors.topMargin: 12
+        anchors.left: parent.left
+        anchors.leftMargin: 12
+        anchors.right: parent.right
+        anchors.rightMargin: 12
+
+        newScoreModel: theNewScoreModel
+        navigationSection: root.navigationSection
+        scoreTitle: scoreInfoPage.title
+    }
+
     StackLayout {
         id: pagesStack
 
-        anchors.top: parent.top
+        anchors.top: projectSetup.bottom
         anchors.topMargin: 12
         anchors.left: parent.left
         anchors.leftMargin: 12
@@ -88,9 +119,11 @@ StyledDialogView {
             id: chooseInstrumentsAndTemplatePage
 
             navigationSection: root.navigationSection
+            initialTemplatePath: root.templatePath
+            projectCategory: projectSetup.category
 
             Component.onCompleted: {
-                preferredScoreCreationMode = newScoreModel.preferredScoreCreationMode()
+                preferredScoreCreationMode = theNewScoreModel.preferredScoreCreationMode()
             }
 
             onDone: {
@@ -181,7 +214,7 @@ StyledDialogView {
                 buttonRole: ButtonBoxModel.AcceptRole
                 buttonId: ButtonBoxModel.Done
                 accentButton: true
-                enabled: chooseInstrumentsAndTemplatePage.hasSelection
+                enabled: chooseInstrumentsAndTemplatePage.hasSelection && projectSetup.isValid
 
                 onClicked: {
                     root.onDone()

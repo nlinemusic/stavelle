@@ -43,12 +43,14 @@ public:
     static void alignItemsGroup(const std::vector<EngravingItem*>& elements, const System* system);
     static void alignHopoLetters(const HammerOnPullOff* hopo, const System* system);
 
-private:
+    // Jubelle G7: public so magnetic rows can reuse MuseScore's own alignment
     static void moveItemToY(EngravingItem* item, double y, const System* system);
     static double yOpticalCenter(const EngravingItem* item);
+    static bool isAbove(const EngravingItem* item);
+
+private:
     static void scanConnectedItems(EngravingItem* item, const System* system, std::function<void(EngravingItem*)> func);
     static double computeAverageY(const std::vector<double>& vecOfY);
-    static bool isAbove(const EngravingItem* item);
 };
 } // namespace mu::engraving::rendering::dev
 #endif // MU_ENGRAVING_ALIGNMENTLAYOUT_DEV_H

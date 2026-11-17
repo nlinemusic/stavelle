@@ -21,6 +21,11 @@
  */
 #include "notationcontextmenumodel.h"
 
+#include "engraving/playback/jubelle/articulationplayback.h"
+#include "notation/internal/jubelle/linkedpassages.h"
+#include "notation/internal/jubelle/condensedscore.h"
+#include "notation/inotationelements.h"
+
 #include "types/translatablestring.h"
 
 #include "ui/view/iconcodes.h"
@@ -75,6 +80,11 @@ MenuItemList NotationContextMenuModel::makeItemsByElementType(ElementType elemen
         return makeGradualTempoChangeItems();
     case ElementType::TEXT:
         return makeTextItems();
+    case ElementType::TEXTLINE_SEGMENT:
+        if (isJubelleLinkMarkerSelected()) {
+            return makeJubelleLinkMarkerItems();   // R7
+        }
+        break;
     default:
         break;
     }
@@ -130,6 +140,19 @@ MenuItemList NotationContextMenuModel::makeMeasureItems()
         items << makeMenuItem("customize-kit");
     }
 
+    items << makeMenuItem("jubelle-identify-chords");
+    items << makeMenuItem("jubelle-passage-playback");
+    items << makeMenuItem("jubelle-linked-passages");
+    // Jubelle G2: in a condensed copy, choose how these bars are condensed next time
+    if (isJubelleCondensedCopy()) {
+        MenuItemList condenseItems {
+            makeMenuItem("jubelle-condense-keep-separate"),
+            makeMenuItem("jubelle-condense-share"),
+            makeMenuItem("jubelle-condense-automatic"),
+        };
+        items << makeMenu(muse::TranslatableString("notation", "Condensing"), condenseItems);
+    }
+    items << makeSeparator();
     items << makeMenuItem("staff-properties");
     items << makeSeparator();
     items << makeMenu(TranslatableString("notation", "Insert measures"), makeInsertMeasuresItems());
@@ -252,11 +275,12 @@ MenuItemList NotationContextMenuModel::makeElementInFretBoxItems()
 MenuItemList NotationContextMenuModel::makeSelectItems()
 {
     if (isSingleSelection()) {
-        return MenuItemList { makeMenuItem("select-similar"), makeMenuItem("select-similar-staff"), makeMenuItem("select-dialog") };
+        return MenuItemList { makeMenuItem("select-similar"), makeMenuItem("select-similar-staff"), makeMenuItem("select-dialog"),
+                              makeMenuItem("jubelle-find-select") };
     } else if (canSelectSimilarInRange()) {
-        return MenuItemList { makeMenuItem("select-similar-range"), makeMenuItem("select-dialog") };
+        return MenuItemList { makeMenuItem("select-similar-range"), makeMenuItem("select-dialog"), makeMenuItem("jubelle-find-select") };
     } else if (canSelectSimilar()) {
-        return MenuItemList{ makeMenuItem("select-dialog") };
+        return MenuItemList{ makeMenuItem("select-dialog"), makeMenuItem("jubelle-find-select") };
     }
 
     return MenuItemList();
@@ -281,6 +305,43 @@ MenuItemList NotationContextMenuModel::makeElementItems()
     if (element && element->isEditable()) {
         items << makeSeparator();
         items << makeMenuItem("edit-element");
+    }
+
+    // Jubelle: name the chord formed by the selected notes
+    if (element && (element->isNote() || element->isChord())) {
+        items << makeSeparator();
+        items << makeMenuItem("jubelle-identify-chords");
+        items << makeMenuItem("jubelle-passage-playback");
+    } else if (element && (element->isText() || element->isImage() || element->isStaffText() || element->isSystemText()
+                           || element->isTempoText() || element->isRehearsalMark())) {
+        // Jubelle: title-page alignment
+        MenuItemList alignItems {
+            makeMenuItem("jubelle-align-left"),
+            makeMenuItem("jubelle-align-hcenter"),
+            makeMenuItem("jubelle-align-right"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-top"),
+            makeMenuItem("jubelle-align-vcenter"),
+            makeMenuItem("jubelle-align-bottom"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-center"),
+            makeMenuItem("jubelle-distribute-h"),
+            makeMenuItem("jubelle-distribute-v"),
+            makeSeparator(),
+            makeMenuItem("jubelle-align-to-margins"),
+            makeMenuItem("jubelle-align-to-page"),
+            makeMenuItem("jubelle-align-to-each-other"),
+        };
+        items << makeSeparator();
+        items << makeMenu(muse::TranslatableString("notation", "Align"), alignItems);
+    } else if (element && mu::engraving::jubelle::passageLine(element)) {
+        // Jubelle: a playback line: edit its passage's values
+        items << makeSeparator();
+        items << makeMenuItem("jubelle-passage-playback");
+    } else if (element && mu::notation::jubelle::linkMember(element)) {
+        // Jubelle: a (hidden, shown with "Show invisible") link line
+        items << makeSeparator();
+        items << makeMenuItem("jubelle-linked-passages");
     }
 
     items << makeSeparator()
@@ -470,6 +531,35 @@ bool NotationContextMenuModel::isDrumsetStaff() const
 
     Fraction tick = ctx.element ? ctx.element->tick() : Fraction { -1, 1 };
     return ctx.staff->part()->instrument(tick)->drumset() != nullptr;
+}
+
+bool NotationContextMenuModel::isJubelleLinkMarkerSelected() const
+{
+    INotationSelectionPtr sel = selection();
+    if (!sel || sel->elements().size() != 1) {
+        return false;
+    }
+    return mu::notation::jubelle::linkMember(sel->elements().front()).has_value();
+}
+
+MenuItemList NotationContextMenuModel::makeJubelleLinkMarkerItems()
+{
+    // Jubelle R7: what you can do with a linked passage, from its marker
+    MenuItemList items;
+    const auto member = mu::notation::jubelle::linkMember(selection()->elements().front());
+    if (member && !member->source) {
+        items << makeMenuItem("jubelle-link-resync");
+    }
+    items << makeMenuItem("jubelle-link-unlink");
+    items << makeSeparator();
+    items << makeMenuItem("jubelle-linked-passages");
+    return items;
+}
+
+bool NotationContextMenuModel::isJubelleCondensedCopy() const
+{
+    INotationPtr notation = globalContext()->currentNotation();
+    return notation && notation->elements() && mu::notation::jubelle::isCondensedCopy(notation->elements()->msScore());
 }
 
 INotationInteractionPtr NotationContextMenuModel::interaction() const

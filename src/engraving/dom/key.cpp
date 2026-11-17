@@ -371,6 +371,7 @@ void AccidentalState::init(const KeySigEvent& keySig)
         }
     }
     m_forceRestateAccidental.fill(false);
+    m_jubelleCourtesy.fill(false);
 }
 
 //---------------------------------------------------------
@@ -415,6 +416,9 @@ void AccidentalState::setForceRestateAccidental(int line, bool forceRestate)
 {
     assert(line >= MIN_ACC_STATE && line < MAX_ACC_STATE);
     m_forceRestateAccidental[line] = forceRestate;
+    if (!forceRestate) {
+        m_jubelleCourtesy[line] = false;
+    }
 }
 
 //---------------------------------------------------------

@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="fonts/leipzig/metadata.json">../../../../fonts/leipzig/leipzig_metadata.json</file>
+        <file alias="fonts/leipzig/Leipzig.ttf">../../../../fonts/leipzig/Leipzig.ttf</file>
+    </qresource>
+</RCC>

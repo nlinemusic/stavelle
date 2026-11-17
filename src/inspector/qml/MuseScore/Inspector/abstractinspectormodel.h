@@ -166,6 +166,8 @@ public:
     void init();
 
     Q_INVOKABLE virtual void requestResetToDefaults();
+    //! Jubelle R6: Playback → Repeats…, from any repeat element's section
+    Q_INVOKABLE void jubelleOpenRepeatsDialog();
 
     QString title() const;
     int icon() const;

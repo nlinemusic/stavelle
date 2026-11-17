@@ -23,6 +23,8 @@
 
 #include "systemlayout.h"
 
+#include "jubelle/magneticlayout.h"
+
 #include "realfn.h"
 
 #include "style/defaultstyle.h"
@@ -1012,6 +1014,9 @@ void SystemLayout::layoutDynamicExpressionAndHairpins(const ElementsToLayout& el
     }
 
     AlignmentLayout::alignItemsWithTheirSnappingChain(dynamicsExprAndHairpinsToAlign, system);
+
+    // Jubelle G7: magnetic rows (off unless switched on)
+    jubelle::alignRows(dynamicsExprAndHairpinsToAlign, system);
 }
 
 void SystemLayout::layoutParenthesisAndBigTimeSigs(const ElementsToLayout& elementsToLayout)
@@ -1357,6 +1362,13 @@ void SystemLayout::layoutSystemElements(System* system, LayoutContext& ctx)
         Autoplace::autoplaceSegmentElement(rehearsMark, rehearsMark->mutldata());
     }
 
+    // Jubelle G7: rehearsal marks and tempo marks share a row (off unless switched on)
+    if (jubelle::magneticRowsOn(system->style())) {
+        std::vector<EngravingItem*> rehearsalAndTempo = tempoElementsToAlign;
+        rehearsalAndTempo.insert(rehearsalAndTempo.end(), elementsToLayout.rehMarks.begin(), elementsToLayout.rehMarks.end());
+        jubelle::alignRows(rehearsalAndTempo, system);
+    }
+
     for (EngravingItem* item : elementsToLayout.markersAndJumps) {
         TLayout::layoutItem(item, ctx);
     }
@@ -1366,6 +1378,9 @@ void SystemLayout::layoutSystemElements(System* system, LayoutContext& ctx)
     }
 
     layoutParenthesisAndBigTimeSigs(elementsToLayout);
+
+    // Jubelle G7: collision avoidance, after all placement (off unless switched on)
+    jubelle::resolveCollisions(system);
 }
 
 void SystemLayout::collectElementsToLayout(Measure* measure, ElementsToLayout& elements, const LayoutContext& ctx)

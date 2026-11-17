@@ -51,6 +51,7 @@
 #include "projectaudiosettings.h"
 #include "projectfileinfoprovider.h"
 #include "projecterrors.h"
+#include "projectlibrary.h"
 #include "safefilewrite.h"
 
 #include "defer.h"
@@ -373,6 +374,23 @@ Ret NotationProject::createNew(const ProjectCreateOptions& projectOptions)
         return ret;
     }
 
+    // Jubelle G7 (decision 1, adopted 15 Nov 2026): magnetic layout and collision
+    // avoidance are on for new scores; scores made earlier keep MuseScore's layout
+    {
+        auto switchOn = [](mu::engraving::Score* score) {
+            score->style().set(mu::engraving::Sid::jubelleMagneticLayout, true);
+            score->style().set(mu::engraving::Sid::jubelleCollisionAvoidance, true);
+            score->update();
+            score->doLayout();
+        };
+        switchOn(masterScore);
+        for (mu::engraving::Excerpt* excerpt : masterScore->excerpts()) {
+            if (excerpt && excerpt->excerptScore()) {
+                switchOn(excerpt->excerptScore());
+            }
+        }
+    }
+
     // Setup audio settings
     m_projectAudioSettings->makeDefault();
 
@@ -665,7 +683,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
     muse::io::path_t targetMainFilePath = engraving::mainFilePath(path);
     muse::io::path_t targetMainFileName = engraving::mainFileName(path);
 
-    // Stavelle: if the score is a symbolic link, save to the real file so that the
+    // Jubelle: if the score is a symbolic link, save to the real file so that the
     // temporary file below lives on the same volume and can be swapped in atomically.
     if (ioMode != engraving::MscIoMode::Dir) {
         const QFileInfo targetInfo(targetContainerPath);
@@ -739,7 +757,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
         }
 
         if (maybeOutBuf) {
-            // Stavelle: write the temporary file and force it to physical storage,
+            // Jubelle: write the temporary file and force it to physical storage,
             // detecting short writes (e.g. disk full).
             const ByteArray& bytes = maybeOutBuf->data();
             std::string errorText;
@@ -767,7 +785,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
         }
     }
 
-    // Stavelle Step 2b: validate the temporary file BEFORE the existing score is touched.
+    // Jubelle Step 2b: validate the temporary file BEFORE the existing score is touched.
     // If validation fails, the previously saved score remains exactly as it was.
     if (ioMode != MscIoMode::Dir && !isAutosave) {
         Ret ret = checkSavedFileForCorruption(ioMode, savePath, targetMainFileName.toQString());
@@ -814,7 +832,7 @@ Ret NotationProject::doSave(const muse::io::path_t& path, engraving::MscIoMode i
                 LOGW() << ret.toString();
             }
         } else {
-            // Stavelle: atomically swap the validated file into place. Previously the
+            // Jubelle: atomically swap the validated file into place. Previously the
             // existing score was deleted and then overwritten by a copy, so a crash, power
             // loss or full disk at that moment could destroy the last good version.
             // Now the score on disk is always either the complete old or the complete new
@@ -863,7 +881,13 @@ Ret NotationProject::makeBackup(muse::io::path_t filePath)
         return ret;
     }
 
-    fileSystem()->setAttribute(backupDir, io::IFileSystem::Attribute::Hidden);
+    // Jubelle: backups in a project's Backups folder are meant to be seen; only
+    // MuseScore's own .mscbackup folder (scores outside projects) is hidden.
+    const bool hideBackup = projectlibrary::projectFolderForScore(filePath.toStdString()).empty();
+
+    if (hideBackup) {
+        fileSystem()->setAttribute(backupDir, io::IFileSystem::Attribute::Hidden);
+    }
 
     ret = fileSystem()->copy(filePath, backupPath, true);
     if (!ret) {
@@ -871,7 +895,9 @@ Ret NotationProject::makeBackup(muse::io::path_t filePath)
         return ret;
     }
 
-    fileSystem()->setAttribute(backupPath, io::IFileSystem::Attribute::Hidden);
+    if (hideBackup) {
+        fileSystem()->setAttribute(backupPath, io::IFileSystem::Attribute::Hidden);
+    }
 
     return ret;
 }

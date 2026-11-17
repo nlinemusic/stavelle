@@ -4,7 +4,7 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Stavelle: new repositories give workflows read-only tokens by default; the
+# Jubelle: new repositories give workflows read-only tokens by default; the
 # "Cancel Previous Runs" step needs to manage runs.
 permissions:
   contents: read

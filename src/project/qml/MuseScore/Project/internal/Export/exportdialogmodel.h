@@ -79,6 +79,9 @@ class ExportDialogModel : public QAbstractListModel, public QQmlParserStatus, pu
     Q_PROPERTY(bool svgIllustratorCompat READ svgIllustratorCompat WRITE setSvgIllustratorCompat NOTIFY svgIllustratorCompatChanged FINAL)
 
     Q_PROPERTY(QString videoResolution READ videoResolution WRITE setVideoResolution NOTIFY videoResolutionChanged)
+    //! Jubelle: the pages a video shows and their order ("1-3, 5"); empty = all
+    Q_PROPERTY(QString videoPageList READ videoPageList WRITE setVideoPageList NOTIFY videoPageListChanged)
+    Q_PROPERTY(QString videoPageListProblem READ videoPageListProblem NOTIFY videoPageListChanged)
 
     using ViewMode = mu::iex::videoexport::ViewMode;
     Q_ENUM(ViewMode);
@@ -179,6 +182,9 @@ public:
     Q_INVOKABLE QStringList availableVideoResolutions() const;
     QString videoResolution() const;
     void setVideoResolution(const QString& resolution);
+    QString videoPageList() const;
+    void setVideoPageList(const QString& pages);
+    QString videoPageListProblem() const;
 
     Q_INVOKABLE QVariantList availableViewModes() const;
     ViewMode viewMode() const;
@@ -259,6 +265,7 @@ signals:
     void svgIllustratorCompatChanged(bool compat);
 
     void videoResolutionChanged(const QString& resolution);
+    void videoPageListChanged();
     void viewModeChanged(ViewMode v);
 
     void availableSampleRatesChanged();

@@ -2890,6 +2890,8 @@ PropertyValue Measure::getProperty(Pid propertyId) const
         return int(measureNumberMode());
     case Pid::BREAK_MMR:
         return breakMultiMeasureRest();
+    case Pid::JUBELLE_PLAY_REPEAT:
+        return jubellePlayRepeat();
     case Pid::REPEAT_COUNT:
         return repeatCount();
     case Pid::USER_STRETCH:
@@ -2917,6 +2919,10 @@ bool Measure::setProperty(Pid propertyId, const PropertyValue& value)
         break;
     case Pid::BREAK_MMR:
         setBreakMultiMeasureRest(value.toBool());
+        break;
+    case Pid::JUBELLE_PLAY_REPEAT:
+        setJubellePlayRepeat(value.toBool());
+        score()->setPlaylistDirty();
         break;
     case Pid::REPEAT_COUNT:
         setRepeatCount(value.toInt());
@@ -2946,6 +2952,8 @@ PropertyValue Measure::propertyDefault(Pid propertyId) const
         return int(MeasureNumberMode::AUTO);
     case Pid::BREAK_MMR:
         return false;
+    case Pid::JUBELLE_PLAY_REPEAT:
+        return true;
     case Pid::REPEAT_COUNT:
         return 2;
     case Pid::USER_STRETCH:

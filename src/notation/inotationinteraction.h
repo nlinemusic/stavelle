@@ -29,6 +29,7 @@
 #include "inotationnoteinput.h"
 #include "inotationselection.h"
 #include "inotationselectionfilter.h"
+#include "internal/jubelle/chordidentifierrunner.h"
 
 class QKeyEvent;
 class QInputMethodEvent;
@@ -258,6 +259,11 @@ public:
 
     virtual void realizeSelectedChordSymbols(bool literal, Voicing voicing, HarmonyDurationType durationType) = 0;
     virtual void extendToNextNote() = 0;
+    //! Jubelle Chord Identifier: what it would analyse (the selection, or the
+    //! whole score), and running it as one undoable step.
+    virtual chordidentifier::Scope chordIdentifierScope() const = 0;
+    virtual chordidentifier::Report identifyChords(const chordidentifier::Options& options) = 0;
+    virtual chordidentifier::Report removeChordToneHighlight() = 0;
     virtual void removeSelectedMeasures() = 0;
     virtual void removeSelectedRange() = 0;
     virtual void removeEmptyTrailingMeasures() = 0;

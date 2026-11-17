@@ -152,7 +152,7 @@ Item {
             border.width: ui.theme.borderWidth
             border.color: ui.theme.strokeColor
             color: ui.theme.buttonColor
-            radius: 3
+            radius: 6   // Jubelle R4
             opacity: 0.7
 
             NavigationFocusBorder { navigationCtrl: navCtrl }

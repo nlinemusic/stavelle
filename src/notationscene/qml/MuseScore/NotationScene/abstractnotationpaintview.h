@@ -274,6 +274,8 @@ private:
     muse::PointF alignToCurrentPageBorder(const muse::RectF& showRect, const muse::PointF& pos) const;
 
     void paintBackground(const muse::RectF& rect, muse::draw::Painter* painter);
+    //! Jubelle: on-screen marks on notes changed by hand in a linked passage
+    void paintJubelleHandEditMarks(muse::draw::Painter* painter);
 
     muse::PointF canvasCenter() const;
     std::pair<qreal, qreal> constraintCanvas(qreal dx, qreal dy) const;

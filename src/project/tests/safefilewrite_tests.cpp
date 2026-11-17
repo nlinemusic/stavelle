@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
  *
- * Stavelle (based on MuseScore Studio)
+ * Jubelle (based on MuseScore Studio)
  * Music Composition & Notation
  *
  * This program is free software: you can redistribute it and/or modify
@@ -97,7 +97,7 @@ protected:
     void SetUp() override
     {
         std::random_device rd;
-        m_dir = fs::temp_directory_path() / ("stavelle_safesave_" + std::to_string(rd()));
+        m_dir = fs::temp_directory_path() / ("jubelle_safesave_" + std::to_string(rd()));
         fs::create_directories(m_dir);
     }
 
@@ -271,10 +271,10 @@ TEST_F(Project_SafeFileWriteTests, ConcurrentReaderNeverSeesPartialFile)
 }
 
 //! Helper run in a separate process by the Windows crash test below: saves the
-//! file named in STAVELLE_SAVE_LOOP_TARGET forever, until it is killed.
+//! file named in JUBELLE_SAVE_LOOP_TARGET forever, until it is killed.
 TEST(Project_SafeFileWriteChild, DISABLED_SaveLoop)
 {
-    const char* target = std::getenv("STAVELLE_SAVE_LOOP_TARGET");
+    const char* target = std::getenv("JUBELLE_SAVE_LOOP_TARGET");
     if (!target) {
         return;
     }
@@ -299,7 +299,7 @@ TEST_F(Project_SafeFileWriteTests, CrashDuringSaveNeverCorruptsScore)
 
     wchar_t self[MAX_PATH * 4] = {};
     ASSERT_GT(GetModuleFileNameW(nullptr, self, MAX_PATH * 4), 0u);
-    ASSERT_TRUE(SetEnvironmentVariableW(L"STAVELLE_SAVE_LOOP_TARGET", target.wstring().c_str()));
+    ASSERT_TRUE(SetEnvironmentVariableW(L"JUBELLE_SAVE_LOOP_TARGET", target.wstring().c_str()));
 
     std::mt19937 rng(12345);
     std::uniform_int_distribution<int> delayMs(50, 400);
@@ -324,7 +324,7 @@ TEST_F(Project_SafeFileWriteTests, CrashDuringSaveNeverCorruptsScore)
         ASSERT_TRUE(ok) << "score corrupted after simulated crash in round " << round << " (size " << data.size() << ")";
     }
 
-    SetEnvironmentVariableW(L"STAVELLE_SAVE_LOOP_TARGET", nullptr);
+    SetEnvironmentVariableW(L"JUBELLE_SAVE_LOOP_TARGET", nullptr);
 }
 
 #else

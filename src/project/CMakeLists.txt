@@ -42,19 +42,28 @@ target_sources(project PRIVATE
     iprojectautosaver.h
     iprojectrwregister.h
     iprojectwriter.h
-    iconvertfiletoscorescenario.h
-    iconvertfiletoscoreservice.h
     ideletecloudscorescenario.h
 
     types/projecttypes.h
     types/projectmeta.h
-    types/converttypes.h
 
     internal/iprojectmigrator.h
     internal/notationproject.cpp
     internal/notationproject.h
     internal/safefilewrite.cpp
     internal/safefilewrite.h
+    internal/projectlibrary.cpp
+    internal/projectlibrary.h
+    internal/musicxmlsummary.cpp
+    internal/musicxmlsummary.h
+    internal/youtubeupload.cpp
+    internal/youtubeupload.h
+    internal/projectinfo.cpp
+    internal/projectinfo.h
+    internal/templatesuggestions.cpp
+    internal/templatesuggestions.h
+    internal/usertemplates.cpp
+    internal/usertemplates.h
     internal/projectcreator.cpp
     internal/projectcreator.h
     internal/projectaudiosettings.cpp
@@ -65,10 +74,6 @@ target_sources(project PRIVATE
     internal/notationwritersregister.h
     internal/projectautosaver.cpp
     internal/projectautosaver.h
-    internal/convertfiletoscorescenario.cpp
-    internal/convertfiletoscorescenario.h
-    internal/convertfiletoscoreservice.cpp
-    internal/convertfiletoscoreservice.h
     internal/deletecloudscorescenario.cpp
     internal/deletecloudscorescenario.h
     internal/projectactionscontroller.cpp
@@ -126,6 +131,10 @@ endif()
 # batches so system headers cannot affect neighbouring sources.
 set_source_files_properties(
     internal/safefilewrite.cpp
+    internal/projectlibrary.cpp
+    internal/templatesuggestions.cpp
+    internal/projectinfo.cpp
+    internal/youtubeupload.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
     SKIP_PRECOMPILE_HEADERS ON

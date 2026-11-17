@@ -45,6 +45,7 @@ void BarlineSettingsModel::createProperties()
         onPropertyValueChanged(propertyId, newValue);
         emit requestReloadInspectorListModel();
     });
+    m_jubellePlayRepeat = buildPropertyItem(Pid::JUBELLE_PLAY_REPEAT);
     m_playCountText = buildPropertyItem(Pid::PLAY_COUNT_TEXT);
     m_playCountTextSetting = buildPropertyItem(Pid::PLAY_COUNT_TEXT_SETTING);
     m_isSpanToNextStaff = buildPropertyItem(Pid::BARLINE_SPAN);
@@ -75,6 +76,7 @@ void BarlineSettingsModel::loadProperties()
     static const PropertyIdSet propertyIdSet {
         Pid::BARLINE_TYPE,
         Pid::REPEAT_COUNT,
+        Pid::JUBELLE_PLAY_REPEAT,
         Pid::PLAY_COUNT_TEXT,
         Pid::PLAY_COUNT_TEXT_SETTING,
         Pid::BARLINE_SPAN,
@@ -90,6 +92,7 @@ void BarlineSettingsModel::resetProperties()
 {
     m_type->resetToDefault();
     m_playCount->resetToDefault();
+    m_jubellePlayRepeat->resetToDefault();
     m_playCountText->resetToDefault();
     m_playCountTextSetting->resetToDefault();
     m_isSpanToNextStaff->resetToDefault();
@@ -117,6 +120,10 @@ void BarlineSettingsModel::loadProperties(const mu::engraving::PropertyIdSet& pr
             return elementPropertyValue.toInt();
         });
     }
+    if (muse::contains(propertyIdSet, Pid::JUBELLE_PLAY_REPEAT)) {
+        loadPropertyItem(m_jubellePlayRepeat);
+    }
+
     if (muse::contains(propertyIdSet, Pid::PLAY_COUNT_TEXT)) {
         loadPropertyItem(m_playCountText, [](const QVariant& elementPropertyValue) -> QVariant {
             return elementPropertyValue.toString();
@@ -272,6 +279,11 @@ PropertyItem* BarlineSettingsModel::type() const
 PropertyItem* BarlineSettingsModel::playCount() const
 {
     return m_playCount;
+}
+
+PropertyItem* BarlineSettingsModel::jubellePlayRepeat() const
+{
+    return m_jubellePlayRepeat;
 }
 
 PropertyItem* BarlineSettingsModel::playCountText() const

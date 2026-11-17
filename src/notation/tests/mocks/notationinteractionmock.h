@@ -217,6 +217,9 @@ public:
 
     MOCK_METHOD(void, realizeSelectedChordSymbols, (bool, Voicing, HarmonyDurationType), (override));
     MOCK_METHOD(void, extendToNextNote, (), (override));
+    MOCK_METHOD(chordidentifier::Scope, chordIdentifierScope, (), (const, override));
+    MOCK_METHOD(chordidentifier::Report, identifyChords, (const chordidentifier::Options&), (override));
+    MOCK_METHOD(chordidentifier::Report, removeChordToneHighlight, (), (override));
     MOCK_METHOD(void, removeSelectedMeasures, (), (override));
     MOCK_METHOD(void, removeSelectedRange, (), (override));
     MOCK_METHOD(void, removeEmptyTrailingMeasures, (), (override));

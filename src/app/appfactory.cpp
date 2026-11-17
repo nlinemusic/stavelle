@@ -44,12 +44,6 @@
 #include "framework/stubs/languages/languagesstubmodule.h"
 #endif
 
-#ifdef MUSE_MODULE_LEARN
-#include "framework/learn/learnmodule.h"
-#else
-#include "framework/stubs/learn/learnmodule.h"
-#endif
-
 #ifdef MUSE_MODULE_MEDIA
 #include "framework/media/mediamodule.h"
 #else
@@ -403,7 +397,6 @@ std::shared_ptr<muse::IApplication> AppFactory::newGuiApp(const CmdOptions& opti
     app->addModule(new mu::instrumentsscene::InstrumentsSceneModule());
     app->addModule(new muse::extensions::ExtensionsModule());
     app->addModule(new muse::languages::LanguagesModule());
-    app->addModule(new muse::learn::LearnModule());
     app->addModule(new muse::mi::MultiInstancesModule());
     app->addModule(new mu::musesounds::MuseSoundsModule());
     app->addModule(new mu::notation::NotationModule());

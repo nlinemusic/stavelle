@@ -119,6 +119,32 @@ Item {
             navigationOrder: 1
         }
 
+        // Jubelle: the MuseSounds status line: which sounds play the score.
+        // Hover for the details; nothing pops up while you work.
+        StyledTextLabel {
+            id: jubelleSoundSource
+            Layout.alignment: Qt.AlignVCenter
+            Layout.rightMargin: 8
+
+            text: model.soundSourceText
+            color: ui.theme.fontSecondaryColor
+
+            MouseArea {
+                id: soundSourceMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+
+                onContainsMouseChanged: {
+                    if (containsMouse) {
+                        ui.tooltip.show(jubelleSoundSource, model.soundSourceText, model.soundSourceDescription)
+                    } else {
+                        ui.tooltip.hide(jubelleSoundSource)
+                    }
+                }
+            }
+        }
+
         SeparatorLine { orientation: Qt.Vertical; visible: workspaceControl.visible }
 
         FlatButton {

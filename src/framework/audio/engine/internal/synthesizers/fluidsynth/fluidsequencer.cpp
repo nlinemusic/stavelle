@@ -42,6 +42,7 @@ void FluidSequencer::init(const PlaybackSetupData& setupData, const std::optiona
 
     m_channels.init(setupData, programOverride);
     m_useDynamicEvents = useDynamicEvents;
+    m_jubelleDynamicsFamily = jubelle::familyFor(int(setupData.category), setupData.id.toLower().toStdString());
 }
 
 int FluidSequencer::currentExpressionLevel() const
@@ -117,6 +118,10 @@ void FluidSequencer::addPlaybackEvents(EventSequenceMap& destination, const mpe:
     }
 
     addSostenutoEvents(destination, sostenutoTimeAndDurations);
+
+    // Jubelle: bends end after the release, not at note-off (no "snap back")
+    jubelle::placeResets(destination, m_jubellePendingResets);
+    m_jubellePendingResets.clear();
 }
 
 void FluidSequencer::addDynamicEvents(EventSequenceMap& destination, const mpe::DynamicLevelLayers& dynamics)
@@ -262,42 +267,45 @@ void FluidSequencer::addPitchCurve(EventSequenceMap& destination, const mpe::Not
     const timestamp_t noteTimestampTo = noteEvent.arrangementCtx().actualTimestamp + noteEvent.arrangementCtx().actualDuration;
     const timestamp_t pitchBendTimestampTo = std::min(artMeta.timestamp + artMeta.overallDuration, noteTimestampTo);
 
-    addPitchBend(destination, pitchBendTimestampTo, channelIdx, 8192);
+    // Jubelle: the reset to the written pitch is placed after the note's release
+    // (addPlaybackEvents); gestures that leave the note also fade out
+    const bool fades = artMeta.type == ArticulationType::Fall || artMeta.type == ArticulationType::QuickFall
+                       || artMeta.type == ArticulationType::Doit || artMeta.type == ArticulationType::SlideOutDown
+                       || artMeta.type == ArticulationType::SlideOutUp;
+    m_jubellePendingResets.push_back({ static_cast<int64_t>(pitchBendTimestampTo), channelIdx, fades });
 
-    auto currIt = noteEvent.pitchCtx().pitchCurve.cbegin();
-    auto nextIt = std::next(currIt);
-    auto endIt = noteEvent.pitchCtx().pitchCurve.cend();
+    int maxBendDistance = 0;
+    for (const auto& point : noteEvent.pitchCtx().pitchCurve) {
+        maxBendDistance = std::max(maxBendDistance, std::abs(pitchBendLevel(point.second) - 8192));
+    }
+    uint32_t prevVolume = jubelle::FULL_VOLUME;
 
+    // Jubelle: a smooth monotone curve through the pattern's points instead of
+    // straight lines between them (no abrupt changes of speed at each point)
+    std::vector<jubelle::CurvePoint> points;
+    for (const auto& point : noteEvent.pitchCtx().pitchCurve) {
+        const timestamp_t time = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(point.first);
+        points.push_back({ static_cast<double>(time), static_cast<double>(pitchBendLevel(point.second)) });
+    }
+    //! NOTE: MuseScore's interpolation density: about one step per 1/25 semitone
+    const double bendPerStep = std::max(1.0, std::abs(pitchBendLevel(mpe::PITCH_LEVEL_STEP / 25) - 8192.0));
     int prevBendValue = -1;
+    for (const jubelle::CurvePoint& point : jubelle::smoothCurve(points, 8, bendPerStep)) {
+        const timestamp_t time = static_cast<timestamp_t>(std::round(point.time));
+        const int bendValue = std::clamp(static_cast<int>(std::round(point.value)), 0, 16383);
 
-    for (; nextIt != endIt; currIt = nextIt, nextIt = std::next(currIt)) {
-        const int currValue = pitchBendLevel(currIt->second);
-        const int nextValue = pitchBendLevel(nextIt->second);
-
-        const timestamp_t currTime = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(currIt->first);
-        const timestamp_t nextTime = artMeta.timestamp + artMeta.overallDuration * percentageToFactor(nextIt->first);
-
-        using namespace muse::interpolation;
-        const Point currPoint { static_cast<double>(currTime), static_cast<double>(currValue) };
-        const Point nextPoint { static_cast<double>(nextTime), static_cast<double>(nextValue) };
-
-        //! NOTE: Increasing this number results in fewer points being interpolated
-        constexpr mpe::pitch_level_t POINT_WEIGHT = mpe::PITCH_LEVEL_STEP / 25;
-        size_t pointCount = std::abs(nextIt->second - currIt->second) / POINT_WEIGHT;
-        pointCount = std::max(pointCount, size_t(1));
-
-        const std::vector<Point> points = lerp(currPoint, nextPoint, pointCount);
-
-        for (const Point& point : points) {
-            const timestamp_t time = static_cast<timestamp_t>(std::round(point.x));
-            const int bendValue = static_cast<int>(std::round(point.y));
-
-            if (time < pitchBendTimestampTo && bendValue != prevBendValue) {
-                addPitchBend(destination, time, channelIdx, bendValue);
+        if (time < pitchBendTimestampTo && bendValue != prevBendValue) {
+            addPitchBend(destination, time, channelIdx, bendValue);
+            if (fades && maxBendDistance > 0) {
+                const uint32_t volume = jubelle::fadedVolume(std::abs(bendValue - 8192) / double(maxBendDistance));
+                if (volume != prevVolume) {
+                    destination[time].push_back(jubelle::volumeEvent(channelIdx, volume));
+                    prevVolume = volume;
+                }
             }
-
-            prevBendValue = bendValue;
         }
+
+        prevBendValue = bendValue;
     }
 }
 
@@ -376,29 +384,16 @@ velocity_t FluidSequencer::noteVelocity(const mpe::NoteEvent& noteEvent) const
 int FluidSequencer::expressionLevel(const mpe::dynamic_level_t dynamicLevel) const
 {
     static constexpr mpe::dynamic_level_t MIN_SUPPORTED_DYNAMICS_LEVEL = mpe::dynamicLevelFromType(DynamicType::ppp);
-    static constexpr mpe::dynamic_level_t MAX_SUPPORTED_DYNAMICS_LEVEL = mpe::dynamicLevelFromType(DynamicType::fff);
-    static constexpr int MIN_SUPPORTED_VOLUME = 16; // MIDI equivalent for PPP
-    static constexpr int MAX_SUPPORTED_VOLUME = 127; // MIDI equivalent for FFF
-    static constexpr int VOLUME_STEP = 16;
 
-    if (dynamicLevel <= MIN_SUPPORTED_DYNAMICS_LEVEL) {
-        return MIN_SUPPORTED_VOLUME;
-    }
-
-    if (dynamicLevel >= MAX_SUPPORTED_DYNAMICS_LEVEL) {
-        return MAX_SUPPORTED_VOLUME;
-    }
-
-    float stepCount = ((dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL)
-                       / static_cast<float>(mpe::DYNAMIC_LEVEL_STEP));
-
+    // Jubelle: each marking's loudness is chosen in decibels and by instrument
+    // family, then turned into the MIDI level that gives it (see jubelledynamics.h).
+    // MuseScore's own mapping was 16 + 16 per marking for every instrument.
     if (dynamicLevel == mpe::dynamicLevelFromType(DynamicType::Natural)) {
-        stepCount -= 0.5;
+        return jubelle::naturalMidiLevel();
     }
 
-    dynamic_level_t result = RealRound(MIN_SUPPORTED_VOLUME + (stepCount * VOLUME_STEP), 0);
-
-    return std::clamp((int)result, MIN_SUPPORTED_VOLUME, MAX_SUPPORTED_VOLUME);
+    const double steps = (dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL) / static_cast<double>(mpe::DYNAMIC_LEVEL_STEP);
+    return jubelle::midiLevel(steps, m_jubelleDynamicsFamily);
 }
 
 int FluidSequencer::pitchBendLevel(const mpe::pitch_level_t pitchLevel) const

@@ -21,9 +21,13 @@
  */
 #include "notationactioncontroller.h"
 
+#include "engraving/style/jubelle/jazzlook.h"
+
 #include "io/file.h"
 
 #include "engraving/dom/masterscore.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/select.h"
 #include "engraving/dom/note.h"
 #include "engraving/dom/text.h"
 #include "engraving/dom/sig.h"
@@ -33,6 +37,11 @@
 
 #include "translation.h"
 #include "log.h"
+#include "settings.h"
+
+#include "notation/internal/jubelle/pagealignment.h"
+#include "notation/internal/jubelle/condensedscore.h"
+#include "notation/internal/jubelle/linkedpassages.h"
 
 #include <QGuiApplication>
 
@@ -52,7 +61,6 @@ static constexpr bool DONT_PLAY_CHORD = false;
 static const ActionCode UNDO_ACTION_CODE = "action://notation/undo";
 static const ActionCode REDO_ACTION_CODE = "action://notation/redo";
 
-static const muse::Uri NOTATION_REVIEW_PAGE_URI("musescore://notation/review");
 
 static const QMap<ActionCode, Fraction> DURATIONS_FOR_TEXT_NAVIGATION {
     { "advance-longa", Fraction(4, 1) },
@@ -325,6 +333,12 @@ void NotationActionController::init()
 
     registerAction("load-style", &Controller::loadStyle);
     registerAction("save-style", &Controller::saveStyle);
+    registerAction("jubelle-engraving-presets", [this]() {
+        interactive()->open("musescore://notation/jubelle/engravingpresets");
+    });
+    registerAction("jubelle-look-jazz", [this]() { jubelleSetLook(true); });
+    registerAction("jubelle-look-standard", [this]() { jubelleSetLook(false); });
+    registerAction("jubelle-courtesy-toggle", [this]() { jubelleToggleCourtesy(); });
 
     registerAction("voice-x12", &Interaction::swapVoices, 0, 1);
     registerAction("voice-x13", &Interaction::swapVoices, 0, 2);
@@ -386,6 +400,65 @@ void NotationActionController::init()
     registerAction("explode", &Interaction::explodeSelectedStaff);
     registerAction("implode", &Interaction::implodeSelectedStaff);
     registerAction("extend-to-next-note", &Interaction::extendToNextNote);
+    registerAction("jubelle-identify-chords", [this]() {
+        interactive()->open("musescore://notation/jubelle/chordidentifier");
+    });
+    registerAction("jubelle-articulation-playback", [this]() {
+        interactive()->open("musescore://notation/jubelle/articulationplayback");
+    });
+    registerAction("jubelle-swing", [this]() {
+        interactive()->open("musescore://notation/jubelle/swing");
+    });
+    registerAction("jubelle-repeats", [this]() {
+        interactive()->open("musescore://notation/jubelle/repeats");
+    });
+    registerAction("jubelle-find-select", [this]() {
+        interactive()->open("musescore://notation/jubelle/findselect");
+    });
+    registerAction("jubelle-page-turns", [this]() {
+        interactive()->open("musescore://notation/jubelle/pageturns");
+    });
+    registerAction("jubelle-record-tempo", [this]() {
+        interactive()->open("musescore://notation/jubelle/temporecord");
+    });
+    registerAction("jubelle-apply-part-layout", [this]() {
+        interactive()->open("musescore://notation/jubelle/applypartlayout");
+    });
+    registerAction("jubelle-passage-playback", [this]() {
+        interactive()->open("musescore://notation/jubelle/passageplayback");
+    });
+    registerAction("jubelle-linked-passages", [this]() {
+        interactive()->open("musescore://notation/jubelle/linkedpassages");
+    });
+    registerAction("jubelle-link-resync", [this]() { jubelleLinkMarkerAction(true); });
+    registerAction("jubelle-link-unlink", [this]() { jubelleLinkMarkerAction(false); });
+    // Jubelle: title-page alignment (Format → Align, right-click, Properties panel)
+    static const std::vector<std::pair<const char*, jubelle::AlignCommand> > alignCommands {
+        { "jubelle-align-left", jubelle::AlignCommand::Left },
+        { "jubelle-align-hcenter", jubelle::AlignCommand::HCenter },
+        { "jubelle-align-right", jubelle::AlignCommand::Right },
+        { "jubelle-align-top", jubelle::AlignCommand::Top },
+        { "jubelle-align-vcenter", jubelle::AlignCommand::VCenter },
+        { "jubelle-align-bottom", jubelle::AlignCommand::Bottom },
+        { "jubelle-align-center", jubelle::AlignCommand::Center },
+        { "jubelle-distribute-h", jubelle::AlignCommand::DistributeHorizontally },
+        { "jubelle-distribute-v", jubelle::AlignCommand::DistributeVertically },
+    };
+    for (const auto& [code, command] : alignCommands) {
+        const int cmd = int(command);
+        registerAction(code, [this, cmd]() { jubelleAlign(cmd); });
+    }
+    registerAction("jubelle-align-to-margins", [this]() { setJubelleAlignReference(0); });
+    registerAction("jubelle-condensing-enabled", [this]() { toggleJubelleCondensing(); });
+    registerAction("jubelle-condensed-score", [this]() {
+        interactive()->open("musescore://notation/jubelle/condensedscore");
+    });
+    registerAction("jubelle-condense-keep-separate", [this]() { setJubelleCondenseOverride(0); });
+    registerAction("jubelle-condense-share", [this]() { setJubelleCondenseOverride(1); });
+    registerAction("jubelle-condense-automatic", [this]() { setJubelleCondenseOverride(2); });
+    registerAction("jubelle-align-to-page", [this]() { setJubelleAlignReference(1); });
+    registerAction("jubelle-align-to-each-other", [this]() { setJubelleAlignReference(2); });
+
     registerAction("time-delete", &Interaction::removeSelectedRange);
     registerAction("del-empty-measures", &Interaction::removeEmptyTrailingMeasures);
     registerAction("slash-fill", &Interaction::fillSelectionWithSlashes);
@@ -582,11 +655,6 @@ bool NotationActionController::canReceiveAction(const ActionCode& code) const
     // If no notation is loaded, we cannot handle any action.
     auto masterNotation = currentMasterNotation();
     if (!masterNotation) {
-        return false;
-    }
-
-    // All actions are disabled on the review page
-    if (interactive()->currentUri().val == NOTATION_REVIEW_PAGE_URI) {
         return false;
     }
 
@@ -2365,12 +2433,215 @@ void NotationActionController::checkForScoreCorruptions()
     } else {
         std::string title = muse::mtrc("project", "File “%1” is corrupted").arg(fileName).toStdString();
         IInteractive::Text text;
-        text.text = muse::trc("project", "This file contains errors that could cause MuseScore Studio to malfunction. "
+        text.text = muse::trc("project", "This file contains errors that could cause Jubelle to malfunction. "
                                          "Please fix those at the earliest, to prevent crashes and further corruptions.");
         text.detailedText = ret.text();
 
         interactive()->warning(title, text);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: title-page alignment
+// ---------------------------------------------------------------------------
+
+static const muse::Settings::Key JUBELLE_ALIGN_REFERENCE_KEY("notation", "jubelle/align/reference");
+
+int NotationActionController::jubelleAlignReference()
+{
+    const muse::Val v = muse::settings()->value(JUBELLE_ALIGN_REFERENCE_KEY);
+    const int ref = v.isNull() ? 0 : v.toInt();   // margins by default
+    return (ref >= 0 && ref <= 2) ? ref : 0;
+}
+
+void NotationActionController::setJubelleAlignReference(int reference)
+{
+    muse::settings()->setSharedValue(JUBELLE_ALIGN_REFERENCE_KEY, muse::Val(reference));
+    m_jubelleAlignReferenceChanged.notify();
+}
+
+void NotationActionController::jubelleLinkMarkerAction(bool resync)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    const std::vector<EngravingItem*> items = notation->interaction()->selection()->elements();
+    const auto member = items.size() == 1 ? mu::notation::jubelle::linkMember(items.front()) : std::nullopt;
+    if (!member || !member->line) {
+        interactive()->info(muse::trc("notation", "No linked passage selected"),
+                            muse::trc("notation", "Select a linked passage’s marker first (shown with View › Show › Show invisible)."));
+        return;
+    }
+    if (resync && member->source) {
+        return;
+    }
+    if (!notation->elements()->msScore()->isMaster()) {
+        interactive()->info(muse::trc("notation", "Open the full score"),
+                            muse::trc("notation", "Linked passages are changed in the full score, not in a part."));
+        return;
+    }
+    notation->undoStack()->prepareChanges(resync ? muse::TranslatableString("undoableAction", "Re-sync linked passage")
+                                          : muse::TranslatableString("undoableAction", "Unlink passage"));
+    if (resync) {
+        mu::notation::jubelle::resyncTarget(notation->elements()->msScore(), member->line);
+    } else {
+        mu::notation::jubelle::unlinkMember(notation->elements()->msScore(), member->line);
+    }
+    notation->undoStack()->commitChanges();
+    notation->notationChanged().notify();
+}
+
+void NotationActionController::jubelleToggleCourtesy()
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->elements()->msScore()) {
+        return;
+    }
+    mu::engraving::Score* score = notation->elements()->msScore();
+    const bool on = !score->style().styleB(mu::engraving::Sid::jubelleCourtesyAccidentals);
+    notation->undoStack()->prepareChanges(on ? muse::TranslatableString("undoableAction", "Courtesy accidentals on")
+                                          : muse::TranslatableString("undoableAction", "Courtesy accidentals off"));
+    score->undoChangeStyleVal(mu::engraving::Sid::jubelleCourtesyAccidentals, on);
+    notation->undoStack()->commitChanges();
+    notation->notationChanged().notify();
+    interactive()->info(on ? muse::trc("notation", "Courtesy accidentals are on")
+                        : muse::trc("notation", "Courtesy accidentals are off"),
+                        on ? muse::trc("notation", "They follow the rules in Format › Style › Accidentals and update as you edit.")
+                        : muse::trc("notation", "Your rules are kept for when you switch them on again."));
+}
+
+void NotationActionController::jubelleSetLook(bool jazz)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements()) {
+        return;
+    }
+    notation->undoStack()->prepareChanges(jazz ? muse::TranslatableString("undoableAction", "Jazz handwritten look")
+                                          : muse::TranslatableString("undoableAction", "Standard engraved look"));
+    const size_t changed = mu::engraving::jubelle::applyJazzLook(notation->elements()->msScore(), jazz);
+    notation->undoStack()->commitChanges();
+    if (changed) {
+        notation->notationChanged().notify();
+    } else {
+        interactive()->info(jazz ? muse::trc("notation", "Already in the Jazz handwritten look")
+                            : muse::trc("notation", "Already in the standard engraved look"),
+                            muse::trc("notation", "Nothing needed changing."));
+    }
+}
+
+void NotationActionController::jubelleAlign(int command)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    const std::vector<EngravingItem*> items = notation->interaction()->selection()->elements();
+    if (items.empty()) {
+        interactive()->info(muse::trc("notation", "Nothing to align"),
+                            muse::trc("notation", "Select the text or images you want to align first."));
+        return;
+    }
+
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Align"));
+    const jubelle::AlignReport report = jubelle::alignItems(notation->elements()->msScore(), items,
+                                                            jubelle::AlignCommand(command),
+                                                            jubelle::AlignReference(jubelleAlignReference()));
+    notation->undoStack()->commitChanges();
+
+    // Explain anything that wasn't moved, instead of moving it wrongly
+    if (!report.refused.empty() || !report.warnings.empty()) {
+        std::string body;
+        for (const muse::String& s : report.refused) {
+            body += s.toStdString() + "\n";
+        }
+        for (const muse::String& s : report.warnings) {
+            body += s.toStdString() + "\n";
+        }
+        const std::string title = report.moved > 0 ? muse::trc("notation", "Aligned, with notes")
+                                  : muse::trc("notation", "Nothing was aligned");
+        interactive()->info(title, body);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle G2: condensed full-score copy
+// ---------------------------------------------------------------------------
+
+static const muse::Settings::Key JUBELLE_CONDENSING_KEY("notation", "jubelle/condensing/enabled");
+
+bool NotationActionController::jubelleCondensingEnabled()
+{
+    const muse::Val v = muse::settings()->value(JUBELLE_CONDENSING_KEY);
+    return !v.isNull() && v.toBool();   // off unless you switched it on
+}
+
+void NotationActionController::toggleJubelleCondensing()
+{
+    muse::settings()->setSharedValue(JUBELLE_CONDENSING_KEY, muse::Val(!jubelleCondensingEnabled()));
+    m_jubelleCondensingChanged.notify();
+}
+
+void NotationActionController::setJubelleCondenseOverride(int mode)
+{
+    const INotationPtr notation = currentNotation();
+    if (!notation || !notation->elements() || !notation->interaction()) {
+        return;
+    }
+    if (!jubelleCondensingEnabled()) {
+        interactive()->info(muse::trc("notation", "Condensed scores are off"),
+                            muse::trc("notation", "Switch them on first: Tools → Condensing → Enable Condensed Scores."));
+        return;
+    }
+    mu::engraving::Score* score = notation->elements()->msScore();
+    if (!jubelle::isCondensedCopy(score)) {
+        interactive()->info(muse::trc("notation", "Not a condensed copy"),
+                            muse::trc("notation", "These choices are made in the condensed copy (“… (condensed)”). "
+                                                  "Your original score is never changed by condensing."));
+        return;
+    }
+    const mu::engraving::Selection& sel = score->selection();
+    if (!sel.isRange()) {
+        interactive()->info(muse::trc("notation", "Select some bars"),
+                            muse::trc("notation", "Highlight the bars on one of the two players’ staves first."));
+        return;
+    }
+    const size_t staff = sel.staffStart();
+    std::optional<size_t> groupStaff;
+    for (const jubelle::CondenseGroup& g : jubelle::condenseGroups(score)) {
+        if (g.first == staff || g.second == staff) {
+            groupStaff = g.first;
+        }
+    }
+    if (!groupStaff) {
+        interactive()->info(muse::trc("notation", "Not a pair of players"),
+                            muse::trc("notation", "The highlighted staff isn’t one of a pair of players that can share a staff."));
+        return;
+    }
+    auto barIndex = [&](const mu::engraving::Measure* m) {
+        int i = 0;
+        for (const mu::engraving::Measure* x = score->firstMeasure(); x && x != m; x = x->nextMeasure()) {
+            ++i;
+        }
+        return i;
+    };
+    const mu::engraving::Measure* first = score->tick2measure(sel.tickStart());
+    const mu::engraving::Measure* last = score->tick2measure(sel.tickEnd() - mu::engraving::Fraction(1, 1920));
+    if (!first || !last) {
+        return;
+    }
+    std::optional<jubelle::CondenseOverride::Mode> m;
+    if (mode == 0) {
+        m = jubelle::CondenseOverride::Mode::Separate;
+    } else if (mode == 1) {
+        m = jubelle::CondenseOverride::Mode::Condense;
+    }
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Set condensing for bars"));
+    jubelle::setOverride(score, *groupStaff, barIndex(first), barIndex(last), m);
+    notation->undoStack()->commitChanges();
+    interactive()->info(muse::trc("notation", "Saved for the next update"),
+                        muse::trc("notation", "Your choice is kept in this condensed copy. It takes effect the next time you update the "
+                                              "copy from the original score (Tools → Condensing → Condensed Score…). Save this copy first."));
 }
 
 void NotationActionController::registerAction(const ActionCode& code,

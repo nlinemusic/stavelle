@@ -1,0 +1,78 @@
+name: 'Jubelle: publish a release'
+
+# Jubelle R3 (decision D6). Runs only when you start it by hand, from a
+# finished "Build: Windows" run you have tested. It never builds anything
+# itself and never runs on a push.
+#
+# Needs, once (see tools/jubelle_release/README.md):
+#   - secret   JUBELLE_RELEASE_SIGNING_KEY  (private, from make_signing_key.py)
+#   - variable JUBELLE_RELEASE_PUBLIC_KEY   (public; also built into the app)
+
+on:
+  workflow_dispatch:
+    inputs:
+      windows_run_id:
+        description: 'The "Build: Windows" run whose installer to publish (its number in the run URL)'
+        required: true
+      channel:
+        description: 'Stable, or Testing (shown only if you switch on testing releases in Preferences)'
+        required: true
+        type: choice
+        options: [Stable, Testing]
+        default: Testing
+      notes:
+        description: 'Release notes (shown in the update dialog)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Get the tested installer
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.windows_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build-artifacts
+
+      - name: Find the installer and its version
+        id: find
+        run: |
+          set -e
+          MSI=$(find build-artifacts -name 'Jubelle-*-x86_64.msi' | head -1)
+          if [ -z "$MSI" ]; then echo "::error::No Jubelle installer in run ${{ inputs.windows_run_id }}"; exit 1; fi
+          VERSION=$(basename "$MSI" | sed -E 's/^Jubelle-(.*)-x86_64\.msi$/\1/')
+          if ! [[ "$VERSION" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then echo "::error::Unexpected installer name $MSI"; exit 1; fi
+          mkdir -p release
+          cp "$MSI" release/
+          echo "msi=release/$(basename "$MSI")" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Sign the checksums
+        env:
+          JUBELLE_RELEASE_SIGNING_KEY: ${{ secrets.JUBELLE_RELEASE_SIGNING_KEY }}
+          JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+        run: |
+          pip install --quiet cryptography
+          python3 tools/jubelle_release/sign_release.py release "${{ steps.find.outputs.msi }}"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -e
+          TAG="v${{ steps.find.outputs.version }}"
+          FLAGS=""
+          if [ "${{ inputs.channel }}" = "Testing" ]; then FLAGS="--prerelease"; fi
+          gh release create "$TAG" $FLAGS --target "$GITHUB_SHA" --title "Jubelle ${{ steps.find.outputs.version }} (${{ inputs.channel }})" \
+            --notes "${NOTES:-Jubelle ${{ steps.find.outputs.version }}}" \
+            "${{ steps.find.outputs.msi }}" release/SHA256SUMS release/SHA256SUMS.sig

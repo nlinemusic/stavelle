@@ -63,7 +63,7 @@ const UiActionList ApplicationUiActions::m_actions = {
     UiAction("about-musescore",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
-             TranslatableString("action", "&About MuseScore Studio…")
+             TranslatableString("action", "&About Jubelle…")
              ),
     UiAction("about-qt",
              mu::context::UiCtxAny,
@@ -149,6 +149,14 @@ const UiActionList ApplicationUiActions::m_actions = {
              mu::context::CTX_NOTATION_OPENED,
              TranslatableString("action", "S&election filter"),
              TranslatableString("action", "Show/hide selection filter"),
+             Checkable::Yes
+             ),
+    //! Jubelle G5: the Proofread panel
+    UiAction("jubelle-toggle-proofread",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Proofread score"),
+             TranslatableString("action", "Show/hide the Proofread panel: range, leaps, spelling, incomplete bars, dynamics, rehearsal marks, names, voices and collisions"),
              Checkable::Yes
              ),
     UiAction("toggle-undo-history-panel",
@@ -395,6 +403,7 @@ const QMap<ActionCode, DockName>& ApplicationUiActions::toggleDockActions()
         { "toggle-instruments", LAYOUT_PANEL_NAME },
         { "inspector", INSPECTOR_PANEL_NAME },
         { "toggle-selection-filter", SELECTION_FILTERS_PANEL_NAME },
+        { "jubelle-toggle-proofread", JUBELLE_PROOFREAD_PANEL_NAME },
         { "toggle-undo-history-panel", UNDO_HISTORY_PANEL_NAME },
 
         { TOGGLE_NAVIGATOR_ACTION_CODE, NOTATION_NAVIGATOR_PANEL_NAME },

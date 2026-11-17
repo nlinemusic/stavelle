@@ -91,6 +91,19 @@ void NotationSceneModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://notation/parts"), "MuseScore.NotationScene", "PartsDialog");
         ir->registerQmlUri(Uri("musescore://notation/selectmeasurescount"), "MuseScore.NotationScene", "SelectMeasuresCountDialog");
         ir->registerQmlUri(Uri("musescore://notation/editgridsize"), "MuseScore.NotationScene", "EditGridSizeDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/engravingpresets"), "MuseScore.NotationScene", "EngravingPresetsDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/chordidentifier"), "MuseScore.NotationScene", "ChordIdentifierDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/articulationplayback"), "MuseScore.NotationScene",
+                           "ArticulationPlaybackDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/swing"), "MuseScore.NotationScene", "SwingDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/repeats"), "MuseScore.NotationScene", "RepeatsDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/findselect"), "MuseScore.NotationScene", "FindSelectDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/temporecord"), "MuseScore.NotationScene", "TempoRecordDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/pageturns"), "MuseScore.NotationScene", "PageTurnsDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/applypartlayout"), "MuseScore.NotationScene", "ApplyPartLayoutDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/passageplayback"), "MuseScore.NotationScene", "PassagePlaybackDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/linkedpassages"), "MuseScore.NotationScene", "LinkedPassagesDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/condensedscore"), "MuseScore.NotationScene", "CondensedScoreDialog");
         ir->registerQmlUri(Uri("musescore://notation/percussionpanelpadswap"), "MuseScore.NotationScene", "PercussionPanelPadSwapDialog");
         ir->registerQmlUri(Uri("musescore://notation/editpercussionshortcut"), "MuseScore.NotationScene", "EditPercussionShortcutDialog");
     }

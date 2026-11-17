@@ -23,6 +23,8 @@
 
 #include "tlayout.h"
 
+#include "jubelle/engravingrules.h"
+
 #include "global/realfn.h"
 #include "global/types/number.h"
 #include "draw/fontmetrics.h"
@@ -108,6 +110,7 @@
 #include "dom/palmmute.h"
 #include "dom/parenthesis.h"
 #include "dom/part.h"
+#include "translation.h"
 #include "dom/pedal.h"
 #include "dom/pickscrape.h"
 #include "dom/playtechannotation.h"
@@ -185,6 +188,53 @@ using namespace muse::draw;
 using namespace mu::engraving;
 using namespace mu::engraving::rtti;
 using namespace mu::engraving::rendering::score;
+
+
+// Jubelle R7: what a linked-passage marker shows on screen
+static String jubelleLinkedPassageLabel(const TextLineBase* tl)
+{
+    static const String PREFIX(u"Jubelle link:");
+    const String text = tl->beginText();
+    if (!text.startsWith(PREFIX)) {
+        return text;
+    }
+    auto field = [](const String& t, const char16_t* key) {
+        const String k = String(key) + u"=";
+        const size_t at = t.indexOf(k);
+        if (at == muse::nidx) {
+            return String();
+        }
+        size_t end = t.indexOf(u' ', at);
+        if (end == muse::nidx) {
+            end = t.size();
+        }
+        return t.mid(at + k.size(), end - at - k.size());
+    };
+    const String group = field(text, u"group");
+    if (field(text, u"role") == u"source") {
+        return muse::mtrc("engraving", "Linked passage · leads");
+    }
+    // the leading staff's instrument name
+    String leader;
+    if (const Score* score = tl->score()) {
+        for (const auto& [tick, sp] : score->spanner()) {
+            if (sp && sp->isTextLine() && sp != tl) {
+                const String other = toTextLine(sp)->beginText();
+                if (other.startsWith(PREFIX) && field(other, u"group") == group && field(other, u"role") == u"source"
+                    && sp->part()) {
+                    leader = sp->part()->partName();
+                    break;
+                }
+            }
+        }
+    }
+    String label = leader.isEmpty() ? muse::mtrc("engraving", "Linked passage · follows")
+                   : muse::mtrc("engraving", "Linked passage · follows %1").arg(leader);
+    if (!field(text, u"own").isEmpty()) {
+        label += u" " + muse::mtrc("engraving", "(with your own changes)");
+    }
+    return label;
+}
 
 #define LAYOUT_CALL_ITEM(item) LAYOUT_CALL() << LAYOUT_ITEM_INFO(item);
 
@@ -536,7 +586,7 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
         // if the accidental is standard (doubleflat, flat, natural, sharp or double sharp)
         // and it has either no bracket or parentheses, then we have glyphs straight from smufl.
 
-        if (item->bracket() == AccidentalBracket::PARENTHESIS && !item->parentNoteHasParentheses()) {
+        if (item->displayBracket() == AccidentalBracket::PARENTHESIS && !item->parentNoteHasParentheses()) {
             switch (item->accidentalType()) {
             case AccidentalType::FLAT:      return SymId::accidentalFlatParens;
             case AccidentalType::FLAT2:     return SymId::accidentalDoubleFlatParens;
@@ -577,15 +627,15 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
         double x = 0.0;
 
         std::pair<SymId, SymId> bracketSyms;
-        bool isNeedBracket = item->bracket() != AccidentalBracket::NONE && !item->parentNoteHasParentheses();
+        bool isNeedBracket = item->displayBracket() != AccidentalBracket::NONE && !item->parentNoteHasParentheses();
         if (isNeedBracket) {
-            bracketSyms = accidentalBracketSyms(item->bracket());
+            bracketSyms = accidentalBracketSyms(item->displayBracket());
         }
 
         // Left
         if (bracketSyms.first != SymId::noSym) {
             Accidental::LayoutData::Sym ls(bracketSyms.first, 0.0,
-                                           item->bracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
+                                           item->displayBracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
             ldata->syms.push_back(ls);
             shape.add(item->symBbox(bracketSyms.first), item);
 
@@ -603,7 +653,7 @@ void TLayout::layoutAccidental(const Accidental* item, Accidental::LayoutData* l
             x += item->symAdvance(mainSym) + margin;
 
             Accidental::LayoutData::Sym rs(bracketSyms.second, x,
-                                           item->bracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
+                                           item->displayBracket() == AccidentalBracket::BRACE ? item->spatium() * 0.4 : 0.0);
             ldata->syms.push_back(rs);
             shape.add(item->symBbox(bracketSyms.second).translated(x, 0.0), item);
         }
@@ -1819,8 +1869,8 @@ void TLayout::layoutExpression(const Expression* item, Expression::LayoutData* l
         return;
     }
 
-    const_cast<Expression*>(item)->setPlacementBasedOnVoiceAssignment(item->style().styleV(
-                                                                          Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
+    const_cast<Expression*>(item)->setPlacementBasedOnVoiceAssignment(jubelle::ruleDirection(item, item->style().styleV(
+                                                                                              Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>()));
 
     TextLayout::layoutBaseTextBase(item, ldata);
 
@@ -5777,7 +5827,10 @@ void TLayout::layoutTextLineBaseSegment(TextLineBaseSegment* item, LayoutContext
     };
 
     if (isSingleOrBegin) {
-        item->text()->setXmlText(tl->beginText());
+        // Jubelle R7: a linked passage's marker shows a plain label on screen
+        // ("Linked passage · follows Trumpet 1"); its settings stay in the
+        // line's text, unchanged, so files and MuseScore are unaffected
+        item->text()->setXmlText(jubelleLinkedPassageLabel(tl));
         item->text()->setFamily(tl->beginFontFamily());
         item->text()->setSize(tl->beginFontSize());
         item->text()->setSymbolScale(tl->beginTextMusicalSymbolsScale());
@@ -6618,7 +6671,8 @@ SpannerSegment* TLayout::layoutSystemSLine(SLine* line, System* system, LayoutCo
             sst = SpannerSegmentType::BEGIN;
         }
         if (line->hasVoiceAssignmentProperties()) {
-            line->setPlacementBasedOnVoiceAssignment(ctx.conf().styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>());
+            line->setPlacementBasedOnVoiceAssignment(jubelle::ruleDirection(line,
+                                                                            ctx.conf().styleV(Sid::dynamicsHairpinVoiceBasedPlacement).value<DirectionV>()));
         }
     } else if (line->tick() < stick
                && (line->tick2() > etick || (line->tick2() == etick && line->isPedal() && toPedal(line)->connect45HookToNext()))) {

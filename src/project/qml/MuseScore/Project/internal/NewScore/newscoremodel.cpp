@@ -20,7 +20,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "newscoremodel.h"
+
+#include <QDir>
+
+#include "settings.h"
 #include "ui/view/musicalsymbolcodes.h"
+
+#include "project/internal/projectlibrary.h"
+
 #include "log.h"
 
 using namespace mu::project;
@@ -45,16 +52,114 @@ QString NewScoreModel::preferredScoreCreationMode() const
     return "";
 }
 
+namespace pl = mu::project::projectlibrary;
+
+//! Jubelle: remembers the category chosen for the last new score.
+static const Settings::Key LAST_NEW_SCORE_CATEGORY("project", "jubelle/lastNewScoreCategory");
+
+std::string NewScoreModel::mainFolderStd() const
+{
+    return QDir::toNativeSeparators(configuration()->userProjectsPath().toQString()).toStdString();
+}
+
+QString NewScoreModel::mainFolder() const
+{
+    return configuration()->userProjectsPath().toQString();
+}
+
+QStringList NewScoreModel::projectCategories() const
+{
+    const std::string main = mainFolderStd();
+    pl::ensureMainFolder(main);
+
+    QStringList list;
+    for (const std::string& c : pl::categories(main)) {
+        list << QString::fromStdString(c);
+    }
+    return list;
+}
+
+QString NewScoreModel::defaultProjectCategory() const
+{
+    const QStringList categories = projectCategories();
+    const QString last = settings()->value(LAST_NEW_SCORE_CATEGORY).toQString();
+    if (!last.isEmpty() && categories.contains(last)) {
+        return last;
+    }
+    return categories.value(0);
+}
+
+QString NewScoreModel::validateCompositionName(const QString& name) const
+{
+    return QString::fromStdString(pl::validateName(name.trimmed().toStdString()));
+}
+
+QString NewScoreModel::createProjectCategory(const QString& name)
+{
+    pl::Result r = pl::createCategory(mainFolderStd(), name.trimmed().toStdString());
+    if (!r.ok) {
+        return QString::fromStdString(r.error);
+    }
+    emit projectCategoriesChanged();
+    return QString();
+}
+
+QString NewScoreModel::projectFolderName(const QString& category, const QString& name) const
+{
+    if (category.isEmpty() || name.trimmed().isEmpty()) {
+        return QString();
+    }
+    return QString::fromStdString(pl::availableProjectName(mainFolderStd(), category.toStdString(),
+                                                           name.trimmed().toStdString()));
+}
+
+QString NewScoreModel::createdScorePath() const
+{
+    return m_createdScorePath;
+}
+
 bool NewScoreModel::createScore(const QVariant& info)
 {
-    ProjectCreateOptions options = parseOptions(info.toMap());
+    m_createdScorePath.clear();
+
+    const QVariantMap infoMap = info.toMap();
+    ProjectCreateOptions options = parseOptions(infoMap);
+
+    // Jubelle: with a composition name and a category, the project folder is made
+    // first (never reusing an existing folder), and the score is saved into it
+    // right after it opens.
+    const QString compositionName = infoMap.value("compositionName").toString().trimmed();
+    const QString category = infoMap.value("projectCategory").toString();
+    std::string projectFolder;
+    if (!compositionName.isEmpty() && !category.isEmpty()) {
+        const std::string main = mainFolderStd();
+        pl::ensureMainFolder(main);
+        pl::Result folder = pl::createProject(main, category.toStdString(), compositionName.toStdString());
+        if (!folder.ok) {
+            LOGE() << "Project folder not created: " << folder.error;
+            return false;
+        }
+        projectFolder = folder.path;
+
+        if (options.title.isEmpty()) {
+            options.title = compositionName; // the printed title can be changed later as usual
+        }
+    }
 
     auto project = notationCreator()->newProject(iocContext());
     Ret ret = project->createNew(options);
 
     if (!ret) {
         LOGE() << ret.toString();
+        if (!projectFolder.empty()) {
+            pl::removeUnusedProject(projectFolder); // only removes it if still empty
+        }
         return false;
+    }
+
+    if (!projectFolder.empty()) {
+        m_createdScorePath = QDir::fromNativeSeparators(QString::fromStdString(pl::mainScorePath(projectFolder)));
+        settings()->setSharedValue(LAST_NEW_SCORE_CATEGORY, Val(category));
     }
 
     globalContext()->setCurrentProject(project);

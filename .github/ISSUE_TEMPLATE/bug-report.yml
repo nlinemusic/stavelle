@@ -1,109 +1,63 @@
 name: Bug report
-description: Report crashes or incorrect behaviour of existing functionality in MuseScore Studio.
+description: Report a crash or something in Jubelle that doesn't work as it should.
 type: Bug
 body:
+  - type: markdown
+    attributes:
+      value: |
+        **This repository is public.** Please don't attach private scores, crash logs or diagnostic files, or anything containing your name, file paths or account details. A small example score made just for this report is ideal.
   - type: dropdown
     id: label
     attributes:
       label: Issue type
-      description: What kind of issue are you experiencing?
       options:
         - Choose option...
         - Crash or freeze
-        - Engraving bug (incorrect score rendering)
-        - UX/Interaction bug (incorrect behaviour)
-        - UI bug (incorrect info or interface appearance)
-        - Accessibility issue (e.g. for keyboard-only or screen reader users)
-        - VST bug
-        - General playback bug
-        - Cloud issue (opening, saving, logging in/out)
-        - Opening/saving issue
-        - Import/export issue
-        - File corruption
-        - Other type of issue
+        - Engraving (how the score looks)
+        - Playback
+        - Editing or interaction
+        - Interface appearance
+        - Projects, templates or New Score
+        - Opening, saving, import or export
+        - Installer or updates
+        - Other
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: Description with steps to reproduce
-      description: Please also describe the actual (current) and expected behaviour
+      label: What happened, and how to make it happen again
       placeholder: |
-        1. go to ...
-        2. then click on ...
-        3. then ...
-        Actual behaviour:
-        Expected behaviour:
+        1. Open ...
+        2. Click ...
+        What happened:
+        What I expected:
     validations:
       required: true
   - type: textarea
     id: evidence
     attributes:
-      label: Supporting files, videos and screenshots
-      description: |
-        * For crashes: a short screen recording (ideally 20sec or less) plus crash logs and <a href="https://github.com/musescore/MuseScore/wiki/Reporting-bugs-and-issues#33-diagnostic-files" target="_blank">diagnostic files</a>
-        * For engraving issues: one or more screenshots (or a short screen recording, 20sec or less) showing the problem and, where possible, the expected outcome
-        * For playback issues: 
-          * A short screen recording with audio of a minimal reproducible example 
-          * A score containing the problem (please upload as a .zip file)
-          * Examples comparing both MS Basic and MuseSounds (where applicable)
-        * For UI/interaction and all other issues: a short screen recording (ideally 20sec or less) and files (where applicable; please upload as a .zip file).
-      placeholder: |
-        Click into this text box and paste your files, videos and screenshots here.
-    validations:
-      required: true
+      label: Screenshots, short recordings or an example score
+      description: Only material you're happy to make public.
   - type: input
     id: version
     attributes:
-      label: In which versions of MuseScore Studio is this issue present?
-      description: |
-        * Please provide the version number of the **newest, and if applicable also oldest** version in which this issue is present. Example: `4.6.1` or `4.5.0 - 4.6.1`.
-        * You can find which version your are using by going to **Help > About MuseScore Studio** (Windows/Linux) or **MuseScore Studio > About MuseScore Studio** (macOS).
-        * If you can, please also check whether this issue is still present in the _latest_ <a href="https://musescore.org/en/nightly-builds" target="_blank">nightly build</a>.
+      label: Jubelle version
+      description: "Help → About Jubelle, or the installer's file name (for example 4.7.7.261115023)."
     validations:
       required: true
   - type: dropdown
-    id: regression
+    id: musescore
     attributes:
-      label: Regression
-      description: Did this work before? Older versions of MuseScore Studio can be found <a href="https://github.com/musescore/MuseScore/releases" target="_blank">here</a>.
+      label: Does the same thing happen in MuseScore Studio 4.7.7?
       options:
-        - Choose option...
-        - No.
-        - Yes, this used to work in MuseScore 3.x and now is broken
-        - Yes, this used to work in a previous version of MuseScore 4.x
-        - Yes, this works in the latest released version and is broken in the nightly builds
-        - I was unable to check
-    validations:
-      required: true
+        - Don't know / didn't check
+        - "No, only in Jubelle"
+        - "Yes, also in MuseScore Studio"
   - type: input
     id: os
     attributes:
       label: Operating system
-      description: What OS does this bug occur on?
-      placeholder: Windows 11, macOS 13, Ubuntu 22.04, etc.
+      placeholder: Windows 11, macOS 15, ...
     validations:
       required: true
-  - type: textarea
-    id: context
-    attributes:
-      label: Additional context
-      description: Further information which may be relevant to this bug
-
-  - type: checkboxes
-    id: checklist
-    attributes:
-      label: Checklist
-      description: "Before submitting your bug report, please make sure the following requirements are met:"
-      options:
-        - label: "This report follows the [guidelines](https://github.com/musescore/MuseScore/wiki/Reporting-bugs-and-issues) for reporting bugs and issues"
-          required: true
-        - label: "I have verified that this issue has not been logged before, by searching the [issue tracker](https://github.com/musescore/MuseScore/issues) for similar issues"
-          required: true
-        - label: "I have attached all requested files and information to this report"
-          required: true
-        - label: "I have attempted to identify the root problem as concisely as possible, and have used minimal reproducible examples where possible"
-          required: true
-  - type: markdown
-    attributes:
-      value: If an issue does not meet these requirements, it may be closed without investigation.

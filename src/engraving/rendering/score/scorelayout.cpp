@@ -21,6 +21,8 @@
  */
 #include "scorelayout.h"
 
+#include "jubelle/engravingrules.h"
+
 #include "dom/score.h"
 #include "dom/masterscore.h"
 #include "dom/system.h"
@@ -77,6 +79,22 @@ void ScoreLayout::layoutRange(Score* score, const Fraction& st, const Fraction& 
     if (etick < Fraction(0, 1) || etick == Fraction::max()) {
         etick = score->last()->endTick();
     }
+
+    // Jubelle: a courtesy accidental depends on the measure before it, so when
+    // they are switched on, an edit also re-lays out the following measure.
+    if (!isLayoutAll && score->style().styleB(Sid::jubelleCourtesyAccidentals)) {
+        Measure* next = score->tick2measure(etick);
+        if (next && next->tick() < etick) {
+            next = next->nextMeasure();
+        }
+        if (next && next->endTick() > etick) {
+            etick = next->endTick();
+        }
+    }
+
+    // Jubelle G7: engraving rules decide placement and distance of markings
+    // that follow the style (nothing happens without rules)
+    jubelle::applyEngravingRules(score);
 
     ctx.mutState().setIsLayoutAll(isLayoutAll);
 

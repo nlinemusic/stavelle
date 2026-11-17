@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/">
+        <file alias="fonts/eugene/metadata.json">../../../../fonts/eugene/Eugene.json</file>
+        <file alias="fonts/eugene/Eugene.otf">../../../../fonts/eugene/Eugene.otf</file>
+        <file alias="fonts/eugene/EugeneText.otf">../../../../fonts/eugene/EugeneText.otf</file>
+    </qresource>
+</RCC>

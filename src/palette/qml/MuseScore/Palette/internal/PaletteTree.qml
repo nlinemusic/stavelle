@@ -58,6 +58,9 @@ StyledListView {
 
     cacheBuffer: 3000
 
+    // Jubelle R4 (approved mockup): palettes are separate rounded tiles
+    spacing: 4
+
     NavigationPanel {
         id: keynavTree
         name: "PalettesTree"
@@ -483,6 +486,10 @@ StyledListView {
             background: ListItemBlank {
                 visible: !control.Drag.active
                 isSelected: control.selected
+
+                // Jubelle R4: rounded tile, slightly lifted from the panel
+                radius: 6
+                normalColor: ui.theme.isDark ? "#2A2A31" : ui.theme.backgroundSecondaryColor
 
                 navigation.name: control.model.display
                 navigation.panel: keynavTree

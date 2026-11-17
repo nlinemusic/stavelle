@@ -913,3 +913,10 @@ void AbstractInspectorModel::updateNotation()
 
     currentNotation()->notationChanged().notify();
 }
+
+void AbstractInspectorModel::jubelleOpenRepeatsDialog()
+{
+    if (dispatcher()) {
+        dispatcher()->dispatch("jubelle-repeats");
+    }
+}

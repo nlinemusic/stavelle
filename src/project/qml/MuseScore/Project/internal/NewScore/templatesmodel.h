@@ -60,6 +60,16 @@ public:
     Q_INVOKABLE void saveCurrentCategory();
     Q_INVOKABLE void setSearchText(const QString& text);
 
+    //! Jubelle: selects the template with this file path (and its category).
+    //! Returns false if no such template exists; the selection is then unchanged.
+    Q_INVOKABLE bool selectTemplateByPath(const QString& path);
+
+    //! Jubelle: adds a first category "Suggested for <project category>" with the
+    //! templates that suit the project category chosen in the New Score dialog
+    //! (nothing is hidden; all other categories stay). With `showSuggestions` the
+    //! suggestions are selected; otherwise the current selection is kept.
+    Q_INVOKABLE void setProjectCategory(const QString& projectCategory, bool showSuggestions);
+
 public slots:
     void setCurrentCategoryIndex(int index);
     void setCurrentTemplateIndex(int index);
@@ -96,5 +106,8 @@ private:
     Template m_currentTemplate;
 
     bool m_saveCurrentCategory = false;
+
+    QString m_suggestionsTitle;
+    Templates m_suggestedTemplates;
 };
 }

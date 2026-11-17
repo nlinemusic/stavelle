@@ -74,14 +74,7 @@ PreferencesPage {
             navigation.order: root.navigationOrderStart + 2
         }
 
-        SeparatorLine { }
-
-        WelcomeDialogSection {
-            model: preferencesModel
-
-            navigation.section: root.navigationSection
-            navigation.order: root.navigationOrderStart + 3
-        }
+        // Jubelle: no "Show welcome screen" option, because the welcome dialog is never shown.
 
         /*
          * TODO: https://github.com/musescore/MuseScore/issues/9807
@@ -132,6 +125,12 @@ PreferencesPage {
 
             onNeedCheckForNewAppVersionChangeRequested: function(check) {
                 preferencesModel.needCheckForNewAppVersion = check
+            }
+
+            testingReleases: preferencesModel.jubelleTestingReleases()
+            onTestingReleasesChangeRequested: function(include) {
+                preferencesModel.setJubelleTestingReleases(include)
+                testingReleases = include
             }
         }
     }

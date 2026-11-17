@@ -68,6 +68,42 @@ target_sources(notation PRIVATE
     internal/notationelements.cpp
     internal/notationelements.h
     internal/notationinteraction.cpp
+    internal/jubelle/chordidentifier.cpp
+    internal/jubelle/chordidentifier.h
+    internal/jubelle/chordidentifierrunner.cpp
+    internal/jubelle/chordidentifierrunner.h
+    internal/jubelle/condensingplanner.cpp
+    internal/jubelle/condensingplanner.h
+    internal/jubelle/passagelinkplanner.cpp
+    internal/jubelle/passagelinkplanner.h
+    internal/jubelle/swingmarking.cpp
+    internal/jubelle/swingmarking.h
+    internal/jubelle/findselect.cpp
+    internal/jubelle/findselect.h
+    internal/jubelle/proofread.cpp
+    internal/jubelle/proofread.h
+    internal/jubelle/timelinemarkers.cpp
+    internal/jubelle/timelinemarkers.h
+    internal/jubelle/tempotap.cpp
+    internal/jubelle/tempotap.h
+    internal/jubelle/partlayout.cpp
+    internal/jubelle/partlayout.h
+    internal/jubelle/pageturns.cpp
+    internal/jubelle/pageturns.h
+    internal/jubelle/drumstems.cpp
+    internal/jubelle/drumstems.h
+    internal/jubelle/instrumentreference.cpp
+    internal/jubelle/instrumentreference.h
+    internal/jubelle/articulationpassage.cpp
+    internal/jubelle/articulationpassage.h
+    internal/jubelle/pagealignment.cpp
+    internal/jubelle/pagealignment.h
+    internal/jubelle/linkedpassages.cpp
+    internal/jubelle/linkedpassages.h
+    internal/jubelle/condensedscore.cpp
+    internal/jubelle/condensedscore.h
+    internal/jubelle/templatepage.cpp
+    internal/jubelle/templatepage.h
     internal/notationinteraction.h
     internal/notationmidiinput.cpp
     internal/notationmidiinput.h
@@ -122,6 +158,31 @@ if(NOT OS_IS_WASM)
     )
     target_compile_definitions(notation PRIVATE MUE_BUILD_ENGRAVING_FONTSCONTROLLER)
 endif()
+
+# Jubelle: keep these out of unity batches so their file-local helpers and
+# using-directives can't clash with neighbouring sources.
+set_source_files_properties(
+    internal/jubelle/chordidentifier.cpp
+    internal/jubelle/chordidentifierrunner.cpp
+    internal/jubelle/condensingplanner.cpp
+    internal/jubelle/passagelinkplanner.cpp
+    internal/jubelle/swingmarking.cpp
+    internal/jubelle/partlayout.cpp
+    internal/jubelle/pageturns.cpp
+    internal/jubelle/drumstems.cpp
+    internal/jubelle/instrumentreference.cpp
+    internal/jubelle/articulationpassage.cpp
+    internal/jubelle/pagealignment.cpp
+    internal/jubelle/linkedpassages.cpp
+    internal/jubelle/condensedscore.cpp
+    internal/jubelle/templatepage.cpp
+    internal/jubelle/findselect.cpp
+    internal/jubelle/proofread.cpp
+    internal/jubelle/timelinemarkers.cpp
+    internal/jubelle/tempotap.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+)
 
 target_link_libraries(notation PRIVATE
     muse::draw

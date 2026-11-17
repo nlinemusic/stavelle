@@ -69,11 +69,11 @@
         <CustomAction Id="LaunchApplication" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" />
 
         <!--
-            Stavelle: registers Stavelle as an application that CAN open score files ("Open with" and
+            Jubelle: registers Jubelle as an application that CAN open score files ("Open with" and
             Windows Default Apps) without taking over the file types from MuseScore. Every registry key
-            and value written here belongs to Stavelle alone, so installing or uninstalling Stavelle
+            and value written here belongs to Jubelle alone, so installing or uninstalling Jubelle
             never changes MuseScore's registrations. The musescore:// URL scheme is left to MuseScore.
-            The component GUID is Stavelle's own (it must never equal MuseScore's).
+            The component GUID is Jubelle's own (it must never equal MuseScore's).
         -->
         <Component Id="RegisterTypes" Directory="TARGETDIR" Guid="2eff8e86-704c-45be-99b0-e4bfa12cb0ca">
             <!-- In order to work with Default Programs -->
@@ -87,15 +87,15 @@
 
                 <!-- File associations offered to Windows Default Apps -->
                 <RegistryKey Key="FileAssociations">
-                    <RegistryValue Name=".mscz" Value="Stavelle.mscz.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name=".mscx" Value="Stavelle.mscx.$(var.ProgIdSuffix)" Type="string" />
-                    <RegistryValue Name=".mscs" Value="Stavelle.mscs.$(var.ProgIdSuffix)" Type="string" />
+                    <RegistryValue Name=".mscz" Value="Jubelle.mscz.$(var.ProgIdSuffix)" Type="string" />
+                    <RegistryValue Name=".mscx" Value="Jubelle.mscx.$(var.ProgIdSuffix)" Type="string" />
+                    <RegistryValue Name=".mscs" Value="Jubelle.mscs.$(var.ProgIdSuffix)" Type="string" />
                 </RegistryKey>
             </RegistryKey>
 
             <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\RegisteredApplications" Name="$(var.ProdName)" Value="$(var.CapabilitiesKey)" Type="string" />
 
-            <!-- App Paths to support Start,Run -> "Stavelle" -->
+            <!-- App Paths to support Start,Run -> "Jubelle" -->
             <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\$(var.ExeName)">
                 <RegistryValue Value="[INSTALL_ROOT]bin\$(var.ExeName)" Type="string" />
                 <RegistryValue Name="Path" Value="[INSTALL_ROOT]bin" Type="string" />
@@ -140,28 +140,28 @@
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
 
-            <!-- Stavelle's own ProgIDs -->
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscz.$(var.ProgIdSuffix)">
-                <RegistryValue Value="Stavelle Score" Type="string" />
+            <!-- Jubelle's own ProgIDs -->
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Jubelle.mscz.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Jubelle Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscx.$(var.ProgIdSuffix)">
-                <RegistryValue Value="Stavelle Uncompressed Score" Type="string" />
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Jubelle.mscx.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Jubelle Uncompressed Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),2" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
-            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Stavelle.mscs.$(var.ProgIdSuffix)">
-                <RegistryValue Value="Stavelle Stand-alone Score" Type="string" />
+            <RegistryKey Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\Jubelle.mscs.$(var.ProgIdSuffix)">
+                <RegistryValue Value="Jubelle Stand-alone Score" Type="string" />
                 <RegistryValue Key="DefaultIcon" Value="[INSTALL_ROOT]bin\$(var.ExeName),1" Type="string" />
                 <RegistryValue Key="shell\open\command" Value="&quot;[INSTALL_ROOT]bin\$(var.ExeName)&quot; &quot;%1&quot;" Type="string" />
             </RegistryKey>
 
-            <!-- Add Stavelle to each file type's "Open with" list. Only a value named after Stavelle's
+            <!-- Add Jubelle to each file type's "Open with" list. Only a value named after Jubelle's
                  ProgID is written, so the file type's default program (e.g. MuseScore) is untouched. -->
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscz\OpenWithProgids" Name="Stavelle.mscz.$(var.ProgIdSuffix)" Value="" Type="string" />
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscx\OpenWithProgids" Name="Stavelle.mscx.$(var.ProgIdSuffix)" Value="" Type="string" />
-            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscs\OpenWithProgids" Name="Stavelle.mscs.$(var.ProgIdSuffix)" Value="" Type="string" />
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscz\OpenWithProgids" Name="Jubelle.mscz.$(var.ProgIdSuffix)" Value="" Type="string" />
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscx\OpenWithProgids" Name="Jubelle.mscx.$(var.ProgIdSuffix)" Value="" Type="string" />
+            <RegistryValue Root="$(var.RegistryRoot)" Key="SOFTWARE\Classes\.mscs\OpenWithProgids" Name="Jubelle.mscs.$(var.ProgIdSuffix)" Value="" Type="string" />
         </Component>
 
         <FeatureRef Id="ProductFeature">

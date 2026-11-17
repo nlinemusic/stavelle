@@ -34,8 +34,8 @@ qt_add_qml_module(appshell_qml
         FirstLaunchSetup/firstlaunchsetupmodel.h
         FirstLaunchSetup/themespagemodel.cpp
         FirstLaunchSetup/themespagemodel.h
-        FirstLaunchSetup/tutorialspagemodel.cpp
-        FirstLaunchSetup/tutorialspagemodel.h
+        HomePage/learningcentermodel.cpp
+        HomePage/learningcentermodel.h
         maintoolbarmodel.cpp
         maintoolbarmodel.h
         mainwindowtitleprovider.cpp
@@ -46,8 +46,6 @@ qt_add_qml_module(appshell_qml
         notationstatusbarmodel.h
         PublishPage/publishtoolbarmodel.cpp
         PublishPage/publishtoolbarmodel.h
-        welcomedialogmodel.cpp
-        welcomedialogmodel.h
     QML_FILES
         AboutDialog.qml
         AboutMusicXMLDialog.qml
@@ -68,26 +66,26 @@ qt_add_qml_module(appshell_qml
         FirstLaunchSetup/Page.qml
         FirstLaunchSetup/PlaybackPage.qml
         FirstLaunchSetup/ThemesPage.qml
-        FirstLaunchSetup/TutorialsPage.qml
+        HomePage/HomeHeader.qml
         HomePage/HomeMenu.qml
         HomePage/HomePage.qml
+        HomePage/LearningCenterPage.qml
+        HomePage/LearningContent.js
         HomePage/PluginsPage.qml
+        HomePage/SettingsPage.qml
         MainToolBar.qml
         NotationPage/NotationPage.qml
         NotationPage/NotationStatusBar.qml
-        NotationReviewPage/NotationReviewPage.qml
-        NotationReviewPage/ReviewNotationView.qml
         platform/AppButtonBackground.qml
         platform/AppMenuBar.qml
         platform/PlatformMenuBar.qml
         PublishPage/PublishPage.qml
         PublishPage/PublishToolBar.qml
-        WelcomeDialog.qml
         WindowContent.qml
     RESOURCES
         FirstLaunchSetup/resources/MuseSounds.png
-        FirstLaunchSetup/resources/VideoTutorials.png
         resources/mu_logo.svg
+        resources/jubelle_logo.png
     IMPORTS
         TARGET muse_ui_qml
         TARGET muse_uicomponents_qml
@@ -95,7 +93,6 @@ qt_add_qml_module(appshell_qml
         TARGET muse_dockwindow_qml
         TARGET muse_diagnostics_qml
         TARGET muse_extensions_qml
-        TARGET muse_learn_qml
         TARGET muse_mpe_qml
         TARGET muse_shortcuts_qml
         TARGET muse_toast_qml
@@ -158,4 +155,5 @@ target_include_directories(appshell_qml PRIVATE
     DevTools/Settings
     FirstLaunchSetup
     PublishPage
+    HomePage
 )

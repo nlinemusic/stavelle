@@ -68,6 +68,8 @@ set(MODULE_TEST_SRC
     ${CMAKE_CURRENT_LIST_DIR}/midi/midirenderer_bend_tests.cpp
     #${CMAKE_CURRENT_LIST_DIR}/midimapping_tests.cpp doesn't compile and needs actualization
     ${CMAKE_CURRENT_LIST_DIR}/note_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_courtesy_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_repeats_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/parts_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/partialtie_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/pitchwheelrender_tests.cpp
@@ -116,6 +118,9 @@ set(MODULE_TEST_SRC ${MODULE_TEST_SRC}
     ${CMAKE_CURRENT_LIST_DIR}/playback/playbackmodel_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/playback/playbackcontext_tests.cpp
     ${CMAKE_CURRENT_LIST_DIR}/playback/bendsrenderer_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_articulationplayback_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_swing_tests.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/jubelle_jazzfalls_tests.cpp
 )
 endif()
 

@@ -64,7 +64,7 @@ set(MUSE_APP_BUILD_MODE "dev" CACHE STRING "Build mode")
 
 set(MUSESCORE_REVISION "" CACHE STRING "Build revision")
 
-# Stavelle: MuseScore's app-update checker would offer to replace Stavelle with
+# Jubelle: MuseScore's app-update checker would offer to replace Jubelle with
 # MuseScore, so it is disabled using the framework's own option (a stub takes its place
 # and the "Check for updates" menu item is not shown). Declared before the framework
 # options so this becomes the default.

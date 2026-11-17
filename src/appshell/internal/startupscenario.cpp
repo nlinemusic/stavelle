@@ -22,6 +22,19 @@
 
 #include "startupscenario.h"
 
+#include "jubelle/uiselftest.h"
+
+#include "jubelle/crashguard.h"
+#include "jubelle/crashreport.h"
+
+#include <QDir>
+#include <QUrl>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <memory>
+#include <sstream>
+
 #include <QCoreApplication>
 
 #include "async/async.h"
@@ -35,8 +48,7 @@ using namespace mu::appshell;
 using namespace muse;
 using namespace muse::actions;
 
-static const muse::UriQuery FIRST_LAUNCH_SETUP_URI("musescore://firstLaunchSetup?floating=true");
-static const muse::UriQuery WELCOME_DIALOG_URI("musescore://welcomedialog");
+[[maybe_unused]] static const muse::UriQuery FIRST_LAUNCH_SETUP_URI("musescore://firstLaunchSetup?floating=true");
 
 static StartupModeType modeTypeTromString(const std::string& str)
 {
@@ -104,6 +116,10 @@ void StartupScenario::setStartupScoreFile(const std::optional<project::ProjectFi
 
 void StartupScenario::runOnSplashScreen()
 {
+    if (jubelle::UiSelfTest::requested()) {
+        jubelle::installQmlMessageRecorder();   // from the very start, so the score window's own errors count
+    }
+
     TRACEFUNC;
 
     if (multiwindowsProvider()->windowCount() != 1) {
@@ -238,7 +254,91 @@ void StartupScenario::onStartupPageOpened(StartupModeType modeType)
         }, Asyncable::Mode::SetReplace);
     }
 
+    // Jubelle build check: only with JUBELLE_UI_SELFTEST set (the Windows build's app check)
+    if (jubelle::UiSelfTest::requested()) {
+        auto* test = new jubelle::UiSelfTest(iocContext(), jubelle::UiSelfTest::reportPathFromEnvironment(), nullptr);
+        test->start();
+        return;
+    }
+
     showStartupDialogsIfNeed(modeType);
+    offerCrashReportIfNeed();
+}
+
+void StartupScenario::offerCrashReportIfNeed()
+{
+    // Jubelle R3 (D7): last time's crash report, offered once. Nothing is sent
+    // unless you choose Send, and then only through your own browser.
+    if (!jubelleGlobalConfiguration()) {
+        return;
+    }
+    const std::string dataDir = jubelleGlobalConfiguration()->userAppDataPath().toStdString();
+    const std::string pending = jubelle::CrashGuard::pendingReport(dataDir);
+    if (pending.empty()) {
+        return;
+    }
+    std::string text;
+    {
+        std::ifstream in(std::filesystem::u8path(pending), std::ios::binary);
+        std::stringstream s;
+        s << in.rdbuf();
+        text = s.str();
+    }
+    const jubelle::CrashReport report = jubelle::CrashReport::fromText(text);
+    const QString home = QDir::homePath();
+    const std::string homeDir = QDir::toNativeSeparators(home).toStdString();
+    const std::string userName = qEnvironmentVariable("USERNAME", qEnvironmentVariable("USER")).toStdString();
+    const std::string title = report.issueTitle();
+    const std::string body = report.issueBody(homeDir, userName);
+
+    // What would be sent, readable before anything happens
+    const std::string reviewFile = jubelle::CrashGuard::folder(dataDir) + "/report-to-send.txt";
+    std::ofstream(std::filesystem::u8path(reviewFile), std::ios::trunc) << jubelle::sanitize(title, homeDir, userName) << "\n\n" << body;
+
+    const bool knownCrash = jubelle::readSentSignatures(jubelle::CrashGuard::sentSignaturesFile(dataDir)).count(report.signature()) > 0;
+    const int REVIEW = int(IInteractive::Button::CustomButton) + 1;
+    const int SEND = REVIEW + 1;
+    const int DONT = REVIEW + 2;
+
+    const std::string question = report.frames.empty()
+                                 ? muse::trc("appshell", "Jubelle didn’t close normally last time.")
+                                 : muse::trc("appshell", "Jubelle closed because of a problem last time.");
+    std::string explanation = muse::trc("appshell",
+                                        "A short report can help fix it. It holds only Jubelle’s version, your system’s version, "
+                                        "the kind of problem and where in Jubelle’s code it happened. Names, folders, file names "
+                                        "and score titles are removed. Send opens your browser on a filled-in report in your private "
+                                        "crash-report repository; you look at it and submit it yourself.");
+    if (knownCrash) {
+        explanation += "\n\n" + muse::trc("appshell", "You’ve sent this problem before: Send opens that report so you can add a note.");
+    }
+
+    auto ask = std::make_shared<std::function<void()> >();
+    *ask = [this, ask, question, explanation, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND, DONT]() {
+        auto promise = interactive()->question(question, explanation,
+                                               { IInteractive::ButtonData(REVIEW, muse::trc("appshell", "Review report…")),
+                                                 IInteractive::ButtonData(DONT, muse::trc("appshell", "Don’t send")),
+                                                 IInteractive::ButtonData(SEND, muse::trc("appshell", "Send…"), true) });
+        promise.onResolve(this, [this, ask, title, body, reviewFile, pending, dataDir, knownCrash, report, REVIEW, SEND](
+                              const IInteractive::Result& res) {
+            if (res.button() == REVIEW) {
+                interactive()->openUrl(QUrl::fromLocalFile(QString::fromStdString(reviewFile)));
+                (*ask)();   // then the same choice again
+                return;
+            }
+            if (res.button() == SEND) {
+                const std::string url = knownCrash
+                                        ? jubelle::searchIssuesUrl(jubelle::CRASH_REPORT_REPOSITORY, report.signature())
+                                        : jubelle::newIssueUrl(jubelle::CRASH_REPORT_REPOSITORY, title, body);
+                interactive()->openUrl(QUrl::fromEncoded(QByteArray::fromStdString(url)));
+                jubelle::rememberSentSignature(jubelle::CrashGuard::sentSignaturesFile(dataDir), report.signature());
+            }
+            std::error_code ec;
+            std::filesystem::remove(std::filesystem::u8path(pending), ec);
+            std::filesystem::remove(std::filesystem::u8path(reviewFile), ec);
+            *ask = nullptr;   // done
+        });
+    };
+    (*ask)();
 }
 
 void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
@@ -249,68 +349,35 @@ void StartupScenario::showStartupDialogsIfNeed(StartupModeType modeType)
         return;
     }
 
-    //! NOTE: The welcome dialog should not show if the first launch setup has not been completed, or if we're going
-    //! to show a MuseSounds update dialog (see ProjectActionsController::doFinishOpenProject). MuseSampler's update
-    //! dialog should be shown after the welcome dialog.
-    const auto showWelcomeDialogAndSamplerUpdateIfNeed = [this, modeType]() {
+    //! Jubelle: MuseScore's startup welcome dialog (promotions for MuseScore.com, MuseSounds
+    //! and tutorials) and its first launch setup ("Getting started": theme, playback and
+    //! tutorial pages) are not shown (Refinement Phase R2, approved 15 Nov 2026). The theme
+    //! stays in Preferences. The MuseSounds status check still runs.
+    const auto showFirstLaunchOrSamplerStatusIfNeed = [this, modeType]() {
         if (!configuration()->hasCompletedFirstLaunchSetup()) {
-            interactive()->open(FIRST_LAUNCH_SETUP_URI);
-            return;
-        }
-
-        const Version welcomeDialogLastShownVersion(configuration()->welcomeDialogLastShownVersion());
-        const Version currentMuseScoreVersion(configuration()->museScoreVersion());
-        if (welcomeDialogLastShownVersion < currentMuseScoreVersion) {
-            configuration()->setWelcomeDialogShowOnStartup(true); // override user preference
-            configuration()->setWelcomeDialogLastShownIndex(-1); // reset
+            configuration()->setHasCompletedFirstLaunchSetup(true);
         }
 
         const bool shouldCheckForMuseSamplerUpdate = modeType == StartupModeType::StartEmpty
                                                      || modeType == StartupModeType::StartWithNewScore;
 
-        if (shouldShowWelcomeDialog(modeType)) {
-            interactive()->open(WELCOME_DIALOG_URI).onResolve(this, [this, shouldCheckForMuseSamplerUpdate](const Val&) {
-                configuration()->setWelcomeDialogLastShownVersion(configuration()->museScoreVersion());
-
-                if (shouldCheckForMuseSamplerUpdate) {
-                    checkAndShowMuseSamplerStatusIfNeed();
-                }
-            });
-        } else if (shouldCheckForMuseSamplerUpdate) {
+        if (shouldCheckForMuseSamplerUpdate) {
             checkAndShowMuseSamplerStatusIfNeed();
         }
     };
 
     if (!appUpdateScenario() || !appUpdateScenario()->hasUpdate()) {
-        showWelcomeDialogAndSamplerUpdateIfNeed();
+        showFirstLaunchOrSamplerStatusIfNeed();
         return;
     }
 
     auto promise = appUpdateScenario()->showUpdate();
-    promise.onResolve(this, [showWelcomeDialogAndSamplerUpdateIfNeed](const Ret& ret) {
+    promise.onResolve(this, [showFirstLaunchOrSamplerStatusIfNeed](const Ret& ret) {
         if (ret.code() == static_cast<int>(Ret::Code::Ok)) {
             return; // OK means the user wants to close and complete installation - don't show any more dialogs...
         }
-        showWelcomeDialogAndSamplerUpdateIfNeed();
+        showFirstLaunchOrSamplerStatusIfNeed();
     });
-}
-
-bool StartupScenario::shouldShowWelcomeDialog(StartupModeType modeType) const
-{
-    if (!configuration()->welcomeDialogShowOnStartup()) {
-        return false;
-    }
-
-    if (multiwindowsProvider()->windowCount() != 1) {
-        return false;
-    }
-
-    if (museSoundsUpdateScenario() && museSoundsUpdateScenario()->hasUpdate()) {
-        return false;
-    }
-
-    const Uri& startupUri = startupPageUri(modeType);
-    return interactive()->currentUri().val == startupUri;
 }
 
 void StartupScenario::checkAndShowMuseSamplerStatusIfNeed()

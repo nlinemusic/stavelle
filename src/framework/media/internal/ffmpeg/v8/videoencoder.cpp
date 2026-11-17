@@ -718,6 +718,26 @@ bool VideoEncoder::addAudio(const io::path_t& audioPath)
     }
 
     while (m_ffmpegHandler->av_read_frame(audioFmtCtx, pkt) >= 0) {
+        if (pkt->stream_index == audioInIdx && !m_jubelleAudioSegments.empty()) {
+            // Jubelle: only the chosen pieces of the sound, joined one after another
+            const AVRational tb = audioFmtCtx->streams[audioInIdx]->time_base;
+            const double secs = pkt->pts == AV_NOPTS_VALUE ? -1.0 : double(pkt->pts) * av_q2d(tb);
+            double outSecs = -1.0;
+            double joined = 0.0;
+            for (const auto& piece : m_jubelleAudioSegments) {
+                if (secs >= piece.first && secs < piece.second) {
+                    outSecs = joined + (secs - piece.first);
+                    break;
+                }
+                joined += piece.second - piece.first;
+            }
+            if (outSecs < 0.0) {
+                m_ffmpegHandler->av_packet_unref(pkt);
+                continue;
+            }
+            pkt->pts = int64_t(outSecs / av_q2d(tb) + 0.5);
+            pkt->dts = pkt->pts;
+        }
         if (pkt->stream_index == audioInIdx) {
             pkt->stream_index = outAudioIdx;
             m_ffmpegHandler->av_packet_rescale_ts(pkt, audioFmtCtx->streams[audioInIdx]->time_base,

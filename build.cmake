@@ -170,7 +170,7 @@ fn__set_default(INSTALL_PATH "install") # relative to BUILD_PATH
 
 # MSCORE_EXECUTABLE (path relative to INSTALL_PATH)
 if(WIN32)
-    fn__set_default(MSCORE_EXECUTABLE "bin/Stavelle.exe")
+    fn__set_default(MSCORE_EXECUTABLE "bin/Jubelle.exe")
 elseif(APPLE)
     fn__set_default(MSCORE_EXECUTABLE "mscore.app/Contents/MacOS/mscore")
 else()

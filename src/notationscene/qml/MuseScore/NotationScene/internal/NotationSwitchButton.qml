@@ -104,6 +104,17 @@ FlatRadioButton {
             opacity: 0.05
         }
 
+        // Jubelle R4 (approved mockup): the open score's tab is underlined in purple
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.rightMargin: 1 // for separator
+            anchors.bottom: parent.bottom
+            height: 2
+            visible: root.checked
+            color: ui.theme.focusColor
+        }
+
         NavigationFocusBorder {
             navigationCtrl: root.navigation
             drawOutsideParent: false

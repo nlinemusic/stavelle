@@ -7,8 +7,8 @@ endif()
 include(InstallRequiredSystemLibraries)
 
 set(CPACK_PACKAGE_NAME ${MUSE_APP_NAME})
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Stavelle music notation (based on MuseScore Studio)")
-set(CPACK_PACKAGE_VENDOR "Stavelle")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Jubelle music notation (based on MuseScore Studio)")
+set(CPACK_PACKAGE_VENDOR "Jubelle")
 set(CPACK_PACKAGE_CONTACT "https://github.com/nlinemusic/stavelle")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/nlinemusic/stavelle")
 
@@ -41,7 +41,7 @@ endif(MUSE_APP_UNSTABLE)
 set(CPACK_PACKAGE_FILE_NAME "${MUSE_APP_NAME}-${MUSE_APP_VERSION}${git_date_string}")
 set(CPACK_PACKAGE_INSTALL_DIRECTORY ${MUSE_APP_NAME_VERSION})
 
-# Stavelle: installs to "C:\Program Files\Stavelle\bin\Stavelle.exe", separate from MuseScore
+# Jubelle: installs to "C:\Program Files\Jubelle\bin\Jubelle.exe", separate from MuseScore
 set(MUSESCORE_EXECUTABLE_NAME ${MUSE_APP_NAME})
 set(CPACK_PACKAGE_EXECUTABLES "${MUSESCORE_EXECUTABLE_NAME}" "${MUSE_APP_TITLE_VERSION}") # exe name, label
 set(CPACK_CREATE_DESKTOP_LINKS "${MUSESCORE_EXECUTABLE_NAME}" "${MUSE_APP_TITLE_VERSION}") # exe name, label
@@ -62,7 +62,7 @@ endif()
 message(STATUS "[SetupWindowsPackaging.cmake] CPACK_WIX_PRODUCT_GUID: ${CPACK_WIX_PRODUCT_GUID}")
 
 if(NOT CPACK_WIX_UPGRADE_GUID)
-    # Stavelle's own permanent upgrade code (never MuseScore's)
+    # Jubelle's own permanent upgrade code (never MuseScore's)
     set(CPACK_WIX_UPGRADE_GUID "9430FF96-C589-4C20-8C07-8C47D2E6E4CC")
 endif()
 

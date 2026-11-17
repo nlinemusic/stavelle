@@ -2239,6 +2239,9 @@ void Note::updateAccidental(AccidentalState* as)
             LOGD("error accidentalVal()");
             return;
         }
+        // Jubelle: shown only because it is an automatic courtesy accidental
+        const bool jubelleCourtesyOnly = as->jubelleCourtesy(eAbsLine) && as->forceRestateAccidental(eAbsLine)
+                                         && accVal == absLineAccVal && !hidden() && !as->tieContext(eAbsLine);
         if ((accVal != absLineAccVal) || hidden() || as->tieContext(eAbsLine) || as->forceRestateAccidental(eAbsLine)) {
             as->setAccidentalVal(eAbsLine, accVal, m_tieBack != 0 && m_accidental == 0);
             acci = Accidental::value2subtype(accVal);
@@ -2285,6 +2288,9 @@ void Note::updateAccidental(AccidentalState* as)
                     }
                 }
             }
+        }
+        if (m_accidental) {
+            m_accidental->setJubelleCourtesy(jubelleCourtesyOnly && m_accidental->role() == AccidentalRole::AUTO);
         }
     } else {
         // microtonal accidentals playback as naturals

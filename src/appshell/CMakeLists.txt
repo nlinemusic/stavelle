@@ -38,6 +38,12 @@ target_sources(appshell PRIVATE
     internal/sessionsmanager.h
     internal/startupscenario.cpp
     internal/startupscenario.h
+    internal/jubelle/crashguard.cpp
+    internal/jubelle/crashguard.h
+    internal/jubelle/uiselftest.cpp
+    internal/jubelle/uiselftest.h
+    internal/jubelle/crashreport.cpp
+    internal/jubelle/crashreport.h
     widgets/splashscreen/splashscreen.cpp
     widgets/splashscreen/splashscreen.h
     widgets/splashscreen/loadingscreenview.cpp
@@ -65,11 +71,7 @@ qt_add_resources(appshell appshell_resources
         /
     FILES
         resources/LoadingScreen.svg
-        resources/welcomedialog/ExploreTutorials.png
-        resources/welcomedialog/MuseScoreCom.png
-        resources/welcomedialog/MuseSounds.png
-        resources/welcomedialog/MuseSoundsPro.png
-        resources/welcomedialog/WhatsNew.png
+        resources/jubelle_splash_logo.png
         resources/win_opengl_buglist.json
 )
 

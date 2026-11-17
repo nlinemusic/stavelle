@@ -29,7 +29,7 @@ using namespace muse::ipc;
 
 IpcLock::IpcLock(const QString& name)
 {
-    // Stavelle: prefix with the application name so locks are never shared with MuseScore.
+    // Jubelle: prefix with the application name so locks are never shared with MuseScore.
     m_locker = new QSystemSemaphore(QStringLiteral(MUSE_APP_NAME_MACHINE_READABLE "-") + name, 1 /*allowed lock count*/,
                                     QSystemSemaphore::Open);
 }

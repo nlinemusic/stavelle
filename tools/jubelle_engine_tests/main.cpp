@@ -1,0 +1,131 @@
+// Jubelle: Qt-free runner for engraving (notation engine) gtest files, using the
+// real engine. Sets up what EngravingModule would: file system, fonts (stub
+// drawing, real SMuFL metadata), renderers, default style, staff types.
+#include <gtest/gtest.h>
+#include <gmock/gmock.h>
+
+#include "modularity/ioc.h"
+#include "fontproviderstub.h"
+#include "stdfs.h"
+
+#include "engraving/dom/mscore.h"
+#include "engraving/internal/engravingfontsprovider.h"
+#include "engraving/rendering/score/scorerenderer.h"
+#include "engraving/rendering/single/singlerenderer.h"
+#include "engraving/rendering/editmode/editmoderenderer.h"
+#include "engraving/infrastructure/smufl.h"
+#include "engraving/style/defaultstyle.h"
+#include "engraving/dom/stafftype.h"
+#include "engraving/dom/drumset.h"
+#include "engraving/dom/figuredbass.h"
+#include "mocks/engravingconfigurationmock.h"
+#include "global/tests/mocks/applicationmock.h"
+#include "utils/scorerw.h"
+#include "templatebuilder.h"
+
+#include <cstdlib>
+#include <string>
+
+using namespace mu::engraving;
+
+static const IEngravingConfiguration::DebuggingOptions debugOpt {};
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleMock(&argc, argv);
+
+    // MuseScore tests that can't run without Qt here (not Jubelle problems):
+    // repeat14 reads chord-symbol descriptions (number parsing needs Qt);
+    // the glissando renderer tests lay out glissando lines, which needs real
+    // font outlines; Playback_Setup_Data_MultiInstrument needs the
+    // instruments list from Qt resources. The note and key signature tests that
+    // save and compare with a reference file differ only in lines that come from
+    // those two gaps (chord-symbol style values and instrument ids); checked by
+    // hand, no other line differs. They run in "Check: Unit Tests".
+    const bool defaultRun = (::testing::GTEST_FLAG(filter) == "*");
+    if (defaultRun) {
+        ::testing::GTEST_FLAG(filter) = "-Engraving_RepeatTests.repeat14"
+                                        ":Engraving_PlaybackEventsRendererTests.*Glissando*"
+                                        ":Engraving_PlaybackModelTests.Playback_Setup_Data_MultiInstrument"
+                                        ":Engraving_NoteTests.grace:Engraving_NoteTests.graceAfterSlashSave"
+                                        ":Engraving_NoteTests.tpc:Engraving_NoteTests.tpcTranspose*"
+                                        ":Engraving_NoteTests.noteLimits"
+                                        ":Engraving_KeySigTests.concertPitch:Engraving_KeySigTests.preferSharpFlat";
+    }
+    // Jubelle: layout tests run in a second pass with realistic font metrics
+    // (fonts measure their symbols once, when loaded, so the switch must be set
+    // before anything else)
+    const char* realistic = getenv("JUBELLE_REALISTIC_METRICS");
+    const bool realisticPass = realistic && std::string(realistic) == "1";
+    const bool building = argc >= 2 && std::string(argv[1]) == "--build-templates";
+    muse::draw::FontProviderStub::setRealisticMetrics(realisticPass || building);
+
+    auto ioc = muse::modularity::globalIoc();
+
+    ioc->registerExport<muse::io::IFileSystem>("jubelle_engine_tests", new StdFileSystem());
+    ioc->registerExport<muse::draw::IFontProvider>("jubelle_engine_tests", new muse::draw::FontProviderStub());
+
+    using ECMock = ::testing::NiceMock<EngravingConfigurationMock>;
+    std::shared_ptr<ECMock> cfg(new ECMock(), [](ECMock*) {});
+    ON_CALL(*cfg, isAccessibleEnabled()).WillByDefault(::testing::Return(false));
+    ON_CALL(*cfg, defaultColor()).WillByDefault(::testing::Return(muse::draw::Color::BLACK));
+    ON_CALL(*cfg, debuggingOptions()).WillByDefault(::testing::ReturnRef(debugOpt));
+    // Score objects keep pointers to the configuration until exit, as in the
+    // engraving test environment, so the mock is intentionally never deleted.
+    ::testing::Mock::AllowLeak(cfg.get());
+    ioc->registerExport<IEngravingConfiguration>("jubelle_engine_tests", cfg);
+
+    // Saving a score asks the application for its version
+    using AppMock = ::testing::NiceMock<muse::ApplicationMock>;
+    std::shared_ptr<AppMock> app(new AppMock(), [](AppMock*) {});
+    ON_CALL(*app, version()).WillByDefault(::testing::Return(muse::Version(4, 7, 7)));
+    ON_CALL(*app, revision()).WillByDefault(::testing::Return(muse::String(u"0")));
+    ::testing::Mock::AllowLeak(app.get());
+    ioc->registerExport<muse::IApplication>("jubelle_engine_tests", app);
+
+    auto fonts = std::make_shared<EngravingFontsProvider>(nullptr);
+    const std::string fontsDir = std::string(MU_ROOT_DIR) + "/fonts/";
+    fonts->addExternalFont("Leland", "Leland", fontsDir + "leland/Leland.otf", fontsDir + "leland/leland_metadata.json");
+    fonts->addExternalFont("Bravura", "Bravura", fontsDir + "bravura/Bravura.otf", fontsDir + "bravura/bravura_metadata.json");
+    // Jubelle: the jazz and newly bundled fonts too (font tests)
+    fonts->addExternalFont("MuseJazz", "MuseJazz", fontsDir + "musejazz/MuseJazz.otf", fontsDir + "musejazz/metadata.json");
+    fonts->addExternalFont("Petaluma", "Petaluma", fontsDir + "petaluma/Petaluma.otf", fontsDir + "petaluma/petaluma_metadata.json");
+    fonts->addExternalFont("Sebastian", "Sebastian", fontsDir + "sebastian/Sebastian.otf", fontsDir + "sebastian/Sebastian.json");
+    fonts->addExternalFont("Eugene", "Eugene", fontsDir + "eugene/Eugene.otf", fontsDir + "eugene/Eugene.json");
+    fonts->addExternalFont("Leipzig", "Leipzig", fontsDir + "leipzig/Leipzig.ttf", fontsDir + "leipzig/leipzig_metadata.json");
+    fonts->setFallbackFont("Bravura");
+    ioc->registerExport<IEngravingFontsProvider>("jubelle_engine_tests", fonts);
+
+    ioc->registerExport<rendering::IScoreRenderer>("jubelle_engine_tests", new rendering::score::ScoreRenderer());
+    ioc->registerExport<rendering::ISingleRenderer>("jubelle_engine_tests", new rendering::single::SingleRenderer());
+    ioc->registerExport<rendering::IEditModeRenderer>("jubelle_engine_tests", new rendering::editmode::EditModeRenderer());
+
+    Smufl::init();
+    DefaultStyle::instance()->init(muse::io::path_t(), muse::io::path_t(), SizeF(210, 297));
+    StaffType::initStaffTypes(muse::draw::Color::BLACK);
+    Drumset::initDrumset();
+    FiguredBass::readConfigFile(muse::String());
+    MScore::testMode = true;
+    MScore::noGui = true;
+    ScoreRW::setRootPath(muse::String::fromUtf8(std::string(MU_ROOT_DIR) + "/src/engraving/tests"));
+
+    // Jubelle: build the score templates instead of running the tests
+    //   jubelle_engine_tests --build-templates <MuseScore originals> <output>
+    if (argc >= 4 && std::string(argv[1]) == "--build-templates") {
+        return jubelle_templates::buildAll(argv[2], argv[3]);
+    }
+
+    if (realisticPass) {
+        // JUBELLE_REALISTIC_FILTER: run only these (for benchmarks and profiling)
+        const char* only = std::getenv("JUBELLE_REALISTIC_FILTER");
+        ::testing::GTEST_FLAG(filter) = only ? only
+                                        : "Jubelle_TemplateLayout.*:Jubelle_Baselines.*:Jubelle_MagneticLayout.*:Jubelle_EngravingRules.*";
+        return RUN_ALL_TESTS();
+    }
+    int result = RUN_ALL_TESTS();
+    if (defaultRun) {
+        const std::string cmd = std::string("JUBELLE_REALISTIC_METRICS=1 \"") + argv[0] + "\"";
+        result |= std::system(cmd.c_str()) == 0 ? 0 : 1;
+    }
+    return result;
+}

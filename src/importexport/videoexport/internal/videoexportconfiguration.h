@@ -53,6 +53,10 @@ public:
     double trailingSec() const override;
     void setTrailingSec(std::optional<double> trailingSec) override;
 
+    std::string pageList() const override { return m_pageList ? m_pageList.value() : std::string(); }
+    void setPageList(std::optional<std::string> pages) override { m_pageList = pages; }
+    std::string checkPageList(const std::string& pages, int pageCount) const override;
+
 private:
     std::optional<ViewMode> m_viewMode = std::nullopt;
     std::optional<bool> m_showPiano = std::nullopt;
@@ -61,6 +65,7 @@ private:
     std::optional<int> m_fps = std::nullopt;
     std::optional<double> m_leadingSec = std::nullopt;
     std::optional<double> m_trailingSec = std::nullopt;
+    std::optional<std::string> m_pageList = std::nullopt;
 };
 }
 

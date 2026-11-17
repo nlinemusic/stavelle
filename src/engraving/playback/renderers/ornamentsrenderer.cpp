@@ -22,6 +22,12 @@
 
 #include "ornamentsrenderer.h"
 
+#include <algorithm>
+#include <cmath>
+
+#include "dom/part.h"
+#include "playback/jubelle/articulationplayback.h"
+
 #include "realfn.h"
 
 #include "dom/ornament.h"
@@ -322,6 +328,30 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
 
     const DisclosurePattern& nominalPattern = search->second;
 
+    bool isJazzTurn = false;
+    if (preferredType == ArticulationType::Turn || preferredType == ArticulationType::InvertedTurn) {
+        for (const Articulation* a : chord->articulations()) {
+            if (a->symId() == SymId::brassJazzTurn) {
+                isJazzTurn = true;
+                break;
+            }
+        }
+    }
+
+    // Jubelle (P3): the jazz turn as big bands play it, a quick turn into the
+    // note: each turn note a triplet sixteenth (a sixth of the beat, the swing's
+    // own subdivision), kept between 45 and 100 ms; speed, width and start
+    // adjustable in Articulation playback
+    int jazzTurnStart = 0;
+    if (isJazzTurn) {
+        const int width = jubelle::effectiveValue(chord->score(), chord->part(), chord->tick().ticks(), jubelle::ArtParam::TurnWidth);
+        if (width == 1 || width == 2) {
+            const OrnamentInterval step(IntervalStep::SECOND, width == 1 ? IntervalType::MINOR : IntervalType::MAJOR);
+            intervalsInfo = makeIntervalsInfo(step, step);
+        }
+        jazzTurnStart = jubelle::effectiveValue(chord->score(), chord->part(), chord->tick().ticks(), jubelle::ArtParam::TurnStart);
+    }
+
     for (const Note* note : chord->notes()) {
         if (!NoteRenderer::shouldRender(note, ctx, ctx.commonArticulations)) {
             continue;
@@ -335,8 +365,47 @@ void OrnamentsRenderer::doRender(const EngravingItem* item, const ArticulationTy
         NominalNoteCtx noteCtx(note, ornamentCtx);
         NoteArticulationsParser::buildNoteArticulationMap(note, noteCtx.chordCtx, noteCtx.articulations);
 
-        convert(preferredType, nominalPattern.buildActualPattern(note, intervalsInfo, ornamentCtx.beatsPerSecond.val),
-                std::move(noteCtx), result);
+        DisclosurePattern actualPattern = nominalPattern.buildActualPattern(note, intervalsInfo, ornamentCtx.beatsPerSecond.val);
+        size_t firstEvent = result.size();
+        if (isJazzTurn) {
+            // Jubelle: turn notes in real time (see above), then the score's turn
+            // speed (faster = shorter turn notes); never more than three quarters of the note
+            const double bps = ornamentCtx.beatsPerSecond.val > 0 ? ornamentCtx.beatsPerSecond.val : 2.0;
+            const double ticksPerMs = bps * Constants::DIVISION / 1000.0;
+            const double turnNoteTicks = std::clamp(Constants::DIVISION / 6.0, 45.0 * ticksPerMs, 100.0 * ticksPerMs);
+            const double speed = jubelle::turnSpeedFactor(chord->score(), chord->part(), chord->tick().ticks());
+            const int maxTicks = ornamentCtx.nominalDurationTicks * 3 / 4;
+            actualPattern.prefixDurationTicks = std::min(maxTicks,
+                                                         int(std::lround(3.0 * turnNoteTicks / (speed > 0.0 ? speed : 1.0))));
+            firstEvent = result.size();
+        }
+        convert(preferredType, actualPattern, std::move(noteCtx), result);
+
+        if (isJazzTurn && jazzTurnStart == 1 && result.size() > firstEvent + 1) {
+            // Just before the beat: the turn notes move earlier, so the written
+            // note itself lands on the beat (never before the start of the music)
+            const auto* firstNote = std::get_if<mpe::NoteEvent>(&result[firstEvent]);
+            const auto* writtenNote = std::get_if<mpe::NoteEvent>(&result.back());
+            const timestamp_t earliest = firstNote ? firstNote->arrangementCtx().actualTimestamp : 0;
+            const timestamp_t shift = writtenNote ? writtenNote->arrangementCtx().actualTimestamp - earliest : 0;
+            const timestamp_t move = std::min(shift, earliest);
+            if (move > 0) {
+                for (size_t i = firstEvent; i < result.size(); ++i) {
+                    if (auto* ev = std::get_if<mpe::NoteEvent>(&result[i])) {
+                        mpe::ArrangementContext arr = ev->arrangementCtx();
+                        arr.nominalTimestamp -= move;
+                        arr.actualTimestamp -= move;
+                        if (i + 1 == result.size()) {
+                            arr.nominalDuration += move;   // the written note keeps its end
+                            arr.actualDuration += move;
+                        }
+                        mpe::PitchContext pitch = ev->pitchCtx();
+                        mpe::ExpressionContext expr = ev->expressionCtx();
+                        *ev = mpe::NoteEvent(std::move(arr), std::move(pitch), std::move(expr));
+                    }
+                }
+            }
+        }
     }
 }
 

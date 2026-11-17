@@ -39,7 +39,24 @@ target_sources(muse_update PRIVATE
     internal/appupdatescenario.h
     internal/appupdateservice.cpp
     internal/appupdateservice.h
+    internal/jubelle/updateverify.cpp
+    internal/jubelle/updateverify.h
 )
+
+# Jubelle R3: the public half of the release signing key (64 hex digits). Set
+# by the release workflow from the repository variable JUBELLE_RELEASE_PUBLIC_KEY.
+# Empty: updates are never installed by this build.
+set(JUBELLE_RELEASE_PUBLIC_KEY "" CACHE STRING "Jubelle release signing public key (hex)")
+if (NOT JUBELLE_RELEASE_PUBLIC_KEY AND DEFINED ENV{JUBELLE_RELEASE_PUBLIC_KEY})
+    set(JUBELLE_RELEASE_PUBLIC_KEY "$ENV{JUBELLE_RELEASE_PUBLIC_KEY}")
+endif()
+if (JUBELLE_RELEASE_PUBLIC_KEY AND NOT JUBELLE_RELEASE_PUBLIC_KEY MATCHES "^[0-9a-fA-F]+$")
+    message(FATAL_ERROR "JUBELLE_RELEASE_PUBLIC_KEY must be 64 hex digits")
+endif()
+if (JUBELLE_RELEASE_PUBLIC_KEY)
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/internal/jubelle/updateverify.cpp
+        PROPERTIES COMPILE_DEFINITIONS "JUBELLE_RELEASE_PUBLIC_KEY=\"${JUBELLE_RELEASE_PUBLIC_KEY}\"")
+endif()
 
 if (MUSE_QT_SUPPORT)
     target_link_libraries(muse_update PRIVATE Qt::Concurrent)

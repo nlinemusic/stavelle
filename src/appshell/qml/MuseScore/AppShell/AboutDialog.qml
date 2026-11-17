@@ -31,10 +31,12 @@ import MuseScore.AppShell
 StyledDialogView {
     id: root
 
-    title: qsTrc("appshell/about", "About MuseScore Studio")
+    title: qsTrc("appshell/about", "About Jubelle")
 
-    contentHeight: 424
-    contentWidth: 480
+    contentHeight: showFonts ? 700 : 470
+    contentWidth: 520
+
+    property bool showFonts: false
 
     AboutModel {
         id: aboutModel
@@ -59,8 +61,13 @@ StyledDialogView {
                 id: logo
                 Layout.alignment: Qt.AlignHCenter
 
-                source: "resources/mu_logo.svg"
+                // Jubelle: the approved Jubelle icon
+                source: "resources/jubelle_logo.png"
                 sourceSize: Qt.size(100, 100)
+                Layout.preferredWidth: 100
+                Layout.preferredHeight: 100
+                smooth: true
+                mipmap: true
 
                 MouseArea {
                     anchors.fill: parent
@@ -109,29 +116,17 @@ StyledDialogView {
 
             StyledTextLabel {
                 Layout.fillWidth: true
-                text: {
-                    let museScoreUrl = aboutModel.museScoreUrl()
-
-                    //: %1 will be a link to the MuseScore website
-                    let line1 = qsTrc("appshell/about", "Visit %1 for new versions and more information.")
-                                .arg(`<a href="${museScoreUrl.url}">${museScoreUrl.displayName}</a>`)
-
-                    let line2 = qsTrc("appshell/about", "Get <a href=\"%1\">help</a> with the program or <a href=\"%2\">contribute</a> to its development.")
-                                .arg(aboutModel.museScoreForumUrl().url)
-                                .arg(aboutModel.museScoreContributionUrl().url)
-
-                    return line1 + "<br>" + line2
-                }
+                //: Jubelle: where new versions come from, and what it's based on
+                text: qsTrc("appshell/about", "New versions: <a href=\"%1\">Jubelle releases on GitHub</a>.<br>Jubelle is based on <a href=\"%2\">MuseScore Studio</a>.")
+                      .arg("https://github.com/nlinemusic/stavelle/releases")
+                      .arg(aboutModel.museScoreUrl().url)
                 wrapMode: Text.WordWrap
                 maximumLineCount: 3
             }
 
             StyledTextLabel {
                 Layout.fillWidth: true
-
-                text: qsTrc("appshell/about", "For privacy information, see our <a href=\"%1\">privacy policy</a>.")
-                      .arg(aboutModel.museScorePrivacyPolicyUrl().url)
-
+                text: qsTrc("appshell/about", "Jubelle sends nothing about you or your scores. It checks for updates or sends a crash report only when you choose to.")
                 wrapMode: Text.WordWrap
                 maximumLineCount: 3
             }
@@ -144,6 +139,33 @@ StyledDialogView {
 
                 wrapMode: Text.WordWrap
                 maximumLineCount: 3
+            }
+
+            // Jubelle: the music and text fonts that come with Jubelle, and their licences
+            FlatButton {
+                Layout.alignment: Qt.AlignHCenter
+                text: root.showFonts ? qsTrc("appshell/about", "Hide fonts") : qsTrc("appshell/about", "Fonts…")
+                onClicked: root.showFonts = !root.showFonts
+            }
+
+            StyledTextLabel {
+                Layout.fillWidth: true
+                visible: root.showFonts
+                horizontalAlignment: Text.AlignLeft
+                wrapMode: Text.WordWrap
+                textFormat: Text.RichText
+                text: [
+                    "<b>Leland</b>, Leland Text, MuseJazz, MuseJazz Text, Edwin: MuseScore, SIL Open Font License 1.1",
+                    "<b>Bravura</b>, Petaluma: Steinberg Media Technologies, SIL Open Font License 1.1",
+                    "<b>Finale Maestro</b>, Finale Broadway: MakeMusic, SIL Open Font License 1.1",
+                    "<b>Sebastian</b>: Florian Kretlow and Ben Byram-Wigfield, SIL Open Font License 1.1",
+                    "<b>Leipzig</b>: Etienne Darbellay, Jean-François Marti, Laurent Pugin and Klaus Rettinghaus (Verovio), SIL Open Font License 1.1",
+                    "<b>Eugene</b>: Mikko Patama, SIL Open Font License 1.1",
+                    "<b>Gootville</b>: Grzegorz Pruchniakowski, SIL Open Font License 1.1",
+                    "<b>Campania</b>: Marc Sabatella, SIL Open Font License 1.1",
+                    "<b>FreeSerif</b>, FreeSans: GNU FreeFont, GPL with font exception",
+                    qsTrc("appshell/about", "The licence texts are in the fonts folder of Jubelle’s source code and installation.")
+                ].join("<br>")
             }
         }
 

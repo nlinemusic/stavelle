@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 
-	<!-- Stavelle: MuseScore owns these document types, so Stavelle declares them as imported
+	<!-- Jubelle: MuseScore owns these document types, so Jubelle declares them as imported
 	     (it can open them) rather than exported (it owns them). Two apps exporting the same type
 	     conflict in macOS. -->
 	<key>UTImportedTypeDeclarations</key>
@@ -563,7 +563,7 @@
 		</dict>
 	</array>
 
-	<!-- Stavelle: the musescore:// URL scheme is left to MuseScore. -->
+	<!-- Jubelle: the musescore:// URL scheme is left to MuseScore. -->
 
 	<key>CFBundleExecutable</key>
 	<string>${MACOSX_BUNDLE_EXECUTABLE_NAME}</string>

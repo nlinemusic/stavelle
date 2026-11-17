@@ -25,11 +25,14 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QJsonArray>
+#include <QDir>
+#include <QStandardPaths>
 
 #include "settings.h"
 
 #include "engraving/infrastructure/mscio.h"
 #include "project/internal/notationproject.h"
+#include "project/internal/projectlibrary.h"
 
 #include "log.h"
 
@@ -40,17 +43,45 @@ using namespace muse;
 
 static const std::string module_name("project");
 
+//! Jubelle: paths coming from the project library use the platform's own
+//! separators; the rest of the app expects forward slashes.
+static muse::io::path_t configFromLibraryPath(const std::string& path)
+{
+    return muse::io::path_t(QDir::fromNativeSeparators(QString::fromStdString(path)));
+}
+
+//! Jubelle: the main project folder, "Jubelle Projects", on the Desktop by default.
+static muse::io::path_t defaultJubelleProjectsPath()
+{
+    QString base = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    if (base.isEmpty()) {
+        base = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
+    }
+    return muse::io::path_t(QDir::fromNativeSeparators(base) + "/" + QString::fromStdString(projectlibrary::mainFolderName()));
+}
+
+//! Jubelle: creates the main project folder (with the default categories)
+//! if it does not exist yet. An existing folder is never changed.
+static void ensureJubelleProjectsFolder(const muse::io::path_t& path)
+{
+    if (path.empty()) {
+        return;
+    }
+    projectlibrary::Result r = projectlibrary::ensureMainFolder(path.toStdString());
+    if (!r.ok) {
+        LOGE() << r.error;
+    }
+}
+
 static const Settings::Key COMPAT_RECENT_FILES_DATA(module_name, "project/recentList");
 static const Settings::Key USER_TEMPLATES_PATH(module_name, "application/paths/myTemplates");
 static const Settings::Key LAST_OPENED_PROJECTS_PATH(module_name, "application/paths/lastOpenedProjectsPath");
-static const Settings::Key LAST_OPENED_CONVERT_FILE_PATH(module_name, "application/paths/lastOpenedConvertFilePath");
 static const Settings::Key LAST_SAVED_PROJECTS_PATH(module_name, "application/paths/lastSavedProjectsPath");
 static const Settings::Key USER_PROJECTS_PATH(module_name, "application/paths/myScores");
 static const Settings::Key SHOULD_ASK_SAVE_LOCATION_TYPE(module_name, "project/shouldAskSaveLocationType");
 static const Settings::Key LAST_USED_SAVE_LOCATION_TYPE(module_name, "project/lastUsedSaveLocationType");
 static const Settings::Key SHOULD_WARN_BEFORE_PUBLISH(module_name, "project/shouldWarnBeforePublish");
 static const Settings::Key SHOULD_WARN_BEFORE_SAVING_PUBLICLY_TO_CLOUD(module_name, "project/shouldWarnBeforeSavingPubliclyToCloud");
-static const Settings::Key HOME_SCORES_PAGE_TAB_INDEX(module_name, "project/homeScoresPageTabIndex");
 static const Settings::Key HOME_SCORES_PAGE_VIEW_TYPE(module_name, "project/homeScoresPageViewType");
 static const Settings::Key PREFERRED_SCORE_CREATION_MODE_KEY(module_name, "project/preferredScoreCreationMode");
 static const Settings::Key MIGRATION_OPTIONS(module_name, "project/migration");
@@ -64,7 +95,6 @@ static const Settings::Key OPEN_DETAILED_PROJECT_UPLOADED_DIALOG(module_name, "p
 static const Settings::Key HAS_ASKED_AUDIO_GENERATION_SETTINGS(module_name, "project/hasAskedAudioGenerationSettings");
 static const Settings::Key GENERATE_AUDIO_TIME_PERIOD_TYPE_KEY(module_name, "project/generateAudioTimePeriodType");
 static const Settings::Key NUMBER_OF_SAVES_TO_GENERATE_AUDIO_KEY(module_name, "project/numberOfSavesToGenerateAudio");
-static const Settings::Key SHOW_CONVERT_FILE_PROCESSING_DIALOG(module_name, "project/showConvertFileProcessingDialog");
 static const Settings::Key SHOW_CLOUD_IS_NOT_AVAILABLE_WARNING(module_name, "project/showCloudIsNotAvailableWarning");
 static const Settings::Key DISABLE_VERSION_CHECKING(module_name, "project/disableVersionChecking");
 static const Settings::Key CREATE_BACKUP_BEFORE_SAVING(module_name, "project/createBackupBeforeSaving");
@@ -84,16 +114,17 @@ void ProjectConfiguration::init()
         m_userTemplatesPathChanged.send(val.toPath());
     });
 
-    settings()->setDefaultValue(USER_PROJECTS_PATH, Val(globalConfiguration()->userDataPath() + "/Scores"));
+    // Jubelle: MuseScore's "Scores" folder setting is the main project folder.
+    settings()->setDefaultValue(USER_PROJECTS_PATH, Val(defaultJubelleProjectsPath()));
 
     settings()->valueChanged(USER_PROJECTS_PATH).onReceive(nullptr, [this](const Val& val) {
+        ensureJubelleProjectsFolder(val.toPath());
         m_userScoresPathChanged.send(val.toPath());
     });
 
     Val preferredScoreCreationMode = Val(PreferredScoreCreationMode::FromInstruments);
     settings()->setDefaultValue(PREFERRED_SCORE_CREATION_MODE_KEY, preferredScoreCreationMode);
 
-    settings()->setDefaultValue(HOME_SCORES_PAGE_TAB_INDEX, Val(0));
 
     settings()->setDefaultValue(HOME_SCORES_PAGE_VIEW_TYPE, Val(HomeScoresPageViewType::Grid));
 
@@ -121,7 +152,6 @@ void ProjectConfiguration::init()
     settings()->setDefaultValue(SHOW_ALSO_SHARE_AUDIO_COM_DIALOG, Val(true));
     settings()->setDefaultValue(HAS_ASKED_ALSO_SHARE_AUDIO_COM, Val(false));
 
-    settings()->setDefaultValue(SHOW_CONVERT_FILE_PROCESSING_DIALOG, Val(true));
 
     settings()->setDefaultValue(SHOULD_DESTINATION_FOLDER_BE_OPENED_ON_EXPORT, Val(false));
     settings()->setDefaultValue(OPEN_DETAILED_PROJECT_UPLOADED_DIALOG, Val(true));
@@ -147,9 +177,7 @@ void ProjectConfiguration::init()
         fileSystem()->makePath(userTemplatesPath());
     }
 
-    if (!userProjectsPath().empty()) {
-        fileSystem()->makePath(userProjectsPath());
-    }
+    ensureJubelleProjectsFolder(userProjectsPath());
 
     fileSystem()->makePath(cloudProjectsPath());
 }
@@ -260,21 +288,6 @@ muse::io::path_t ProjectConfiguration::defaultOpenProjectsPath() const
 
     if (dir.empty()) {
         dir = defaultUserProjectsPath();
-    }
-
-    return dir;
-}
-
-void ProjectConfiguration::setLastOpenedConvertFilePath(const muse::io::path_t& path)
-{
-    settings()->setSharedValue(LAST_OPENED_CONVERT_FILE_PATH, Val(path));
-}
-
-muse::io::path_t ProjectConfiguration::defaultConvertFilePath() const
-{
-    muse::io::path_t dir = settings()->value(LAST_OPENED_CONVERT_FILE_PATH).toPath();
-    if (dir.empty()) {
-        dir = globalConfiguration()->documentsPath();
     }
 
     return dir;
@@ -446,18 +459,6 @@ bool ProjectConfiguration::shouldWarnBeforeSavingPubliclyToCloud() const
 void ProjectConfiguration::setShouldWarnBeforeSavingPubliclyToCloud(bool shouldWarn)
 {
     settings()->setSharedValue(SHOULD_WARN_BEFORE_SAVING_PUBLICLY_TO_CLOUD, Val(shouldWarn));
-}
-
-int ProjectConfiguration::homeScoresPageTabIndex() const
-{
-    return settings()->value(HOME_SCORES_PAGE_TAB_INDEX).toInt();
-}
-
-void ProjectConfiguration::setHomeScoresPageTabIndex(int index)
-{
-    // Intentionally not directly synced between instances
-    // (it would be weird if you switch the tab in one instance, and the others suddenly switch too)
-    settings()->setLocalValue(HOME_SCORES_PAGE_TAB_INDEX, Val(index));
 }
 
 IProjectConfiguration::HomeScoresPageViewType ProjectConfiguration::homeScoresPageViewType() const
@@ -695,22 +696,6 @@ QUrl ProjectConfiguration::dotComBugReportUrl() const
                 "&utm_medium=Referral&utm_source=mss&utm_campaign=MU_WW_REF_MSS_DESKTOP_ALL_261026_crosslink&utm_content=error_dialog");
 }
 
-QUrl ProjectConfiguration::scoreUploadingGuidelinesUrl() const
-{
-    return QUrl("https://musescore.com/redirect/af?mu_target=https%3A%2F%2Fmusescore.com%2Fscore-uploading-guidelines"
-                "%3Futm_medium%3DReferral%26utm_source%3Dmss%26utm_campaign%3DMU_WW_REF_MSS_DESKTOP_ALL_261026_crosslink"
-                "%26utm_content%3Dconvert_to_score"
-                "&utm_medium=Referral&utm_source=mss&utm_campaign=MU_WW_REF_MSS_DESKTOP_ALL_261026_crosslink&utm_content=convert_to_score");
-}
-
-QUrl ProjectConfiguration::termsOfUseUrl() const
-{
-    return QUrl("https://musescore.com/redirect/af?mu_target=https%3A%2F%2Fmusescore.com%2Flegal%2Fterms"
-                "%3Futm_medium%3DReferral%26utm_source%3Dmss%26utm_campaign%3DMU_WW_REF_MSS_DESKTOP_ALL_261026_crosslink"
-                "%26utm_content%3Dconvert_to_score"
-                "&utm_medium=Referral&utm_source=mss&utm_campaign=MU_WW_REF_MSS_DESKTOP_ALL_261026_crosslink&utm_content=convert_to_score");
-}
-
 bool ProjectConfiguration::openDetailedProjectUploadedDialog() const
 {
     return settings()->value(OPEN_DETAILED_PROJECT_UPLOADED_DIALOG).toBool();
@@ -771,6 +756,12 @@ muse::io::path_t ProjectConfiguration::projectBackupPath(const muse::io::path_t&
     muse::io::path_t projectDir = io::absoluteDirpath(projectPath);
     muse::io::path_t projectName = io::filename(projectPath);
 
+    // Jubelle: a project's backup goes, visibly, into its own Backups folder.
+    const std::string projectFolder = projectlibrary::projectFolderForScore(projectPath.toStdString());
+    if (!projectFolder.empty()) {
+        return configFromLibraryPath(projectlibrary::backupFolder(projectFolder)) + "/" + projectName + "~";
+    }
+
     return projectDir + "/.mscbackup/." + projectName + "~";
 }
 
@@ -804,17 +795,3 @@ void ProjectConfiguration::setDisableVersionChecking(bool disable)
     settings()->setSharedValue(DISABLE_VERSION_CHECKING, Val(disable));
 }
 
-bool ProjectConfiguration::showConvertFileProcessingDialog() const
-{
-    return settings()->value(SHOW_CONVERT_FILE_PROCESSING_DIALOG).toBool();
-}
-
-void ProjectConfiguration::setShowConvertFileProcessingDialog(bool show)
-{
-    settings()->setSharedValue(SHOW_CONVERT_FILE_PROCESSING_DIALOG, Val(show));
-}
-
-muse::io::path_t ProjectConfiguration::watchedConvertsJsonPath() const
-{
-    return globalConfiguration()->userAppDataPath().appendingComponent("watched_converts.json");
-}

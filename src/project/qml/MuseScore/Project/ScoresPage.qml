@@ -1,11 +1,8 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
- * MuseScore-Studio-CLA-applies
  *
- * MuseScore Studio
+ * Jubelle (based on MuseScore Studio)
  * Music Composition & Notation
- *
- * Copyright (C) 2021 MuseScore Limited and others
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +22,9 @@ import QtQuick.Layouts
 import Muse.Ui
 import Muse.UiComponents
 import MuseScore.Project
-import Muse.Cloud
 
-import "internal/ScoresPage"
-
+//! Jubelle: the Projects page (Home → Projects). Recent first, then Projects with
+//! categories, a tag filter (All / Any) and square project cards.
 FocusScope {
     id: root
 
@@ -39,24 +35,29 @@ FocusScope {
     QtObject {
         id: prv
 
-        readonly property int sideMargin: 46
+        readonly property int sideMargin: 40
+        readonly property int cardMinWidth: 196
+        readonly property int cardSpacing: 20
+        readonly property int recentCardWidth: 160
+
+        readonly property string revealTitle: {
+            switch (Qt.platform.os) {
+            case "windows": return qsTrc("project", "Show in Explorer")
+            case "osx": return qsTrc("project", "Show in Finder")
+            default: return qsTrc("project", "Show in File Manager")
+            }
+        }
     }
 
-    onSubSectionChanged: applySubSection()
-
-    function applySubSection() {
-        switch (root.subSection) {
-        case "newAndRecent": scoresPageModel.tabIndex = 0; break
-        case "myOnlineScores": scoresPageModel.tabIndex = 1; break
-        default: return
+    onSubSectionChanged: {
+        if (root.subSection !== "") {
+            root.subSectionApplied()
         }
-
-        root.subSectionApplied()
     }
 
     NavigationSection {
         id: navSec
-        name: "RecentScores"
+        name: "ProjectsPage"
         enabled: root.enabled && root.visible
         order: 3
         onActiveChanged: {
@@ -66,365 +67,357 @@ FocusScope {
         }
     }
 
-    ScoresPageModel {
-        id: scoresPageModel
-
-        onTabIndexChanged: {
-            tabBar.currentIndex = scoresPageModel.tabIndex
-        }
+    ProjectsPageModel {
+        id: projectsModel
     }
 
     Component.onCompleted: {
-        applySubSection()
-        tabBar.currentIndex = scoresPageModel.tabIndex
-        tabBar.completed = true
+        projectsModel.load()
+    }
+
+    onVisibleChanged: {
+        if (visible) {
+            projectsModel.reload()
+        }
     }
 
     Rectangle {
         id: background
-
         anchors.fill: parent
-
         color: ui.theme.backgroundSecondaryColor
     }
 
-    RowLayout {
-        id: topLayout
-
-        anchors.top: parent.top
-        anchors.topMargin: prv.sideMargin
-        anchors.left: parent.left
-        anchors.leftMargin: prv.sideMargin
-        anchors.right: parent.right
-        anchors.rightMargin: prv.sideMargin
-
-        spacing: 12
-
-        NavigationPanel {
-            id: navSearchPanel
-            name: "HomeScoresSearch"
-            enabled: topLayout.enabled && topLayout.visible
-            section: navSec
-            order: 1
-            accessible.name: qsTrc("project", "Scores")
-        }
-
-        StyledTextLabel {
-            id: pageTitle
-            Layout.fillWidth: true
-
-            text: qsTrc("project", "Scores")
-            font: ui.theme.titleBoldFont
-            horizontalAlignment: Text.AlignLeft
-        }
-
-        SearchField {
-            id: searchField
-
-            Layout.preferredWidth: 220
-
-            navigation.name: "Scores Search"
-            navigation.panel: navSearchPanel
-            navigation.order: 1
-            accessible.name: qsTrc("project", "Search recent scores")
-        }
+    NavigationPanel {
+        id: topNavPanel
+        name: "ProjectsTop"
+        section: navSec
+        order: 1
+        direction: NavigationPanel.Horizontal
+        accessible.name: qsTrc("project", "Projects")
     }
 
-    RowLayout {
-        id: controlsRow
+    StyledFlickable {
+        id: flickable
 
-        anchors.top: topLayout.bottom
-        anchors.topMargin: prv.sideMargin
-        anchors.left: parent.left
-        anchors.leftMargin: prv.sideMargin
-        anchors.right: parent.right
-        anchors.rightMargin: prv.sideMargin
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: pageColumn.implicitHeight + 2 * prv.sideMargin
 
-        spacing: 12
+        Column {
+            id: pageColumn
 
-        StyledTabBar {
-            id: tabBar
+            x: prv.sideMargin
+            y: prv.sideMargin
+            width: flickable.width - 2 * prv.sideMargin
+            spacing: 32
 
-            property bool completed: false
+            // --- Search and New score ------------------------------------------------
+            RowLayout {
+                width: parent.width
+                spacing: 12
 
-            Layout.fillWidth: true
+                SearchField {
+                    id: searchField
 
-            onCurrentIndexChanged: {
-                if (completed) {
-                    scoresPageModel.tabIndex = currentIndex
+                    Layout.preferredWidth: 360
+                    hint: qsTrc("project", "Search projects")
+
+                    navigation.name: "ProjectsSearch"
+                    navigation.panel: topNavPanel
+                    navigation.column: 1
+
+                    onSearchTextChanged: {
+                        projectsModel.searchText = searchField.searchText
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                // Jubelle R1: copy existing MuseScore files into Projects
+                FlatButton {
+                    text: qsTrc("project", "Import scores…")
+
+                    navigation.name: "ImportScores"
+                    navigation.panel: topNavPanel
+                    navigation.column: 2
+
+                    onClicked: projectsModel.importScoresInteractive()
+                }
+
+                FlatButton {
+                    text: qsTrc("project", "Open other…")
+
+                    navigation.name: "OpenOther"
+                    navigation.panel: topNavPanel
+                    navigation.column: 3
+
+                    onClicked: projectsModel.openOther()
+                }
+
+                FlatButton {
+                    text: qsTrc("project", "New score")
+                    icon: IconCode.PLUS
+                    orientation: Qt.Horizontal
+                    accentButton: true
+
+                    navigation.name: "NewScore"
+                    navigation.panel: topNavPanel
+                    navigation.column: 4
+
+                    onClicked: projectsModel.createNewScore()
                 }
             }
 
-            NavigationPanel {
-                id: navTabPanel
-                name: "HomeScoresTabs"
-                section: navSec
-                direction: NavigationPanel.Horizontal
-                order: 2
-                accessible.name: qsTrc("project", "Scores tab bar")
-                enabled: tabBar.enabled && tabBar.visible
+            // --- Recent ---------------------------------------------------------------
+            Column {
+                width: parent.width
+                spacing: 14
 
-                onNavigationEvent: function(event) {
-                    if (event.type === NavigationEvent.AboutActive) {
-                        event.setData("controlName", tabBar.currentItem.navigation.name)
+                StyledTextLabel {
+                    text: qsTrc("project", "Recent")
+                    font: ui.theme.headerBoldFont
+                }
+
+                StyledTextLabel {
+                    visible: recentRepeater.count === 0
+                    text: qsTrc("project", "Scores you save in your projects appear here.")
+                    opacity: 0.7
+                }
+
+                NavigationPanel {
+                    id: recentNavPanel
+                    name: "RecentScores"
+                    section: navSec
+                    order: 2
+                    direction: NavigationPanel.Horizontal
+                    accessible.name: qsTrc("project", "Recent")
+                }
+
+                StyledFlickable {
+                    width: parent.width
+                    height: recentRow.height
+                    visible: recentRepeater.count > 0
+                    contentWidth: recentRow.width
+                    flickableDirection: Flickable.HorizontalFlick
+
+                    Row {
+                        id: recentRow
+                        spacing: 16
+
+                        Repeater {
+                            id: recentRepeater
+                            model: projectsModel.recentScores
+
+                            delegate: ProjectCard {
+                                required property var modelData
+                                required property int index
+
+                                width: prv.recentCardWidth
+                                item: modelData
+                                compact: true
+
+                                navigation.panel: recentNavPanel
+                                navigation.column: index
+
+                                onOpenRequested: projectsModel.openScore(modelData.scorePath)
+                            }
+                        }
                     }
                 }
             }
 
-            StyledTabButton {
-                text: qsTrc("project", "New & recent")
+            // --- Projects -------------------------------------------------------------
+            Column {
+                width: parent.width
+                spacing: 14
 
-                navigation.name: "NewAndRecent"
-                navigation.panel: navTabPanel
-                navigation.column: 1
-            }
+                RowLayout {
+                    width: parent.width
+                    spacing: 10
 
-            StyledTabButton {
-                text: qsTrc("project", "My online scores")
+                    StyledTextLabel {
+                        Layout.fillWidth: true
+                        text: qsTrc("project", "Projects")
+                        font: ui.theme.headerBoldFont
+                        horizontalAlignment: Text.AlignLeft
+                    }
 
-                navigation.name: "MyOnlineScores"
-                navigation.panel: navTabPanel
-                navigation.column: 2
-            }
-        }
+                    FlatButton {
+                        text: qsTrc("project", "Open projects folder")
+                        icon: IconCode.OPEN_FILE
+                        orientation: Qt.Horizontal
 
-        NavigationPanel {
-            id: viewButtonsNavPanel
-            name: "ViewButtons"
-            enabled: tabBar.enabled && tabBar.visible
-            section: navSec
-            order: 3
-            direction: NavigationPanel.Horizontal
-            accessible.name: qsTrc("project", "View buttons")
-        }
+                        navigation.name: "OpenProjectsFolder"
+                        navigation.panel: topNavPanel
+                        navigation.column: 4
 
-        FlatButton {
-            id: refreshButton
-
-            visible: tabBar.currentIndex === 1
-
-            navigation.panel: viewButtonsNavPanel
-            navigation.order: 1
-
-            icon: IconCode.UPDATE
-            text: qsTrc("project", "Refresh")
-            orientation: Qt.Horizontal
-        }
-
-        RadioButtonGroup {
-            id: viewTypeRadioButtons
-
-            property int navigationOrderStart: refreshButton.navigation.order + 1
-
-            implicitHeight: ui.theme.defaultButtonSize
-
-            model: [
-                { "icon": IconCode.GRID, "title": qsTrc("project", "Grid view"), "value": ScoresPageModel.Grid },
-                { "icon": IconCode.LIST, "title": qsTrc("project", "List view"), "value": ScoresPageModel.List }
-            ]
-
-            delegate: FlatRadioButton {
-                implicitWidth: ui.theme.defaultButtonSize
-                implicitHeight: ui.theme.defaultButtonSize
-
-                checked: scoresPageModel.viewType === modelData.value
-
-                iconCode: modelData.icon
-                transparent: true
-                checkedColor: ui.theme.buttonColor
-
-                navigation.name: "ViewType_" + modelData.title
-                navigation.panel: viewButtonsNavPanel
-                navigation.order: viewTypeRadioButtons.navigationOrderStart + model.index
-                navigation.accessible.name: modelData.title
-
-                onToggled: {
-                    scoresPageModel.viewType = modelData.value
+                        onClicked: projectsModel.openProjectsFolder()
+                    }
                 }
-            }
-        }
-    }
 
-    Loader {
-        id: contentLoader
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(categoriesColumn.implicitHeight, projectsColumn.implicitHeight) + 2
+                    radius: 12
+                    color: ui.theme.backgroundPrimaryColor
+                    border.color: ui.theme.strokeColor
+                    border.width: 1
 
-        anchors.top: controlsRow.bottom
-        anchors.topMargin: 24
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.bottom: buttonsPanel.top
+                    Row {
+                        x: 1
+                        y: 1
+                        width: parent.width - 2
 
-        sourceComponent: {
-            if (!tabBar.completed || tabBar.currentIndex < 0) {
-                return null
-            }
+                        CategoriesList {
+                            id: categoriesColumn
 
-            return [newAndRecentComp, onlineScoresComp][tabBar.currentIndex]
-        }
-    }
+                            width: 260
+                            pageModel: projectsModel
+                            navigationSection: navSec
+                            revealTitle: prv.revealTitle
+                        }
 
-    Component {
-        id: newAndRecentComp
+                        SeparatorLine {
+                            orientation: Qt.Vertical
+                            height: parent.height
+                        }
 
-        RecentScoresView {
-            anchors.fill: parent
+                        Column {
+                            id: projectsColumn
 
-            viewType: scoresPageModel.viewType
-            searchText: searchField.searchText
+                            width: parent.width - categoriesColumn.width - 1
+                            padding: 22
+                            spacing: 18
 
-            backgroundColor: background.color
-            sideMargin: prv.sideMargin
+                            readonly property real innerWidth: width - 2 * padding
 
-            navigationSection: navSec
-            navigationOrder: 4
+                            RowLayout {
+                                width: projectsColumn.innerWidth
+                                spacing: 10
 
-            onCreateNewScoreRequested: {
-                scoresPageModel.createNewScore()
-            }
+                                StyledTextLabel {
+                                    text: projectsModel.currentCategory
+                                    font: ui.theme.largeBodyBoldFont
+                                }
 
-            onOpenScoreRequested: function(scorePath, displayName) {
-                Qt.callLater(scoresPageModel.openScore, scorePath, displayName)
-            }
+                                StyledTextLabel {
+                                    Layout.fillWidth: true
+                                    horizontalAlignment: Text.AlignLeft
+                                    opacity: 0.7
+                                    text: projectsModel.activeTags.length > 0
+                                          ? qsTrc("project", "%1 of %2 projects").arg(projectsModel.projects.length).arg(projectsModel.projectsInCategoryCount)
+                                          : qsTrc("project", "%n project(s)", "", projectsModel.projectsInCategoryCount)
+                                }
+                            }
 
-            onRevealInFileBrowserRequested: function(scorePath) {
-                Qt.callLater(scoresPageModel.revealInFileBrowser, scorePath)
-            }
+                            TagFilterBar {
+                                width: projectsColumn.innerWidth
+                                pageModel: projectsModel
+                                navigationSection: navSec
+                            }
 
-            onViewOnlineRequested: function(scoreId) {
-                Qt.callLater(scoresPageModel.viewOnline, scoreId)
-            }
+                            // Empty category
+                            StyledTextLabel {
+                                width: projectsColumn.innerWidth
+                                visible: projectsModel.projectsInCategoryCount === 0 && projectsModel.currentCategory !== ""
+                                topPadding: 30
+                                bottomPadding: 30
+                                text: qsTrc("project", "No projects in this category yet.\nAdd one from a project’s ⋯ menu → Categories and tags.")
+                                opacity: 0.7
+                                wrapMode: Text.Wrap
+                            }
 
-            onDeleteScoreRequested: function(scoreId, scoreName) {
-                Qt.callLater(scoresPageModel.deleteScore, scoreId, scoreName)
-            }
-        }
-    }
+                            // Filters match nothing
+                            Column {
+                                width: projectsColumn.innerWidth
+                                visible: projectsModel.projectsInCategoryCount > 0 && projectsModel.projects.length === 0
+                                topPadding: 24
+                                bottomPadding: 24
+                                spacing: 12
 
-    Component {
-        id: onlineScoresComp
+                                StyledTextLabel {
+                                    width: parent.width
+                                    text: projectsModel.activeTags.length > 0
+                                          ? qsTrc("project", "No scores in %1 match these tags").arg(projectsModel.currentCategory)
+                                          : qsTrc("project", "No projects match your search")
+                                    font: ui.theme.largeBodyBoldFont
+                                    wrapMode: Text.Wrap
+                                }
 
-        CloudScoresView {
-            id: cloudScoresView
-            anchors.fill: parent
+                                StyledTextLabel {
+                                    width: parent.width
+                                    visible: projectsModel.activeTags.length > 0
+                                    text: qsTrc("project", "Remove a tag, switch to “Any selected tag”, or clear the filters to see every score in this category.")
+                                    opacity: 0.7
+                                    wrapMode: Text.Wrap
+                                }
 
-            viewType: scoresPageModel.viewType
-            searchText: searchField.searchText
+                                FlatButton {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    visible: projectsModel.activeTags.length > 0
+                                    text: qsTrc("project", "Clear filters")
+                                    accentButton: true
 
-            backgroundColor: background.color
-            sideMargin: prv.sideMargin
+                                    navigation.name: "ClearFiltersEmpty"
+                                    navigation.panel: topNavPanel
+                                    navigation.column: 5
 
-            navigationSection: navSec
-            navigationOrder: 4
+                                    onClicked: projectsModel.clearTags()
+                                }
+                            }
 
-            onCreateNewScoreRequested: {
-                scoresPageModel.createNewScore()
-            }
+                            NavigationPanel {
+                                id: cardsNavPanel
+                                name: "ProjectCards"
+                                section: navSec
+                                order: 6
+                                direction: NavigationPanel.Both
+                                accessible.name: qsTrc("project", "Projects")
+                            }
 
-            onOpenScoreRequested: function(scorePath, displayName) {
-                Qt.callLater(scoresPageModel.openScore, scorePath, displayName)
-            }
+                            Flow {
+                                id: cardsFlow
 
-            onRevealInFileBrowserRequested: function(scorePath) {
-                Qt.callLater(scoresPageModel.revealInFileBrowser, scorePath)
-            }
+                                width: projectsColumn.innerWidth
+                                spacing: prv.cardSpacing
 
-            onViewOnlineRequested: function(scoreId) {
-                Qt.callLater(scoresPageModel.viewOnline, scoreId)
-            }
+                                readonly property int columns: Math.max(1, Math.floor((width + spacing) / (prv.cardMinWidth + spacing)))
+                                readonly property real cardWidth: Math.floor((width - (columns - 1) * spacing) / columns)
 
-            onDeleteScoreRequested: function(scoreId, scoreName) {
-                Qt.callLater(scoresPageModel.deleteScore, scoreId, scoreName)
-            }
+                                Repeater {
+                                    model: projectsModel.projects
 
-            Connections {
-                target: refreshButton
+                                    delegate: ProjectCard {
+                                        required property var modelData
+                                        required property int index
 
-                function onClicked() {
-                    cloudScoresView.refresh()
-                }
-            }
-        }
-    }
+                                        width: cardsFlow.cardWidth
+                                        item: modelData
+                                        showMenu: true
+                                        revealTitle: prv.revealTitle
 
-    Rectangle {
-        id: buttonsPanel
+                                        navigation.panel: cardsNavPanel
+                                        navigation.row: Math.floor(index / cardsFlow.columns)
+                                        navigation.column: index % cardsFlow.columns
 
-        anchors.bottom: parent.bottom
-
-        height: 100
-        width: parent.width
-
-        color: ui.theme.backgroundSecondaryColor
-
-        NavigationPanel {
-            id: navBottomPanel
-            name: "RecentScoresBottom"
-            section: navSec
-            direction: NavigationPanel.Horizontal
-            order: 5
-
-            //: accessibility name for the panel at the bottom of the "Scores" page
-            accessible.name: qsTrc("project", "Scores actions")
-        }
-
-        FlatButton {
-            anchors.left: parent.left
-            anchors.leftMargin: prv.sideMargin
-            anchors.verticalCenter: parent.verticalCenter
-
-            navigation.name: "ScoreManager"
-            navigation.panel: navBottomPanel
-            navigation.column: 1
-
-            minWidth: 216
-            text: qsTrc("project", "Score manager (online)")
-
-            onClicked: {
-                scoresPageModel.openScoreManager()
-            }
-        }
-
-        Row {
-            anchors.right : parent.right
-            anchors.rightMargin: prv.sideMargin
-            anchors.verticalCenter: parent.verticalCenter
-
-            spacing: 12
-
-            FlatButton {
-                navigation.name: "NewScore"
-                navigation.panel: navBottomPanel
-                navigation.column: 2
-
-                accentButton: true
-                text: qsTrc("project", "New")
-
-                onClicked: {
-                    scoresPageModel.createNewScore()
-                }
-            }
-
-            FlatButton {
-                navigation.name: "ConvertFileToScore"
-                navigation.panel: navBottomPanel
-                navigation.column: 3
-
-                text: qsTrc("project", "Convert…")
-
-                onClicked: {
-                    scoresPageModel.convertFileToScore()
-                }
-            }
-
-            FlatButton {
-                navigation.name: "Open other Score"
-                navigation.panel: navBottomPanel
-                navigation.column: 4
-
-                text: qsTrc("project", "Open other…")
-
-                onClicked: {
-                    scoresPageModel.openOther()
+                                        onOpenRequested: projectsModel.openScore(modelData.scorePath)
+                                        onMenuItemTriggered: function(itemId) {
+                                            switch (itemId) {
+                                            case "open": projectsModel.openScore(modelData.scorePath); break
+                                            case "rename": projectsModel.renameProjectInteractive(modelData.folder); break
+                                            case "move": projectsModel.moveProjectInteractive(modelData.folder); break
+                                            case "categories-tags": projectsModel.editCategoriesAndTags(modelData.folder); break
+                                            case "card-image": projectsModel.editCardImage(modelData.folder); break
+                                            case "remove-card-image": projectsModel.removeCardImage(modelData.folder); break
+                                            case "pictures": projectsModel.openPicturesFolder(modelData.folder); break
+                                            case "reveal": projectsModel.revealInFileBrowser(modelData.folder); break
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

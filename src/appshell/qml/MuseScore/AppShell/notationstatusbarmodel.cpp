@@ -23,6 +23,7 @@
 #include "notationstatusbarmodel.h"
 
 #include "types/translatablestring.h"
+#include "translation.h"
 
 #include "muse_framework_config.h"
 
@@ -261,6 +262,7 @@ void NotationStatusBarModel::setNotation(const INotationPtr& notation)
 
     m_notation = notation;
 
+    emit soundSourceChanged();
     emit zoomEnabledChanged();
     updateConcertPitchItem();
 
@@ -294,6 +296,69 @@ void NotationStatusBarModel::setNotation(const INotationPtr& notation)
     notation->accessibility()->accessibilityInfo().ch.onReceive(this, [this](const std::string&) {
         emit accessibilityInfoChanged();
     });
+}
+
+// Jubelle: the MuseSounds status line. MuseSounds is Muse Group's proprietary
+// engine; Jubelle only reports whether it started and never tries to make it
+// start (no workaround of its licensing).
+namespace {
+enum class JubelleSoundSource {
+    BuiltIn,
+    BuiltInAndMuseSounds,
+    MuseSoundsDidNotStart,
+};
+}
+
+static JubelleSoundSource jubelleSoundSource(bool loaded, bool initFailed)
+{
+    if (initFailed) {
+        return JubelleSoundSource::MuseSoundsDidNotStart;
+    }
+    return loaded ? JubelleSoundSource::BuiltInAndMuseSounds : JubelleSoundSource::BuiltIn;
+}
+
+QString NotationStatusBarModel::soundSourceText() const
+{
+    bool loaded = false;
+    bool initFailed = false;
+#ifdef MUSE_MODULE_MUSESAMPLER
+    if (museSamplerInfo()) {
+        loaded = museSamplerInfo()->isLoaded();
+        initFailed = museSamplerInfo()->initFailed();
+    }
+#endif
+    switch (jubelleSoundSource(loaded, initFailed)) {
+    case JubelleSoundSource::BuiltInAndMuseSounds:
+        return muse::qtrc("appshell", "Sounds: built-in and MuseSounds");
+    case JubelleSoundSource::MuseSoundsDidNotStart:
+        return muse::qtrc("appshell", "Built-in sounds · MuseSounds unavailable");
+    case JubelleSoundSource::BuiltIn:
+        break;
+    }
+    return muse::qtrc("appshell", "Built-in sounds (MS Basic)");
+}
+
+QString NotationStatusBarModel::soundSourceDescription() const
+{
+    bool loaded = false;
+    bool initFailed = false;
+#ifdef MUSE_MODULE_MUSESAMPLER
+    if (museSamplerInfo()) {
+        loaded = museSamplerInfo()->isLoaded();
+        initFailed = museSamplerInfo()->initFailed();
+    }
+#endif
+    switch (jubelleSoundSource(loaded, initFailed)) {
+    case JubelleSoundSource::BuiltInAndMuseSounds:
+        return muse::qtrc("appshell", "MuseHub’s MuseSounds engine started, so MuseSounds instruments can be chosen in the Mixer.");
+    case JubelleSoundSource::MuseSoundsDidNotStart:
+        return muse::qtrc("appshell", "MuseHub’s MuseSounds engine was found but did not start in Jubelle. "
+                                      "Your scores play with the built-in sounds and any VST3 instruments you choose in the Mixer. "
+                                      "Details are in the log.");
+    case JubelleSoundSource::BuiltIn:
+        break;
+    }
+    return muse::qtrc("appshell", "Your scores play with the built-in sounds and any VST3 instruments you choose in the Mixer.");
 }
 
 void NotationStatusBarModel::toggleConcertPitch()

@@ -420,6 +420,33 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "S&ave style…"),
              TranslatableString("action", "Save style")
              ),
+    //! Jubelle: named engraving presets (style files in the Styles folder)
+    //! Jubelle T2: one step between the two looks; only fonts and chord symbols change
+    //! Jubelle R8: courtesy accidentals on or off for the score, from the Format menu
+    UiAction("jubelle-courtesy-toggle",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Courtesy accidentals on/off"),
+             TranslatableString("action", "Switch automatic courtesy accidentals on or off for this score (rules: Format › Style › Accidentals)")
+             ),
+    UiAction("jubelle-look-jazz",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Jazz handwritten look"),
+             TranslatableString("action", "Use MuseJazz for music, text and chord symbols (layout unchanged; your own text fonts stay)")
+             ),
+    UiAction("jubelle-look-standard",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "S&tandard engraved look"),
+             TranslatableString("action", "Back to the standard engraved fonts (layout unchanged)")
+             ),
+    UiAction("jubelle-engraving-presets",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Engraving &presets…"),
+             TranslatableString("action", "Engraving presets")
+             ),
     UiAction("transpose",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
@@ -450,6 +477,197 @@ const UiActionList NotationUiActions::s_actions = {
              mu::context::CTX_NOTATION_OPENED,
              TranslatableString("action", "Realize &chord symbols"),
              TranslatableString("action", "Realize chord symbols")
+             ),
+    //! Jubelle: Chord Identifier (built in; replaces the old plugin)
+    UiAction("jubelle-identify-chords",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Chord Identifier…"),
+             TranslatableString("action", "Name the chords in the selection or the whole score, as chord symbols or Roman numerals")
+             ),
+    //! Jubelle Phase 5A: how articulations sound (playback only)
+    UiAction("jubelle-articulation-playback",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Articulation Playback…"),
+             TranslatableString("action", "Set how staccatos, accents, falls, scoops, glissandos and turns sound, for the score or one instrument")
+             ),
+    //! Jubelle Phase 5B: rhythmic feel (playback only)
+    UiAction("jubelle-swing",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "S&wing…"),
+             TranslatableString("action", "Choose and edit the swing feel for the score or for single instruments")
+             ),
+    //! Jubelle G8: page-turn optimisation
+    UiAction("jubelle-page-turns",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Page &turns…"),
+             TranslatableString("action", "See where the page turns fall in each part and move poor turns to places with enough rest")
+             ),
+    //! Jubelle G6: live tempo recording by tapping
+    UiAction("jubelle-record-tempo",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Record &tempo…"),
+             TranslatableString("action", "Tap the beat while the score plays to record tempo changes, ritardandos and rubato as hidden tempo markings")
+             ),
+    //! Jubelle G5: Find and Select
+    UiAction("jubelle-find-select",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Find and Se&lect…"),
+             TranslatableString("action", "Select every note, rest or marking that matches what you choose: kind, instruments, voices, pitch, note value, articulation and bars")
+             ),
+    //! Jubelle Phase 5D: which repeats playback takes
+    UiAction("jubelle-repeats",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Repeats…"),
+             TranslatableString("action", "Choose which repeated sections playback repeats; the repeat signs stay in the score")
+             ),
+    //! Jubelle Phase 5E: copy one part's layout to other parts
+    UiAction("jubelle-apply-part-layout",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Apply &Part Layout…"),
+             TranslatableString("action", "Copy one part’s system and page breaks and other layout to other parts, without changing any music")
+             ),
+    //! Jubelle Phase 4 / G2: link the highlighted passage to other staves; manage links
+    //! Jubelle R7: from a linked passage's marker
+    UiAction("jubelle-link-resync",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Re-sync with the leading staff"),
+             TranslatableString("action", "Make this passage follow its leading staff again, replacing your own changes in it")
+             ),
+    UiAction("jubelle-link-unlink",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Unlink this passage"),
+             TranslatableString("action", "Stop this passage following (or leading); the notes stay as they are")
+             ),
+    UiAction("jubelle-linked-passages",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Linked Passages…"),
+             TranslatableString("action", "Link the highlighted passage to the same bars on other staves, or re-sync or unlink existing links")
+             ),
+    //! Jubelle Phase 5A level 3: articulation playback for the highlighted passage
+    UiAction("jubelle-passage-playback",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Articulation Playback for &Selection…"),
+             TranslatableString("action", "Set how articulations sound in the highlighted passage only")
+             ),
+    //! Jubelle: title-page alignment (Format → Align)
+    UiAction("jubelle-align-left",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &left"),
+             TranslatableString("action", "Align the selected text or images to the left")
+             ),
+    UiAction("jubelle-align-hcenter",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre &horizontally"),
+             TranslatableString("action", "Centre the selected text or images horizontally")
+             ),
+    UiAction("jubelle-align-right",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &right"),
+             TranslatableString("action", "Align the selected text or images to the right")
+             ),
+    UiAction("jubelle-align-top",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &top"),
+             TranslatableString("action", "Align the selected text or images to the top")
+             ),
+    UiAction("jubelle-align-vcenter",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre &vertically"),
+             TranslatableString("action", "Centre the selected text or images vertically")
+             ),
+    UiAction("jubelle-align-bottom",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align &bottom"),
+             TranslatableString("action", "Align the selected text or images to the bottom")
+             ),
+    UiAction("jubelle-align-center",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Centre on &both axes"),
+             TranslatableString("action", "Centre the selected text or images horizontally and vertically")
+             ),
+    UiAction("jubelle-distribute-h",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Distribute hori&zontally"),
+             TranslatableString("action", "Space three or more selected items evenly from left to right")
+             ),
+    UiAction("jubelle-distribute-v",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Distribute verti&cally"),
+             TranslatableString("action", "Space three or more selected items evenly from top to bottom")
+             ),
+    //! Jubelle G2: condensed full-score copy (off until switched on)
+    UiAction("jubelle-condensing-enabled",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Enable condensed scores"),
+             TranslatableString("action", "Allow making a separate condensed copy of the full score. Off until you switch it on"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-condensed-score",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Condensed score…"),
+             TranslatableString("action", "Create or update a separate condensed copy of this full score. The score itself never changes")
+             ),
+    UiAction("jubelle-condense-keep-separate",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Keep these bars separate"),
+             TranslatableString("action", "In a condensed copy: keep the two players on their own staves here at the next update")
+             ),
+    UiAction("jubelle-condense-share",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Con&dense these bars"),
+             TranslatableString("action", "In a condensed copy: put the two players on one staff here at the next update")
+             ),
+    UiAction("jubelle-condense-automatic",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Condense these bars &automatically"),
+             TranslatableString("action", "In a condensed copy: remove your choice for these bars")
+             ),
+    UiAction("jubelle-align-to-margins",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &margins"),
+             TranslatableString("action", "Align relative to the printable area inside the page margins"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-align-to-page",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &page"),
+             TranslatableString("action", "Align relative to the whole page"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-align-to-each-other",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Align to &each other"),
+             TranslatableString("action", "Align the selected items relative to one another; the group stays where it is"),
+             Checkable::Yes
              ),
     UiAction("extend-to-next-note",
              mu::context::UiCtxProjectOpened,
@@ -2766,6 +2984,15 @@ NotationUiActions::NotationUiActions(std::shared_ptr<NotationActionController> c
 
 void NotationUiActions::init()
 {
+    // Jubelle: the "Align to" choice changed
+    m_controller->jubelleCondensingChanged().onNotify(this, [this]() {
+        m_actionCheckedChanged.send({ "jubelle-condensing-enabled" });
+    });
+
+    m_controller->jubelleAlignReferenceChanged().onNotify(this, [this]() {
+        m_actionCheckedChanged.send({ "jubelle-align-to-margins", "jubelle-align-to-page", "jubelle-align-to-each-other" });
+    });
+
     m_controller->currentNotationNoteInputChanged().onNotify(this, [this]() {
         m_actionCheckedChanged.send({ NOTE_INPUT_ACTION_CODE });
     });
@@ -2933,6 +3160,18 @@ bool NotationUiActions::actionChecked(const UiAction& act) const
         if (interaction) {
             return isScoreConfigChecked(act.code, interaction->scoreConfig());
         }
+    }
+
+    // Jubelle: condensed scores switched on?
+    if (act.code == "jubelle-condensing-enabled") {
+        return NotationActionController::jubelleCondensingEnabled();
+    }
+
+    // Jubelle: which "Align to" is chosen
+    if (act.code == "jubelle-align-to-margins" || act.code == "jubelle-align-to-page" || act.code == "jubelle-align-to-each-other") {
+        static const std::vector<std::string> refs { "jubelle-align-to-margins", "jubelle-align-to-page", "jubelle-align-to-each-other" };
+        const int ref = NotationActionController::jubelleAlignReference();
+        return ref >= 0 && ref < int(refs.size()) && act.code == refs[size_t(ref)];
     }
 
     auto engravingDebuggingActionsSearch = NotationActionController::engravingDebuggingActions.find(act.code);

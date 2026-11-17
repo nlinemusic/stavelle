@@ -135,15 +135,15 @@
             <family>voice-groups</family>
         </section>
         <unsorted/>
-        <section id="guitars" thinBrackets="false">
+        <!-- Jubelle: rhythm section in the order piano, guitar, bass, drums,
+             under one bracket (decided 15 Nov 2026, T1) -->
+        <section id="rhythm" thinBrackets="false">
+            <family>keyboards</family>
             <family>guitars</family>
-        </section>
-        <family>keyboards</family>
-        <section id="basses">
             <family>bass-guitars</family>
             <family>contrabasses</family>
+            <family>drums</family>
         </section>
-        <family>drums</family>
         <section id="pitched-percussion" thinBrackets="false">
             <unsorted group="pitched-percussion"/>
         </section>

@@ -29,7 +29,7 @@ StyledToolBarView {
     id: root
 
     navigationPanel.name: "ExtensionsToolBar"
-    navigationPanel.accessible.name: qsTrc("notation", "Extensions toolbar")
+    navigationPanel.accessible.name: qsTrc("notation", "Plugins toolbar")
 
     spacing: 2
 

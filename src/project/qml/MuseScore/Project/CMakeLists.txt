@@ -30,12 +30,6 @@ qt_add_qml_module(project_qml
         enums.h
         internal/Export/exportdialogmodel.cpp
         internal/Export/exportdialogmodel.h
-        internal/ConvertFileToScore/convertfiletoscoremodel.cpp
-        internal/ConvertFileToScore/convertfiletoscoremodel.h
-        internal/ConvertFileToScore/filelistmodel.cpp
-        internal/ConvertFileToScore/filelistmodel.h
-        internal/ConvertFileToScore/reviewscorequalitymodel.cpp
-        internal/ConvertFileToScore/reviewscorequalitymodel.h
         internal/NewScore/additionalinfomodel.cpp
         internal/NewScore/additionalinfomodel.h
         internal/NewScore/newscoremodel.cpp
@@ -44,12 +38,12 @@ qt_add_qml_module(project_qml
         internal/NewScore/templatepaintview.h
         internal/NewScore/templatesmodel.cpp
         internal/NewScore/templatesmodel.h
+        internal/ProjectsPage/projectspagemodel.cpp
+        internal/ProjectsPage/projectspagemodel.h
         internal/Properties/projectpropertiesmodel.cpp
         internal/Properties/projectpropertiesmodel.h
         internal/ScoresPage/abstractscoresmodel.cpp
         internal/ScoresPage/abstractscoresmodel.h
-        internal/ScoresPage/cloudscoresmodel.cpp
-        internal/ScoresPage/cloudscoresmodel.h
         internal/ScoresPage/cloudscorestatuswatcher.cpp
         internal/ScoresPage/cloudscorestatuswatcher.h
         internal/ScoresPage/pixmapscorethumbnailview.cpp
@@ -60,31 +54,25 @@ qt_add_qml_module(project_qml
         internal/ScoresPage/scorespagemodel.h
         internal/ScoresPage/scorethumbnailloader.cpp
         internal/ScoresPage/scorethumbnailloader.h
+        internal/NotInProjects/notinprojectsbarmodel.cpp
+        internal/NotInProjects/notinprojectsbarmodel.h
+        internal/YouTube/youtubepublishmodel.cpp
+        internal/YouTube/youtubepublishmodel.h
+        internal/YouTube/youtubeaccount.cpp
+        internal/YouTube/youtubeaccount.h
+        internal/DrumStems/drumstemsmodel.cpp
+        internal/DrumStems/drumstemsmodel.h
     QML_FILES
         AlsoShareAudioComDialog.qml
         AskSaveLocationTypeDialog.qml
         AudioGenerationSettings.qml
         AudioGenerationSettingsDialog.qml
+        CardImageDialog.qml
+        CardImageView.qml
+        CategoriesList.qml
         ExportDialog.qml
-        ConvertFileProcessingDialog.qml
-        ConvertFileToScoreDialog.qml
         DeleteCloudScoreDialog.qml
-        ReviewScoreQualityPanel.qml
-        internal/ConvertFileToScore/SelectFilePage.qml
-        internal/ConvertFileToScore/LinkPastePanel.qml
-        internal/ConvertFileToScore/ConvertFromLinkPanel.qml
-        internal/ConvertFileToScore/LinkEntryPage.qml
-        internal/ConvertFileToScore/SelectedFilesPage.qml
-        internal/ConvertFileToScore/MultipleFilesPanel.qml
-        internal/ConvertFileToScore/SingleFilePanel.qml
-        internal/ConvertFileToScore/FileItem.qml
-        internal/ConvertFileToScore/FileRequirements.qml
-        internal/ConvertFileToScore/FileRequirementsPopup.qml
-        internal/ConvertFileToScore/ConvertButtonBox.qml
-        internal/ConvertFileToScore/SaveAsField.qml
-        internal/ConvertFileToScore/TermsOfUseCheckBox.qml
-        internal/ConvertFileToScore/ScoreQualityRatingPanel.qml
-        internal/ConvertFileToScore/ScoreQualityFeedbackPanel.qml
+        DrumStemsDialog.qml
         internal/Export/AudioSettings.qml
         internal/Export/ExportOptionItem.qml
         internal/Export/ExportOptionsView.qml
@@ -115,6 +103,7 @@ qt_add_qml_module(project_qml
         internal/NewScore/KeySignatureListView.qml
         internal/NewScore/KeySignatureSettings.qml
         internal/NewScore/MeasuresSettings.qml
+        internal/NewScore/ProjectSetupRow.qml
         internal/NewScore/ScoreInfoPage.qml
         internal/NewScore/TemplatePreview.qml
         internal/NewScore/TempoSettings.qml
@@ -136,6 +125,12 @@ qt_add_qml_module(project_qml
         Message.qml
         MigrationDialog.qml
         NewScoreDialog.qml
+        ProjectCard.qml
+        ProjectCategoriesTagsDialog.qml
+        ProjectMoveDialog.qml
+        AddToProjectsDialog.qml
+        NotInProjectsBar.qml
+        ProjectNameDialog.qml
         ProjectPropertiesDialog.qml
         ProjectUploadedDialog.qml
         SaveToCloudDialog.qml
@@ -143,7 +138,11 @@ qt_add_qml_module(project_qml
         ScoresListView.qml
         ScoresPage.qml
         ScoresView.qml
+        TagFilterBar.qml
+        TemplateLibraryPage.qml
         UploadProgressDialog.qml
+        YouTubePublishDialog.qml
+        YouTubeConnectPreview.qml
     RESOURCES
         internal/Migration/migration.png
         internal/SaveToCloud/images/Cloud.png
@@ -174,11 +173,19 @@ target_include_directories(project_qml PRIVATE
     internal
     internal/Export
     internal/NewScore
+    internal/NotInProjects
+    internal/ProjectsPage
     internal/Properties
     internal/ScoresPage
-    internal/ConvertFileToScore
+    internal/YouTube
+    internal/DrumStems
 )
 
 if (MUE_BUILD_PROJECT_TESTS)
     add_subdirectory(tests)
+endif()
+
+# Jubelle G10: the YouTube connection (sign-in and upload)
+if (NOT OS_IS_WASM)
+    target_link_libraries(project_qml PRIVATE Qt::Network Qt::NetworkAuth)
 endif()

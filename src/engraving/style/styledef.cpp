@@ -2168,6 +2168,18 @@ const std::array<StyleDef::StyleValue, size_t(Sid::STYLES)> StyleDef::styleValue
     styleDef(palmMuteBeginFilledArrowWidth,              0.85_sp),
     styleDef(palmMuteEndFilledArrowHeight,               1.0_sp),
     styleDef(palmMuteEndFilledArrowWidth,                0.85_sp),
+
+    styleDef(jubelleCourtesyAccidentals,                 false),
+    styleDef(jubelleCourtesyAccidentalsAllOctaves,       false),
+    styleDef(jubelleCourtesyAccidentalsBars,             1),
+    styleDef(jubelleCourtesyAccidentalsOtherStaves,      false),
+    styleDef(jubelleCourtesyAccidentalsParentheses,      false),
+    styleDef(jubelleMagneticLayout,                      false),
+    styleDef(jubelleMagneticRows,                        true),
+    styleDef(jubelleSidewaysNudge,                       true),
+    styleDef(jubelleNudgeLimit,                          0.5_sp),
+    styleDef(jubelleCollisionAvoidance,                  false),
+    styleDef(jubelleEngravingRules,                      PropertyValue(String())),
 } };
 
 #undef styleDef

@@ -24,7 +24,6 @@ set(MODULE_TEST_SRC
     ${CMAKE_CURRENT_LIST_DIR}/mocks/audiocomservicemock.h
     ${CMAKE_CURRENT_LIST_DIR}/mocks/authorizationservicemock.h
     ${CMAKE_CURRENT_LIST_DIR}/mocks/cloudconfigurationmock.h
-    ${CMAKE_CURRENT_LIST_DIR}/mocks/musescorecomconvertservicemock.h
     ${CMAKE_CURRENT_LIST_DIR}/mocks/musescorecomservicemock.h
 )
 

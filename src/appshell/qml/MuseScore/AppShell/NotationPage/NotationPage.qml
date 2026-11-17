@@ -35,6 +35,7 @@ import MuseScore.Palette
 import MuseScore.Inspector
 import MuseScore.InstrumentsScene
 import MuseScore.Playback
+import MuseScore.Project
 
 DockPage {
     id: root
@@ -167,7 +168,7 @@ DockPage {
             id: extDockToolBar
 
             objectName: root.pageModel.extensionsToolBarName()
-            title: qsTrc("appshell", "Extensions toolbar")
+            title: qsTrc("appshell", "Plugins toolbar")
 
             separatorsVisible: false
             orientation: Qt.Horizontal
@@ -356,6 +357,35 @@ DockPage {
             SelectionFilterPanel {
                 navigationSection: selectionFilterPanel.navigationSection
                 navigationOrderStart: selectionFilterPanel.contentNavigationPanelOrderStart
+            }
+        },
+
+        // Jubelle G5: Proofread panel (Tools › Proofread score)
+        DockPanel {
+            id: jubelleProofreadPanel
+
+            objectName: root.pageModel.jubelleProofreadPanelName()
+            title: qsTrc("appshell", "Proofread")
+
+            navigationSection: root.navigationPanelSec(jubelleProofreadPanel.location)
+
+            width: root.verticalPanelDefaultWidth
+            minimumWidth: root.verticalPanelDefaultWidth
+            maximumWidth: root.verticalPanelDefaultWidth * 2
+
+            minimumHeight: root.panelMinDimension
+            maximumHeight: root.panelMaxDimension
+
+            groupName: root.verticalPanelsGroup
+
+            //! NOTE: hidden by default
+            visible: false
+
+            dropDestinations: root.verticalPanelDropDestinations
+
+            ProofreadPanel {
+                navigationSection: jubelleProofreadPanel.navigationSection
+                navigationOrderStart: jubelleProofreadPanel.contentNavigationPanelOrderStart
             }
         },
 
@@ -594,6 +624,11 @@ DockPage {
         isNavigatorVisible: root.pageModel.isNavigatorVisible
         isBraillePanelVisible: root.pageModel.isBraillePanelVisible
         isMainView: true
+
+        // Jubelle R1
+        topBar: Component {
+            NotInProjectsBar {}
+        }
 
         Component.onCompleted: {
             root.notationView = notationView.paintView

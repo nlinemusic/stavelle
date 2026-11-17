@@ -251,6 +251,15 @@ public:
 
     AccidentalBracket bracket() const { return m_bracket; }
     void setBracket(AccidentalBracket val) { m_bracket = val; }
+
+    //! Jubelle: set during layout when this accidental is shown only as an
+    //! automatic courtesy accidental. Not saved.
+    bool jubelleCourtesy() const { return m_jubelleCourtesy; }
+    void setJubelleCourtesy(bool v) { m_jubelleCourtesy = v; }
+    //! The bracket to draw: the stored one, or parentheses for a courtesy
+    //! accidental when the style asks for them (the stored bracket is never
+    //! changed, so files and your own brackets are untouched)
+    AccidentalBracket displayBracket() const;
     bool parentNoteHasParentheses() const;
 
     bool isSmall() const { return m_isSmall; }
@@ -318,6 +327,7 @@ private:
 
     AccidentalType m_accidentalType = AccidentalType::NONE;
     AccidentalBracket m_bracket = AccidentalBracket::NONE;
+    bool m_jubelleCourtesy = false;
     AccidentalRole m_role = AccidentalRole::AUTO;
     bool m_isSmall = false;
     int m_stackingOrderOffset = 0;

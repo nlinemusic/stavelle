@@ -54,10 +54,6 @@ void GeneralPreferencesModel::load()
         emit startupScorePathChanged();
     });
 
-    configuration()->welcomeDialogShowOnStartupChanged().onNotify(this, [this]() {
-        emit showWelcomeDialogChanged();
-    });
-
     updateConfiguration()->needCheckForUpdateChanged().onNotify(this, [this]() {
         emit needCheckForNewAppVersionChanged(needCheckForNewAppVersion());
     });
@@ -249,23 +245,19 @@ QStringList GeneralPreferencesModel::scorePathFilter() const
              muse::qtrc("preferences", "All") + " (*)" };
 }
 
-bool GeneralPreferencesModel::showWelcomeDialog() const
-{
-    return configuration()->welcomeDialogShowOnStartup();
-}
-
-void GeneralPreferencesModel::setShowWelcomeDialog(bool show)
-{
-    if (configuration()->welcomeDialogShowOnStartup() == show) {
-        return;
-    }
-
-    configuration()->setWelcomeDialogShowOnStartup(show);
-}
-
 bool GeneralPreferencesModel::isAppUpdatable() const
 {
     return updateConfiguration()->isAppUpdatable();
+}
+
+bool GeneralPreferencesModel::jubelleTestingReleases() const
+{
+    return updateConfiguration()->allowUpdateOnPreRelease();
+}
+
+void GeneralPreferencesModel::setJubelleTestingReleases(bool include)
+{
+    updateConfiguration()->setAllowUpdateOnPreRelease(include);
 }
 
 bool GeneralPreferencesModel::needCheckForNewAppVersion() const

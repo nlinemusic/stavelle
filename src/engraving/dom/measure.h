@@ -254,6 +254,10 @@ public:
 
     int repeatCount() const { return m_repeatCount; }
     void setRepeatCount(int val) { m_repeatCount = val; }
+    //! Jubelle: false = playback plays this repeated section once (with its
+    //! last ending) instead of repeating it; the repeat signs stay printed
+    bool jubellePlayRepeat() const { return m_jubellePlayRepeat; }
+    void setJubellePlayRepeat(bool v) { m_jubellePlayRepeat = v; }
 
     Segment* findSegmentR(SegmentType st,    const Fraction&) const;
     Segment* undoGetSegmentR(SegmentType st, const Fraction& f);
@@ -403,6 +407,7 @@ private:
                                 // counts how many times this measure was already played
 
     int m_repeatCount = 0;      // end repeat marker and repeat count
+    bool m_jubellePlayRepeat = true;
 
     MeasureNumberMode m_measureNumberMode = MeasureNumberMode::AUTO;
     bool m_breakMultiMeasureRest = false;

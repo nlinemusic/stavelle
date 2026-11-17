@@ -26,6 +26,11 @@
 
 #include "ui/view/iconcodes.h"
 
+#include "engraving/dom/textline.h"
+#include "engraving/dom/score.h"
+#include "engraving/dom/part.h"
+#include "translation.h"
+
 #include "log.h"
 
 using namespace mu::inspector;
@@ -97,6 +102,8 @@ void TextLineSettingsModel::createProperties()
 void TextLineSettingsModel::loadProperties()
 {
     InspectorModelWithVoiceAndPositionOptions::loadProperties();
+
+    jubelleLoadLinkInfo();
 
     static const PropertyIdSet propertyIdSet {
         Pid::LINE_VISIBLE,
@@ -576,4 +583,142 @@ void TextLineSettingsModel::loadProperties(const PropertyIdSet& propertyIdSet)
     }
 
     onUpdateLinePropertiesAvailability();
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: the "Linked passage" section. Each member of a link group is a
+// hidden text line whose text holds the link ("Jubelle link: group=1
+// role=source sync=..." / "role=target own=<ids>"). The section reads that
+// text; the commands are the same ones as on the marker's right-click menu.
+// ---------------------------------------------------------------------------
+namespace {
+const muse::String JUBELLE_LINK_PREFIX(u"Jubelle link:");
+
+muse::String jubelleField(const muse::String& t, const char16_t* key)
+{
+    const muse::String k = muse::String(key) + u"=";
+    const size_t at = t.indexOf(k);
+    if (at == muse::nidx) {
+        return muse::String();
+    }
+    size_t end = t.indexOf(u' ', at);
+    if (end == muse::nidx) {
+        end = t.size();
+    }
+    return t.mid(at + k.size(), end - at - k.size());
+}
+
+const TextLine* jubelleSelectedLine(const QList<EngravingItem*>& items)
+{
+    // one marker selected (its segments count as the same marker)
+    const TextLine* found = nullptr;
+    for (const EngravingItem* item : items) {
+        if (item && item->isTextLineSegment()) {
+            item = toTextLineSegment(item)->textLine();
+        }
+        if (!item || !item->isTextLine()) {
+            return nullptr;
+        }
+        if (found && found != toTextLine(item)) {
+            return nullptr;
+        }
+        found = toTextLine(item);
+    }
+    return (found && found->beginText().startsWith(JUBELLE_LINK_PREFIX)) ? found : nullptr;
+}
+
+QString jubelleSyncList(const muse::String& sync)
+{
+    if (sync.isEmpty() || sync == u"none") {
+        return muse::qtrc("inspector", "nothing (all copying is switched off)");
+    }
+    QStringList names;
+    for (const QString& part : sync.toQString().split(',')) {
+        if (part == "rhythm") {
+            names << muse::qtrc("inspector", "rhythm");
+        } else if (part == "durations") {
+            names << muse::qtrc("inspector", "note lengths");
+        } else if (part == "articulations") {
+            names << muse::qtrc("inspector", "articulations");
+        } else if (part == "dynamics") {
+            names << muse::qtrc("inspector", "dynamics");
+        } else if (part == "markings") {
+            names << muse::qtrc("inspector", "slurs and other markings");
+        }
+    }
+    return names.join(", ");
+}
+}
+
+void TextLineSettingsModel::jubelleLoadLinkInfo()
+{
+    bool isLink = false;
+    bool isSource = false;
+    QString summary;
+    int ownCount = 0;
+
+    if (const TextLine* tl = jubelleSelectedLine(m_elementList)) {
+        isLink = true;
+        const muse::String text = tl->beginText();
+        const muse::String group = jubelleField(text, u"group");
+        isSource = jubelleField(text, u"role") == u"source";
+
+        int followers = 0;
+        muse::String sourceSync;
+        QString leader;
+        if (const Score* score = tl->score()) {
+            for (const auto& [tick, sp] : score->spanner()) {
+                if (!sp || !sp->isTextLine() || sp == tl) {
+                    continue;
+                }
+                const muse::String other = toTextLine(sp)->beginText();
+                if (!other.startsWith(JUBELLE_LINK_PREFIX) || jubelleField(other, u"group") != group) {
+                    continue;
+                }
+                if (jubelleField(other, u"role") == u"source") {
+                    sourceSync = jubelleField(other, u"sync");
+                    if (sp->part()) {
+                        leader = sp->part()->partName().toQString();
+                    }
+                } else {
+                    ++followers;
+                }
+            }
+        }
+
+        if (isSource) {
+            summary = muse::qtrc("inspector", "This passage leads. %n other passage(s) follow it.", nullptr, followers)
+                      + " " + muse::qtrc("inspector", "Copied to them: %1.").arg(jubelleSyncList(jubelleField(text, u"sync")));
+        } else {
+            const muse::String own = jubelleField(text, u"own");
+            ownCount = own.isEmpty() ? 0 : int(own.toQString().split(';', Qt::SkipEmptyParts).size());
+            summary = (leader.isEmpty()
+                       ? muse::qtrc("inspector", "This passage follows the leading passage.")
+                       : muse::qtrc("inspector", "This passage follows %1.").arg(leader))
+                      + " " + muse::qtrc("inspector", "Copied here: %1. Your pitches and octave are kept.").arg(jubelleSyncList(sourceSync));
+            if (ownCount > 0) {
+                summary += " " + muse::qtrc("inspector",
+                                            "%n note(s) you changed here by hand (marked with a magenta dot) keep your version.",
+                                            nullptr, ownCount);
+            }
+        }
+    }
+
+    if (isLink != m_jubelleIsLink || isSource != m_jubelleIsLinkSource || summary != m_jubelleLinkSummary
+        || ownCount != m_jubelleHandEditedCount) {
+        m_jubelleIsLink = isLink;
+        m_jubelleIsLinkSource = isSource;
+        m_jubelleLinkSummary = summary;
+        m_jubelleHandEditedCount = ownCount;
+        emit jubelleLinkChanged();
+    }
+}
+
+void TextLineSettingsModel::jubelleLinkAction(const QString& actionCode)
+{
+    static const QStringList ALLOWED { "jubelle-link-resync", "jubelle-link-unlink", "jubelle-linked-passages" };
+    if (!ALLOWED.contains(actionCode) || !dispatcher()) {
+        return;
+    }
+    dispatcher()->dispatch(actionCode.toStdString());
 }

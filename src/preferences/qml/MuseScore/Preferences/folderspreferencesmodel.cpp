@@ -97,7 +97,7 @@ void FoldersPreferencesModel::load()
 
     m_folders = {
         {
-            FolderType::Scores, muse::qtrc("preferences", "Scores"), projectConfiguration()->userProjectsPath().toQString(),
+            FolderType::Scores, muse::qtrc("preferences", "Projects"), projectConfiguration()->userProjectsPath().toQString(),
             projectConfiguration()->userProjectsPath().toQString()
         },
         {

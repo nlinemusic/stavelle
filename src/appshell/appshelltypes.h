@@ -38,6 +38,7 @@ static const DockName PALETTES_PANEL_NAME("palettesPanel");
 static const DockName LAYOUT_PANEL_NAME("instrumentsPanel"); // old name for backwards compatibility
 static const DockName INSPECTOR_PANEL_NAME("inspectorPanel");
 static const DockName SELECTION_FILTERS_PANEL_NAME("selectionFiltersPanel");
+static const DockName JUBELLE_PROOFREAD_PANEL_NAME("jubelleProofreadPanel");   // Jubelle G5
 static const DockName UNDO_HISTORY_PANEL_NAME("undoHistoryPanel");
 
 static const DockName NOTATION_NAVIGATOR_PANEL_NAME("notationNavigatorPanel");

@@ -181,6 +181,8 @@ void Mixer::setOutputSpec(const OutputSpec& spec)
     ONLY_AUDIO_ENGINE_THREAD;
 
     m_outputSpec = spec;
+    m_jubelleLimiter.setSampleRate(spec.sampleRate);
+    m_jubelleLimiter.reset();
 
     AbstractAudioSource::setOutputSpec(spec);
 
@@ -585,14 +587,21 @@ void Mixer::completeOutput(float* buffer, samples_t samplesPerChannel)
 
     for (audioch_t audioChNum = 0; audioChNum < m_outputSpec.audioChannelCount; ++audioChNum) {
         const gain_t totalGain = dsp::balanceGain(m_masterParams.balance, audioChNum) * volume;
+        for (samples_t s = 0; s < samplesPerChannel; ++s) {
+            const size_t idx = s * m_outputSpec.audioChannelCount + audioChNum;
+            buffer[idx] *= totalGain;
+        }
+    }
+
+    // Jubelle: safety limiter. Leaves the samples untouched below about -1 dBFS.
+    m_jubelleLimiter.process(buffer, samplesPerChannel, m_outputSpec.audioChannelCount);
+
+    for (audioch_t audioChNum = 0; audioChNum < m_outputSpec.audioChannelCount; ++audioChNum) {
         float peak = 0.f;
 
         for (samples_t s = 0; s < samplesPerChannel; ++s) {
             const size_t idx = s * m_outputSpec.audioChannelCount + audioChNum;
-            const float resultSample = buffer[idx] * totalGain;
-            const float absSample = std::fabs(resultSample);
-
-            buffer[idx] = resultSample;
+            const float absSample = std::fabs(buffer[idx]);
 
             if (absSample > peak) {
                 peak = absSample;

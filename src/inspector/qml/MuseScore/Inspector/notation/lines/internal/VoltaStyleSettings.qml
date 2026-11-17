@@ -45,6 +45,13 @@ FocusableItem {
 
         spacing: 12
 
+        JubelleRepeatPlaybackHeader {
+            model: root.model
+            note: qsTrc("inspector", "Which passes play this ending, and whether this repeat plays at all.")
+            navigationPanel: root.navigationPanel
+            navigationRowStart: root.navigationRowStart + 1
+        }
+
         TextSection {
             id: repeatList
             width: parent.width / 2
@@ -54,6 +61,15 @@ FocusableItem {
 
             navigationPanel: root.navigationPanel
             navigationRowStart: root.navigationRowStart + 1
+        }
+
+        PropertyCheckBox {
+            text: qsTrc("inspector", "Play this repeat")
+            propertyItem: root.model ? root.model.jubellePlayRepeat : null
+
+            navigation.name: "JubellePlayRepeatCheckBox"
+            navigation.panel: root.navigationPanel
+            navigation.row: root.navigationRowStart + 1
         }
 
         SeparatorLine { anchors.margins: -12 }

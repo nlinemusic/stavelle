@@ -880,7 +880,7 @@ bool AccidentalsLayout::isExceptionOfFourth(const Accidental* acc1, const Accide
         return false;
     }
 
-    if ((acc1->bracket() == AccidentalBracket::BRACKET || acc2->bracket() == AccidentalBracket::BRACKET)
+    if ((acc1->displayBracket() == AccidentalBracket::BRACKET || acc2->displayBracket() == AccidentalBracket::BRACKET)
         && acc1->mag() == 1 && acc2->mag() == 1) {
         return false;
     }
@@ -930,7 +930,7 @@ double AccidentalsLayout::kerningOfFourth(const Shape& accShape, const ShapeElem
 double AccidentalsLayout::additionalPaddingForVerticals(const Accidental* acc, const EngravingItem* item,
                                                         const AccidentalsLayoutContext& ctx)
 {
-    if (acc->accidentalType() != AccidentalType::NATURAL || acc->bracket() != AccidentalBracket::NONE
+    if (acc->accidentalType() != AccidentalType::NATURAL || acc->displayBracket() != AccidentalBracket::NONE
         || (!item->isAccidental() && !item->isStem())) {
         return 0.0;
     }

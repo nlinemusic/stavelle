@@ -29,6 +29,11 @@
 
 #include "actions/actiontypes.h"
 #include "engraving/dom/shadownote.h"
+#include "engraving/dom/masterscore.h"
+#include "engraving/dom/chordrest.h"
+#include "engraving/infrastructure/eid.h"
+#include "engraving/infrastructure/eidregister.h"
+#include "notation/internal/jubelle/linkedpassages.h"
 #include "log.h"
 
 using namespace mu;
@@ -659,6 +664,53 @@ bool AbstractNotationPaintView::elementPopupIsOpen(const ElementType& elementTyp
     return m_currentElementPopupType == modelType;
 }
 
+// Jubelle: notes you changed by hand in a linked target passage keep their own
+// version and are no longer updated from the source. They get a small magenta
+// dot above them on screen (never printed, exported or saved) so you can see
+// which ones; Re-sync (right-click the link marker) brings them back in line.
+void AbstractNotationPaintView::paintJubelleHandEditMarks(muse::draw::Painter* painter)
+{
+    const INotationElementsPtr elements = notation() ? notation()->elements() : nullptr;
+    const engraving::Score* score = elements ? elements->msScore() : nullptr;
+    if (!score || !score->isMaster()) {
+        return; // hand edits are remembered on the main score's notes
+    }
+    const engraving::MasterScore* master = score->masterScore();
+
+    static const Color MARK_COLOR(0xE6, 0x00, 0xA9);
+    bool penSet = false;
+
+    for (const jubelle::LinkGroup& group : jubelle::linkGroups(score)) {
+        for (const jubelle::LinkMember& target : group.targets) {
+            for (const std::string& id : target.handEdited) {
+                const engraving::EID eid = engraving::EID::fromStdString(id);
+                if (!eid.isValid()) {
+                    continue;
+                }
+                const engraving::EngravingObject* obj = master->eidRegister()->itemFromEID(eid);
+                if (!obj || !obj->isChordRest()) {
+                    continue;
+                }
+                const engraving::ChordRest* cr = engraving::toChordRest(obj);
+                if (!cr->visible() && !score->isShowInvisible()) {
+                    continue;
+                }
+                const RectF box = cr->canvasBoundingRect();
+                if (box.isNull()) {
+                    continue;
+                }
+                const double sp = cr->spatium();
+                if (!penSet) {
+                    painter->setPen(Pen(MARK_COLOR, sp * 0.1));
+                    painter->setBrush(MARK_COLOR);
+                    penSet = true;
+                }
+                painter->drawEllipse(PointF(box.center().x(), box.top() - sp * 0.9), sp * 0.3, sp * 0.3);
+            }
+        }
+    }
+}
+
 void AbstractNotationPaintView::paint(QPainter* qp)
 {
     TRACEFUNC;
@@ -699,6 +751,10 @@ void AbstractNotationPaintView::paint(QPainter* qp)
 
     m_loopInMarker->paint(painter);
     m_loopOutMarker->paint(painter);
+
+    if (!isPrinting) {
+        paintJubelleHandEditMarks(painter);
+    }
 
     if (notation()->viewMode() == engraving::LayoutMode::LINE) {
         ContinuousPanel::NotationViewContext nvCtx;

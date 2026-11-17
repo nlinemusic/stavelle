@@ -1,14 +1,8 @@
-Resolves: #NNNNN <!-- Replace `NNNNN` with a GitHub issue number, or a direct link if the issue is not on GitHub -->
+<!-- What does this change do, and why? Link the issue it resolves, if any: Resolves #NNN -->
 
-<!-- Add a short description of and motivation for the changes here -->
-
-<!-- Replace `[ ]` with `[x]` to fill the checkboxes below -->
-
-- [ ] I signed the [CLA](https://musescore.org/en/cla)
-- [ ] The title of the PR describes the problem it addresses
-- [ ] Each commit's message describes its purpose and effects, and references the issue it resolves
-- [ ] If changes are extensive, there is a sequence of easily reviewable commits
-- [ ] The code in the PR follows [the coding rules](https://github.com/musescore/muse_framework/wiki/CodeGuidelines)
-- [ ] There are no unnecessary changes
-- [ ] The code compiles and runs on my machine, preferably after each commit individually
-- [ ] I created a unit test or vtest to verify the changes I made (if applicable)
+- [ ] The title describes the change
+- [ ] Each commit message describes its purpose
+- [ ] MuseScore file compatibility (`.mscz`) is kept
+- [ ] Tests were added or updated where it makes sense (`tools/jubelle_engine_tests`, `tools/jubelle_platform_tests`)
+- [ ] Copyright notices and licence headers are unchanged
+- [ ] There are no unrelated changes

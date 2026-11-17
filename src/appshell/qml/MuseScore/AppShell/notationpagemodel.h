@@ -74,6 +74,7 @@ public:
     Q_INVOKABLE QString layoutPanelName() const;
     Q_INVOKABLE QString inspectorPanelName() const;
     Q_INVOKABLE QString selectionFiltersPanelName() const;
+    Q_INVOKABLE QString jubelleProofreadPanelName() const;
     Q_INVOKABLE QString undoHistoryPanelName() const;
 
     Q_INVOKABLE QString mixerPanelName() const;

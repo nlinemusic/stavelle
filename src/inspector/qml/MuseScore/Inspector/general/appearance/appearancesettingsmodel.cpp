@@ -112,6 +112,8 @@ void AppearanceSettingsModel::requestElements()
 
 void AppearanceSettingsModel::loadProperties()
 {
+    updateJubelleAlignAvailable();
+
     static const PropertyIdSet propertyIdSet {
         Pid::LEADING_SPACE,
         Pid::USER_STRETCH,
@@ -288,6 +290,34 @@ void AppearanceSettingsModel::pushToFrontInOrder()
 void AppearanceSettingsModel::configureGrid()
 {
     dispatcher()->dispatch("config-raster");
+}
+
+void AppearanceSettingsModel::jubelleAlign(const QString& actionCode)
+{
+    if (actionCode.startsWith("jubelle-align-") || actionCode.startsWith("jubelle-distribute-")) {
+        dispatcher()->dispatch(actionCode.toStdString());
+    }
+}
+
+bool AppearanceSettingsModel::jubelleAlignAvailable() const
+{
+    return m_jubelleAlignAvailable;
+}
+
+void AppearanceSettingsModel::updateJubelleAlignAvailable()
+{
+    // Shown for title-page text, images and other freely movable text
+    bool available = false;
+    for (const EngravingItem* e : m_elementList) {
+        if (e->isText() || e->isImage() || e->isStaffText() || e->isSystemText() || e->isTempoText() || e->isRehearsalMark()) {
+            available = true;
+            break;
+        }
+    }
+    if (available != m_jubelleAlignAvailable) {
+        m_jubelleAlignAvailable = available;
+        emit jubelleAlignAvailableChanged();
+    }
 }
 
 PropertyItem* AppearanceSettingsModel::leadingSpace() const

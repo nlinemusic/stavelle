@@ -25,6 +25,14 @@
 #include "engraving/dom/score.h"
 #include "engraving/dom/staff.h"
 #include "engraving/dom/stafftextbase.h"
+#include "engraving/dom/tempo.h"
+#include "engraving/playback/jubelle/swingfeel.h"
+
+#include <cmath>
+
+#include <QComboBox>
+#include <QHBoxLayout>
+#include <QLabel>
 
 #include "ui/view/widgetstatestore.h"
 
@@ -78,6 +86,31 @@ StaffTextPropertiesDialog::StaffTextPropertiesDialog(QWidget* parent)
         }
     }
 
+    // Jubelle: choose a named rhythmic feel (Format → Swing…) for this text
+    {
+        auto* row = new QHBoxLayout();
+        auto* label = new QLabel(muse::qtrc("notation", "Feel:"), this);
+        m_jubelleFeel = new QComboBox(this);
+        m_jubelleFeel->addItem(muse::qtrc("notation", "None (use the swing ratio above)"), QString());
+        const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(st->score());
+        int current = 0;
+        for (const mu::engraving::jubelle::SwingFeel& f : settings.allFeels()) {
+            const QString name = f.builtIn ? muse::qtrc("notation", f.name.toStdString().c_str()) : f.name.toQString();
+            m_jubelleFeel->addItem(name, f.id.toQString());
+            if (m_staffText->swing() && f.id == m_staffText->swingParameters().jubelleFeel) {
+                current = m_jubelleFeel->count() - 1;
+            }
+        }
+        m_jubelleFeel->setCurrentIndex(current);
+        m_jubelleFeel->setToolTip(muse::qtrc("notation", "A feel can depend on tempo and soften offbeats. "
+                                                         "MuseScore itself plays the ratio above instead."));
+        label->setBuddy(m_jubelleFeel);
+        row->addWidget(label);
+        row->addWidget(m_jubelleFeel, 1);
+        verticalLayout_4->addLayout(row);
+        connect(m_jubelleFeel, &QComboBox::currentIndexChanged, this, [this](int) { setSwingControls(true); });
+    }
+
     connect(swingOff, &QRadioButton::toggled, this, &StaffTextPropertiesDialog::setSwingControls);
     connect(swingEighth, &QRadioButton::toggled, this, &StaffTextPropertiesDialog::setSwingControls);
     connect(swingSixteenth, &QRadioButton::toggled, this, &StaffTextPropertiesDialog::setSwingControls);
@@ -111,7 +144,8 @@ void StaffTextPropertiesDialog::setSwingControls(bool checked)
     if (!checked) {
         return;
     }
-    if (swingOff->isChecked()) {
+    const bool feelChosen = m_jubelleFeel && m_jubelleFeel->currentIndex() > 0;
+    if (swingOff->isChecked() || feelChosen) {
         swingBox->setEnabled(false);
     } else if (swingEighth->isChecked()) {
         swingBox->setEnabled(true);
@@ -134,8 +168,22 @@ void StaffTextPropertiesDialog::saveValues()
             m_staffText->setSwingParameters(Constants::DIVISION / 4, swingBox->value());
             swingBox->setEnabled(true);
         }
+        // Jubelle: the chosen feel; the ratio MuseScore plays is set to match
+        // it at this point's tempo
+        const QString feelId = m_jubelleFeel ? m_jubelleFeel->currentData().toString() : QString();
+        m_staffText->setJubelleSwingFeel(muse::String::fromQString(feelId));
+        if (!feelId.isEmpty() && !swingOff->isChecked()) {
+            const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(m_originStaffText->score());
+            if (const mu::engraving::jubelle::SwingFeel* feel = settings.feel(muse::String::fromQString(feelId))) {
+                const double bpm = m_originStaffText->score()->tempomap()->tempo(m_originStaffText->tick().ticks()).val * 60.0;
+                const int ratio = int(std::lround(mu::engraving::jubelle::SwingFeel::ratioToPercent(feel->playedRatioAt(bpm))));
+                const int unit = feel->unit == 16 ? Constants::DIVISION / 4 : Constants::DIVISION / 2;
+                m_staffText->setSwingParameters(unit, std::max(ratio, 50));
+            }
+        }
     } else {
         m_staffText->setSwing(false);
+        m_staffText->setJubelleSwingFeel(muse::String());
     }
 
     INotationUndoStackPtr stack = undoStack();

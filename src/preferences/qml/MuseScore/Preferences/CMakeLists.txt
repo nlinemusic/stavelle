@@ -71,6 +71,7 @@ qt_add_qml_module(preferences_qml
         MidiDeviceMappingPreferencesPage.qml
         NoteInputPreferencesPage.qml
         PercussionPreferencesPage.qml
+        PreferencesContent.qml
         PreferencesDialog.qml
         PreferencesPage.qml
         SaveAndPublishPreferencesPage.qml
@@ -127,7 +128,6 @@ qt_add_qml_module(preferences_qml
         internal/ThemeSample.qml
         internal/UiColorsSection.qml
         internal/UiFontSection.qml
-        internal/WelcomeDialogSection.qml
         internal/ZoomSection.qml
     IMPORTS
         TARGET muse_ui_qml

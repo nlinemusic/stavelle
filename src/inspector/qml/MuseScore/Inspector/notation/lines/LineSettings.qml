@@ -48,6 +48,14 @@ Column {
         tabBar.focusOnCurrentTab()
     }
 
+    // Jubelle: shown only for a linked passage's marker
+    JubelleLinkedPassageHeader {
+        visible: root.model ? root.model.jubelleIsLink : false
+        model: root.model
+        navigationPanel: root.navigationPanel
+        navigationRowStart: root.navigationRowStart + 500
+    }
+
     InspectorTabBar {
         id: tabBar
 

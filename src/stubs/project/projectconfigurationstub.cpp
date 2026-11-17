@@ -106,15 +106,6 @@ muse::io::path_t ProjectConfigurationStub::defaultOpenProjectsPath() const
     return muse::io::path_t();
 }
 
-muse::io::path_t ProjectConfigurationStub::defaultConvertFilePath() const
-{
-    return muse::io::path_t();
-}
-
-void ProjectConfigurationStub::setLastOpenedConvertFilePath(const muse::io::path_t&)
-{
-}
-
 bool ProjectConfigurationStub::shouldAskSaveLocationType() const
 {
     return false;
@@ -178,15 +169,6 @@ bool ProjectConfigurationStub::shouldWarnBeforeSavingPubliclyToCloud() const
 }
 
 void ProjectConfigurationStub::setShouldWarnBeforeSavingPubliclyToCloud(bool)
-{
-}
-
-int ProjectConfigurationStub::homeScoresPageTabIndex() const
-{
-    return 0;
-}
-
-void ProjectConfigurationStub::setHomeScoresPageTabIndex(int)
 {
 }
 
@@ -320,16 +302,6 @@ QUrl ProjectConfigurationStub::dotComBugReportUrl() const
     return QUrl();
 }
 
-QUrl ProjectConfigurationStub::scoreUploadingGuidelinesUrl() const
-{
-    return QUrl();
-}
-
-QUrl ProjectConfigurationStub::termsOfUseUrl() const
-{
-    return QUrl();
-}
-
 bool ProjectConfigurationStub::openDetailedProjectUploadedDialog() const
 {
     return false;
@@ -415,16 +387,3 @@ void ProjectConfigurationStub::setCreateBackupBeforeSaving(bool)
 {
 }
 
-bool ProjectConfigurationStub::showConvertFileProcessingDialog() const
-{
-    return false;
-}
-
-void ProjectConfigurationStub::setShowConvertFileProcessingDialog(bool)
-{
-}
-
-muse::io::path_t ProjectConfigurationStub::watchedConvertsJsonPath() const
-{
-    return muse::io::path_t();
-}

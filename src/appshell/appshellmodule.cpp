@@ -36,6 +36,12 @@
 #include "internal/startupscenario.h"
 #include "internal/applicationactioncontroller.h"
 #include "internal/sessionsmanager.h"
+#include "internal/jubelle/crashguard.h"
+
+#include <QSysInfo>
+
+#include "global/iglobalconfiguration.h"
+#include "global/iapplication.h"
 
 #ifdef Q_OS_MAC
 #include "internal/platform/macos/macosappmenumodelhook.h"
@@ -78,14 +84,12 @@ void AppShellModule::resolveImports()
     if (ir) {
         ir->registerPageUri(Uri("musescore://home"));
         ir->registerPageUri(Uri("musescore://notation"));
-        ir->registerPageUri(Uri("musescore://notation/review"));
         ir->registerPageUri(Uri("musescore://sequencer"));
         ir->registerPageUri(Uri("musescore://publish"));
         ir->registerPageUri(Uri("musescore://devtools"));
 
         ir->registerQmlUri(Uri("musescore://about/musescore"), "MuseScore.AppShell", "AboutDialog");
         ir->registerQmlUri(Uri("musescore://about/musicxml"), "MuseScore.AppShell", "AboutMusicXMLDialog");
-        ir->registerQmlUri(Uri("musescore://welcomedialog"), "MuseScore.AppShell", "WelcomeDialog");
         ir->registerQmlUri(Uri("musescore://firstLaunchSetup"), "MuseScore.AppShell", "FirstLaunchSetupDialog");
     }
 }
@@ -94,10 +98,23 @@ void AppShellModule::onPreInit(const IApplication::RunMode&)
 {
 }
 
-void AppShellModule::onInit(const IApplication::RunMode&)
+void AppShellModule::onInit(const IApplication::RunMode& mode)
 {
     m_appShellConfiguration->init();
     m_sessionsManager->init();
+
+    // Jubelle R3 (D7): crash reports, kept on this computer until you send one
+    if (mode == IApplication::RunMode::GuiApp) {
+        auto globalConf = ioc()->resolve<IGlobalConfiguration>(moduleName());
+        auto app = ioc()->resolve<IApplication>(moduleName());
+        if (globalConf && app) {
+            m_jubelleAppDataDir = globalConf->userAppDataPath().toStdString();
+            const std::string version = app->version().toString().toStdString() + "." + app->build().toStdString();
+            const std::string os = (QSysInfo::prettyProductName() + " (" + QSysInfo::kernelVersion() + ", "
+                                    + QSysInfo::currentCpuArchitecture() + ")").toStdString();
+            jubelle::CrashGuard::start(m_jubelleAppDataDir, version, os);
+        }
+    }
 }
 
 void AppShellModule::onAllInited(const IApplication::RunMode&)
@@ -111,6 +128,9 @@ void AppShellModule::onAllInited(const IApplication::RunMode&)
 void AppShellModule::onDeinit()
 {
     m_sessionsManager->deinit();
+    if (!m_jubelleAppDataDir.empty()) {
+        jubelle::CrashGuard::stop(m_jubelleAppDataDir);   // a normal close
+    }
 }
 
 // Session

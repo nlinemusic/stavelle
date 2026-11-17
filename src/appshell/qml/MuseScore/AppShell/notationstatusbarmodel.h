@@ -43,6 +43,11 @@
 
 #include "global/iglobalconfiguration.h"
 
+#include "muse_framework_config.h"
+#ifdef MUSE_MODULE_MUSESAMPLER
+#include "musesampler/imusesamplerinfo.h"
+#endif
+
 namespace mu::appshell {
 class NotationStatusBarModel : public QObject, public QQmlParserStatus, public muse::Contextable, public muse::async::Asyncable,
     public muse::actions::Actionable
@@ -57,6 +62,9 @@ class NotationStatusBarModel : public QObject, public QQmlParserStatus, public m
     Q_PROPERTY(bool zoomEnabled READ zoomEnabled NOTIFY zoomEnabledChanged)
     Q_PROPERTY(QVariantList availableViewModeList READ availableViewModeList_property NOTIFY availableViewModeListChanged)
     Q_PROPERTY(QVariantList availableZoomList READ availableZoomList_property NOTIFY availableZoomListChanged)
+    // Jubelle: which sounds play the score (the MuseSounds status line)
+    Q_PROPERTY(QString soundSourceText READ soundSourceText NOTIFY soundSourceChanged)
+    Q_PROPERTY(QString soundSourceDescription READ soundSourceDescription NOTIFY soundSourceChanged)
     Q_PROPERTY(int currentZoomPercentage READ currentZoomPercentage WRITE setCurrentZoomPercentage NOTIFY currentZoomPercentageChanged)
 
     QML_ELEMENT
@@ -67,6 +75,9 @@ class NotationStatusBarModel : public QObject, public QQmlParserStatus, public m
     muse::ContextInject<muse::ui::IUiActionsRegister> actionsRegister = { this };
     muse::ContextInject<context::IGlobalContext> context = { this };
     muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
+#ifdef MUSE_MODULE_MUSESAMPLER
+    muse::ContextInject<muse::musesampler::IMuseSamplerInfo> museSamplerInfo = { this };
+#endif
 
 public:
     explicit NotationStatusBarModel(QObject* parent = nullptr);
@@ -77,6 +88,8 @@ public:
     muse::uicomponents::MenuItem* currentViewMode();
     bool zoomEnabled() const;
     int currentZoomPercentage() const;
+    QString soundSourceText() const;
+    QString soundSourceDescription() const;
 
     Q_INVOKABLE void toggleConcertPitch();
     Q_INVOKABLE void setCurrentViewMode(const QString& modeCode);
@@ -94,6 +107,7 @@ public slots:
     void setCurrentZoomPercentage(int zoomPercentage);
 
 signals:
+    void soundSourceChanged();
     void accessibilityInfoChanged();
     void currentWorkspaceActionChanged();
     void concertPitchActionChanged();

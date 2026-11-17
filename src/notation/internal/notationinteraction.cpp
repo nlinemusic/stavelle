@@ -25,6 +25,8 @@
 
 #include <memory>
 #include <limits>
+#include <map>
+#include <set>
 #include <QRectF>
 #include <QPainter>
 #include <QClipboard>
@@ -55,6 +57,11 @@
 #include "engraving/dom/box.h"
 #include "engraving/dom/bracket.h"
 #include "engraving/dom/chord.h"
+#include "engraving/dom/harmony.h"
+#include "engraving/dom/note.h"
+#include "engraving/dom/segment.h"
+#include "engraving/dom/select.h"
+
 #include "engraving/dom/drumset.h"
 #include "engraving/dom/dynamic.h"
 #include "engraving/dom/elementgroup.h"
@@ -6387,6 +6394,29 @@ void NotationInteraction::realizeSelectedChordSymbols(bool literal, Voicing voic
     startEdit(TranslatableString("undoableAction", "Realize chord symbols"));
     score()->cmdRealizeChordSymbols(literal, voicing, durationType);
     apply();
+}
+
+chordidentifier::Scope NotationInteraction::chordIdentifierScope() const
+{
+    return chordidentifier::scope(score());
+}
+
+chordidentifier::Report NotationInteraction::identifyChords(const chordidentifier::Options& options)
+{
+    // Jubelle Chord Identifier: one undoable step. Only chord symbols, Roman
+    // numerals and (when asked) note colours change; notes never do.
+    startEdit(TranslatableString("undoableAction", "Identify chords"));
+    const chordidentifier::Report report = chordidentifier::run(score(), options);
+    apply();
+    return report;
+}
+
+chordidentifier::Report NotationInteraction::removeChordToneHighlight()
+{
+    startEdit(TranslatableString("undoableAction", "Remove chord-tone highlighting"));
+    const chordidentifier::Report report = chordidentifier::removeHighlight(score());
+    apply();
+    return report;
 }
 
 void NotationInteraction::extendToNextNote()

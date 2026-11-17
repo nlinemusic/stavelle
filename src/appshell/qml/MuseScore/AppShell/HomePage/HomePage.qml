@@ -28,10 +28,7 @@ import Muse.Ui
 import Muse.UiComponents
 import Muse.Dock
 
-import Muse.Cloud
-import Muse.Learn
 import MuseScore.Project
-import MuseScore.MuseSounds
 
 DockPage {
     id: root
@@ -57,6 +54,12 @@ DockPage {
     }
 
     function setCurrentCentral(name) {
+        // Jubelle: the MuseSounds, Learn and Account sections were removed from the Home
+        // screen, so any request to open them shows Scores instead.
+        if (name === "musesounds" || name === "learn" || name === "account") {
+            name = "scores"
+        }
+
         if (section === name || !Boolean(name)) {
             return
         }
@@ -67,60 +70,65 @@ DockPage {
         case "scores": root.central = scoresComp; break
         case "plugins": root.central = extensionsComp; break // backward compatibility
         case "extensions": root.central = extensionsComp; break
-        case "musesounds": root.central = museSoundsComp; break
-        case "learn": root.central = learnComp; break
-        case "account": root.central = accountComp; break
+        case "templates": root.central = templatesComp; break
+        case "learning": root.central = learningComp; break
+        case "settings": root.central = settingsComp; break
         }
     }
 
-    panels: [
-        DockPanel {
-            id: menuPanel
-
-            objectName: "homeMenu"
-
-            readonly property int maxFixedWidth: 260
-            readonly property int minFixedWidth: 76
-            readonly property bool iconsOnly: root.window
-                                                ? root.window.width < (root.window.minimumWidth + maxFixedWidth - minFixedWidth)
-                                                : false
-            readonly property int currentFixedWidth: iconsOnly ? minFixedWidth : maxFixedWidth
-
-            width: currentFixedWidth
-            minimumWidth: currentFixedWidth
-            maximumWidth: currentFixedWidth
-
-            floatable: false
-            closable: false
-
-            HomeMenu {
-                currentPageName: root.section
-                iconsOnly: menuPanel.iconsOnly
-
-                onSelected: function(name) {
-                    root.subSection = ""
-                    root.setCurrentCentral(name)
-                }
-            }
-        }
-    ]
+    // Jubelle R4 (approved mockup): the sections are tabs in a top bar
+    // (HomeHeader) instead of MuseScore's left sidebar
+    panels: []
 
     central: scoresComp
 
-    Component {
-        id: accountComp
+    function selectSection(name) {
+        root.subSection = ""
+        root.setCurrentCentral(name)
+    }
 
-        AccountPage {}
+    // Inline components do not share the file's scope, so the current section
+    // and the tab clicks are passed through properties at each use.
+    component WithHeader: Item {
+        id: withHeader
+        default property alias page: pageHolder.data
+        property string currentPageName: ""
+        signal sectionSelected(string name)
+
+        HomeHeader {
+            id: header
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            currentPageName: withHeader.currentPageName
+            onSelected: function(name) {
+                withHeader.sectionSelected(name)
+            }
+        }
+
+        Item {
+            id: pageHolder
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: header.bottom
+            anchors.bottom: parent.bottom
+        }
     }
 
     Component {
         id: scoresComp
 
-        ScoresPage {
-            subSection: root.subSection
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
 
-            onSubSectionApplied: {
-                root.subSection = ""
+            ScoresPage {
+                anchors.fill: parent
+                subSection: root.subSection
+
+                onSubSectionApplied: {
+                    root.subSection = ""
+                }
             }
         }
     }
@@ -128,20 +136,53 @@ DockPage {
     Component {
         id: extensionsComp
 
-        PluginsPage {}
-    }
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
 
-    Component {
-        id: museSoundsComp
-
-        MuseSoundsPage {}
-    }
-
-    Component {
-        id: learnComp
-
-        LearnPage {
-            section: root.subSection
+            PluginsPage {
+                anchors.fill: parent
+            }
         }
     }
+
+    Component {
+        id: templatesComp
+
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            TemplateLibraryPage {
+                anchors.fill: parent
+            }
+        }
+    }
+
+    Component {
+        id: learningComp
+
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            LearningCenterPage {
+                anchors.fill: parent
+            }
+        }
+    }
+
+    Component {
+        id: settingsComp
+
+        WithHeader {
+            currentPageName: root.section
+            onSectionSelected: function(name) { root.selectSection(name) }
+
+            SettingsPage {
+                anchors.fill: parent
+            }
+        }
+    }
+
 }
