@@ -25,7 +25,7 @@ import MuseScore.Project
 
 //! Jubelle: Publish to YouTube. Pick an exported video, then open YouTube Studio
 //! in the web browser; the video is shown in Explorer/Finder so it can be dragged
-//! into Studio's upload window. Jubelle never uploads anything itself.
+//! into Studio's upload window; or, once connected (design approved 17 Nov 2026), upload from here.
 StyledDialogView {
     id: root
 
@@ -78,14 +78,17 @@ StyledDialogView {
 
                     StyledTextLabel {
                         width: parent.width
-                        text: qsTrc("project", "YouTube account: not connected")
+                        text: ytModel.isConnected ? qsTrc("project", "YouTube account: connected")
+                                                  : qsTrc("project", "YouTube account: not connected")
                         font: ui.theme.bodyBoldFont
                         horizontalAlignment: Text.AlignLeft
                     }
 
                     StyledTextLabel {
                         width: parent.width
-                        text: qsTrc("project", "Connecting an account will be added after its Google sign-in screen is approved. You can still publish: YouTube Studio opens in your browser, where you sign in as usual.")
+                        text: ytModel.isConnected
+                              ? qsTrc("project", "Jubelle can upload videos to your channel. It cannot delete videos or change your channel.")
+                              : qsTrc("project", "Connect once to upload from here, or use YouTube Studio in your browser.")
                         horizontalAlignment: Text.AlignLeft
                         wrapMode: Text.Wrap
                         opacity: 0.75
@@ -98,24 +101,94 @@ StyledDialogView {
                 }
 
                 FlatButton {
+                    visible: !ytModel.isConnected
                     text: qsTrc("project", "Connect")
-                    enabled: false
-                    toolTipTitle: qsTrc("project", "Not available yet")
-                    toolTipDescription: qsTrc("project", "Waiting for approval of the Google sign-in screen")
-
+                    enabled: ytModel.hasClient && !ytModel.busy
+                    toolTipTitle: ytModel.hasClient ? "" : qsTrc("project", "Set up Google access first")
                     navigation.name: "Connect"
                     navigation.panel: topPanel
                     navigation.order: 1
+                    onClicked: ytModel.connectAccount()
+                }
+
+                FlatButton {
+                    visible: ytModel.isConnected
+                    text: qsTrc("project", "Disconnect")
+                    enabled: !ytModel.busy
+                    navigation.name: "Disconnect"
+                    navigation.panel: topPanel
+                    navigation.order: 2
+                    onClicked: ytModel.disconnectAccount()
                 }
             }
         }
 
-        // Jubelle G10: the sign-in design, shown before connecting is switched on
         YouTubeConnectPreview {
             id: connectPreview
             width: parent.width
-            visible: false
+            visible: !ytModel.hasClient && !ytModel.isConnected
+            canSignIn: ytModel.hasClient && !ytModel.busy
+            connected: ytModel.isConnected
             onCloseRequested: connectPreview.visible = false
+            onSignInRequested: ytModel.connectAccount()
+        }
+
+        // One-time set-up: your own Google client (Jubelle has no shared one)
+        Rectangle {
+            width: parent.width
+            height: setupColumn.implicitHeight + 24
+            radius: 8
+            color: ui.theme.backgroundSecondaryColor
+            visible: !ytModel.isConnected && (connectPreview.visible || !ytModel.hasClient)
+
+            Column {
+                id: setupColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 12
+                spacing: 8
+
+                StyledTextLabel {
+                    width: parent.width
+                    horizontalAlignment: Text.AlignLeft
+                    font: ui.theme.bodyBoldFont
+                    text: qsTrc("project", "Google access (one-time set-up)")
+                }
+                StyledTextLabel {
+                    width: parent.width
+                    horizontalAlignment: Text.AlignLeft
+                    wrapMode: Text.Wrap
+                    textFormat: Text.StyledText
+                    opacity: 0.85
+                    text: qsTrc("project", "In Google Cloud Console: create a project, switch on <b>YouTube Data API v3</b>, set up the consent screen (add yourself as a test user), then create an OAuth client of type <b>Desktop app</b>. Paste its client ID and secret here. They stay on this computer.")
+                }
+                FlatButton {
+                    text: qsTrc("project", "Open Google Cloud Console")
+                    onClicked: ytModel.openGoogleSetupPage()
+                }
+                TextInputField {
+                    id: clientIdField
+                    width: parent.width
+                    hint: qsTrc("project", "Client ID (…apps.googleusercontent.com)")
+                    currentText: ytModel.clientId
+                    onTextChanged: function(newText) { clientIdField.currentText = newText }
+                }
+                TextInputField {
+                    id: clientSecretField
+                    width: parent.width
+                    hint: ytModel.hasClient ? qsTrc("project", "Client secret (saved; type to replace)") : qsTrc("project", "Client secret")
+                    onTextChanged: function(newText) { clientSecretField.currentText = newText }
+                }
+                FlatButton {
+                    text: qsTrc("project", "Save")
+                    enabled: clientIdField.currentText !== "" && (ytModel.hasClient || clientSecretField.currentText !== "")
+                    onClicked: {
+                        ytModel.saveClient(clientIdField.currentText, clientSecretField.currentText)
+                        clientSecretField.currentText = ""
+                    }
+                }
+            }
         }
 
         NavigationPanel {
@@ -222,9 +295,81 @@ StyledDialogView {
             }
         }
 
+        // Upload from Jubelle (when connected)
+        Column {
+            width: parent.width
+            spacing: 8
+            visible: ytModel.isConnected
+
+            TextInputField {
+                id: titleField
+                width: parent.width
+                hint: qsTrc("project", "Title (default: the project's name)")
+                currentText: ytModel.projectName
+                onTextChanged: function(newText) { titleField.currentText = newText }
+            }
+            TextInputField {
+                id: descriptionField
+                width: parent.width
+                hint: qsTrc("project", "Description (optional)")
+                onTextChanged: function(newText) { descriptionField.currentText = newText }
+            }
+            Row {
+                spacing: 8
+                StyledTextLabel {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qsTrc("project", "Who can see it:")
+                }
+                StyledDropdown {
+                    id: privacyBox
+                    width: 200
+                    model: [
+                        { value: 0, text: qsTrc("project", "Private (only you)") },
+                        { value: 1, text: qsTrc("project", "Unlisted (anyone with the link)") },
+                        { value: 2, text: qsTrc("project", "Public") }
+                    ]
+                    currentIndex: 0
+                    onActivated: function(i, v) { privacyBox.currentIndex = i }
+                }
+                FlatButton {
+                    accentButton: true
+                    text: qsTrc("project", "Upload to YouTube")
+                    enabled: ytModel.selectedPath !== "" && !ytModel.busy
+                    onClicked: ytModel.upload(titleField.currentText, descriptionField.currentText, privacyBox.currentIndex)
+                }
+                FlatButton {
+                    visible: ytModel.busy && ytModel.uploadPercent >= 0
+                    text: qsTrc("global", "Cancel")
+                    onClicked: ytModel.cancelUpload()
+                }
+            }
+        }
+
+        ProgressBar {
+            width: parent.width
+            visible: ytModel.uploadPercent >= 0
+            from: 0
+            to: 100
+            value: Math.max(0, ytModel.uploadPercent)
+        }
+
         StyledTextLabel {
             width: parent.width
-            text: qsTrc("project", "“Open YouTube Studio” opens YouTube’s upload page in your browser and shows the video in your file browser so you can drag it in. Jubelle does not upload anything and never sees your Google password.")
+            visible: ytModel.statusText !== ""
+            text: ytModel.statusText
+            horizontalAlignment: Text.AlignLeft
+            wrapMode: Text.Wrap
+        }
+
+        FlatButton {
+            visible: ytModel.lastLink !== ""
+            text: qsTrc("project", "Open the video on YouTube")
+            onClicked: ytModel.openLastLink()
+        }
+
+        StyledTextLabel {
+            width: parent.width
+            text: qsTrc("project", "“Open YouTube Studio” opens YouTube’s upload page in your browser and shows the video in your file browser so you can drag it in. Either way, Jubelle never sees your Google password.")
             horizontalAlignment: Text.AlignLeft
             wrapMode: Text.Wrap
             opacity: 0.75

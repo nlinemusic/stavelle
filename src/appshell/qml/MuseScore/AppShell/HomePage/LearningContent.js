@@ -166,12 +166,14 @@ var topics = [
         "Nothing else needs installing: the FFmpeg libraries Jubelle uses come with it (in the ffmpeg folder next to the program, with their licence)."
       ] },
     { section: "Export and sharing", title: "Publishing to YouTube",
-      summary: "Opens YouTube Studio with your exported video ready to drag in.",
+      summary: "Upload straight from Jubelle, or open YouTube Studio in your browser.",
       body: [
         "1. Export the score as an MP4 video first (<b>File › Export…</b>).",
         "2. On the <b>Publish</b> tab, choose <b>Publish to YouTube…</b> and pick the video (the newest is first).",
-        "3. YouTube Studio opens in your browser with the video's folder ready, and you sign in there as usual.",
-        "Jubelle does not sign in to your Google account and uploads nothing by itself. Connecting an account inside Jubelle stays switched off until you have approved its sign-in screen."
+        "<b>Uploading from Jubelle</b> needs a one-time set-up: your own Google Cloud project with YouTube Data API v3 switched on and an OAuth client of type Desktop app. The dialog has a button that opens Google Cloud Console, and the steps. Paste the client ID and secret, then press <b>Connect</b>: you sign in on Google's page in your browser and allow one permission, “Manage your YouTube videos”.",
+        "Then give a title and description, choose who can see it (Private unless you choose otherwise), and press <b>Upload to YouTube</b>. You see the progress and get a link.",
+        "The sign-in token is kept on this computer only (Windows Credential Manager). <b>Disconnect</b> removes it and withdraws the permission at Google. While your Google project is in Testing status, Google asks you to sign in again every 7 days.",
+        "Without connecting, <b>Open YouTube Studio</b> opens YouTube's upload page in your browser and shows the video so you can drag it in."
       ] },
 
     // ---------------------------------------------------------------- Tutorials

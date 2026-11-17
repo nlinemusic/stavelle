@@ -65,9 +65,96 @@ void YouTubePublishModel::setSelectedPath(const QString& path)
     emit selectedPathChanged();
 }
 
+jubelle::YouTubeAccount* YouTubePublishModel::account()
+{
+    if (!m_account) {
+        m_account = new jubelle::YouTubeAccount(globalConfiguration()->userAppDataPath().toQString(), this);
+        connect(m_account, &jubelle::YouTubeAccount::stateChanged, this, &YouTubePublishModel::accountChanged);
+        connect(m_account, &jubelle::YouTubeAccount::message, this, [this](const QString& text) {
+            m_status = text;
+            emit statusChanged();
+        });
+        connect(m_account, &jubelle::YouTubeAccount::uploadProgress, this, [this](qint64 sent, qint64 total) {
+            m_percent = total > 0 ? int(sent * 100 / total) : 0;
+            m_status = muse::qtrc("project", "Uploading… %1%").arg(m_percent);
+            emit statusChanged();
+        });
+        connect(m_account, &jubelle::YouTubeAccount::uploadFinished, this, [this](bool ok, const QString& linkOrError) {
+            m_percent = -1;
+            if (ok) {
+                m_lastLink = linkOrError;
+                m_status = muse::qtrc("project", "Uploaded. YouTube is now processing the video; it can take a few minutes to appear: %1")
+                           .arg(linkOrError);
+            } else {
+                m_status = linkOrError;
+            }
+            emit statusChanged();
+        });
+    }
+    return m_account;
+}
+
 bool YouTubePublishModel::isConnected() const
 {
-    return false;
+    return const_cast<YouTubePublishModel*>(this)->account()->isConnected();
+}
+
+bool YouTubePublishModel::hasClient() const
+{
+    return const_cast<YouTubePublishModel*>(this)->account()->hasClient();
+}
+
+QString YouTubePublishModel::clientId() const
+{
+    return const_cast<YouTubePublishModel*>(this)->account()->clientId();
+}
+
+bool YouTubePublishModel::busy() const
+{
+    return const_cast<YouTubePublishModel*>(this)->account()->isBusy();
+}
+
+void YouTubePublishModel::saveClient(const QString& id, const QString& secret)
+{
+    account()->setClient(id, secret);
+}
+
+void YouTubePublishModel::openGoogleSetupPage()
+{
+    interactive()->openUrl(QUrl(QStringLiteral("https://console.cloud.google.com/apis/credentials")));
+}
+
+void YouTubePublishModel::connectAccount()
+{
+    account()->connectAccount();
+}
+
+void YouTubePublishModel::disconnectAccount()
+{
+    account()->disconnectAccount();
+}
+
+void YouTubePublishModel::upload(const QString& title, const QString& description, int privacy)
+{
+    if (m_selectedPath.isEmpty()) {
+        m_status = muse::qtrc("project", "Choose a video first.");
+        emit statusChanged();
+        return;
+    }
+    m_lastLink.clear();
+    account()->upload(m_selectedPath, title.trimmed().isEmpty() ? projectName() : title, description, privacy);
+}
+
+void YouTubePublishModel::cancelUpload()
+{
+    account()->cancelUpload();
+}
+
+void YouTubePublishModel::openLastLink()
+{
+    if (!m_lastLink.isEmpty()) {
+        interactive()->openUrl(QUrl(m_lastLink));
+    }
 }
 
 QString YouTubePublishModel::scoreFolder() const

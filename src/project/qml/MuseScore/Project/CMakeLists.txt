@@ -58,6 +58,8 @@ qt_add_qml_module(project_qml
         internal/NotInProjects/notinprojectsbarmodel.h
         internal/YouTube/youtubepublishmodel.cpp
         internal/YouTube/youtubepublishmodel.h
+        internal/YouTube/youtubeaccount.cpp
+        internal/YouTube/youtubeaccount.h
         internal/DrumStems/drumstemsmodel.cpp
         internal/DrumStems/drumstemsmodel.h
     QML_FILES
@@ -180,4 +182,9 @@ target_include_directories(project_qml PRIVATE
 
 if (MUE_BUILD_PROJECT_TESTS)
     add_subdirectory(tests)
+endif()
+
+# Jubelle G10: the YouTube connection (sign-in and upload)
+if (NOT OS_IS_WASM)
+    target_link_libraries(project_qml PRIVATE Qt::Network Qt::NetworkAuth)
 endif()

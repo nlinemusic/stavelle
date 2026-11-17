@@ -13,12 +13,15 @@ import QtQuick.Layouts
 import Muse.Ui
 import Muse.UiComponents
 
-//! Jubelle G10: what connecting a YouTube account will look like, shown for approval.
-//! The Connect button stays switched off until the sign-in design is approved.
+//! Jubelle G10: what connecting a YouTube account does (design approved 17 Nov 2026).
 Rectangle {
     id: root
 
     signal closeRequested()
+    signal signInRequested()
+
+    property bool canSignIn: false
+    property bool connected: false
 
     readonly property color jubelleMagenta: "#E600A9"
 
@@ -94,7 +97,7 @@ Rectangle {
         Step {
             number: "3"
             heading: qsTrc("project", "Back in Jubelle: connected")
-            detail: qsTrc("project", "This window shows your channel's name. From then on, Publish uploads the chosen video: you give the title and description, it is Private unless you choose otherwise, and you see the progress and a link when it is done.")
+            detail: qsTrc("project", "This window shows that you're connected. From then on, Publish uploads the chosen video: you give the title and description, it is Private unless you choose otherwise, and you see the progress and a link when it is done.")
         }
 
         SeparatorLine { Layout.fillWidth: true }
@@ -115,7 +118,9 @@ Rectangle {
                 horizontalAlignment: Text.AlignLeft
                 wrapMode: Text.Wrap
                 opacity: 0.7
-                text: qsTrc("project", "Preview only: connecting is switched off until you approve this sign-in design.")
+                text: root.connected ? qsTrc("project", "You are connected.")
+                      : root.canSignIn ? qsTrc("project", "Ready: your browser opens when you press Sign in.")
+                                       : qsTrc("project", "First set up Google access (your own client ID and secret) below.")
             }
             FlatButton {
                 text: qsTrc("global", "Close")
@@ -123,10 +128,10 @@ Rectangle {
             }
             FlatButton {
                 accentButton: true
-                enabled: false
+                visible: !root.connected
+                enabled: root.canSignIn
                 text: qsTrc("project", "Sign in with Google")
-                toolTipTitle: qsTrc("project", "Not switched on yet")
-                toolTipDescription: qsTrc("project", "Waiting for your approval of this sign-in design")
+                onClicked: root.signInRequested()
             }
         }
     }

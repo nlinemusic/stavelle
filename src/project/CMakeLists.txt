@@ -56,6 +56,8 @@ target_sources(project PRIVATE
     internal/projectlibrary.h
     internal/musicxmlsummary.cpp
     internal/musicxmlsummary.h
+    internal/youtubeupload.cpp
+    internal/youtubeupload.h
     internal/projectinfo.cpp
     internal/projectinfo.h
     internal/templatesuggestions.cpp
@@ -132,6 +134,7 @@ set_source_files_properties(
     internal/projectlibrary.cpp
     internal/templatesuggestions.cpp
     internal/projectinfo.cpp
+    internal/youtubeupload.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
     SKIP_PRECOMPILE_HEADERS ON

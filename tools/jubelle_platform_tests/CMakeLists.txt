@@ -24,6 +24,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/project/internal/musicxmlsummary.cpp
     ${ROOT}/src/project/internal/musicxmlsummary.h
     ${ROOT}/src/project/tests/jubelle_musicxmlsummary_tests.cpp
+    ${ROOT}/src/project/internal/youtubeupload.cpp
+    ${ROOT}/src/project/internal/youtubeupload.h
+    ${ROOT}/src/project/tests/jubelle_youtubeupload_tests.cpp
     ${ROOT}/src/project/internal/projectinfo.cpp
     ${ROOT}/src/project/internal/projectinfo.h
     ${ROOT}/src/project/tests/projectinfo_tests.cpp
