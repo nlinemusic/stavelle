@@ -236,6 +236,15 @@ jobs:
         path: |
           smoke_work/smoke_results.json
           smoke_work/profile_*.txt
+    - name: "Jubelle: interface self-test (every Jubelle window and panel opens, no QML errors)"
+      # reported, not fatal: a failure here must not throw away the build
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 15
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/ui_selftest.py "build.install/bin/Jubelle.exe" tools/jubelle_checks/data/Jubelle_features.mscz ui_selftest
+        cat ui_selftest/ui_selftest.md >> "$GITHUB_STEP_SUMMARY"
     - name: "Jubelle: video export check (MP4 with the bundled FFmpeg)"
       # reported, not fatal: a failure here must not throw away a three-hour build
       if: always()

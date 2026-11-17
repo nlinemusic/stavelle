@@ -233,6 +233,46 @@ def run_converter(exe, src, out):
     return rc == 0 and Path(out).exists() and Path(out).stat().st_size > 0
 
 
+def midi_tempos(path):
+    """Tempo changes in a MIDI file (quarter notes a minute, rounded), in order, repeats merged."""
+    data = Path(path).read_bytes()
+    out = []
+    i = data.find(b"\xff\x51\x03")
+    while i >= 0:
+        usec = int.from_bytes(data[i + 3:i + 6], "big")
+        if usec > 0:
+            bpm = round(60_000_000 / usec, 1)
+            if not out or out[-1] != bpm:
+                out.append(bpm)
+        i = data.find(b"\xff\x51\x03", i + 6)
+    return out
+
+
+def jubelle_files_in_musescore(ms_exe, st_exe, work, repo):
+    """A score that uses what Jubelle stores in files (recorded tempo, timeline markers,
+    Jubelle's page breaks in the parts, magnetic layout settings) must open in the real
+    MuseScore 4.7.7 and play the same tempo there."""
+    src = repo / "tools/jubelle_checks/data/Jubelle_features.mscz"
+    if not src.exists():
+        check("Jubelle feature score present", False, str(src))
+        return
+    ok_pdf = run_converter(ms_exe, src, work / "features_musescore.pdf")
+    check("MuseScore 4.7.7 opens a score with Jubelle's recorded tempo, markers and page turns (PDF)", ok_pdf)
+    ok_ms = run_converter(ms_exe, src, work / "features_musescore.mid")
+    ok_st = run_converter(st_exe, src, work / "features_jubelle.mid")
+    check("Both programs play the Jubelle feature score (MIDI)", ok_ms and ok_st)
+    if ok_ms and ok_st:
+        ms, st = midi_tempos(work / "features_musescore.mid"), midi_tempos(work / "features_jubelle.mid")
+        check("MuseScore 4.7.7 plays Jubelle's recorded tempo exactly as Jubelle does", ms == st and len(st) > 1,
+              f"MuseScore {ms} / Jubelle {st}")
+    # and back: saved by MuseScore 4.7.7, reopened by Jubelle
+    ok_save = run_converter(ms_exe, src, work / "features_saved_by_musescore.mscz")
+    ok_back = ok_save and run_converter(st_exe, work / "features_saved_by_musescore.mscz", work / "features_back.mid")
+    check("A Jubelle score saved by MuseScore 4.7.7 reopens in Jubelle", ok_back)
+    if ok_back and ok_st:
+        check("…with the recorded tempo kept", midi_tempos(work / "features_back.mid") == midi_tempos(work / "features_jubelle.mid"))
+
+
 TEST_LIMIT_SECONDS = 28 * 60
 
 
@@ -347,6 +387,8 @@ def main():
     check("Jubelle offered in 'Open with' for .mscz",
           any(n.startswith("Jubelle.") for k, v in s1["registry"].items() if k.endswith(".mscz\\OpenWithProgids") for n in v))
     check("MuseScore still works with Jubelle installed", run_converter(ms_exe, score, work / "musescore_2.pdf"))
+    if st_exe.exists():
+        jubelle_files_in_musescore(ms_exe, st_exe, work, Path(__file__).resolve().parents[2])
 
     # Speed comparison on the same machine (informational)
     if st_exe.exists():

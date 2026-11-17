@@ -133,6 +133,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/jubelle_swingmarking_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_pageturns_tests.cpp
+    jubelle_featurescore.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_drumstems_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_instrumentreference_tests.cpp
     ${MU_ROOT}/src/importexport/videoexport/tests/jubelle_videopages_tests.cpp

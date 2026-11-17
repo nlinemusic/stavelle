@@ -40,6 +40,8 @@ target_sources(appshell PRIVATE
     internal/startupscenario.h
     internal/jubelle/crashguard.cpp
     internal/jubelle/crashguard.h
+    internal/jubelle/uiselftest.cpp
+    internal/jubelle/uiselftest.h
     internal/jubelle/crashreport.cpp
     internal/jubelle/crashreport.h
     widgets/splashscreen/splashscreen.cpp

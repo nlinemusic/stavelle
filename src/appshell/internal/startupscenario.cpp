@@ -22,6 +22,8 @@
 
 #include "startupscenario.h"
 
+#include "jubelle/uiselftest.h"
+
 #include "jubelle/crashguard.h"
 #include "jubelle/crashreport.h"
 
@@ -114,6 +116,10 @@ void StartupScenario::setStartupScoreFile(const std::optional<project::ProjectFi
 
 void StartupScenario::runOnSplashScreen()
 {
+    if (jubelle::UiSelfTest::requested()) {
+        jubelle::installQmlMessageRecorder();   // from the very start, so the score window's own errors count
+    }
+
     TRACEFUNC;
 
     if (multiwindowsProvider()->windowCount() != 1) {
@@ -246,6 +252,13 @@ void StartupScenario::onStartupPageOpened(StartupModeType modeType)
             m_activeUpdateCheckCount--;
             showStartupDialogsIfNeed(modeType);
         }, Asyncable::Mode::SetReplace);
+    }
+
+    // Jubelle build check: only with JUBELLE_UI_SELFTEST set (the Windows build's app check)
+    if (jubelle::UiSelfTest::requested()) {
+        auto* test = new jubelle::UiSelfTest(iocContext(), jubelle::UiSelfTest::reportPathFromEnvironment(), nullptr);
+        test->start();
+        return;
     }
 
     showStartupDialogsIfNeed(modeType);
