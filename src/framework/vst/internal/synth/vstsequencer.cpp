@@ -22,6 +22,8 @@
 
 #include "vstsequencer.h"
 
+#include "audio/engine/internal/synthesizers/fluidsynth/jubelledynamics.h"
+
 #include "global/interpolation.h"
 
 using namespace muse;
@@ -380,15 +382,14 @@ float VstSequencer::expressionLevel(const mpe::dynamic_level_t dynamicLevel) con
     static constexpr mpe::dynamic_level_t MAX_SUPPORTED_DYNAMIC_LEVEL = mpe::dynamicLevelFromType(mpe::DynamicType::fff);
     static constexpr mpe::dynamic_level_t AVAILABLE_RANGE = MAX_SUPPORTED_DYNAMIC_LEVEL - MIN_SUPPORTED_DYNAMIC_LEVEL;
 
-    if (dynamicLevel <= MIN_SUPPORTED_DYNAMIC_LEVEL) {
-        return (0.5f * mpe::ONE_PERCENT) / AVAILABLE_RANGE;
-    }
-
+    (void)AVAILABLE_RANGE;
+    // Jubelle (17 Nov): the same decibel steps as the built-in sounds (see jubelledynamics.h),
+    // so ppp is still audible and mf to f is clearly louder in a VST3 library too
     if (dynamicLevel >= MAX_SUPPORTED_DYNAMIC_LEVEL) {
         return 1.f;
     }
-
-    return RealRound((dynamicLevel - MIN_SUPPORTED_DYNAMIC_LEVEL) / static_cast<float>(AVAILABLE_RANGE), 2);
+    const double steps = (dynamicLevel - MIN_SUPPORTED_DYNAMIC_LEVEL) / static_cast<double>(mpe::DYNAMIC_LEVEL_STEP);
+    return RealRound(static_cast<float>(audio::jubelle::vstVelocity(steps)), 3);
 }
 
 float VstSequencer::pitchBendLevel(const mpe::pitch_level_t pitchLevel) const

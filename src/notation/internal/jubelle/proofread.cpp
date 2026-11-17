@@ -4,6 +4,9 @@
 // Jubelle G5: Score Proofreading. See proofread.h.
 
 #include "proofread.h"
+#include "pageturns.h"
+
+#include "engraving/dom/hairpin.h"
 
 #include <algorithm>
 #include <cmath>
@@ -362,6 +365,20 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
     }
 }
 
+//! a dynamic in this voice's staff at the tick (or the hairpin's own begin/end text)
+bool dynamicNear(Score* score, const Fraction& tick, track_idx_t track)
+{
+    Segment* seg = score->tick2segment(tick, true, SegmentType::ChordRest);
+    for (; seg && seg->tick() == tick; seg = seg->next1(SegmentType::ChordRest)) {
+        for (EngravingItem* a : seg->annotations()) {
+            if (a && a->isDynamic() && track2staff(a->track()) == track2staff(track)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void checkPreparation(Context& c)
 {
     Score* score = c.score;
@@ -424,6 +441,40 @@ void checkPreparation(Context& c)
         c.add(Severity::Suggestion, CheckCategory::Preparation,
               muse::mtrc(CTX, "Bar numbers are switched off: players and conductors rely on them in rehearsal"), nullptr,
               Fraction(0, 1), 0, "barnumbers");
+    }
+
+    // parts: long rests are counted as one multi-measure rest, and pages turn where there is time
+    if (!score->isMaster()) {
+        if (!score->style().styleB(Sid::createMultiMeasureRests)) {
+            c.add(Severity::Suggestion, CheckCategory::Preparation,
+                  muse::mtrc(CTX, "Multi-measure rests are off in this part: players count long rests more easily with them on"),
+                  nullptr, Fraction(0, 1), 0, "mmrest");
+        }
+        TurnSettings turns;
+        for (const PageTurn& t : analyseTurns(score, turns)) {
+            if (t.quality == TurnQuality::Poor) {
+                Measure* m = t.lastMeasure;
+                c.add(Severity::Warning, CheckCategory::Preparation,
+                      muse::mtrc(CTX, "Page %1 turns in the middle of the music (%2 s of rest): Format › Page turns… can move it")
+                      .arg(t.page).arg(String::number(t.rest(), 1)),
+                      m, m ? m->endTick() : Fraction(0, 1), 0, "turn:" + std::to_string(t.page));
+            }
+        }
+    }
+
+    // hairpins should start or end at a dynamic, so the player knows where from and where to
+    for (auto it = score->spanner().cbegin(); it != score->spanner().cend(); ++it) {
+        Spanner* sp = it->second;
+        if (!sp || !sp->isHairpin() || !sp->visible()) {
+            continue;
+        }
+        const bool atStart = dynamicNear(score, sp->tick(), sp->track());
+        const bool atEnd = dynamicNear(score, sp->tick2(), sp->track());
+        if (!atStart && !atEnd && toHairpin(sp)->hairpinType() != HairpinType::INVALID) {
+            c.add(Severity::Suggestion, CheckCategory::Preparation,
+                  muse::mtrc(CTX, "This crescendo or diminuendo has no dynamic at either end: from what, to what?"),
+                  sp, sp->tick(), sp->staffIdx(), "hairpin:" + eidKey(sp));
+        }
     }
 }
 

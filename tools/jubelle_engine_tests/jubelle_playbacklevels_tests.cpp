@@ -208,3 +208,19 @@ TEST(Jubelle_Dynamics, ACrescendoRisesSmoothly)
         last = now;
     }
 }
+
+TEST(Jubelle_Dynamics, Vst3VelocitiesFollowTheSameSteps)
+{
+    namespace jd = muse::audio::jubelle;
+    EXPECT_NEAR(jd::vstVelocity(7.0), 1.0, 1e-9) << "fff is full velocity";
+    EXPECT_GT(jd::vstVelocity(0.0), 0.12) << "ppp is still audible (MuseScore sent almost 0)";
+    for (int step = 0; step < 7; ++step) {
+        const double a = jd::vstVelocity(step);
+        const double b = jd::vstVelocity(step + 1);
+        EXPECT_GT(b, a);
+        // on the usual 40*log10(v) curve each step is at least 3 dB
+        EXPECT_GE(40.0 * std::log10(b / a), 2.9) << "step " << step;
+    }
+    // mf to f: 5 dB, as with the built-in sounds
+    EXPECT_NEAR(40.0 * std::log10(jd::vstVelocity(5.0) / jd::vstVelocity(4.0)), 5.0, 0.05);
+}

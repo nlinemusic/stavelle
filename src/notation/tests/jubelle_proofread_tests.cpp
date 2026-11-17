@@ -9,7 +9,9 @@
 
 #include "engraving/dom/chord.h"
 #include "engraving/dom/dynamic.h"
+#include "engraving/dom/excerpt.h"
 #include "engraving/dom/factory.h"
+#include "engraving/dom/hairpin.h"
 #include "engraving/dom/masterscore.h"
 #include "engraving/dom/measure.h"
 #include "engraving/dom/note.h"
@@ -317,4 +319,57 @@ TEST(Jubelle_Proofread, PreparationChecks)
     for (const jp::Finding& f : jp::proofread(s.get(), just(jp::CheckCategory::Preparation))) {
         EXPECT_EQ(f.key.find(":cue:"), std::string::npos) << f.message.toStdString();
     }
+}
+
+TEST(Jubelle_Proofread, HairpinsWithoutADynamicAndPartChecks)
+{
+    auto s = violinAndPiano();
+    ASSERT_TRUE(s);
+    s->startCmd(muse::TranslatableString::untranslatable("hairpins"));
+    put(s.get(), 0, 67);
+    put(s.get(), 1, 67);
+    put(s.get(), 2, 67);
+    // a crescendo over bar 1 with no dynamic at either end
+    Hairpin* bare = Factory::createHairpin(s->dummy()->segment());
+    bare->setHairpinType(HairpinType::CRESC_HAIRPIN);
+    bare->setTrack(0);
+    bare->setTrack2(0);
+    bare->setTick(barStart(s.get(), 0)->tick());
+    bare->setTick2(barStart(s.get(), 1)->tick());
+    s->undoAddElement(bare);
+    // one that ends on a dynamic is fine
+    Hairpin* toF = Factory::createHairpin(s->dummy()->segment());
+    toF->setHairpinType(HairpinType::CRESC_HAIRPIN);
+    toF->setTrack(0);
+    toF->setTrack2(0);
+    toF->setTick(barStart(s.get(), 1)->tick());
+    toF->setTick2(barStart(s.get(), 2)->tick());
+    s->undoAddElement(toF);
+    dynamic(s.get(), 2, DynamicType::F);
+    s->endCmd();
+    s->doLayout();
+
+    int bareFound = 0, otherFound = 0;
+    for (const jp::Finding& f : jp::proofread(s.get(), just(jp::CheckCategory::Preparation))) {
+        if (f.key.find(":hairpin:") != std::string::npos) {
+            (f.item == bare ? bareFound : otherFound)++;
+        }
+        EXPECT_EQ(f.key.find(":turn:"), std::string::npos) << "the full score is not checked for page turns";
+    }
+    EXPECT_EQ(bareFound, 1);
+    EXPECT_EQ(otherFound, 0);
+
+    // in a part: multi-measure rests off is pointed out
+    for (Excerpt* ex : Excerpt::createExcerptsFromParts(s->parts(), s.get())) {
+        s->initAndAddExcerpt(ex, false);
+    }
+    ASSERT_FALSE(s->excerpts().empty());
+    Score* part = s->excerpts().front()->excerptScore();
+    part->style().set(Sid::createMultiMeasureRests, false);
+    part->doLayout();
+    bool mmrest = false;
+    for (const jp::Finding& f : jp::proofread(part, just(jp::CheckCategory::Preparation))) {
+        mmrest = mmrest || f.key.find(":mmrest") != std::string::npos;
+    }
+    EXPECT_TRUE(mmrest);
 }

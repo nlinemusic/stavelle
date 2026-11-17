@@ -122,4 +122,15 @@ inline int naturalMidiLevel()
 {
     return midiLevelForDb(NATURAL_DB);
 }
+
+//! VST3 instruments: the note velocity (0..1) for a position on the dynamics scale.
+//! MuseScore sent ppp..fff in equal steps from almost 0 to 1, so ppp was nearly silent in
+//! most sample libraries and the loud steps were small. Here the same decibel steps as the
+//! built-in sounds are used, on the usual velocity curve (40*log10(v)), with fff = 1.
+//! A library's own velocity response still applies on top: it is the library's sound.
+inline double vstVelocity(double steps)
+{
+    const double db = dynamicDb(steps, DynamicsFamily::Generic) - DYNAMIC_DB[7];
+    return std::clamp(std::pow(10.0, db / 40.0), 0.01, 1.0);
+}
 }
