@@ -92,12 +92,16 @@ TEST(Jubelle_PresetGain, TableCoversTheBuiltInSoundFontWithinLimits)
 
 TEST(Jubelle_PresetGain, BigBandInstrumentsAreBroughtTogether)
 {
-    // Measured before correction: trombone -13.7, tuba -14.5, piano -23.1,
-    // baritone sax -24.6 dBFS. The table must pull them toward each other.
-    EXPECT_LT(presetCorrectionCentibels(0, 57), -40);  // trombone down
-    EXPECT_LT(presetCorrectionCentibels(0, 58), -40);  // tuba down
+    // The soundfont's trombone and tuba are much louder than its piano and
+    // baritone sax. Table v2 (17 Nov 2026) measures perceived loudness
+    // (K-weighted) over three notes and adds acoustic-role offsets, so the
+    // exact figures differ from v1's, but the direction must hold: the loud
+    // brass comes down against the piano and the baritone sax.
+    EXPECT_LT(presetCorrectionCentibels(0, 57), 0);    // trombone down
+    EXPECT_LT(presetCorrectionCentibels(0, 58), 0);    // tuba down
     EXPECT_GT(presetCorrectionCentibels(0, 0), 20);    // piano up
     EXPECT_GT(presetCorrectionCentibels(0, 67), 20);   // baritone sax up
+    EXPECT_GE(presetCorrectionCentibels(0, 0) - presetCorrectionCentibels(0, 57), 60);   // at least 6 dB closer together
     EXPECT_EQ(presetCorrectionCentibels(99, 99), 0);   // unknown: unchanged
 }
 

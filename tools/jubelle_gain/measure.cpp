@@ -46,20 +46,74 @@ static bool decays(int bank, int program)
            || program == 45 || program == 46 || program == 47 || (program >= 104 && program < 120);
 }
 
-static Level render(fluid_synth_t* synth, int bank, int program, int pitch, double attenuationCb = 0, bool breath = false)
+// --- Perceived loudness (v2, 17 Nov 2026) ---------------------------------
+// The ear is less sensitive to low notes and more to the 2-4 kHz region. The
+// first table levelled plain signal power, which left bass instruments
+// sounding quiet and piccolo, oboe and trumpet sounding loud. Loudness is now
+// measured through the K-weighting filter of ITU-R BS.1770 (the broadcast
+// loudness standard): a high shelf (+4 dB above about 1.7 kHz) and a high-pass
+// (about 38 Hz).
+struct Biquad {
+    double b0 = 1, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z1 = 0, z2 = 0;
+    double run(double x)
+    {
+        const double y = b0 * x + z1;
+        z1 = b1 * x - a1 * y + z2;
+        z2 = b2 * x - a2 * y;
+        return y;
+    }
+};
+
+static Biquad kShelf(double fs)
+{
+    const double pi = 3.14159265358979323846;
+    const double G = 3.999843853973347, Q = 0.7071752369554196, f0 = 1681.974450955533;
+    const double A = std::pow(10.0, G / 40.0), w0 = 2 * pi * f0 / fs, alpha = std::sin(w0) / (2 * Q), c = std::cos(w0);
+    const double a0 = (A + 1) - (A - 1) * c + 2 * std::sqrt(A) * alpha;
+    Biquad q;
+    q.b0 = A * ((A + 1) + (A - 1) * c + 2 * std::sqrt(A) * alpha) / a0;
+    q.b1 = -2 * A * ((A - 1) + (A + 1) * c) / a0;
+    q.b2 = A * ((A + 1) + (A - 1) * c - 2 * std::sqrt(A) * alpha) / a0;
+    q.a1 = 2 * ((A - 1) - (A + 1) * c) / a0;
+    q.a2 = ((A + 1) - (A - 1) * c - 2 * std::sqrt(A) * alpha) / a0;
+    return q;
+}
+
+static Biquad kHighPass(double fs)
+{
+    const double pi = 3.14159265358979323846;
+    const double Q = 0.5003270373238773, f0 = 38.13547087602444;
+    const double w0 = 2 * pi * f0 / fs, alpha = std::sin(w0) / (2 * Q), c = std::cos(w0);
+    const double a0 = 1 + alpha;
+    Biquad q;
+    q.b0 = (1 + c) / 2 / a0;
+    q.b1 = -(1 + c) / a0;
+    q.b2 = (1 + c) / 2 / a0;
+    q.a1 = -2 * c / a0;
+    q.a2 = (1 - alpha) / a0;
+    return q;
+}
+
+// MuseScore/Jubelle at mf: note level 64, channel expression at its resting
+// level 51, and the dynamics make-up gain (see jubelledynamics.h)
+static constexpr int MF_LEVEL = 64;
+static constexpr int RESTING_EXPRESSION = 51;
+
+static Level render(fluid_synth_t* synth, int bank, int program, int pitch, double attenuationCb = 0, bool breath = false,
+                    int level = MF_LEVEL)
 {
     const int sr = 44100;
     fluid_synth_system_reset(synth);
     fluid_synth_bank_select(synth, 0, bank);
     fluid_synth_program_change(synth, 0, program);
-    fluid_synth_cc(synth, 0, 11, 80);
+    fluid_synth_cc(synth, 0, 11, breath ? level : RESTING_EXPRESSION);
     fluid_synth_cc(synth, 0, 10, 64);
     fluid_synth_set_gen(synth, 0, GEN_ATTENUATION, float(attenuationCb));
     if (breath) {
-        fluid_synth_cc(synth, 0, 2, 80); // "Expr." presets follow the breath controller (checked: CC1, 4, 7 don't sound)
+        fluid_synth_cc(synth, 0, 2, level); // "Expr." presets follow the breath controller (checked: CC1, 4, 7 don't sound)
     }
     std::vector<float> l(sr * 2), r(sr * 2);
-    fluid_synth_noteon(synth, 0, pitch, 100);
+    fluid_synth_noteon(synth, 0, pitch, level);
     fluid_synth_write_float(synth, int(sr * 1.5), l.data(), 0, 1, r.data(), 0, 1);
     fluid_synth_noteoff(synth, 0, pitch);
     fluid_synth_write_float(synth, sr / 2, l.data() + int(sr * 1.5), 0, 1, r.data() + int(sr * 1.5), 0, 1);
@@ -67,8 +121,12 @@ static Level render(fluid_synth_t* synth, int bank, int program, int pitch, doub
     const bool shortWindow = decays(bank, program);
     const int from = shortWindow ? 0 : int(sr * 0.1);
     const int to = shortWindow ? sr / 2 : int(sr * 1.1);
-    for (int i = from; i < to; ++i) {
-        sum += 0.5 * (double(l[i]) * l[i] + double(r[i]) * r[i]);
+    Biquad sl = kShelf(sr), sr2 = kShelf(sr), hl = kHighPass(sr), hr = kHighPass(sr);
+    for (int i = 0; i < to; ++i) {
+        const double wl = hl.run(sl.run(l[i])), wr = hr.run(sr2.run(r[i]));
+        if (i >= from) {
+            sum += 0.5 * (wl * wl + wr * wr);
+        }
     }
     for (size_t i = 0; i < l.size(); ++i) {
         peak = std::max(peak, double(std::max(std::fabs(l[i]), std::fabs(r[i]))));
@@ -77,13 +135,56 @@ static Level render(fluid_synth_t* synth, int bank, int program, int pitch, doub
     return { rms > 0 ? 20 * std::log10(rms) : -200, peak > 0 ? 20 * std::log10(peak) : -200 };
 }
 
+// --- Acoustic roles (v2) --------------------------------------------------
+// Equal loudness for every instrument isn't a balanced band: a trumpet
+// carries over a flute, a rhythm guitar sits under the horns. These offsets
+// (dB against the common target) set each family where it usually sits in an
+// acoustic ensemble at the same written dynamic. They are starting values for
+// your listening, not measurements.
+static double roleOffsetDb(int bank, int program)
+{
+    if (bank == 128) {
+        return 1.0;                       // drum kits
+    }
+    const int p = program & 127;
+    if (p < 8) { return 0.0; }            // pianos
+    if (p < 16) { return -2.0; }          // celesta, glockenspiel, vibraphone, marimba…
+    if (p < 24) { return -2.0; }          // organs, accordion, harmonica
+    if (p < 26) { return -3.0; }          // acoustic guitars
+    if (p < 32) { return -1.5; }          // electric guitars
+    if (p < 40) { return 0.5; }           // basses
+    if (p == 40 || p == 41) { return -2.0; } // solo violin, viola
+    if (p == 42 || p == 43) { return -1.0; } // solo cello, contrabass
+    if (p == 46) { return -3.0; }         // harp
+    if (p == 47) { return 1.0; }          // timpani
+    if (p < 48) { return -1.0; }          // tremolo, pizzicato
+    if (p < 52) { return 0.0; }           // string sections
+    if (p < 56) { return -1.0; }          // choirs, voice, orchestra hit
+    if (p == 56) { return 2.0; }          // trumpet
+    if (p == 57) { return 1.5; }          // trombone
+    if (p == 58) { return 0.5; }          // tuba
+    if (p == 59) { return 0.0; }          // muted trumpet
+    if (p == 60) { return 0.0; }          // horn
+    if (p < 64) { return 2.0; }           // brass sections
+    if (p < 68) { return 0.5; }           // saxophones
+    if (p == 68 || p == 69) { return -1.0; } // oboe, English horn
+    if (p == 70) { return -2.0; }         // bassoon
+    if (p == 71) { return -2.0; }         // clarinet
+    if (p == 72 || p == 73) { return -2.0; } // piccolo, flute
+    if (p < 80) { return -4.0; }          // recorder, pan flute, whistle, ocarina…
+    if (p < 104) { return -2.0; }         // synth leads, pads and effects
+    if (p < 112) { return -2.0; }         // sitar, banjo, shamisen, koto, kalimba, bagpipe, fiddle, shanai
+    return -3.0;                          // small percussion and sound effects
+}
+
 int main(int argc, char** argv)
 {
     const std::string sf = argc > 1 ? argv[1] : std::string(ROOT_DIR) + "/share/sound/MS Basic.sf3";
     const double target = argc > 2 ? std::atof(argv[2]) : -20.0;
     fluid_settings_t* settings = new_fluid_settings();
     fluid_settings_setnum(settings, "synth.sample-rate", 44100.0);
-    fluid_settings_setnum(settings, "synth.gain", 4.8);          // MuseScore: FLUID_GLOBAL_VOLUME_GAIN
+    // MuseScore's FLUID_GLOBAL_VOLUME_GAIN times Jubelle's dynamics make-up gain (+3.9 dB)
+    fluid_settings_setnum(settings, "synth.gain", 4.8 * std::pow(10.0, (40.0 * std::log10(80.0 / 64.0)) / 20.0));
     fluid_settings_setint(settings, "synth.reverb.active", 0);
     fluid_settings_setint(settings, "synth.chorus.active", 0);
     fluid_synth_t* synth = new_fluid_synth(settings);
@@ -110,16 +211,20 @@ int main(int argc, char** argv)
     };
     std::vector<Entry> entries;
     const double MAX_CORRECTION = 12.0;
-    const double PEAK_CEILING = -6.0;
+    const double PEAK_CEILING = -14.0;   // at mf; fff is 12 dB louder
     std::printf("bank,program,name,rms_dbfs,correction_db,reached_dbfs,peak_after_dbfs\n");
     fluid_sfont_iteration_start(font);
     while (fluid_preset_t* p = fluid_sfont_iteration_next(font)) {
         const int bank = fluid_preset_get_banknum(p);
         const int program = fluid_preset_get_num(p);
         const char* name = fluid_preset_get_name(p);
-        std::vector<int> pitches { middlePitch(bank, program) };
+        // three notes across the middle of the range (one note says little about an instrument)
+        const int mid = middlePitch(bank, program);
+        std::vector<int> pitches { mid - 7, mid, mid + 7 };
         if (bank == 128) {
             pitches = { 36, 38 };
+        } else if (program >= 112) {
+            pitches = { mid };
         }
         const std::string nm(name);
         const bool breath = nm.size() >= 5 && nm.compare(nm.size() - 5, 5, "Expr.") == 0;
@@ -138,7 +243,8 @@ int main(int argc, char** argv)
         };
         double peakBefore = -200;
         const double level = measure(0, &peakBefore);
-        double correction = level < -150 ? 0.0 : std::clamp(target - level, -MAX_CORRECTION, MAX_CORRECTION);
+        const double wanted = target + roleOffsetDb(bank, program);
+        double correction = level < -150 ? 0.0 : std::clamp(wanted - level, -MAX_CORRECTION, MAX_CORRECTION);
         // Short, sharp sounds (woodblock, castanets, drum kits) have a low average
         // but high peaks: never boost a single note's peak above -6 dBFS.
         correction = std::min(correction, std::max(0.0, PEAK_CEILING - peakBefore));
@@ -155,8 +261,9 @@ int main(int argc, char** argv)
             return 1;
         }
         std::fprintf(h, "// Generated by tools/jubelle_gain (do not edit by hand).\n"
-                        "// Per-preset level corrections for MS Basic, target %.0f dBFS RMS per instrument\n"
-                        "// (one note, velocity 100, expression 80, MuseScore's FluidSynth settings).\n"
+                        "// Per-preset level corrections for MS Basic (v2): perceived loudness (K-weighted,\n"
+                        "// ITU-R BS.1770) of three notes at mf, to a target of %.1f plus the instrument's\n"
+                        "// acoustic-role offset.\n"
                         "#pragma once\n\nnamespace muse::audio::jubelle {\n"
                         "struct PresetGain {\n    short bank;\n    short program;\n    short correctionCentibels; // + = louder\n};\n\n"
                         "static constexpr PresetGain MS_BASIC_PRESET_GAINS[] = {\n", target);
@@ -167,7 +274,7 @@ int main(int argc, char** argv)
                     c = ' ';
                 }
             }
-            std::fprintf(h, "    { %d, %d, %d }, // %s: %.1f -> %.1f dBFS\n", e.bank, e.program, int(std::lround(e.correctionDb * 10)),
+            std::fprintf(h, "    { %d, %d, %d }, // %s: %.1f -> %.1f\n", e.bank, e.program, int(std::lround(e.correctionDb * 10)),
                          n.c_str(), e.levelDb, e.reachedDb);
         }
         std::fprintf(h, "};\n}\n");
@@ -194,7 +301,8 @@ int main(int argc, char** argv)
             return 0.0;
         };
         for (int loud = 0; loud < 2; ++loud) {
-            const int vel = loud ? 127 : 100, expr = loud ? 127 : 80;
+            // mf and fff as Jubelle plays them (jubelledynamics.h)
+            const int vel = loud ? 127 : MF_LEVEL, expr = RESTING_EXPRESSION;
             fluid_synth_system_reset(synth);
             int ch = 0;
             for (const Part& p : band) {
