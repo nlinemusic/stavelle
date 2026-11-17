@@ -225,3 +225,96 @@ TEST(Jubelle_Proofread, ProofreadingNeverChangesTheScore)
     jp::proofread(s.get());
     EXPECT_EQ(s->undoStack()->size(), undoBefore);
 }
+
+// ---------------------------------------------------------------------------
+// Professional music-preparation practice (17 Nov 2026)
+// ---------------------------------------------------------------------------
+TEST(Jubelle_Proofread, ANoteThatHidesBeatThreeIsSuggested)
+{
+    auto s = violinAndPiano();
+    ASSERT_TRUE(s);
+    Measure* m = s->firstMeasure();
+    ASSERT_EQ(m->timesig(), Fraction(4, 4));
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    // bar 1: eighth, then a dotted half starting on the "and" of 1: it runs across beat 3
+    s->setNoteRest(barStart(s.get(), 0), 0, NoteVal(67), Fraction(1, 8));
+    Segment* andOfOne = s->tick2segment(m->tick() + Fraction(1, 8), false, SegmentType::ChordRest);
+    ASSERT_TRUE(andOfOne);
+    s->setNoteRest(andOfOne, 0, NoteVal(69), Fraction(3, 4));
+    // bar 2: quarter, half, quarter: the plain syncopation is fine
+    s->setNoteRest(barStart(s.get(), 1), 0, NoteVal(67), Fraction(1, 4));
+    Segment* beatTwo = s->tick2segment(barStart(s.get(), 1)->tick() + Fraction(1, 4), false, SegmentType::ChordRest);
+    ASSERT_TRUE(beatTwo);
+    s->setNoteRest(beatTwo, 0, NoteVal(69), Fraction(1, 2));
+    s->endCmd();
+
+    jp::ProofreadOptions o = just(jp::CheckCategory::MetricGrouping);
+    int onViolin = 0;
+    for (const jp::Finding& f : jp::proofread(s.get(), o)) {
+        if (f.staffIdx == 0) {
+            EXPECT_EQ(f.bar, 1);
+            ++onViolin;
+        }
+    }
+    EXPECT_GE(onViolin, 1) << "the long note in bar 1";
+}
+
+TEST(Jubelle_Proofread, InstrumentalDynamicsBelongBelow)
+{
+    auto s = violinAndPiano();
+    ASSERT_TRUE(s);
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    put(s.get(), 0, 67);
+    dynamic(s.get(), 0, DynamicType::MF);
+    s->endCmd();
+    s->doLayout();
+    EXPECT_TRUE(jp::proofread(s.get(), just(jp::CheckCategory::Placement)).empty()) << "below the violin staff: as expected";
+
+    Dynamic* d = toDynamic(barStart(s.get(), 0)->findAnnotation(ElementType::DYNAMIC, 0, 0));
+    ASSERT_TRUE(d);
+    d->setProperty(Pid::DIRECTION, PropertyValue(DirectionV::UP));
+    s->doLayout();
+    ASSERT_TRUE(d->placeAbove());
+    const auto found = jp::proofread(s.get(), just(jp::CheckCategory::Placement));
+    ASSERT_EQ(found.size(), 1u);
+    EXPECT_EQ(found[0].item, d);
+}
+
+TEST(Jubelle_Proofread, PreparationChecks)
+{
+    auto s = violinAndPiano();
+    ASSERT_TRUE(s);
+    // make the score long enough: 40 bars
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    while (s->nmeasures() < 40) {
+        s->insertMeasure(nullptr);
+    }
+    // the violin rests 20 bars, then enters
+    put(s.get(), 20, 67);
+    rehearsal(s.get(), 0, u"A");
+    s->endCmd();
+    s->doLayout();
+
+    const auto found = jp::proofread(s.get(), just(jp::CheckCategory::Preparation));
+    auto has = [&found](const char* keyStart) {
+        for (const jp::Finding& f : found) {
+            if (f.key.find(keyStart) != std::string::npos) {
+                return true;
+            }
+        }
+        return false;
+    };
+    EXPECT_TRUE(has(":cue:")) << "an entry after 20 bars of rest with no cue";
+    EXPECT_TRUE(has(":mark:")) << "more than 16 bars without a rehearsal mark";
+    EXPECT_TRUE(has(":tempo:start"));
+
+    // a cue (small notes) before the entry answers the first finding
+    s->startCmd(muse::TranslatableString::untranslatable("cue"));
+    Note* cue = put(s.get(), 19, 72);
+    cue->chord()->setSmall(true);
+    cue->setPlay(false);
+    s->endCmd();
+    for (const jp::Finding& f : jp::proofread(s.get(), just(jp::CheckCategory::Preparation))) {
+        EXPECT_EQ(f.key.find(":cue:"), std::string::npos) << f.message.toStdString();
+    }
+}

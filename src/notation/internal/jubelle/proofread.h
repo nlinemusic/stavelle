@@ -24,6 +24,20 @@
 //  - voice crossings: voice 2 above voice 1 on a staff (suggestion);
 //  - collisions (G7): overlapping markings, from the layout's overlap checker
 //    (warning).
+//
+// Professional music-preparation practice (17 Nov 2026). Principles from the
+// Music Publishers Association's "Standard Music Notation Practice", the Major
+// Orchestra Librarians' Association's "Music Preparation Guidelines for
+// Orchestral Music" and standard copyists' practice, expressed as checks (no
+// text or illustrations are taken from those publications):
+//  - metric grouping: in 4/4 a note or rest that hides beat 3, other than the
+//    plain quarter-half-quarter syncopation or a note starting on the beat
+//    (suggestion);
+//  - placement: dynamics below instrumental staves, above vocal staves with
+//    lyrics (suggestion; only for dynamics still placed automatically);
+//  - preparation: more than 16 bars without a rehearsal mark; a player
+//    resting 16 bars or more who then enters without a cue; no tempo marking
+//    at the start; no title or composer; bar numbers switched off.
 
 #pragma once
 
@@ -56,6 +70,11 @@ enum class CheckCategory {
     InstrumentNames,
     VoiceCrossings,
     Collisions,
+    // Professional music-preparation practice (17 Nov 2026; added at the end so
+    // keys of findings already marked as intentional stay valid)
+    MetricGrouping,   // rhythms that hide the middle of the bar
+    Placement,        // dynamics above for voices, below for instruments
+    Preparation,      // what players, conductors and librarians expect in score and parts
 };
 
 struct Finding {
@@ -73,7 +92,8 @@ struct ProofreadOptions {
     std::set<CheckCategory> categories {
         CheckCategory::Range, CheckCategory::Leaps, CheckCategory::Spelling, CheckCategory::IncompleteBars,
         CheckCategory::Dynamics, CheckCategory::RehearsalMarks, CheckCategory::InstrumentNames,
-        CheckCategory::VoiceCrossings, CheckCategory::Collisions,
+        CheckCategory::VoiceCrossings, CheckCategory::Collisions, CheckCategory::MetricGrouping,
+        CheckCategory::Placement, CheckCategory::Preparation,
     };
     bool includeIntentional = false;   // also list findings marked as intentional
 };

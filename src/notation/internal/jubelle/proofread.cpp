@@ -29,6 +29,8 @@
 #include "engraving/dom/staff.h"
 #include "engraving/dom/spanner.h"
 #include "engraving/dom/system.h"
+#include "engraving/dom/text.h"
+#include "engraving/dom/tuplet.h"
 #include "engraving/infrastructure/eid.h"
 #include "engraving/editing/editscoreproperties.h"
 #include "engraving/rendering/score/jubelle/overlapchecker.h"
@@ -155,6 +157,21 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
     const Dynamic* lastDynamic = nullptr;
     bool changeSinceDynamic = true;
     std::map<int, int> lastBarAlter;   // step -> alter shown by an accidental in the previous bar
+    bool staffHasLyrics = false;
+    for (Measure* lm = score->firstMeasure(); lm && !staffHasLyrics; lm = lm->nextMeasure()) {
+        for (Segment* ls = lm->first(SegmentType::ChordRest); ls && !staffHasLyrics; ls = ls->next(SegmentType::ChordRest)) {
+            for (track_idx_t t = track0; t < track0 + VOICES; ++t) {
+                const ChordRest* cr = toChordRest(ls->element(t));
+                if (cr && !cr->lyrics().empty()) {
+                    staffHasLyrics = true;
+                    break;
+                }
+            }
+        }
+    }
+    int restBars = 0;            // bars this staff has been resting
+    bool cueInRest = false;      // small (cue) notes seen while resting
+    const bool firstStaffOfPart = staff->part()->staff(0) == staff;
     std::set<Fraction> hairpinStarts;
     for (const auto& [tick, sp] : score->spanner()) {
         if (sp && sp->isHairpin() && sp->staffIdx() == staffIdx) {
@@ -188,6 +205,47 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
 
             ChordRest* v1 = toChordRest(seg->element(track0));
             ChordRest* v2 = toChordRest(seg->element(track0 + 1));
+
+            // Rhythm grouping: in 4/4 the middle of the bar stays visible
+            if (o.categories.count(CheckCategory::MetricGrouping) && m->timesig() == Fraction(4, 4) && m->ticks() == Fraction(4, 4)) {
+                for (track_idx_t t = track0; t < track0 + VOICES; ++t) {
+                    ChordRest* cr = toChordRest(seg->element(t));
+                    if (!cr || cr->isFullMeasureRest() || (cr->isChord() && toChord(cr)->isGrace()) || cr->tuplet()) {
+                        continue;
+                    }
+                    const Fraction start = seg->rtick();
+                    const Fraction end = start + cr->actualTicks();
+                    const Fraction half(1, 2);
+                    const bool crosses = start > Fraction(0, 1) && start < half && end > half;
+                    const bool plainSyncopation = start == Fraction(1, 4) && cr->actualTicks() == half;   // quarter, half, quarter
+                    if (crosses && !plainSyncopation) {
+                        c.add(Severity::Suggestion, CheckCategory::MetricGrouping,
+                              cr->isRest() ? muse::mtrc(CTX, "This rest hides beat 3: split it so the middle of the bar shows")
+                              : muse::mtrc(CTX, "This note hides beat 3: tie it across the middle of the bar so the beat shows"),
+                              cr->isChord() ? static_cast<EngravingItem*>(toChord(cr)->upNote()) : cr, seg->tick(), staffIdx,
+                              "beat3:" + eidKey(cr));
+                    }
+                }
+            }
+
+            // Placement: dynamics below instruments, above voices with lyrics
+            if (o.categories.count(CheckCategory::Placement) && !drum) {
+                for (EngravingItem* a : seg->annotations()) {
+                    if (!a || !a->isDynamic() || a->staffIdx() != staffIdx || !a->autoplace()) {
+                        continue;
+                    }
+                    const bool grandStaff = staff->part()->nstaves() > 1;   // between the staves is right there
+                    if (staffHasLyrics && !a->placeAbove()) {
+                        c.add(Severity::Suggestion, CheckCategory::Placement,
+                              muse::mtrc(CTX, "Vocal dynamics usually go above the staff, clear of the words"), a, seg->tick(), staffIdx,
+                              "place:" + eidKey(a));
+                    } else if (!staffHasLyrics && !grandStaff && a->placeAbove()) {
+                        c.add(Severity::Suggestion, CheckCategory::Placement,
+                              muse::mtrc(CTX, "Instrumental dynamics usually go below the staff"), a, seg->tick(), staffIdx,
+                              "place:" + eidKey(a));
+                    }
+                }
+            }
             if (v1) {
                 voice1Present = true;
                 voice1 += v1->actualTicks();
@@ -264,6 +322,108 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
                   "bar:" + std::to_string(staffIdx) + ":" + std::to_string(m->tick().ticks()));
         }
         lastBarAlter = thisBarAlter;
+
+        // Preparation: an entry after a long rest wants a cue (one-staff instruments)
+        if (o.categories.count(CheckCategory::Preparation) && firstStaffOfPart && staff->part()->nstaves() == 1 && !drum) {
+            bool plays = false;
+            bool cue = false;
+            Chord* firstChord = nullptr;
+            for (Segment* seg = m->first(SegmentType::ChordRest); seg; seg = seg->next(SegmentType::ChordRest)) {
+                for (track_idx_t t = track0; t < track0 + VOICES; ++t) {
+                    EngravingItem* e = seg->element(t);
+                    if (e && e->isChord()) {
+                        Chord* ch = toChord(e);
+                        if (ch->isSmall() || ch->upNote()->isSmall() || !ch->upNote()->play()) {
+                            cue = true;
+                        } else {
+                            plays = true;
+                            if (!firstChord) {
+                                firstChord = ch;
+                            }
+                        }
+                    }
+                }
+            }
+            if (plays) {
+                if (restBars >= 16 && !cueInRest && !cue) {
+                    c.add(Severity::Suggestion, CheckCategory::Preparation,
+                          muse::mtrc(CTX, "%1 enters after %n bar(s) of rest with no cue: a short cue helps the player come in", nullptr,
+                                     restBars).arg(staff->part()->partName()),
+                          firstChord ? firstChord->upNote() : nullptr, m->tick(), staffIdx,
+                          "cue:" + std::to_string(staffIdx) + ":" + std::to_string(m->tick().ticks()));
+                }
+                restBars = 0;
+                cueInRest = false;
+            } else {
+                ++restBars;
+                cueInRest = cueInRest || cue;
+            }
+        }
+    }
+}
+
+void checkPreparation(Context& c)
+{
+    Score* score = c.score;
+    // rehearsal marks: no more than 16 bars apart
+    int sinceMark = 0;
+    int bar = 0;
+    bool reported = false;
+    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasure()) {
+        ++bar;
+        bool mark = bar == 1;
+        for (Segment* seg = m->first(SegmentType::ChordRest); seg && !mark; seg = seg->next(SegmentType::ChordRest)) {
+            for (EngravingItem* a : seg->annotations()) {
+                if (a && a->isRehearsalMark()) {
+                    mark = true;
+                    break;
+                }
+            }
+        }
+        if (mark) {
+            sinceMark = 0;
+            reported = false;
+        } else if (++sinceMark > 16 && !reported) {
+            c.add(Severity::Suggestion, CheckCategory::Preparation,
+                  muse::mtrc(CTX, "More than 16 bars without a rehearsal mark: rehearsals go faster with one every 8 to 16 bars"),
+                  m->first(SegmentType::ChordRest) ? m->first(SegmentType::ChordRest)->element(0) : nullptr, m->tick(), 0,
+                  "mark:" + std::to_string(m->tick().ticks()));
+            reported = true;
+        }
+    }
+
+    // a tempo marking at the start
+    bool tempoAtStart = false;
+    if (Measure* first = score->firstMeasure()) {
+        for (Segment* seg = first->first(SegmentType::ChordRest); seg; seg = seg->next(SegmentType::ChordRest)) {
+            for (EngravingItem* a : seg->annotations()) {
+                tempoAtStart = tempoAtStart || (a && a->isTempoText() && a->visible());
+            }
+        }
+        if (!tempoAtStart) {
+            c.add(Severity::Suggestion, CheckCategory::Preparation, muse::mtrc(CTX, "No tempo marking at the start"),
+                  first->first(SegmentType::ChordRest) ? first->first(SegmentType::ChordRest)->element(0) : nullptr, first->tick(), 0,
+                  "tempo:start");
+        }
+    }
+
+    // title and composer on the first page
+    const Text* title = score->getText(TextStyleType::TITLE);
+    if (!title || title->plainText().trimmed().isEmpty()) {
+        c.add(Severity::Suggestion, CheckCategory::Preparation, muse::mtrc(CTX, "The score has no title"), nullptr, Fraction(0, 1), 0,
+              "title");
+    }
+    const Text* composer = score->getText(TextStyleType::COMPOSER);
+    if (!composer || composer->plainText().trimmed().isEmpty()) {
+        c.add(Severity::Suggestion, CheckCategory::Preparation, muse::mtrc(CTX, "No composer or arranger is named on the first page"),
+              nullptr, Fraction(0, 1), 0, "composer");
+    }
+
+    // bar numbers
+    if (!score->style().styleB(Sid::showMeasureNumber) && score->nmeasures() > 8) {
+        c.add(Severity::Suggestion, CheckCategory::Preparation,
+              muse::mtrc(CTX, "Bar numbers are switched off: players and conductors rely on them in rehearsal"), nullptr,
+              Fraction(0, 1), 0, "barnumbers");
     }
 }
 
@@ -360,6 +520,9 @@ String categoryTitle(CheckCategory cat)
     case CheckCategory::InstrumentNames: return muse::mtrc(CTX, "Instrument names");
     case CheckCategory::VoiceCrossings: return muse::mtrc(CTX, "Voice crossings");
     case CheckCategory::Collisions: return muse::mtrc(CTX, "Collisions");
+    case CheckCategory::MetricGrouping: return muse::mtrc(CTX, "Rhythm grouping");
+    case CheckCategory::Placement: return muse::mtrc(CTX, "Placement");
+    case CheckCategory::Preparation: return muse::mtrc(CTX, "Score and part preparation");
     }
     return String();
 }
@@ -427,6 +590,9 @@ std::vector<Finding> proofread(Score* score, const ProofreadOptions& options)
     }
     if (options.categories.count(CheckCategory::Collisions)) {
         checkCollisions(c);
+    }
+    if (options.categories.count(CheckCategory::Preparation)) {
+        checkPreparation(c);
     }
 
     if (!options.includeIntentional) {

@@ -87,7 +87,7 @@ QVariantList ProofreadModel::findings() const
 QVariantList ProofreadModel::categories() const
 {
     QVariantList out;
-    for (int c = int(jp::CheckCategory::Range); c <= int(jp::CheckCategory::Collisions); ++c) {
+    for (int c = int(jp::CheckCategory::Range); c <= int(jp::CheckCategory::Preparation); ++c) {
         QVariantMap m;
         m["category"] = c;
         m["title"] = jp::categoryTitle(jp::CheckCategory(c)).toQString();
