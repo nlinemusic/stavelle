@@ -56,7 +56,7 @@ jobs:
         ls -la musescore_msi
     - name: Coexistence test (with negative control)
       shell: bash
-      timeout-minutes: 20
+      timeout-minutes: 35
       run: |
         JUBELLE_MSI=$(ls jubelle_artifact/*.msi | head -1)
         MUSESCORE_MSI=$(ls musescore_msi/*.msi | head -1)

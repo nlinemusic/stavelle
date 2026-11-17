@@ -35,7 +35,7 @@ constexpr double STAY_MARGIN_SP = 0.1;
 constexpr double CLEARANCE_SP = 0.2;
 // sideways nudging is only worth it if it saves at least this much
 constexpr double NUDGE_SAVING_SP = 0.25;
-constexpr int NUDGE_STEPS = 4;   // candidate positions on each side
+constexpr int NUDGE_STEPS = 2;   // candidate positions on each side (half and full limit)
 // the collision pass never moves an item further than this
 constexpr double MAX_VERTICAL_MOVE_SP = 6.0;
 
@@ -178,7 +178,8 @@ void alignRows(const std::vector<EngravingItem*>& items, const System* system)
 double bestSidewaysMove(const EngravingItem* item, const Shape& shape, const SkylineLine& skyline, bool above,
                         double minHorizontalClearance, double minDistance, double pushNow)
 {
-    if (!item || !nudgeKind(item) || !mayMove(item) || !sidewaysNudgeOn(item->style())) {
+    // cheapest checks first: this is asked for every marking MuseScore pushes
+    if (!item || !nudgeKind(item) || !sidewaysNudgeOn(item->style()) || !mayMove(item)) {
         return 0.0;
     }
     const double sp = item->spatium();
@@ -239,14 +240,14 @@ int resolveCollisions(System* system)
     }
 
     // the system's outlines are read once; moving an item re-reads only that item
-    OverlapIndex index(system);
+    OverlapIndex index(system, [](const EngravingItem* e) { return collisionMovableKind(e) && mayMove(e); });
     auto overlapCount = [&index](const EngravingItem* item) { return index.overlapCountOf(item); };
 
     int moved = 0;
     std::set<EngravingItem*> done;
     for (int round = 0; round < 3; ++round) {
         bool changed = false;
-        for (const Overlap& o : index.overlaps()) {
+        for (const Overlap& o : index.overlapsToResolve()) {
             EngravingItem* item = o.moves;
             if (done.count(item) || !collisionMovableKind(item) || !mayMove(item)) {
                 continue;

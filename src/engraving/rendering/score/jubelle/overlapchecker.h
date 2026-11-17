@@ -66,24 +66,29 @@ size_t checkedItemCount(const System* system);
 //! Overlaps in the whole laid-out score
 std::vector<Overlap> findOverlaps(const Score* score, double toleranceSp = 0.1);
 
-//! One system's outlines, read once. Collision avoidance asks many questions
-//! about the same system while it moves a few items; reading every outline
-//! again for each question made layout slow (measured 17 Nov 2026).
+//! Collision avoidance's view of one system. Only a few items may be moved
+//! (the "candidates"); everything else is an obstacle. Obstacles are kept as
+//! cheap boxes and their exact outlines are read only when a candidate comes
+//! near, and only once. Reading every outline of a 39-staff system for every
+//! question made each edit measurably slower (17 Nov 2026).
 class OverlapIndex
 {
 public:
-    explicit OverlapIndex(const System* system, double toleranceSp = 0.1);
+    using IsCandidate = bool (*)(const EngravingItem*);
+
+    OverlapIndex(const System* system, IsCandidate isCandidate, double toleranceSp = 0.1);
     ~OverlapIndex();
 
-    //! every overlap, as findOverlaps(system) gives
-    std::vector<Overlap> overlaps() const;
-    //! how many overlaps this item is part of
-    size_t overlapCountOf(const EngravingItem* item) const;
-    //! the item was moved: read its outline again
-    void itemMoved(const EngravingItem* item);
+    //! overlaps in which the item that should move is a candidate
+    std::vector<Overlap> overlapsToResolve() const;
+    //! how many overlaps this candidate is part of (either role)
+    size_t overlapCountOf(const EngravingItem* candidate) const;
+    //! the candidate was moved: read its outline again
+    void itemMoved(const EngravingItem* candidate);
 
 private:
     struct Impl;
     Impl* m_impl = nullptr;
 };
+
 }

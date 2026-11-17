@@ -233,7 +233,49 @@ def run_converter(exe, src, out):
     return rc == 0 and Path(out).exists() and Path(out).stat().st_size > 0
 
 
-TEST_LIMIT_SECONDS = 15 * 60
+TEST_LIMIT_SECONDS = 28 * 60
+
+
+def benchmark(ms_exe, st_exe, work):
+    """Jubelle against official MuseScore on this same machine, same scores:
+    time to open a score, lay it out and write it as PDF (layout and drawing),
+    MIDI (playback preparation) and .mscz (saving). Best of two runs each.
+    Informational: printed and saved, never a pass/fail check."""
+    import subprocess
+    import time
+    repo = Path(__file__).resolve().parents[2]
+    large = work / "bench_large.mscx"
+    subprocess.run([sys.executable, str(repo / "tools/jubelle_checks/make_large_score.py"), str(repo / "demos/Dawn.mscx"),
+                    str(large), "--instruments", "3", "--measures", "15"], check=False)
+    scores = [("Large orchestra (39 staves, 285 bars)", large),
+              ("Big band chart (18 staves, 40 bars)", repo / "tools/jubelle_templates/testscores/Big_Band_test_music.mscz"),
+              ("Amazing Grace (demo)", repo / "demos/Amazing_grace.mscz")]
+    rows = []
+    for title, src in scores:
+        if not Path(src).exists():
+            continue
+        for what, ext in (("Open, lay out, write PDF", "pdf"), ("Open, prepare playback, write MIDI", "mid"),
+                          ("Open and save", "mscz")):
+            times = {}
+            for app, exe in (("MuseScore", ms_exe), ("Jubelle", st_exe)):
+                best = None
+                for run in range(2):
+                    out = work / f"bench_{app}_{run}.{ext}"
+                    t0 = time.monotonic()
+                    ok = run_converter(exe, str(src), str(out))
+                    dt = time.monotonic() - t0
+                    if ok and (best is None or dt < best):
+                        best = dt
+                times[app] = best
+            rows.append((title, what, times.get("MuseScore"), times.get("Jubelle")))
+    lines = ["| Score | Operation | MuseScore 4.7.7 | Jubelle | Jubelle vs MuseScore |", "|---|---|---:|---:|---:|"]
+    for title, what, ms, jb in rows:
+        ratio = f"{(jb / ms - 1) * 100:+.0f}%" if ms and jb else "n/a"
+        lines.append(f"| {title} | {what} | {ms:.1f} s | {jb:.1f} s | {ratio} |" if ms and jb
+                     else f"| {title} | {what} | {ms} | {jb} | {ratio} |")
+    table = "\n".join(lines)
+    print("\n[ Benchmark: Jubelle against MuseScore on this machine ]\n" + table + "\n", flush=True)
+    (work / "benchmark.md").write_text(table + "\n", encoding="utf-8")
 
 
 def start_watchdog_and_heartbeat():
@@ -305,6 +347,13 @@ def main():
     check("Jubelle offered in 'Open with' for .mscz",
           any(n.startswith("Jubelle.") for k, v in s1["registry"].items() if k.endswith(".mscz\\OpenWithProgids") for n in v))
     check("MuseScore still works with Jubelle installed", run_converter(ms_exe, score, work / "musescore_2.pdf"))
+
+    # Speed comparison on the same machine (informational)
+    if st_exe.exists():
+        try:
+            benchmark(ms_exe, st_exe, work)
+        except Exception as e:  # never let the benchmark break the coexistence test
+            trace(f"benchmark skipped: {e}")
 
     s1b = snapshot(ms_install)  # MuseScore may update its own settings when it runs
 

@@ -281,7 +281,16 @@ TEST(Jubelle_Baselines, EditingCostByFeature)
         if (!std::ifstream(path).good()) {
             continue;
         }
+        // JUBELLE_COST_SCORE / JUBELLE_COST_CONFIG: measure one row only (for profiling)
+        const char* onlyScore = std::getenv("JUBELLE_COST_SCORE");
+        if (onlyScore && name.find(onlyScore) == std::string::npos) {
+            continue;
+        }
         for (const Config& c : configs) {
+            const char* onlyConfig = std::getenv("JUBELLE_COST_CONFIG");
+            if (onlyConfig && c.name.find(onlyConfig) == std::string::npos) {
+                continue;
+            }
             std::unique_ptr<MasterScore> s(load(path));
             ASSERT_TRUE(s);
             c.setup(s.get());

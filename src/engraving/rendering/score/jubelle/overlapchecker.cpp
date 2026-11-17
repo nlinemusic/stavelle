@@ -222,17 +222,162 @@ std::vector<Overlap> findOverlaps(const System* system, double toleranceSp)
     return overlapsIn(items, toleranceSp * system->spatium());
 }
 
-struct OverlapIndex::Impl {
-    std::vector<Item> items;
-    double tol = 0.0;
+namespace {
+struct Entry {
+    EngravingItem* item = nullptr;
+    RectF coarse;                 // page coordinates, a little larger than the outline
+    LayoutPriority priority = LayoutPriority::Other;
+    const EngravingItem* owner = nullptr;
+    // the exact outline, read when first needed
+    mutable bool exact = false;
+    mutable Shape shape;
+    mutable RectF box;
+
+    void ensureExact() const
+    {
+        if (!exact) {
+            shape = item->shape().translated(item->pagePos());
+            box = shape.bbox();
+            exact = true;
+        }
+    }
 };
 
-OverlapIndex::OverlapIndex(const System* system, double toleranceSp)
+bool exactOverlap(const Entry& a, const Entry& b, double tol, RectF* area)
+{
+    if (a.priority == b.priority || (a.owner && a.owner == b.owner) || !a.coarse.intersects(b.coarse)) {
+        return false;
+    }
+    a.ensureExact();
+    b.ensureExact();
+    if (a.shape.empty() || b.shape.empty()) {
+        return false;
+    }
+    *area = a.box.intersected(b.box);
+    if (area->width() <= tol || area->height() <= tol) {
+        return false;
+    }
+    return a.shape.intersects(b.shape);
+}
+
+void addEntry(std::vector<Entry>& out, EngravingItem* e, double pad)
+{
+    if (!e || !e->visible() || e->ldata()->isSkipDraw()) {
+        return;
+    }
+    const LayoutPriority prio = priorityOf(e);
+    if (prio == LayoutPriority::Other) {
+        return;
+    }
+    Entry en;
+    en.item = e;
+    en.coarse = e->ldata()->bbox(LD_ACCESS::MAYBE_NOTINITED).translated(e->pagePos()).adjusted(-pad, -pad, pad, pad);
+    en.priority = prio;
+    en.owner = ownerOf(e);
+    out.push_back(en);
+}
+
+void addChordRestEntries(std::vector<Entry>& out, ChordRest* cr, double pad)
+{
+    if (cr->isChord()) {
+        Chord* c = toChord(cr);
+        for (Chord* g : c->graceNotes()) {
+            addChordRestEntries(out, g, pad);
+        }
+        for (Note* n : c->notes()) {
+            addEntry(out, n, pad);
+        }
+        addEntry(out, c->stem(), pad);
+        for (Articulation* a : c->articulations()) {
+            addEntry(out, a, pad);
+        }
+    } else {
+        addEntry(out, cr, pad);
+    }
+    for (Lyrics* l : cr->lyrics()) {
+        addEntry(out, l, pad);
+    }
+}
+}
+
+struct OverlapIndex::Impl {
+    std::vector<Entry> obstacles;      // never move; sorted by coarse.left
+    std::vector<double> maxRight;      // largest coarse.right among obstacles[0..i]
+    std::vector<Entry> candidates;
+    double tol = 0.0;
+
+    //! calls f(other) for every entry whose coarse box meets `c`'s
+    template<typename F>
+    void forNear(const Entry& c, F f) const
+    {
+        // obstacles left of c.coarse.right(), walking back while any earlier one can still reach c
+        auto end = std::upper_bound(obstacles.begin(), obstacles.end(), c.coarse.right(), [](double x, const Entry& e) {
+            return x < e.coarse.left();
+        });
+        for (size_t i = size_t(end - obstacles.begin()); i-- > 0;) {
+            if (maxRight[i] < c.coarse.left()) {
+                break;
+            }
+            f(obstacles[i]);
+        }
+        for (const Entry& other : candidates) {
+            if (&other != &c) {
+                f(other);
+            }
+        }
+    }
+
+    const Entry* find(const EngravingItem* item) const
+    {
+        for (const Entry& e : candidates) {
+            if (e.item == item) {
+                return &e;
+            }
+        }
+        return nullptr;
+    }
+};
+
+OverlapIndex::OverlapIndex(const System* system, IsCandidate isCandidate, double toleranceSp)
     : m_impl(new Impl)
 {
-    if (system) {
-        m_impl->items = collect(system);
-        m_impl->tol = toleranceSp * system->spatium();
+    if (!system) {
+        return;
+    }
+    m_impl->tol = toleranceSp * system->spatium();
+    const double pad = 2.0 * system->spatium();   // parentheses and the like can reach past the plain box
+    std::vector<Entry> all;
+    for (MeasureBase* mb : system->measures()) {
+        if (!mb->isMeasure()) {
+            continue;
+        }
+        for (Segment* seg = toMeasure(mb)->first(); seg; seg = seg->next()) {
+            if (seg->isChordRestType()) {
+                for (EngravingItem* e : seg->elist()) {
+                    if (e && e->isChordRest()) {
+                        addChordRestEntries(all, toChordRest(e), pad);
+                    }
+                }
+            }
+            for (EngravingItem* a : seg->annotations()) {
+                addEntry(all, a, pad);
+            }
+        }
+    }
+    for (SpannerSegment* ss : system->spannerSegments()) {
+        addEntry(all, ss, pad);
+    }
+    for (Entry& e : all) {
+        (isCandidate && isCandidate(e.item) ? m_impl->candidates : m_impl->obstacles).push_back(std::move(e));
+    }
+    std::sort(m_impl->obstacles.begin(), m_impl->obstacles.end(), [](const Entry& a, const Entry& b) {
+        return a.coarse.left() < b.coarse.left();
+    });
+    m_impl->maxRight.reserve(m_impl->obstacles.size());
+    double reach = -1e300;
+    for (const Entry& e : m_impl->obstacles) {
+        reach = std::max(reach, e.coarse.right());
+        m_impl->maxRight.push_back(reach);
     }
 }
 
@@ -241,40 +386,47 @@ OverlapIndex::~OverlapIndex()
     delete m_impl;
 }
 
-std::vector<Overlap> OverlapIndex::overlaps() const
+std::vector<Overlap> OverlapIndex::overlapsToResolve() const
 {
-    return overlapsIn(m_impl->items, m_impl->tol);
+    std::vector<Overlap> result;
+    for (const Entry& c : m_impl->candidates) {
+        m_impl->forNear(c, [&](const Entry& other) {
+            // only pairs in which the candidate is the one that moves (lower priority)
+            if (int(c.priority) <= int(other.priority)) {
+                return;
+            }
+            RectF area;
+            if (exactOverlap(c, other, m_impl->tol, &area)) {
+                result.push_back({ other.item, c.item, area });
+            }
+        });
+    }
+    return result;
 }
 
-size_t OverlapIndex::overlapCountOf(const EngravingItem* item) const
+size_t OverlapIndex::overlapCountOf(const EngravingItem* candidate) const
 {
-    const Item* mine = nullptr;
-    for (const Item& it : m_impl->items) {
-        if (it.item == item) {
-            mine = &it;
-            break;
-        }
-    }
-    if (!mine) {
+    const Entry* c = m_impl->find(candidate);
+    if (!c) {
         return 0;
     }
     size_t n = 0;
-    for (const Item& other : m_impl->items) {
+    m_impl->forNear(*c, [&](const Entry& other) {
         RectF area;
-        if (&other != mine && other.box.right() > mine->box.left() && other.box.left() < mine->box.right()
-            && overlapBetween(*mine, other, m_impl->tol, &area)) {
+        if (exactOverlap(*c, other, m_impl->tol, &area)) {
             ++n;
         }
-    }
+    });
     return n;
 }
 
-void OverlapIndex::itemMoved(const EngravingItem* item)
+void OverlapIndex::itemMoved(const EngravingItem* candidate)
 {
-    for (Item& it : m_impl->items) {
-        if (it.item == item) {
-            it.shape = item->shape().translated(item->pagePos());
-            it.box = it.shape.bbox();
+    for (Entry& e : m_impl->candidates) {
+        if (e.item == candidate) {
+            const double pad = 2.0 * e.item->spatium();
+            e.coarse = e.item->ldata()->bbox(LD_ACCESS::MAYBE_NOTINITED).translated(e.item->pagePos()).adjusted(-pad, -pad, pad, pad);
+            e.exact = false;
             return;
         }
     }

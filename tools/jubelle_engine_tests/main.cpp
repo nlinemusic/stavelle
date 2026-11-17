@@ -116,7 +116,10 @@ int main(int argc, char** argv)
     }
 
     if (realisticPass) {
-        ::testing::GTEST_FLAG(filter) = "Jubelle_TemplateLayout.*:Jubelle_Baselines.*:Jubelle_MagneticLayout.*:Jubelle_EngravingRules.*";
+        // JUBELLE_REALISTIC_FILTER: run only these (for benchmarks and profiling)
+        const char* only = std::getenv("JUBELLE_REALISTIC_FILTER");
+        ::testing::GTEST_FLAG(filter) = only ? only
+                                        : "Jubelle_TemplateLayout.*:Jubelle_Baselines.*:Jubelle_MagneticLayout.*:Jubelle_EngravingRules.*";
         return RUN_ALL_TESTS();
     }
     int result = RUN_ALL_TESTS();
