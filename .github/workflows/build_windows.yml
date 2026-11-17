@@ -150,6 +150,13 @@ jobs:
         echo "DO_PUBLISH=$DO_PUBLISH" | tee -a $GITHUB_ENV
         echo "UPLOAD_ARTIFACT_NAME=$UPLOAD_ARTIFACT_NAME" | tee -a $GITHUB_ENV
 
+    # Jubelle G9: built-in video export. Fetched and checked first, so a missing or
+    # wrongly licensed FFmpeg stops the build before the long compile, not after it.
+    - name: "Jubelle: fetch FFmpeg for video export (LGPL build only)"
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/bundle_ffmpeg.py fetch ffmpeg_stage
+
     - name: Restore ccache files
       id: restore-ccache
       uses: actions/cache/restore@v5
@@ -206,6 +213,10 @@ jobs:
     - name: Show ccache stats
       run: |
         ccache -sv
+    - name: "Jubelle: bundle FFmpeg (libraries, licence and notice next to the program)"
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/bundle_ffmpeg.py install ffmpeg_stage build.install/bin
     - name: "Jubelle: app check (open, save, reopen, identity, timing)"
       timeout-minutes: 30
       shell: bash
@@ -225,6 +236,23 @@ jobs:
         path: |
           smoke_work/smoke_results.json
           smoke_work/profile_*.txt
+    - name: "Jubelle: video export check (MP4 with the bundled FFmpeg)"
+      # reported, not fatal: a failure here must not throw away a three-hour build
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 25
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/video_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz video_check
+        cat video_check/video_check.md >> "$GITHUB_STEP_SUMMARY"
+    - name: "Jubelle: upload video export check"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-video-check
+        path: |
+          video_check/video_check.md
+          video_check/video_check.mp4
     - name: "Jubelle: template prints (PDF, for visual review)"
       if: always()
       timeout-minutes: 30
