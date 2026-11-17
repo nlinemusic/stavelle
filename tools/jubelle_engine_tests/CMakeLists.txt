@@ -90,6 +90,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/internal/jubelle/partlayout.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/pageturns.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/drumstems.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/instrumentreference.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/articulationpassage.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/pagealignment.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/linkedpassages.cpp
@@ -132,6 +133,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_pageturns_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_drumstems_tests.cpp
+    ${MU_ROOT}/src/notation/tests/jubelle_instrumentreference_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_articulationpassage_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_pagealignment_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_linkedpassages_tests.cpp

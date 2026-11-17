@@ -92,6 +92,8 @@ target_sources(notation PRIVATE
     internal/jubelle/pageturns.h
     internal/jubelle/drumstems.cpp
     internal/jubelle/drumstems.h
+    internal/jubelle/instrumentreference.cpp
+    internal/jubelle/instrumentreference.h
     internal/jubelle/articulationpassage.cpp
     internal/jubelle/articulationpassage.h
     internal/jubelle/pagealignment.cpp
@@ -168,6 +170,7 @@ set_source_files_properties(
     internal/jubelle/partlayout.cpp
     internal/jubelle/pageturns.cpp
     internal/jubelle/drumstems.cpp
+    internal/jubelle/instrumentreference.cpp
     internal/jubelle/articulationpassage.cpp
     internal/jubelle/pagealignment.cpp
     internal/jubelle/linkedpassages.cpp
