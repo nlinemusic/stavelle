@@ -72,7 +72,7 @@ Container {
     function accentButton() {
         for (var i = 0; i < root.count; i++) {
             var btn = root.itemAt(i) as FlatButton
-            if (btn.accentButton) {
+            if (btn && btn.accentButton) {   // Jubelle: not every item is a button
                 return btn
             }
         }

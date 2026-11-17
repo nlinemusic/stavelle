@@ -138,6 +138,7 @@ StyledDialogView {
                             spacing: 6
                             TextInputField {
                                 Layout.fillWidth: true
+                                Layout.preferredWidth: 100
                                 currentText: groupRow.modelData.name
                                 onTextEditingFinished: function(newText) { ds.renameGroup(groupRow.modelData.index, newText) }
                             }
@@ -163,6 +164,7 @@ StyledDialogView {
                     TextInputField {
                         id: newGroupName
                         Layout.fillWidth: true
+                        Layout.preferredWidth: 100   // its own width is its parent's: without this the row lays itself out forever
                         hint: qsTrc("project/drumstems", "New group name")
                         onTextChanged: function(newText) { newGroupName.currentText = newText }
                     }
@@ -208,6 +210,7 @@ StyledDialogView {
                     TextInputField {
                         id: presetName
                         Layout.fillWidth: true
+                        Layout.preferredWidth: 100   // its own width is its parent's: without this the row lays itself out forever
                         hint: qsTrc("project/drumstems", "Save these groups as…")
                         onTextChanged: function(newText) { presetName.currentText = newText }
                     }
