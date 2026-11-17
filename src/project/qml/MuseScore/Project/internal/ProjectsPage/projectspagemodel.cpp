@@ -26,11 +26,23 @@
 #include <QTemporaryDir>
 #include <QUrl>
 
+#include <set>
+
 #include "actions/actiontypes.h"
 #include "translation.h"
 
 #include "project/internal/projectinfo.h"
 #include "project/internal/projectlibrary.h"
+#include "project/internal/musicxmlsummary.h"
+
+#include "global/io/file.h"
+#include "global/serialization/zipreader.h"
+#include "engraving/dom/chord.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/segment.h"
+#include "engraving/dom/spanner.h"
+#include "engraving/dom/tuplet.h"
+#include "notation/imasternotation.h"
 
 #include "engraving/dom/masterscore.h"
 #include "engraving/dom/text.h"
@@ -1020,13 +1032,155 @@ void ProjectsPageModel::deleteCategoryInteractive(const QString& name)
     }
 }
 
+namespace {
+bool isMsczPath(const std::string& path)
+{
+    return QString::fromStdString(path).endsWith(".mscz", Qt::CaseInsensitive);
+}
+
+//! the MusicXML text of a .musicxml/.xml file, or of the score inside a compressed .mxl
+std::string musicXmlText(const io::path_t& path)
+{
+    if (QString::fromStdString(path.toStdString()).endsWith(".mxl", Qt::CaseInsensitive)) {
+        muse::ZipReader zip(path);
+        if (!zip.exists() || zip.hasError()) {
+            return {};
+        }
+        for (const muse::ZipReader::FileInfo& info : zip.fileInfoList()) {
+            const QString name = QString::fromStdString(info.filePath.toStdString());
+            if (info.isFile && !name.startsWith("META-INF", Qt::CaseInsensitive)
+                && (name.endsWith(".xml", Qt::CaseInsensitive) || name.endsWith(".musicxml", Qt::CaseInsensitive))) {
+                const muse::ByteArray data = zip.fileData(info.filePath.toStdString());
+                return std::string(data.constChar(), data.size());
+            }
+        }
+        return {};
+    }
+    muse::ByteArray data;
+    if (!muse::io::File::readFile(path, data)) {
+        return {};
+    }
+    return std::string(data.constChar(), data.size());
+}
+
+//! the same things musicxmlsummary counts in a file, counted in the converted score
+mu::project::jubelle::MusicXmlCounts countInScore(mu::engraving::MasterScore* score)
+{
+    using namespace mu::engraving;
+    mu::project::jubelle::MusicXmlCounts c;
+    c.parts = int(score->parts().size());
+    std::set<const Tuplet*> tuplets;
+    for (Measure* m = score->firstMeasure(); m; m = m->nextMeasure()) {
+        for (Segment* seg = m->first(SegmentType::ChordRest); seg; seg = seg->next(SegmentType::ChordRest)) {
+            for (EngravingItem* e : seg->elist()) {
+                if (!e || !e->isChordRest()) {
+                    continue;
+                }
+                ChordRest* cr = toChordRest(e);
+                for (const Tuplet* t = cr->tuplet(); t; t = t->tuplet()) {
+                    tuplets.insert(t);
+                }
+                c.lyrics += int(cr->lyrics().size());
+                if (cr->isChord()) {
+                    Chord* chord = toChord(cr);
+                    c.notes += int(chord->notes().size());
+                    for (Chord* g : chord->graceNotes()) {
+                        c.notes += int(g->notes().size());
+                    }
+                }
+            }
+            for (EngravingItem* a : seg->annotations()) {
+                if (!a) {
+                    continue;
+                }
+                if (a->isDynamic()) {
+                    ++c.dynamics;
+                } else if (a->isHarmony()) {
+                    ++c.chordSymbols;
+                } else if (a->isTempoText()) {
+                    ++c.tempoMarks;
+                } else if (a->isStaffText() || a->isExpression() || a->isSystemText() || a->isRehearsalMark()
+                           || a->isPlayTechAnnotation()) {
+                    ++c.texts;
+                }
+            }
+        }
+    }
+    for (const auto& [tick, sp] : score->spanner()) {
+        if (sp && sp->isSlur()) {
+            ++c.slurs;
+        } else if (sp && sp->isHairpin()) {
+            ++c.hairpins;
+        }
+    }
+    c.tuplets = int(tuplets.size());
+    // a tempo written as words ("Allegro") arrives as a tempo mark: count either way
+    c.texts += c.tempoMarks;
+    return c;
+}
+}
+
+// Jubelle (17 Nov 2026): MusicXML import, for scores from Noteflight and other
+// programs. MuseScore's own MusicXML importer does the conversion (it already
+// knows Noteflight's files); Jubelle makes the project, keeps the original
+// file in it, remembers where it came from so it isn't imported twice, and
+// reports anything that arrived short.
+std::string ProjectsPageModel::importMusicXml(const std::string& mainFolder, const std::string& category, const std::string& name,
+                                              const std::string& sourcePath, QString* error, QString* report)
+{
+    const io::path_t source(sourcePath);
+    const mu::project::jubelle::MusicXmlSummary summary = mu::project::jubelle::summarizeMusicXml(musicXmlText(source));
+    if (!summary.isMusicXml) {
+        *error = muse::qtrc("project", "this isn’t a MusicXML file");
+        return {};
+    }
+    INotationProjectPtr project = projectCreator() ? projectCreator()->newProject(iocContext()) : nullptr;
+    if (!project) {
+        *error = muse::qtrc("project", "the score could not be prepared");
+        return {};
+    }
+    Ret ret = project->load(source);
+    if (!ret) {
+        *error = QString::fromStdString(ret.text().empty() ? std::string("the file could not be read") : ret.text());
+        return {};
+    }
+    const pl::Result folder = pl::createProject(mainFolder, category, name);
+    if (!folder.ok) {
+        *error = QString::fromStdString(folder.error);
+        return {};
+    }
+    const std::string target = pl::mainScorePath(folder.path);
+    ret = project->save(io::path_t(target), SaveMode::SaveAs);
+    if (!ret) {
+        pl::removeUnusedProject(folder.path);
+        *error = QString::fromStdString(ret.text().empty() ? std::string("the converted score could not be saved") : ret.text());
+        return {};
+    }
+    pl::keepOriginal(folder.path, sourcePath);
+    pl::recordImport(folder.path, sourcePath);
+
+    mu::project::jubelle::MusicXmlCounts arrived;
+    if (project->masterNotation() && project->masterNotation()->masterScore()) {
+        arrived = countInScore(project->masterNotation()->masterScore());
+    }
+    const std::string text = mu::project::jubelle::importReport(summary, arrived);
+    *report = QString::fromStdString(text);
+    io::File::writeFile(io::path_t(folder.path + "/" + pl::IMPORTED_ORIGINALS_FOLDER + "/Import report.txt"),
+                        muse::ByteArray::fromRawData(text.data(), text.size()));
+    return target;
+}
+
 void ProjectsPageModel::importScoresInteractive()
 {
-    // Jubelle R1: copies MuseScore files (.mscz) into new projects. The originals
-    // are never moved or changed. Other formats: open them and use
-    // File > Add to Jubelle Projects..., which saves them as .mscz.
-    const std::vector<std::string> filter = { muse::trc("project", "MuseScore files") + " (*.mscz)" };
-    const io::paths_t files = interactive()->selectOpeningFilesSync(muse::trc("project", "Import MuseScore files"),
+    // Jubelle R1: copies MuseScore files (.mscz) into new projects; MusicXML files
+    // (from Noteflight and other programs) are converted. The originals are
+    // never moved or changed.
+    const std::vector<std::string> filter = {
+        muse::trc("project", "Scores") + " (*.mscz *.musicxml *.mxl *.xml)",
+        muse::trc("project", "MuseScore files") + " (*.mscz)",
+        muse::trc("project", "MusicXML files (Noteflight, Sibelius, Finale, Dorico…)") + " (*.musicxml *.mxl *.xml)",
+    };
+    const io::paths_t files = interactive()->selectOpeningFilesSync(muse::trc("project", "Import scores"),
                                                                     io::path_t(), filter);
     if (files.empty()) {
         return;
@@ -1065,15 +1219,42 @@ void ProjectsPageModel::importScoresInteractive()
             return;
         }
         QStringList failed;
+        QStringList reports;
+        std::string lastImported;
         for (const std::string& path : toImport) {
             std::string name = toImport.size() == 1 ? map.value("name").toString().toStdString()
                                : io::completeBasename(io::path_t(path)).toStdString();
-            const pl::Result r = pl::importScore(main, category, name, path);
-            if (!r.ok) {
-                failed << QString::fromStdString(io::filename(io::path_t(path)).toStdString() + ": " + r.error);
+            const QString fileName = QString::fromStdString(io::filename(io::path_t(path)).toStdString());
+            if (isMsczPath(path)) {
+                const pl::Result r = pl::importScore(main, category, name, path);
+                if (!r.ok) {
+                    failed << fileName + ": " + QString::fromStdString(r.error);
+                } else {
+                    lastImported = r.path;
+                }
+            } else {
+                QString error, report;
+                const std::string score = importMusicXml(main, category, name, path, &error, &report);
+                if (score.empty()) {
+                    failed << fileName + ": " + error;
+                } else {
+                    lastImported = score;
+                    reports << fileName + "\n" + report;
+                }
             }
         }
         reload();
+        if (!reports.isEmpty()) {
+            interactive()->info(muse::trc("project", "Import report"),
+                                (reports.join("\n") + "\n"
+                                 + muse::qtrc("project", "The original file and this report are kept in the project’s “Imported Originals” folder."))
+                                .toStdString());
+        }
+        // one score imported: open it, ready for editing
+        if (toImport.size() == 1 && !lastImported.empty() && failed.isEmpty()) {
+            dispatcher()->dispatch("file-open", ActionData::make_arg2<QUrl, QString>(
+                                       QUrl::fromLocalFile(QString::fromStdString(lastImported)), QString()));
+        }
         if (!failed.isEmpty() || !alreadyThere.isEmpty()) {
             QString msg;
             if (!failed.isEmpty()) {

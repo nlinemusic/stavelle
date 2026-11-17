@@ -54,6 +54,8 @@ target_sources(project PRIVATE
     internal/safefilewrite.h
     internal/projectlibrary.cpp
     internal/projectlibrary.h
+    internal/musicxmlsummary.cpp
+    internal/musicxmlsummary.h
     internal/projectinfo.cpp
     internal/projectinfo.h
     internal/templatesuggestions.cpp

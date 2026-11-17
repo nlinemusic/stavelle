@@ -21,6 +21,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/project/internal/projectlibrary.cpp
     ${ROOT}/src/project/internal/projectlibrary.h
     ${ROOT}/src/project/tests/projectlibrary_tests.cpp
+    ${ROOT}/src/project/internal/musicxmlsummary.cpp
+    ${ROOT}/src/project/internal/musicxmlsummary.h
+    ${ROOT}/src/project/tests/jubelle_musicxmlsummary_tests.cpp
     ${ROOT}/src/project/internal/projectinfo.cpp
     ${ROOT}/src/project/internal/projectinfo.h
     ${ROOT}/src/project/tests/projectinfo_tests.cpp
@@ -55,3 +58,6 @@ endif()
 
 enable_testing()
 add_test(NAME jubelle_platform_tests COMMAND jubelle_platform_tests)
+
+# Jubelle: tests that read real files from the repository (MusicXML test data)
+target_compile_definitions(jubelle_platform_tests PRIVATE JUBELLE_SOURCE_ROOT="${ROOT}")

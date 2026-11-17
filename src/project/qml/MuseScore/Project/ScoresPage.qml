@@ -135,7 +135,7 @@ FocusScope {
 
                 // Jubelle R1: copy existing MuseScore files into Projects
                 FlatButton {
-                    text: qsTrc("project", "Import MuseScore files…")
+                    text: qsTrc("project", "Import scores…")
 
                     navigation.name: "ImportScores"
                     navigation.panel: topNavPanel

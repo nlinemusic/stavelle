@@ -827,6 +827,23 @@ Result recordImport(const std::string& projectFolder, const std::string& sourceP
     return out ? success(record) : fail("The import record could not be written.");
 }
 
+Result keepOriginal(const std::string& projectFolder, const std::string& sourcePath)
+{
+    const fs::path source = toPath(sourcePath);
+    std::error_code ec;
+    if (!fs::is_regular_file(source, ec)) {
+        return fail("The file \"" + sourcePath + "\" was not found.");
+    }
+    const fs::path folder = toPath(projectFolder) / fs::u8path(IMPORTED_ORIGINALS_FOLDER);
+    fs::create_directories(folder, ec);
+    const fs::path target = folder / source.filename();
+    fs::copy_file(source, target, fs::copy_options::overwrite_existing, ec);
+    if (ec || fileFingerprint(toUtf8(target)) != fileFingerprint(sourcePath)) {
+        return fail("The original file could not be copied into the project.");
+    }
+    return success(target);
+}
+
 Result importScore(const std::string& mainFolder, const std::string& category, const std::string& name,
                    const std::string& sourcePath)
 {

@@ -27,6 +27,7 @@
 #include "modularity/ioc.h"
 #include "iprojectconfiguration.h"
 #include "irecentfilescontroller.h"
+#include "iprojectcreator.h"
 #include "actions/iactionsdispatcher.h"
 #include "context/iglobalcontext.h"
 #include "iinteractive.h"
@@ -57,6 +58,7 @@ class ProjectsPageModel : public QObject, public muse::Contextable, public muse:
     muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
     muse::ContextInject<context::IGlobalContext> context = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
+    muse::GlobalInject<IProjectCreator> projectCreator;   // Jubelle: converting MusicXML on import
 
 public:
     explicit ProjectsPageModel(QObject* parent = nullptr);
@@ -138,6 +140,11 @@ signals:
     void tagsChanged();
 
 private:
+    //! Jubelle: converts a MusicXML file (from Noteflight or another program) into a new
+    //! project; returns the new score's path ("" on failure, with the reason in `error`)
+    std::string importMusicXml(const std::string& mainFolder, const std::string& category, const std::string& name,
+                               const std::string& sourcePath, QString* error, QString* report);
+
     std::string mainFolderStd() const;
     QVariantMap projectItem(const std::string& projectFolder, int64_t savedTime) const;
     void updateRecent();

@@ -120,6 +120,12 @@ std::string fileFingerprint(const std::string& filePath);
 Result importScore(const std::string& mainFolder, const std::string& category, const std::string& name,
                    const std::string& sourcePath);
 
+//! Keeps a copy of the original imported file (MusicXML, …) in the project's
+//! "Imported Originals" folder, byte for byte. The original itself is never
+//! moved or changed. Returns the copy's path.
+Result keepOriginal(const std::string& projectFolder, const std::string& sourcePath);
+constexpr const char* IMPORTED_ORIGINALS_FOLDER = "Imported Originals";
+
 //! Remembers that `projectFolder` was made from `sourcePath`.
 Result recordImport(const std::string& projectFolder, const std::string& sourcePath);
 
