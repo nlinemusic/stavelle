@@ -101,6 +101,13 @@ void ProjectActionsController::init()
     dispatcher()->reg(this, "file-share-audio", this, &ProjectActionsController::shareAudio);
 
     dispatcher()->reg(this, "file-export", this, &ProjectActionsController::exportScore);
+    //! Jubelle G9: drum-component stems
+    dispatcher()->reg(this, "jubelle-export-drum-stems", [this]() {
+        static const Uri DRUM_STEMS_URI("musescore://project/jubelle/drumstems");
+        if (!interactive()->isOpened(DRUM_STEMS_URI).val) {
+            interactive()->open(DRUM_STEMS_URI);
+        }
+    });
 
     dispatcher()->reg(this, "print", this, &ProjectActionsController::printScore);
 

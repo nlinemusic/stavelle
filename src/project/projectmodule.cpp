@@ -114,6 +114,7 @@ void ProjectModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://project/jubelle/categoriestags"), "MuseScore.Project", "ProjectCategoriesTagsDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/cardimage"), "MuseScore.Project", "CardImageDialog");
         ir->registerQmlUri(Uri("musescore://project/jubelle/youtube"), "MuseScore.Project", "YouTubePublishDialog");
+        ir->registerQmlUri(Uri("musescore://project/jubelle/drumstems"), "MuseScore.Project", "DrumStemsDialog");
         ir->registerQmlUri(Uri("musescore://project/asksavelocationtype"), "MuseScore.Project", "AskSaveLocationTypeDialog");
         ir->registerQmlUri(Uri("musescore://project/savetocloud"), "MuseScore.Project", "SaveToCloudDialog");
         ir->registerQmlUri(Uri("musescore://project/alsoshareaudiocom"), "MuseScore.Project", "AlsoShareAudioComDialog");

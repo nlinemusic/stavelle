@@ -118,6 +118,13 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Export"),
              IconCode::Code::SHARE_FILE
              ),
+    //! Jubelle G9: one audio file per drum of a kit, or per group of drums
+    UiAction("jubelle-export-drum-stems",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Export &drum stems…"),
+             TranslatableString("action", "Export each drum of a drum kit, or groups of drums, as separate audio files")
+             ),
     //! Jubelle: an extra Publish destination. It opens YouTube Studio in the browser
     //! with the chosen video ready to drag in; nothing is uploaded by Jubelle itself.
     UiAction("jubelle-publish-youtube",

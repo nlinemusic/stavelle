@@ -58,6 +58,8 @@ qt_add_qml_module(project_qml
         internal/NotInProjects/notinprojectsbarmodel.h
         internal/YouTube/youtubepublishmodel.cpp
         internal/YouTube/youtubepublishmodel.h
+        internal/DrumStems/drumstemsmodel.cpp
+        internal/DrumStems/drumstemsmodel.h
     QML_FILES
         AlsoShareAudioComDialog.qml
         AskSaveLocationTypeDialog.qml
@@ -68,6 +70,7 @@ qt_add_qml_module(project_qml
         CategoriesList.qml
         ExportDialog.qml
         DeleteCloudScoreDialog.qml
+        DrumStemsDialog.qml
         internal/Export/AudioSettings.qml
         internal/Export/ExportOptionItem.qml
         internal/Export/ExportOptionsView.qml
