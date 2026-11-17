@@ -40,6 +40,7 @@
 namespace mu::engraving {
 class Score;
 class Page;
+class TempoText;
 }
 
 namespace mu::notation {
@@ -190,6 +191,10 @@ private:
     void rehearsalMeta(engraving::Segment* seg, int* stagger, int pos);
     // Jubelle G4: custom markers (their own row, coloured apart from rehearsal marks)
     void jubelleMarkerMeta(engraving::Segment* seg, int* stagger, int pos);
+    // Jubelle G6: the Recorded tempo lane
+    void jubelleRecordedTempoMeta(engraving::Segment* seg, int* stagger, int pos);
+    void jubelleEditRecordedTempo(engraving::TempoText* point);
+    void jubelleRemoveRecordedTempo(engraving::TempoText* point);
     // Jubelle G4: a playhead that follows playback
     void jubelleDrawPlayhead();
     void jubelleAddMarkerAt(const QPoint& viewPos);

@@ -54,6 +54,7 @@
 #include "notation/internal/inotationundostack.h"
 #include "notation/internal/inotationselectionrange.h"
 #include "notation/internal/jubelle/timelinemarkers.h"
+#include "notation/internal/jubelle/tempotap.h"
 
 #include "log.h"
 
@@ -771,6 +772,8 @@ Timeline::Timeline(QSplitter* splitter, const muse::modularity::ContextPtr& iocC
     _metas.push_back({ muse::qtrc("notation/timeline", "Tempo"), &Timeline::tempoMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Time signature"), &Timeline::timeMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Rehearsal mark"), &Timeline::rehearsalMeta, true });
+    // Jubelle G6: tempo recorded by tapping, in its own lane (never printed)
+    _metas.push_back({ muse::qtrc("notation/timeline", "Recorded tempo"), &Timeline::jubelleRecordedTempoMeta, true });
     // Jubelle G4: custom markers, never printed
     _metas.push_back({ muse::qtrc("notation/timeline", "Markers"), &Timeline::jubelleMarkerMeta, true });
     _metas.push_back({ muse::qtrc("notation/timeline", "Key signature"), &Timeline::keyMeta, true });
@@ -1178,6 +1181,9 @@ void Timeline::tempoMeta(Segment* seg, int* stagger, int pos)
     for (EngravingItem* element : annotations) {
         if (element->isTempoText()) {
             TempoText* text = toTempoText(element);
+            if (mu::notation::jubelle::isRecordedTempoPoint(score(), text)) {
+                continue;   // Jubelle G6: shown in the Recorded tempo lane
+            }
             qreal x = pos + (*stagger) * _spacing;
             if (addMetaValue(x, pos, text->plainText(), row, ElementType::TEMPO_TEXT, element, 0, seg->measure())) {
                 (*stagger)++;
@@ -3104,9 +3110,19 @@ void Timeline::contextMenuEvent(QContextMenuEvent* event)
                                    [this, marker]() { jubelleMoveMarkerToSelection(marker); });
             contextMenu->addAction(muse::qtrc("notation/timeline", "Delete marker"), this, [this, marker]() { jubelleDeleteMarker(marker); });
         }
+        if (clicked && clicked->isTempoText() && mu::notation::jubelle::isRecordedTempoPoint(score(), toTempoText(clicked))) {
+            TempoText* point = toTempoText(clicked);
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Change recorded tempo…"), this, [this, point]() {
+                jubelleEditRecordedTempo(point);
+            });
+            contextMenu->addAction(muse::qtrc("notation/timeline", "Remove this recorded tempo point"), this, [this, point]() {
+                jubelleRemoveRecordedTempo(point);
+            });
+        }
         if (clicked) {
             contextMenu->addAction(muse::qtrc("notation/timeline", "Play from here"), this, [this, clicked]() { jubellePlayFrom(clicked); });
         }
+        contextMenu->addAction(muse::qtrc("notation/timeline", "Record tempo…"), this, [this]() { dispatcher()->dispatch("jubelle-record-tempo"); });
         contextMenu->addAction(muse::qtrc("notation/timeline", "Add marker here…"), this, [this, pos]() { jubelleAddMarkerAt(pos); });
         if (_rowNames->cursorIsOn() != "meta" && cursorIsOn(event->pos()) != "meta") {
             contextMenu->exec(QCursor::pos());
@@ -3464,4 +3480,66 @@ void Timeline::jubelleDrawPlayhead()
         scene()->addItem(m_jubellePlayhead);
     }
     m_jubellePlayhead->setLine(x, 0, x, height);
+}
+
+//---------------------------------------------------------
+//   Jubelle G6: the Recorded tempo lane
+//---------------------------------------------------------
+
+void Timeline::jubelleRecordedTempoMeta(Segment* seg, int* stagger, int pos)
+{
+    const int row = getMetaRow(muse::qtrc("notation/timeline", "Recorded tempo"));
+    for (EngravingItem* element : seg->annotations()) {
+        if (!element->isTempoText() || !mu::notation::jubelle::isRecordedTempoPoint(score(), toTempoText(element))) {
+            continue;
+        }
+        TempoText* point = toTempoText(element);
+        const int bpm = int(std::lround(point->tempo().toBPM().val));
+        const QString label = QString::fromUtf8("\u2669=%1").arg(bpm);
+        const int x = pos + (*stagger) * _spacing;
+        if (addMetaValue(x, pos, label, row, ElementType::TEMPO_TEXT, element, 0, seg->measure(),
+                         muse::qtrc("notation/timeline", "Recorded tempo: %1 quarter notes a minute (never printed). Right-click to change it.")
+                         .arg(bpm))) {
+            const size_t n = _metaRows.size();
+            if (n >= 2) {
+                if (auto* rect = dynamic_cast<QGraphicsRectItem*>(_metaRows[n - 2].first)) {
+                    rect->setBrush(QBrush(QColor("#E600A9")));
+                    rect->setPen(QPen(QColor("#F472D0")));
+                }
+                if (auto* text = dynamic_cast<QGraphicsTextItem*>(_metaRows[n - 1].first)) {
+                    text->setDefaultTextColor(Qt::white);
+                }
+            }
+            (*stagger)++;
+            _globalZValue++;
+        }
+    }
+}
+
+void Timeline::jubelleEditRecordedTempo(TempoText* point)
+{
+    if (!m_notation || !score() || !point) {
+        return;
+    }
+    bool ok = false;
+    const double bpm = QInputDialog::getDouble(this, muse::qtrc("notation/timeline", "Change recorded tempo"),
+                                               muse::qtrc("notation/timeline", "Quarter notes a minute:"),
+                                               point->tempo().toBPM().val, 20.0, 400.0, 1, &ok);
+    if (!ok) {
+        return;
+    }
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Edit recorded tempo"));
+    mu::notation::jubelle::setRecordedPointTempo(score(), point, bpm);
+    m_notation->undoStack()->commitChanges();
+}
+
+void Timeline::jubelleRemoveRecordedTempo(TempoText* point)
+{
+    if (!m_notation || !score() || !point) {
+        return;
+    }
+    const Fraction from = point->tick();
+    m_notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Remove recorded tempo"));
+    mu::notation::jubelle::clearRecordedTempo(score(), from, from + Fraction(1, 1920));
+    m_notation->undoStack()->commitChanges();
 }
