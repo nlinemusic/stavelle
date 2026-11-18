@@ -14,6 +14,10 @@ on:
       windows_run_id:
         description: 'The "Build: Windows" run whose installer to publish (its number in the run URL)'
         required: true
+      macos_run_id:
+        description: 'Optional: the "Build: macOS" run whose disk image to publish alongside (its number in the run URL)'
+        required: false
+        default: ''
       channel:
         description: 'Stable, or Testing (shown only if you switch on testing releases in Preferences)'
         required: true
@@ -56,13 +60,31 @@ jobs:
           echo "msi=release/$(basename "$MSI")" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Get the macOS disk image
+        if: ${{ inputs.macos_run_id != '' }}
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.macos_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build-artifacts-macos
+
+      - name: Find the disk image
+        id: findmac
+        if: ${{ inputs.macos_run_id != '' }}
+        run: |
+          set -e
+          DMG=$(find build-artifacts-macos -name 'Jubelle-*.dmg' | head -1)
+          if [ -z "$DMG" ]; then echo "::error::No Jubelle disk image in run ${{ inputs.macos_run_id }}"; exit 1; fi
+          cp "$DMG" release/
+          echo "dmg=release/$(basename "$DMG")" >> "$GITHUB_OUTPUT"
+
       - name: Sign the checksums
         env:
           JUBELLE_RELEASE_SIGNING_KEY: ${{ secrets.JUBELLE_RELEASE_SIGNING_KEY }}
           JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
         run: |
           pip install --quiet cryptography
-          python3 tools/jubelle_release/sign_release.py release "${{ steps.find.outputs.msi }}"
+          python3 tools/jubelle_release/sign_release.py release "${{ steps.find.outputs.msi }}" ${{ steps.findmac.outputs.dmg }}
 
       - name: Publish the GitHub release
         env:
@@ -75,4 +97,4 @@ jobs:
           if [ "${{ inputs.channel }}" = "Testing" ]; then FLAGS="--prerelease"; fi
           gh release create "$TAG" $FLAGS --target "$GITHUB_SHA" --title "Jubelle ${{ steps.find.outputs.version }} (${{ inputs.channel }})" \
             --notes "${NOTES:-Jubelle ${{ steps.find.outputs.version }}}" \
-            "${{ steps.find.outputs.msi }}" release/SHA256SUMS release/SHA256SUMS.sig
+            "${{ steps.find.outputs.msi }}" ${{ steps.findmac.outputs.dmg }} release/SHA256SUMS release/SHA256SUMS.sig
