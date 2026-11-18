@@ -29,7 +29,7 @@
 
 using namespace mu::inspector;
 using namespace mu::engraving;
-namespace jn = mu::notation::jubelle;
+namespace jctx = ::mu::notation::jubelle;
 
 namespace {
 bool isSwingMarking(const EngravingItem* e)
@@ -38,7 +38,7 @@ bool isSwingMarking(const EngravingItem* e)
         return false;
     }
     const mu::engraving::jubelle::SwingSettings settings = mu::engraving::jubelle::SwingSettings::read(e->score());
-    return jn::findSwingMarking(e->score(), settings) == e;
+    return jctx::findSwingMarking(e->score(), settings) == e;
 }
 
 QString kindOf(const EngravingItem* e)
@@ -46,13 +46,13 @@ QString kindOf(const EngravingItem* e)
     if (!e) {
         return QString();
     }
-    if (e->isTempoText() && jn::isRecordedTempoPoint(e->score(), toTempoText(e))) {
+    if (e->isTempoText() && jctx::isRecordedTempoPoint(e->score(), toTempoText(e))) {
         return "tempo";
     }
-    if (jn::isTimelineMarker(e)) {
+    if (jctx::isTimelineMarker(e)) {
         return "marker";
     }
-    if (jn::isJubelleTurnBreak(e)) {
+    if (jctx::isJubelleTurnBreak(e)) {
         return "pagebreak";
     }
     if (e->isDynamic()) {
@@ -145,7 +145,7 @@ void JubelleContextSettingsModel::update()
         m_heading = muse::qtrc("inspector", "Recorded tempo point");
         m_detail = muse::qtrc("inspector", "Recorded by tapping (Playback › Record tempo). MuseScore plays it the same way.");
     } else if (m_kind == "marker") {
-        m_markerName = jn::markerName(m_item).toQString();
+        m_markerName = jctx::markerName(m_item).toQString();
         m_heading = muse::qtrc("inspector", "Timeline marker");
         m_detail = muse::qtrc("inspector", "A named place for rehearsal and navigation; it is never printed.");
     } else if (m_kind == "pagebreak") {
@@ -189,7 +189,7 @@ void JubelleContextSettingsModel::setTempoBpm(double bpm)
         return;
     }
     beginCommand(muse::TranslatableString("undoableAction", "Change recorded tempo"));
-    jn::setRecordedPointTempo(score(), toTempoText(m_item), bpm);
+    jctx::setRecordedPointTempo(score(), toTempoText(m_item), bpm);
     endCommand();
     update();
 }
@@ -200,7 +200,7 @@ void JubelleContextSettingsModel::setMarkerName(const QString& name)
         return;
     }
     beginCommand(muse::TranslatableString("undoableAction", "Rename timeline marker"));
-    jn::renameTimelineMarker(score(), m_item, muse::String::fromQString(name.trimmed()));
+    jctx::renameTimelineMarker(score(), m_item, muse::String::fromQString(name.trimmed()));
     endCommand();
     update();
 }
@@ -221,7 +221,7 @@ void JubelleContextSettingsModel::removeItem()
     }
     beginCommand(muse::TranslatableString("undoableAction", "Remove"));
     if (m_kind == "marker") {
-        jn::removeTimelineMarker(score(), m_item);
+        jctx::removeTimelineMarker(score(), m_item);
     } else {
         score()->undoRemoveElement(m_item);
     }
@@ -237,7 +237,7 @@ void JubelleContextSettingsModel::keepAsOwnBreak()
         return;
     }
     beginCommand(muse::TranslatableString("undoableAction", "Keep page break"));
-    jn::keepTurnBreakAsOwn(score(), m_item);
+    jctx::keepTurnBreakAsOwn(score(), m_item);
     endCommand();
     update();
 }
