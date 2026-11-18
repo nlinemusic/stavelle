@@ -96,13 +96,15 @@ struct ChordAt {
     ChordSymbol before;
     std::vector<Harmony*> copies;
     bool identified = false;   //!< named from the rhythm section's notes (no chord symbol here)
+    bool noChord = false;      //!< N.C., or a symbol Jubelle can't read: the melody is left in unison there
+    std::string where;         //!< "Xyz (bar 5)"
 };
 
 ChordSymbol fromHarmony(const Score* score, Harmony* h)
 {
     ChordSymbol c;
-    if (!h || h->chords().empty()) {
-        return c;
+    if (!h || h->chords().empty() || h->chords().size() > 1) {
+        return c;   // a polychord: the lessons give no rule for it, so it isn't guessed at
     }
     HarmonyInfo* info = h->chords().front();
     const Fraction tick = h->tick();
@@ -155,6 +157,12 @@ std::vector<ChordAt> chordsFor(Score* score, const Fraction& start, const Fracti
             return pa != pb ? pa : a->staffIdx() < b->staffIdx();
         });
         at.before = fromHarmony(score, at.copies.front());
+        if (!at.before.valid) {
+            at.noChord = true;
+            const Measure* m = score->tick2measure(tick);
+            const std::string text = at.copies.front()->harmonyName().toStdString();
+            at.where = (text.empty() ? std::string("N.C.") : text) + " (bar " + std::to_string(m ? m->no() + 1 : 0) + ")";
+        }
         if (tick <= start) {
             out.clear();   // only the last one at or before the start sounds
         }
@@ -460,6 +468,105 @@ Ranges rangesFor(const Score* score, const SectionStaves& staves, const Fraction
 }
 }
 
+namespace {
+//! Everything the dialog should say before you write: what will happen that you might not expect, and the
+//! choices that can't apply to this score
+std::vector<std::string> noticesFor(Score* score, const Work& w, const RunOptions& o)
+{
+    std::vector<std::string> out;
+    // the melody staff
+    bool chords = false;
+    bool graces = false;
+    bool otherVoices = false;
+    for (Segment* seg = score->tick2segment(w.start, true, SegmentType::ChordRest); seg && seg->tick() < w.end;
+         seg = seg->next1(SegmentType::ChordRest)) {
+        for (voice_idx_t v = 0; v < VOICES; ++v) {
+            EngravingItem* e = seg->element(w.melodyStaff * VOICES + v);
+            if (!e || !e->isChord()) {
+                continue;
+            }
+            if (v > 0) {
+                otherVoices = true;
+                continue;
+            }
+            chords = chords || toChord(e)->notes().size() > 1;
+            graces = graces || !toChord(e)->graceNotes().empty();
+        }
+    }
+    if (chords) {
+        out.push_back("The melody has chords in places: the top note is harmonised.");
+    }
+    if (otherVoices) {
+        out.push_back("Only voice 1 of the melody staff is harmonised; voices 2–4 are ignored.");
+    }
+    if (graces) {
+        out.push_back("Grace notes stay in the melody only; they are not copied to the new parts.");
+    }
+    // chords that can't be read
+    std::vector<std::string> unreadable;
+    for (const ChordAt& c : w.chords) {
+        if (c.noChord) {
+            unreadable.push_back(c.where);
+        }
+    }
+    if (!unreadable.empty()) {
+        std::string list;
+        for (size_t i = 0; i < unreadable.size() && i < 6; ++i) {
+            list += (i ? ", " : "") + unreadable[i];
+        }
+        out.push_back("No chord, or a chord symbol Jubelle can't read (" + list + (unreadable.size() > 6 ? ", …" : "")
+                      + "): the melody is played in unison there rather than guessed.");
+    }
+    // the sections this score has
+    auto count = [](const auto& arr) {
+        int k = 0;
+        for (auto s : arr) {
+            k += s != muse::nidx ? 1 : 0;
+        }
+        return k;
+    };
+    const int tpts = count(w.staves.trumpets);
+    const int tbns = count(w.staves.trombones);
+    const int saxes = count(w.staves.saxes);
+    const bool bari = w.staves.saxes[4] != muse::nidx;
+    for (const staff_idx_t s : w.staves.trumpets) {
+        if (s == w.melodyStaff) {
+            out.push_back(staffName(score, s) + " has the melody and keeps it; the other parts are written around it.");
+        }
+    }
+    if (o.orchestration.trumpets != TrumpetTechnique::LeaveOut && tpts > 0 && tpts < 4) {
+        out.push_back("This score has " + std::to_string(tpts) + " trumpet(s): only the top " + std::to_string(tpts)
+                      + " voice(s) of each trumpet voicing are written.");
+    }
+    if (o.orchestration.trumpets != TrumpetTechnique::LeaveOut && tpts == 0) {
+        out.push_back("No trumpets were found, so the trumpet choice has no effect.");
+    }
+    if (o.orchestration.trombones != TromboneTechnique::LeaveOut && tbns == 0) {
+        out.push_back("No trombones were found, so the trombone choice has no effect.");
+    }
+    if (o.orchestration.saxes != SaxTechnique::LeaveOut && saxes == 0) {
+        out.push_back("No saxophones were found, so the saxophone choice has no effect.");
+    }
+    if (!bari && (o.orchestration.saxes == SaxTechnique::DoubleTrombones || o.orchestration.saxes == SaxTechnique::Drop2BariRoots)) {
+        out.push_back(tbns >= 4 ? "There is no baritone saxophone: the bass trombone takes the roots (lesson 1)."
+                      : "There is no baritone saxophone, so nobody takes the roots in this choice.");
+    }
+    if (o.orchestration.saxes == SaxTechnique::FourPartDrop2) {
+        out.push_back("Four-part Drop 2 leaves Tenor 2 free (the player who is busy elsewhere).");
+    }
+    if (o.orchestration.trumpets == TrumpetTechnique::TrumpetTriads) {
+        out.push_back("Trumpet triads are meant for a lead above about concert A5 (lesson 4); below that, closed voicing is usual.");
+    }
+    if (o.orchestration.altosFillHighTriads && o.orchestration.saxes != SaxTechnique::DoubleTrombones) {
+        out.push_back("The altos fill the trumpet triads only with the full-band saxophone choice.");
+    }
+    if (o.harmony.halfStepSlide && !o.harmony.addAlterations) {
+        // fine on its own; nothing to say
+    }
+    return out;
+}
+}
+
 Scope scope(Score* score, const RunOptions& options)
 {
     Scope sc;
@@ -496,6 +603,7 @@ Scope scope(Score* score, const RunOptions& options)
         sc.chordNames.push_back(c.before.text);
     }
     sc.saxWarning = techniqueUnsuitable(options.orchestration.saxes, w.melody.notes);
+    sc.notices = noticesFor(score, w, options);
     return sc;
 }
 
@@ -507,6 +615,7 @@ Report run(Score* score, const RunOptions& options)
         report.problem = w.problem;
         return report;
     }
+    report.notices = noticesFor(score, w, options);
     const staff_idx_t selStaffStart = score->selection().staffStart();
     const staff_idx_t selStaffEnd = score->selection().staffEnd();
 
@@ -524,6 +633,16 @@ Report run(Score* score, const RunOptions& options)
     const Ranges rg = rangesFor(score, w.staves, w.start);
     const std::vector<SectionNotes> parts = orchestrate(w.melody.notes, voiced, orch, rg);
     for (size_t i = 0; i < voiced.size(); ++i) {
+        if (!w.melody.notes[i].rest && !voiced[i].voicing.ok) {
+            // no chord, an unreadable one, or no voicing that keeps the rules: unison, and said so
+            ++report.unisonNotes;
+            const Measure* m = score->tick2measure(w.melody.ticks[i]);
+            const int bar = m ? m->no() + 1 : 0;
+            if (report.unisonBars.empty() || report.unisonBars.back() != bar) {
+                report.unisonBars.push_back(bar);
+            }
+            continue;
+        }
         if (w.melody.notes[i].rest || voiced[i].chordTone || !voiced[i].voicing.ok) {
             continue;
         }
@@ -537,7 +656,7 @@ Report run(Score* score, const RunOptions& options)
     }
 
     // 2. the spelling of each generated pitch (lesson 8), at concert pitch
-    const Key key = score->staff(w.melodyStaff)->concertKey(w.start);
+    const Staff* melodyStaff = score->staff(w.melodyStaff);
     auto concertSpelling = [&](size_t i, int p) {
         const MelodyNote& n = w.melody.notes[i];
         const VoicedNote& vn = voiced[i];
@@ -560,7 +679,8 @@ Report run(Score* score, const RunOptions& options)
         if (n.chordIndex >= 0 && chords[size_t(n.chordIndex)].valid && isChordTone(p, chords[size_t(n.chordIndex)])) {
             return spellChordTone(p, chords[size_t(n.chordIndex)]);
         }
-        return pitch2tpc(p, key, Prefer::NEAREST);
+        // no chord to spell from: the key signature in force at this note
+        return pitch2tpc(p, melodyStaff->concertKey(w.melody.ticks[i]), Prefer::NEAREST);
     };
 
     // 3. the target staves and which part each one plays
@@ -616,11 +736,15 @@ Report run(Score* score, const RunOptions& options)
         const Instrument* ins = staff->part()->instrument(w.start);
         const track_idx_t track = t.staff * VOICES;
         std::vector<Note*> silence;
-        int prevWrittenTpc = Tpc::TPC_INVALID;   // the part's previous note, as the player reads it
-        int prevWrittenPitch = -1;
-        Note* prevNote = nullptr;
-        int prevPrevWrittenTpc = Tpc::TPC_INVALID;
-        int prevPrevWrittenPitch = -1;
+        struct Written {
+            Note* note;
+            int pitch;
+            int writtenPitch;
+            int base;        // the written tpc from the chord (lesson 8's first rules)
+            bool tied;
+            Fraction tick;
+        };
+        std::vector<Written> line;
         for (Segment* seg = score->tick2segment(w.start, true, SegmentType::ChordRest); seg && seg->tick() < w.end;
              seg = seg->next1(SegmentType::ChordRest)) {
             EngravingItem* e = seg->element(track);
@@ -647,77 +771,110 @@ Report run(Score* score, const RunOptions& options)
                 continue;
             }
             // spelled as the player reads it: no B♯, C♭, E♯, F♭ or double accidentals in the written part, except
-            // where a planed half step needs one to look like the second it is ("most important of all", lesson 8)
+            // where a planed half step needs one to look like the second it is (lesson 8)
             int tpc1 = concertSpelling(i, p);
             int tpc2 = writtenTpc(staff, c->tick(), tpc1);
             const bool planedStep = !voiced[i].chordTone && voiced[i].tool == NctTool::ChromaticPlaning;
             const int simpler = simplerSpelling(tpc2);
             if (simpler != tpc2 && (!planedStep || tpc2 < 6 || tpc2 > 26)) {
                 tpc2 = simpler;
-                tpc1 = concertFromWritten(staff, c->tick(), tpc2);
             }
-            const int writtenPitch = p - staff->transpose(c->tick()).chromatic;
-            if (keep->tieBack() && keep->tieBack()->startNote()) {
-                // a tied note keeps the spelling of the note it continues
-                tpc1 = keep->tieBack()->startNote()->tpc1();
-                tpc2 = keep->tieBack()->startNote()->tpc2();
-            } else if (tpcIsValid(prevWrittenTpc)) {
-                // "most important of all": the step from the previous note must look the way it sounds (lesson 8).
-                auto looksWrong = [](int fromTpc, int fromPitch, int toTpc, int toPitch) {
-                    if (!tpcIsValid(fromTpc)) {
-                        return false;
-                    }
-                    const int semis = std::abs(toPitch - fromPitch);
-                    const int letters = std::abs(absStep(toTpc, toPitch) - absStep(fromTpc, fromPitch));
-                    return ((semis == 1 || semis == 2) && letters == 2) || ((semis == 3 || semis == 4) && letters == 1)
-                           || (semis == 0 && letters != 0);
-                };
-                auto nice = [](int tpc) { return tpc >= 8 && tpc <= 24; };   // no B♯, C♭, E♯, F♭, no doubles
-                if (looksWrong(prevWrittenTpc, prevWrittenPitch, tpc2, writtenPitch)) {
-                    bool fixed = false;
-                    // 1. this note, enharmonically, without B♯, C♭, E♯ or F♭
-                    for (int alt : { tpc2 - 12, tpc2 + 12 }) {
-                        if (!fixed && nice(alt) && !looksWrong(prevWrittenTpc, prevWrittenPitch, alt, writtenPitch)) {
-                            tpc2 = alt;
-                            fixed = true;
-                        }
-                    }
-                    // 2. respell the phrase: the previous note instead, if that keeps its own step right
-                    if (!fixed && prevNote && !prevNote->tieFor() && !prevNote->tieBack()) {
-                        for (int alt : { prevWrittenTpc - 12, prevWrittenTpc + 12 }) {
-                            if (!fixed && nice(alt) && !looksWrong(alt, prevWrittenPitch, tpc2, writtenPitch)
-                                && !looksWrong(prevPrevWrittenTpc, prevPrevWrittenPitch, alt, prevWrittenPitch)) {
-                                score->undoChangePitch(prevNote, prevNote->pitch(), concertFromWritten(staff, prevNote->tick(), alt), alt);
-                                prevWrittenTpc = alt;
-                                fixed = true;
-                            }
-                        }
-                    }
-                    // 3. this note with B♯, C♭, E♯ or F♭ (but never a double accidental)
-                    for (int alt : { tpc2 - 12, tpc2 + 12 }) {
-                        if (!fixed && alt >= 6 && alt <= 26 && !looksWrong(prevWrittenTpc, prevWrittenPitch, alt, writtenPitch)) {
-                            tpc2 = alt;
-                            fixed = true;
-                        }
-                    }
-                    tpc1 = concertFromWritten(staff, c->tick(), tpc2);
-                }
-            }
-            prevPrevWrittenTpc = prevWrittenTpc;
-            prevPrevWrittenPitch = prevWrittenPitch;
-            prevNote = keep;
-            prevWrittenTpc = tpc2;
-            prevWrittenPitch = writtenPitch;
-            if (keep->pitch() != p || keep->tpc1() != tpc1 || keep->tpc2() != tpc2) {
-                score->undoChangePitch(keep, p, tpc1, tpc2);
-            }
-            if (keep->tieBack() == nullptr || keep->firstTiedNote() == keep) {
+            const bool tied = keep->tieBack() && keep->tieBack()->startNote() && !line.empty();
+            line.push_back({ keep, p, p - staff->transpose(c->tick()).chromatic, tpc2, tied, c->tick() });
+            if (!tied) {
                 ++report.notesWritten;
             }
             if (ins && (p < ins->minPitchP() || p > ins->maxPitchP())) {
                 ++report.outOfRange;
                 const Measure* m = c->measure();
                 report.outOfRangeWhere.push_back(name + ", bar " + std::to_string(m ? m->no() + 1 : 0));
+            }
+        }
+
+        // "Most important of all: intervals must look the way they sound" (lesson 8). The whole line is respelled
+        // together: each note may take its enharmonic (never a double accidental), and the spelling with the fewest
+        // steps that look wrong is chosen; then the fewest B♯, C♭, E♯ and F♭; then the chord's own spelling.
+        if (!line.empty()) {
+            auto wrongLook = [](int fromTpc, int fromPitch, int toTpc, int toPitch) {
+                const int semis = std::abs(toPitch - fromPitch);
+                const int letters = std::abs(absStep(toTpc, toPitch) - absStep(fromTpc, fromPitch));
+                const int oct = semis / 12;
+                const int r = semis % 12;
+                static const int expected[12] = { 0, 1, 1, 2, 2, 3, 3, 4, 5, 5, 6, 6 };
+                const int l = letters - 7 * oct;
+                if (l == expected[r]) {
+                    return false;
+                }
+                // a chromatic half step (C to C♯), the tritone either way, and the augmented 5th are ordinary spellings
+                return !((r == 1 && l == 0) || (r == 6 && l == 4) || (r == 8 && l == 4));
+            };
+            auto valid = [&](int tpc2, const Fraction& tick) {
+                const int tpc1 = concertFromWritten(staff, tick, tpc2);
+                return tpc2 >= 6 && tpc2 <= 26 && tpc1 >= 6 && tpc1 <= 26;
+            };
+            const int INF = 1 << 28;
+            const size_t n = line.size();
+            std::vector<std::array<int, 3>> cand(n);
+            std::vector<std::array<int, 3>> cost(n);
+            std::vector<std::array<int, 3>> from(n);
+            for (size_t j = 0; j < n; ++j) {
+                const Written& x = line[j];
+                cand[j] = { x.base, x.base - 12, x.base + 12 };
+                for (size_t k = 0; k < 3; ++k) {
+                    const int tp = cand[j][k];
+                    const bool ok = (k == 0 || valid(tp, x.tick)) && tp >= 6 && tp <= 26;
+                    int nodeCost = ok ? (k == 0 ? 0 : 1) + (tp >= 8 && tp <= 24 ? 0 : 4) : INF;
+                    if (j == 0) {
+                        cost[j][k] = nodeCost;
+                        from[j][k] = 0;
+                        continue;
+                    }
+                    int best = INF;
+                    int arg = 0;
+                    for (size_t q = 0; q < 3; ++q) {
+                        if (cost[j - 1][q] >= INF || nodeCost >= INF) {
+                            continue;
+                        }
+                        int edge = 0;
+                        if (x.tied) {
+                            edge = cand[j - 1][q] == tp ? 0 : INF;   // a tie holds one spelling
+                        } else {
+                            edge = wrongLook(cand[j - 1][q], line[j - 1].writtenPitch, tp, x.writtenPitch) ? 10 : 0;
+                        }
+                        if (edge < INF && cost[j - 1][q] + edge + nodeCost < best) {
+                            best = cost[j - 1][q] + edge + nodeCost;
+                            arg = int(q);
+                        }
+                    }
+                    cost[j][k] = best;
+                    from[j][k] = arg;
+                }
+            }
+            int k = 0;
+            for (int q = 1; q < 3; ++q) {
+                if (cost[n - 1][size_t(q)] < cost[n - 1][size_t(k)]) {
+                    k = q;
+                }
+            }
+            std::vector<int> chosen(n);
+            for (size_t j = n; j-- > 0;) {
+                chosen[j] = cand[j][size_t(k)];
+                k = from[j][size_t(k)];
+            }
+            for (size_t j = 1; j < n; ++j) {
+                if (!line[j].tied && wrongLook(chosen[j - 1], line[j - 1].writtenPitch, chosen[j], line[j].writtenPitch)) {
+                    ++report.awkwardSpellings;   // no spelling of this line makes every step look right
+                    const Measure* m = score->tick2measure(line[j].tick);
+                    report.awkwardWhere.push_back(name + ", bar " + std::to_string(m ? m->no() + 1 : 0));
+                }
+            }
+            for (size_t j = 0; j < n; ++j) {
+                const Written& x = line[j];
+                const int tpc2 = cost[n - 1][0] >= INF && cost[n - 1][1] >= INF && cost[n - 1][2] >= INF ? x.base : chosen[j];
+                const int tpc1 = concertFromWritten(staff, x.tick, tpc2);
+                if (x.note->pitch() != x.pitch || x.note->tpc1() != tpc1 || x.note->tpc2() != tpc2) {
+                    score->undoChangePitch(x.note, x.pitch, tpc1, tpc2);
+                }
             }
         }
         for (Note* n : silence) {

@@ -79,6 +79,7 @@ struct Scope {
     std::vector<std::string> chordNames;
     std::optional<std::string> saxWarning;   //!< the lessons' speed rule for spread voicings (lesson 6)
     int fastNotes = 0;            //!< melody notes shorter than FAST_NOTE_SECONDS
+    std::vector<std::string> notices;   //!< what will happen that you might not expect, in plain words
     double longestNoteSeconds = 0;
 };
 
@@ -99,6 +100,11 @@ struct Report {
     int diatonic = 0;
     int diminished = 0;
     std::vector<std::string> notes;           //!< plain remarks from the rules
+    std::vector<std::string> notices;         //!< as in Scope
+    int awkwardSpellings = 0;                 //!< steps that look wrong however the line is spelled (Proofread lists them)
+    std::vector<std::string> awkwardWhere;
+    int unisonNotes = 0;                      //!< melody notes left in unison (no chord, or none that keeps the rules)
+    std::vector<int> unisonBars;
 };
 
 Report run(engraving::Score* score, const RunOptions& options);

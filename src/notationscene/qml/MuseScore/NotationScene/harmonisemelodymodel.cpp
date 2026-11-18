@@ -26,18 +26,18 @@ using namespace muse;
 namespace jh = mu::notation::jubelle::harmony;
 
 namespace {
-Settings::Key key(const char* name)
+Settings::Key harmoniseKey(const char* name)
 {
     return Settings::Key("notation", std::string("jubelle/harmonise/") + name);
 }
 
-int readInt(const char* name, int def)
+int readHarmoniseInt(const char* name, int def)
 {
-    const Val v = settings()->value(key(name));
+    const Val v = settings()->value(harmoniseKey(name));
     return v.isNull() ? def : v.toInt();
 }
 
-QVariant item(int value, const QString& text, const QString& hint = QString())
+QVariant harmoniseItem(int value, const QString& text, const QString& hint = QString())
 {
     QVariantMap m;
     m["value"] = value;
@@ -61,12 +61,12 @@ QVariantList HarmoniseMelodyModel::trumpetTechniques() const
 {
     using T = jh::TrumpetTechnique;
     return {
-        item(int(T::Automatic), qtrc("notation", "Closed, or trumpet triads when the lead goes above concert A5"),
+        harmoniseItem(int(T::Automatic), qtrc("notation", "Closed, or trumpet triads when the lead goes above concert A5"),
              qtrc("notation", "Lessons 1 and 4: the closed ensemble works up to about the A on top of the treble staff; higher, trumpets 1 and 4 double the lead in octaves.")),
-        item(int(T::Closed), qtrc("notation", "Closed voicing"), qtrc("notation", "Lesson 1: four notes within an octave, at least a minor third under the lead.")),
-        item(int(T::TrumpetTriads), qtrc("notation", "Trumpet triads"), qtrc("notation", "Lesson 4: trumpets 1 and 4 in octaves, 2 and 3 between them.")),
-        item(int(T::Unison), qtrc("notation", "Unison")),
-        item(int(T::LeaveOut), qtrc("notation", "Leave out")),
+        harmoniseItem(int(T::Closed), qtrc("notation", "Closed voicing"), qtrc("notation", "Lesson 1: four notes within an octave, at least a minor third under the lead.")),
+        harmoniseItem(int(T::TrumpetTriads), qtrc("notation", "Trumpet triads"), qtrc("notation", "Lesson 4: trumpets 1 and 4 in octaves, 2 and 3 between them.")),
+        harmoniseItem(int(T::Unison), qtrc("notation", "Unison")),
+        harmoniseItem(int(T::LeaveOut), qtrc("notation", "Leave out")),
     };
 }
 
@@ -74,9 +74,9 @@ QVariantList HarmoniseMelodyModel::tromboneTechniques() const
 {
     using T = jh::TromboneTechnique;
     return {
-        item(int(T::OctaveBelowTrumpets), qtrc("notation", "An octave below the trumpets"), qtrc("notation", "Lesson 1. With trumpet triads, trombone 1 sits in its strong range (B♭3–A4) with the others closed under it.")),
-        item(int(T::Unison), qtrc("notation", "Unison"), qtrc("notation", "Lesson 2: a counter-line in the trombones.")),
-        item(int(T::LeaveOut), qtrc("notation", "Leave out")),
+        harmoniseItem(int(T::OctaveBelowTrumpets), qtrc("notation", "An octave below the trumpets"), qtrc("notation", "Lesson 1. With trumpet triads, trombone 1 sits in its strong range (B♭3–A4) with the others closed under it.")),
+        harmoniseItem(int(T::Unison), qtrc("notation", "Unison"), qtrc("notation", "Lesson 2: a counter-line in the trombones.")),
+        harmoniseItem(int(T::LeaveOut), qtrc("notation", "Leave out")),
     };
 }
 
@@ -84,17 +84,17 @@ QVariantList HarmoniseMelodyModel::saxTechniques() const
 {
     using T = jh::SaxTechnique;
     return {
-        item(int(T::DoubleTrombones), qtrc("notation", "Full band: double the trombones, baritone on roots"), qtrc("notation", "Lesson 1: altos and tenors on the trombone notes; the baritone mostly plays roots.")),
-        item(int(T::Unison), qtrc("notation", "Unison"), qtrc("notation", "Lesson 6: the baritone drops out when the line is too high for it.")),
-        item(int(T::OctaveUnison4Up1Down), qtrc("notation", "Octave unison, 4 up and 1 down"), qtrc("notation", "Altos and tenors in unison, the baritone an octave below.")),
-        item(int(T::OctaveUnison2Up3Down), qtrc("notation", "Octave unison, 2 up and 3 down"), qtrc("notation", "Altos above; tenors and baritone an octave below.")),
-        item(int(T::TwoPart), qtrc("notation", "Two-part"), qtrc("notation", "Altos on the melody; tenors and baritone a 3rd or 6th below, in the same rhythm.")),
-        item(int(T::Closed), qtrc("notation", "Closed"), qtrc("notation", "Alto 1 on the melody, the baritone an octave below it, the others closed in between.")),
-        item(int(T::Drop2), qtrc("notation", "Drop 2"), qtrc("notation", "Medium tempo or slower.")),
-        item(int(T::Drop2And4), qtrc("notation", "Drop 2 and 4"), qtrc("notation", "Slow music only.")),
-        item(int(T::FourPartDrop2), qtrc("notation", "Four-part Drop 2 (tenor 2 elsewhere)"), qtrc("notation", "For when one saxophone is busy with a solo or another line.")),
-        item(int(T::Drop2BariRoots), qtrc("notation", "Drop 2 with the baritone on roots"), qtrc("notation", "Keeps the root clear where Drop 2 and 4 would be muddy.")),
-        item(int(T::LeaveOut), qtrc("notation", "Leave out")),
+        harmoniseItem(int(T::DoubleTrombones), qtrc("notation", "Full band: double the trombones, baritone on roots"), qtrc("notation", "Lesson 1: altos and tenors on the trombone notes; the baritone mostly plays roots.")),
+        harmoniseItem(int(T::Unison), qtrc("notation", "Unison"), qtrc("notation", "Lesson 6: the baritone drops out when the line is too high for it.")),
+        harmoniseItem(int(T::OctaveUnison4Up1Down), qtrc("notation", "Octave unison, 4 up and 1 down"), qtrc("notation", "Altos and tenors in unison, the baritone an octave below.")),
+        harmoniseItem(int(T::OctaveUnison2Up3Down), qtrc("notation", "Octave unison, 2 up and 3 down"), qtrc("notation", "Altos above; tenors and baritone an octave below.")),
+        harmoniseItem(int(T::TwoPart), qtrc("notation", "Two-part"), qtrc("notation", "Altos on the melody; tenors and baritone a 3rd or 6th below, in the same rhythm.")),
+        harmoniseItem(int(T::Closed), qtrc("notation", "Closed"), qtrc("notation", "Alto 1 on the melody, the baritone an octave below it, the others closed in between.")),
+        harmoniseItem(int(T::Drop2), qtrc("notation", "Drop 2"), qtrc("notation", "Medium tempo or slower.")),
+        harmoniseItem(int(T::Drop2And4), qtrc("notation", "Drop 2 and 4"), qtrc("notation", "Slow music only.")),
+        harmoniseItem(int(T::FourPartDrop2), qtrc("notation", "Four-part Drop 2 (tenor 2 elsewhere)"), qtrc("notation", "For when one saxophone is busy with a solo or another line.")),
+        harmoniseItem(int(T::Drop2BariRoots), qtrc("notation", "Drop 2 with the baritone on roots"), qtrc("notation", "Keeps the root clear where Drop 2 and 4 would be muddy.")),
+        harmoniseItem(int(T::LeaveOut), qtrc("notation", "Leave out")),
     };
 }
 
@@ -102,26 +102,26 @@ QVariantList HarmoniseMelodyModel::nctTools() const
 {
     using T = jh::NctTool;
     return {
-        item(int(T::Automatic), qtrc("notation", "Choose for each note"), qtrc("notation", "Chromatic planing where the note moves a half step to a chord tone, else a diatonic passing chord, else diminished.")),
-        item(int(T::ChromaticPlaning), qtrc("notation", "Chromatic planing")),
-        item(int(T::Diatonic), qtrc("notation", "Diatonic passing chord"), qtrc("notation", "V7 of a major or minor chord, ii of a dominant.")),
-        item(int(T::Diminished), qtrc("notation", "Diminished passing chord"), qtrc("notation", "Minor thirds down from the melody; typical of early swing, best not overused.")),
+        harmoniseItem(int(T::Automatic), qtrc("notation", "Choose for each note"), qtrc("notation", "Chromatic planing where the note moves a half step to a chord tone, else a diatonic passing chord, else diminished.")),
+        harmoniseItem(int(T::ChromaticPlaning), qtrc("notation", "Chromatic planing")),
+        harmoniseItem(int(T::Diatonic), qtrc("notation", "Diatonic passing chord"), qtrc("notation", "V7 of a major or minor chord, ii of a dominant.")),
+        harmoniseItem(int(T::Diminished), qtrc("notation", "Diminished passing chord"), qtrc("notation", "Minor thirds down from the melody; typical of early swing, best not overused.")),
     };
 }
 
 void HarmoniseMelodyModel::load()
 {
-    m_options.orchestration.trumpets = jh::TrumpetTechnique(readInt("trumpets", int(jh::TrumpetTechnique::Automatic)));
-    m_options.orchestration.trombones = jh::TromboneTechnique(readInt("trombones", int(jh::TromboneTechnique::OctaveBelowTrumpets)));
-    m_options.orchestration.saxes = jh::SaxTechnique(readInt("saxes", int(jh::SaxTechnique::DoubleTrombones)));
-    m_options.harmony.nct = jh::NctTool(readInt("nct", int(jh::NctTool::Automatic)));
+    m_options.orchestration.trumpets = jh::TrumpetTechnique(readHarmoniseInt("trumpets", int(jh::TrumpetTechnique::Automatic)));
+    m_options.orchestration.trombones = jh::TromboneTechnique(readHarmoniseInt("trombones", int(jh::TromboneTechnique::OctaveBelowTrumpets)));
+    m_options.orchestration.saxes = jh::SaxTechnique(readHarmoniseInt("saxes", int(jh::SaxTechnique::DoubleTrombones)));
+    m_options.harmony.nct = jh::NctTool(readHarmoniseInt("nct", int(jh::NctTool::Automatic)));
     // your decision 5: the lessons' ♭9♯5 where the melody allows it
-    m_options.harmony.addAlterations = readInt("alterations", 1) != 0;
+    m_options.harmony.addAlterations = readHarmoniseInt("alterations", 1) != 0;
     // optional, off unless you ask (lesson 5 places it mainly in the rhythm section)
-    m_options.harmony.halfStepSlide = readInt("halfStepSlide", 0) != 0;
-    m_options.existing = readInt("keepExisting", 1) != 0 ? jh::ExistingNotes::KeepExisting : jh::ExistingNotes::Replace;
-    m_options.writeChordSymbols = readInt("writeChordSymbols", 1) != 0;
-    m_options.orchestration.altosFillHighTriads = readInt("altosFill", 0) != 0;   // lesson 4 "sometimes": off unless you ask
+    m_options.harmony.halfStepSlide = readHarmoniseInt("halfStepSlide", 0) != 0;
+    m_options.existing = readHarmoniseInt("keepExisting", 1) != 0 ? jh::ExistingNotes::KeepExisting : jh::ExistingNotes::Replace;
+    m_options.writeChordSymbols = readHarmoniseInt("writeChordSymbols", 1) != 0;
+    m_options.orchestration.altosFillHighTriads = readHarmoniseInt("altosFill", 0) != 0;   // lesson 4 "sometimes": off unless you ask
     emit optionsChanged();
 
     m_scopeTitle.clear();
@@ -179,7 +179,7 @@ void HarmoniseMelodyModel::load()
 
 void HarmoniseMelodyModel::optionChanged(const char* name, int value)
 {
-    settings()->setSharedValue(key(name), Val(value));
+    settings()->setSharedValue(harmoniseKey(name), Val(value));
     updateWarning();
     emit optionsChanged();
 }
@@ -187,11 +187,15 @@ void HarmoniseMelodyModel::optionChanged(const char* name, int value)
 void HarmoniseMelodyModel::updateWarning()
 {
     m_saxWarning.clear();
+    m_notices.clear();
     INotationPtr n = notation();
     if (n && m_canRun) {
         const jh::Scope sc = n->interaction()->harmonyScope(m_options);
         if (sc.saxWarning) {
             m_saxWarning = QString::fromStdString(*sc.saxWarning);
+        }
+        for (const std::string& t : sc.notices) {
+            m_notices << QString::fromStdString(t);
         }
     }
 }
@@ -314,6 +318,23 @@ bool HarmoniseMelodyModel::write(const jh::RunOptions& options)
         }
         lines << qtrc("notation", "%n note(s) are outside the player's range (%1). Try another technique, or move the passage.",
                       nullptr, r.outOfRange).arg(where.join(QStringLiteral("; ")));
+    }
+    if (r.awkwardSpellings > 0) {
+        QStringList where;
+        for (size_t i = 0; i < r.awkwardWhere.size() && i < 3; ++i) {
+            where << QString::fromStdString(r.awkwardWhere[i]);
+        }
+        lines << qtrc("notation", "%n step(s) can't be spelled to read the way they sound, however the line is written (%1). "
+                                  "The fewest such steps were chosen; Proofread points them out.", nullptr, r.awkwardSpellings)
+            .arg(where.join(QStringLiteral("; ")));
+    }
+    if (r.unisonNotes > 0) {
+        QStringList bars;
+        for (size_t i = 0; i < r.unisonBars.size() && i < 8; ++i) {
+            bars << QString::number(r.unisonBars[i]);
+        }
+        lines << qtrc("notation", "%n melody note(s) are played in unison, because there is no chord the rules can use there (bars %1).",
+                      nullptr, r.unisonNotes).arg(bars.join(QStringLiteral(", ")));
     }
     for (const std::string& note : r.notes) {
         lines << QString::fromStdString(note);

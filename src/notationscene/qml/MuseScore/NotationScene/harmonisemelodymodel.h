@@ -11,6 +11,7 @@
 #pragma once
 
 #include <QObject>
+#include <QStringList>
 #include <QVariantList>
 #include <qqmlintegration.h>
 
@@ -48,6 +49,7 @@ class HarmoniseMelodyModel : public QObject, public muse::Contextable
     Q_PROPERTY(bool writeChordSymbols READ writeChordSymbols WRITE setWriteChordSymbols NOTIFY optionsChanged)
     Q_PROPERTY(bool altosFill READ altosFill WRITE setAltosFill NOTIFY optionsChanged)
     Q_PROPERTY(QString saxWarning READ saxWarning NOTIFY optionsChanged)
+    Q_PROPERTY(QStringList notices READ notices NOTIFY optionsChanged)
 
     Q_PROPERTY(bool applied READ applied NOTIFY resultChanged)
     Q_PROPERTY(QString resultText READ resultText NOTIFY resultChanged)
@@ -104,6 +106,7 @@ public:
     bool writeChordSymbols() const;
     void setWriteChordSymbols(bool v);
     QString saxWarning() const { return m_saxWarning; }
+    QStringList notices() const { return m_notices; }
 
     bool applied() const { return m_applied; }
     QString resultText() const { return m_resultText; }
@@ -128,6 +131,7 @@ private:
     QString m_scopeDetail;
     QString m_sectionsText;
     QString m_saxWarning;
+    QStringList m_notices;
     bool m_canRun = false;
 
     bool m_applied = false;

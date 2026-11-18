@@ -176,6 +176,27 @@ StyledDialogView {
                 }
             }
 
+            // What to expect in this score
+            Column {
+                width: parent.width
+                spacing: 4
+                visible: hm.notices.length > 0
+
+                SectionTitle { text: qsTrc("notation", "Good to know") }
+
+                Repeater {
+                    model: hm.notices
+
+                    delegate: StyledTextLabel {
+                        required property string modelData
+                        width: content.width
+                        text: "• " + modelData
+                        horizontalAlignment: Text.AlignLeft
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+
             // Sections
             Column {
                 width: parent.width
