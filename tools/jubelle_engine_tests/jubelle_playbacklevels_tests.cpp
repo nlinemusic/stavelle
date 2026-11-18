@@ -8,70 +8,161 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <iostream>
 #include <vector>
 
 #include "audio/engine/internal/dsp/jubellesafetylimiter.h"
+#include "jubelle_oldsafetylimiter.h"
 #include "audio/engine/internal/synthesizers/fluidsynth/jubellepresetgain.h"
 #include "audio/engine/internal/synthesizers/fluidsynth/jubelledynamics.h"
 
 using namespace muse::audio;
 using namespace muse::audio::jubelle;
 
+namespace {
+// output of the limiter, with its look-ahead delay removed
+std::vector<float> limited(dsp::JubelleSafetyLimiter& lim, std::vector<float> in, size_t channels)
+{
+    const size_t lat = lim.latencySamples();
+    in.resize(in.size() + lat * channels, 0.f);
+    lim.process(in.data(), in.size() / channels, channels);
+    return std::vector<float>(in.begin() + long(lat * channels), in.end());
+}
+
+//! energy above `hz` relative to the whole signal, in dB (the "click" a sudden gain change adds)
+double energyAboveDb(const std::vector<float>& mono, double sampleRate, double hz)
+{
+    // a plain DFT on a short window is enough here (and needs no library)
+    const size_t n = mono.size();
+    double total = 0, high = 0;
+    for (size_t k = 1; k < n / 2; k += 3) {
+        double re = 0, im = 0;
+        for (size_t i = 0; i < n; ++i) {
+            const double w = 0.5 - 0.5 * std::cos(2 * M_PI * double(i) / double(n - 1));
+            re += mono[i] * w * std::cos(2 * M_PI * double(k) * double(i) / double(n));
+            im -= mono[i] * w * std::sin(2 * M_PI * double(k) * double(i) / double(n));
+        }
+        const double e = re * re + im * im;
+        total += e;
+        if (double(k) * sampleRate / double(n) > hz) {
+            high += e;
+        }
+    }
+    return 10 * std::log10(high / total);
+}
+}
+
 TEST(Jubelle_SafetyLimiter, LeavesQuieterMusicExactlyUnchanged)
 {
     dsp::JubelleSafetyLimiter lim;
     lim.setSampleRate(44100);
-    std::vector<float> buf(4410 * 2), orig;
-    for (size_t i = 0; i < buf.size(); ++i) {
-        buf[i] = 0.85f * std::sin(float(i) * 0.01f);
+    std::vector<float> orig(4410 * 2);
+    for (size_t i = 0; i < orig.size(); ++i) {
+        orig[i] = 0.85f * std::sin(float(i) * 0.01f);
     }
-    orig = buf;
-    lim.process(buf.data(), buf.size() / 2, 2);
-    EXPECT_EQ(buf, orig);
+    EXPECT_EQ(limited(lim, orig, 2), orig);   // the same samples, 5 ms later
     EXPECT_FALSE(lim.isLimiting());
+    EXPECT_EQ(lim.latencySamples(), 220u);    // 5 ms at 44.1 kHz
 }
 
 TEST(Jubelle_SafetyLimiter, NoPeakGoesPastTheThreshold)
 {
-    dsp::JubelleSafetyLimiter lim;
-    lim.setSampleRate(44100);
-    std::vector<float> buf(44100 * 2);
-    for (size_t i = 0; i < buf.size(); ++i) {
-        buf[i] = 1.6f * std::sin(float(i / 2) * 0.05f) * (i % 2 ? 0.5f : 1.f);
+    for (unsigned rate : { 44100u, 48000u, 96000u }) {
+        dsp::JubelleSafetyLimiter lim;
+        lim.setSampleRate(rate);
+        std::vector<float> buf(rate * 2);
+        for (size_t i = 0; i < buf.size(); ++i) {
+            // a loud passage with sudden accents
+            const float accent = (i / 2) % 9000 < 300 ? 2.5f : 1.f;
+            buf[i] = 1.6f * accent * std::sin(float(i / 2) * 0.05f) * (i % 2 ? 0.5f : 1.f);
+        }
+        const auto out = limited(lim, buf, 2);
+        float peak = 0;
+        for (float s : out) {
+            peak = std::max(peak, std::fabs(s));
+        }
+        EXPECT_LE(peak, dsp::JubelleSafetyLimiter::THRESHOLD + 1e-6f) << rate;
+        EXPECT_GT(peak, 0.85f) << rate;   // turned down only as far as needed
     }
-    lim.process(buf.data(), buf.size() / 2, 2);
-    float peak = 0;
-    for (float s : buf) {
-        peak = std::max(peak, std::fabs(s));
-    }
-    EXPECT_LE(peak, dsp::JubelleSafetyLimiter::THRESHOLD + 1e-6f);
-    EXPECT_GT(peak, 0.85f); // turned down only as far as needed
 }
 
 TEST(Jubelle_SafetyLimiter, ChannelsAreTurnedDownTogether)
 {
     dsp::JubelleSafetyLimiter lim;
     lim.setSampleRate(44100);
-    float frame[2] = { 1.5f, 0.3f };
-    lim.process(frame, 1, 2);
-    EXPECT_NEAR(frame[0] / frame[1], 5.f, 1e-4f); // stereo image kept
+    std::vector<float> in(2000 * 2);
+    for (size_t i = 0; i < in.size(); i += 2) {
+        in[i] = 1.5f;
+        in[i + 1] = 0.3f;
+    }
+    const auto out = limited(lim, in, 2);
+    for (size_t i = 0; i < out.size(); i += 2) {
+        EXPECT_NEAR(out[i] / out[i + 1], 5.f, 1e-4f);   // stereo image kept
+    }
+}
+
+TEST(Jubelle_SafetyLimiter, TurnsDownBeforeTheAttackNotAfter)
+{
+    // a soft chord swells quickly (10 ms) to well over the threshold: the old
+    // limiter turned the level down sample by sample as each new peak arrived
+    // (a crackle on the attack); the new one ramps down smoothly beforehand
+    const unsigned rate = 48000;
+    std::vector<float> in(rate / 5 * 2, 0.f);
+    for (size_t i = 0; i < in.size() / 2; ++i) {
+        const float t = float(i) / float(rate);
+        const float onset = 0.1f;
+        const float x = std::clamp((t - onset) / 0.010f, 0.f, 1.f);
+        const float env = 0.2f + 0.8f * (0.5f - 0.5f * std::cos(float(M_PI) * x));   // smooth: no click of its own
+        const float v = env * (0.8f * std::sin(2 * float(M_PI) * 220.f * t) + 0.7f * std::sin(2 * float(M_PI) * 277.f * t)
+                               + 0.5f * std::sin(2 * float(M_PI) * 330.f * t));
+        in[i * 2] = in[i * 2 + 1] = v;
+    }
+    dsp::JubelleSafetyLimiter lim;
+    lim.setSampleRate(rate);
+    const auto now = limited(lim, in, 2);
+
+    jubelle_test_old::JubelleOldSafetyLimiter old;
+    old.setSampleRate(rate);
+    std::vector<float> before = in;
+    old.process(before.data(), before.size() / 2, 2);
+
+    // the attack: 40 ms around the onset, left channel
+    auto window = [rate](const std::vector<float>& v) {
+        std::vector<float> m;
+        for (size_t i = rate / 10 - rate / 100; i < rate / 10 + rate / 33; ++i) {
+            m.push_back(v[i * 2]);
+        }
+        return m;
+    };
+    const double clickNow = energyAboveDb(window(now), rate, 4000);
+    const double clickBefore = energyAboveDb(window(before), rate, 4000);
+    // the chord itself has nothing above 4 kHz: what is there is the limiter's own noise
+    std::cout << "[ measure  ] limiter noise above 4 kHz on the attack: new " << clickNow << " dB, old " << clickBefore << " dB\n";
+    EXPECT_LT(clickNow, clickBefore - 10.0) << "new " << clickNow << " dB, old " << clickBefore << " dB";
+    float peak = 0;
+    for (float s : now) {
+        peak = std::max(peak, std::fabs(s));
+    }
+    EXPECT_LE(peak, dsp::JubelleSafetyLimiter::THRESHOLD + 1e-6f);
 }
 
 TEST(Jubelle_SafetyLimiter, ComesBackSmoothlyAfterALoudPeak)
 {
     dsp::JubelleSafetyLimiter lim;
     lim.setSampleRate(44100);
-    float loud[2] = { 2.f, 2.f };
-    lim.process(loud, 1, 2);
-    EXPECT_NEAR(lim.currentGain(), dsp::JubelleSafetyLimiter::THRESHOLD / 2.f, 1e-5f);
+    std::vector<float> loud(64 * 2, 2.f);
+    lim.process(loud.data(), loud.size() / 2, 2);
+    std::vector<float> settle(400 * 2, 0.1f);
+    lim.process(settle.data(), settle.size() / 2, 2);
+    EXPECT_LT(lim.currentGain(), 0.5f);
 
     std::vector<float> quiet(44100 / 10 * 2, 0.1f);   // 100 ms
     lim.process(quiet.data(), quiet.size() / 2, 2);
     const float after100ms = lim.currentGain();
-    EXPECT_GT(after100ms, 0.45f);
+    EXPECT_GT(after100ms, 0.6f);
     EXPECT_LT(after100ms, 0.9f);                        // not an abrupt jump
     for (size_t i = 2; i < quiet.size(); i += 2) {
-        EXPECT_GE(quiet[i], quiet[i - 2]);              // only ever rising
+        EXPECT_GE(quiet[i], quiet[i - 2] - 1e-7f);      // only ever rising
     }
 
     std::vector<float> rest(44100 * 3 * 2, 0.1f);       // 3 s
@@ -223,4 +314,74 @@ TEST(Jubelle_Dynamics, Vst3VelocitiesFollowTheSameSteps)
     }
     // mf to f: 5 dB, as with the built-in sounds
     EXPECT_NEAR(40.0 * std::log10(jd::vstVelocity(5.0) / jd::vstVelocity(4.0)), 5.0, 0.05);
+}
+
+// ---------------------------------------------------------------------------
+// Audio export quality (18 Nov 2026)
+// ---------------------------------------------------------------------------
+
+TEST(Jubelle_Dynamics, VelocityInstrumentsUseMuseScoresScale)
+{
+    using namespace muse::audio::jubelle;
+    // MuseScore: ppp 16, pp 32, p 48, mp 64, mf 80, f 96, ff 112, fff 127; unmarked = 64
+    const int expected[8] = { 16, 32, 48, 64, 80, 96, 112, 127 };
+    for (int step = 0; step < 8; ++step) {
+        EXPECT_EQ(museScoreLevel(step), expected[step]) << step;
+    }
+    EXPECT_EQ(museScoreLevel(3.5 - 0.5), 64) << "unmarked music (Natural is 3.5 steps above ppp, less half a step)";
+    EXPECT_EQ(museScoreLevel(-3), 16);
+    EXPECT_EQ(museScoreLevel(12), 127);
+    // the make-up gain is exactly taken back: 3.9 dB as attenuation
+    EXPECT_NEAR(velocityInstrumentAttenuationCb() / 10.0, 20.0 * std::log10(makeupGain()), 1e-9);
+}
+
+#include "audio/engine/internal/dsp/jubelledither.h"
+
+TEST(Jubelle_Dither, SixteenBitQuietSoundsStayClean)
+{
+    // a very quiet sine (-80 dBFS, about 3 steps of 16 bits): plain rounding
+    // turns it into a staircase whose error follows the music (distortion);
+    // with dither the error is noise, unrelated to the music
+    const double rate = 48000;
+    const size_t n = 48000;
+    std::vector<double> sig(n);
+    for (size_t i = 0; i < n; ++i) {
+        sig[i] = 1e-4 * std::sin(2 * M_PI * 1000.0 * double(i) / rate);
+    }
+    dsp::JubelleTpdfDither dither;
+    auto harmonicError = [&](bool dithered) {
+        // error correlated with the 3rd harmonic of the tone: the audible distortion
+        double re = 0, im = 0;
+        for (size_t i = 0; i < n; ++i) {
+            const double q = dithered ? double(dither.toInt16(float(sig[i])))
+                             : std::round(double(std::clamp(float(sig[i]), -1.f, 1.f)) * 32767.0);
+            const double err = q / 32767.0 - sig[i];
+            re += err * std::cos(2 * M_PI * 3000.0 * double(i) / rate);
+            im += err * std::sin(2 * M_PI * 3000.0 * double(i) / rate);
+        }
+        return 20 * std::log10(2 * std::sqrt(re * re + im * im) / double(n) + 1e-20);
+    };
+    const double plain = harmonicError(false);
+    const double withDither = harmonicError(true);
+    std::cout << "[ measure  ] 3rd-harmonic distortion of a -80 dBFS tone at 16 bits: plain " << plain << " dB, dithered "
+              << withDither << " dB\n";
+    EXPECT_LT(withDither, plain - 15.0) << "plain " << plain << " dB, dithered " << withDither << " dB";
+}
+
+TEST(Jubelle_Dither, RepeatableAndInRange)
+{
+    dsp::JubelleTpdfDither a, b;
+    for (int i = 0; i < 10000; ++i) {
+        const float v = float(std::sin(i * 0.01)) * 0.5f;
+        EXPECT_EQ(a.toInt16(v), b.toInt16(v));   // the same export twice gives the same file
+    }
+    dsp::JubelleTpdfDither c;
+    for (int i = 0; i < 1000; ++i) {
+        EXPECT_GE(c.toInt16(2.f), 32765);   // full scale, never wrapped round
+    }
+    for (int i = 0; i < 1000; ++i) {
+        const int32_t s = c.toInt16(-1.f);
+        EXPECT_GE(s, -32768);
+        EXPECT_LE(s, -32766);
+    }
 }

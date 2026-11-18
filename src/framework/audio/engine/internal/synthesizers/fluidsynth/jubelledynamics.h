@@ -123,6 +123,30 @@ inline int naturalMidiLevel()
     return midiLevelForDb(NATURAL_DB);
 }
 
+// Instruments whose loudness comes from the note velocity (piano and other
+// keyboards, guitars, harp, mallets, drums: MuseScore's "no single-note
+// dynamics" instruments). In a soundfont the velocity does more than set the
+// level: it chooses the sample layer and opens the brightness filter. Played
+// at the lower MIDI levels of the scale above, with the loss made up by gain,
+// these instruments sounded duller than in MuseScore (measured with MS Basic
+// piano: a six-note chord at mf had 6 dB less energy above 4 kHz). So their
+// velocities follow MuseScore's own scale exactly (16 per marking; unmarked
+// music at MuseScore's 64), and the make-up gain is taken back off their
+// channels (velocityInstrumentAttenuationCb), so they sound and balance exactly
+// as in MuseScore.
+
+//! MuseScore's MIDI level for a position on the dynamics scale (0 = ppp … 7 = fff)
+inline int museScoreLevel(double steps)
+{
+    return std::clamp(int(std::lround(16.0 + steps * 16.0)), 16, 127);
+}
+
+//! the make-up gain in centibels, as channel attenuation (+ = quieter)
+inline double velocityInstrumentAttenuationCb()
+{
+    return 400.0 * std::log10(80.0 / double(MF_MIDI_LEVEL));   // 38.8 cB = 3.9 dB
+}
+
 //! VST3 instruments: the note velocity (0..1) for a position on the dynamics scale.
 //! MuseScore sent ppp..fff in equal steps from almost 0 to 1, so ppp was nearly silent in
 //! most sample libraries and the loud steps were small. Here the same decibel steps as the
