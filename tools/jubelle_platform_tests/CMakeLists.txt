@@ -39,6 +39,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.h
     ${ROOT}/src/notation/tests/chordidentifier_tests.cpp
+    ${ROOT}/src/notation/internal/jubelle/harmony/harmonyrules.cpp
+    ${ROOT}/src/notation/internal/jubelle/harmony/harmonyrules.h
+    ${ROOT}/src/notation/tests/jubelle_harmonyrules_tests.cpp
     ${ROOT}/src/notation/internal/jubelle/condensingplanner.cpp
     ${ROOT}/src/notation/internal/jubelle/condensingplanner.h
     ${ROOT}/src/notation/tests/condensingplanner_tests.cpp
@@ -48,9 +51,21 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/framework/vst/internal/jubelle/vstpresetfile.cpp
     ${ROOT}/src/framework/vst/internal/jubelle/vstpresetfile.h
     ${ROOT}/src/framework/vst/tests/jubelle_vstpreset_tests.cpp
+    ${ROOT}/src/framework/vst/internal/jubelle/vstkeyswitches.cpp
+    ${ROOT}/src/framework/vst/internal/jubelle/vstkeyswitches.h
+    ${ROOT}/src/framework/vst/tests/jubelle_vstkeyswitches_tests.cpp
+    ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.cpp
+    ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.h
+    ${ROOT}/src/importexport/videoexport/tests/jubelle_audiosplice_tests.cpp
+    ${ROOT}/src/appshell/internal/jubelle/performanceprofile.cpp
+    ${ROOT}/src/appshell/internal/jubelle/performanceprofile.h
+    ${ROOT}/src/appshell/tests/jubelle_performanceprofile_tests.cpp
 )
 target_include_directories(jubelle_platform_tests PRIVATE ${ROOT}/src)
 target_link_libraries(jubelle_platform_tests PRIVATE gtest_main)
+if (APPLE)
+    target_link_libraries(jubelle_platform_tests PRIVATE "-framework Security" "-framework CoreFoundation")
+endif()
 
 if (MSVC)
     target_compile_options(jubelle_platform_tests PRIVATE /W4 /utf-8)

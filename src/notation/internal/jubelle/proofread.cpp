@@ -7,6 +7,12 @@
 #include "pageturns.h"
 
 #include "engraving/dom/hairpin.h"
+#include "engraving/dom/page.h"
+#include "engraving/dom/clef.h"
+#include "engraving/dom/keysig.h"
+#include "engraving/dom/tempo.h"
+#include "engraving/dom/instrchange.h"
+#include "engraving/dom/lyrics.h"
 
 #include <algorithm>
 #include <cmath>
@@ -26,10 +32,12 @@
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/pitchspelling.h"
+#include "engraving/dom/utils.h"
 #include "engraving/dom/rehearsalmark.h"
 #include "engraving/dom/rest.h"
 #include "engraving/dom/segment.h"
 #include "engraving/dom/staff.h"
+#include "engraving/dom/stafftype.h"
 #include "engraving/dom/spanner.h"
 #include "engraving/dom/system.h"
 #include "engraving/dom/text.h"
@@ -298,6 +306,20 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
                                   const_cast<Note*>(top), seg->tick(), staffIdx, eidKey(const_cast<Note*>(top)));
                         }
                     }
+                    // lesson 8: intervals must look the way they sound (a second written as a third, or the reverse)
+                    if (previous && o.categories.count(CheckCategory::Spelling) && !top->tieBack()) {
+                        const int semis = std::abs(top->pitch() - previous->pitch());
+                        const int letters = std::abs(absStep(top->tpc(), top->epitch()) - absStep(previous->tpc(), previous->epitch()));
+                        if ((semis == 1 || semis == 2) && letters == 2) {
+                            c.add(Severity::Suggestion, CheckCategory::Spelling,
+                                  muse::mtrc(CTX, "This step looks like a third but sounds like a second: respell it so it reads as it sounds"),
+                                  const_cast<Note*>(top), seg->tick(), staffIdx, "looks:" + eidKey(const_cast<Note*>(top)));
+                        } else if ((semis == 3 || semis == 4) && letters == 1) {
+                            c.add(Severity::Suggestion, CheckCategory::Spelling,
+                                  muse::mtrc(CTX, "This interval looks like a second but sounds like a third: respell it so it reads as it sounds"),
+                                  const_cast<Note*>(top), seg->tick(), staffIdx, "looks:" + eidKey(const_cast<Note*>(top)));
+                        }
+                    }
                     previous = top;
                 }
             }
@@ -546,6 +568,277 @@ void checkNames(Context& c)
     }
 }
 
+// ---------------------------------------------------------------------------
+// Voicing (18 Nov 2026): the section players of a big band or a brass section
+// ---------------------------------------------------------------------------
+
+//! The section a part plays in ("" when it isn't one of the horn sections)
+String sectionOf(const Part* part)
+{
+    const Instrument* i = part ? part->instrument() : nullptr;
+    if (!i) {
+        return String();
+    }
+    const String id = i->id();
+    if (id.contains(u"saxophone")) {
+        return u"saxophones";
+    }
+    if (id.contains(u"trumpet") || id.contains(u"flugelhorn") || id.contains(u"cornet")) {
+        return u"trumpets";
+    }
+    if (id.contains(u"trombone")) {
+        return u"trombones";
+    }
+    if (id == u"horn" || id.startsWith(u"horn-") || id.contains(u"french-horn")) {
+        return u"horns";
+    }
+    return String();
+}
+
+//! The highest sounding note a part starts at this segment (voice 1 of its first staff), or -1
+int topPitchAt(const Segment* seg, const Part* part)
+{
+    const track_idx_t track = part->startTrack();
+    const EngravingItem* e = seg->element(track);
+    if (!e || !e->isChord()) {
+        return -1;
+    }
+    const Chord* ch = toChord(e);
+    return ch->upNote() ? ch->upNote()->ppitch() : -1;
+}
+
+void checkVoicing(Context& c)
+{
+    Score* score = c.score;
+    // sections in score order (top to bottom), only where two or more players share one
+    std::map<String, std::vector<Part*> > sections;
+    std::vector<String> order;
+    for (Part* p : score->parts()) {
+        const String s = sectionOf(p);
+        if (s.isEmpty() || !p->show()) {
+            continue;
+        }
+        if (!sections.count(s)) {
+            order.push_back(s);
+        }
+        sections[s].push_back(p);
+    }
+    std::set<std::string> reported;   // one finding per kind, section and bar
+    for (const String& name : order) {
+        const std::vector<Part*>& players = sections[name];
+        if (players.size() < 2) {
+            continue;
+        }
+        for (Segment* seg = score->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+            // the players who start a note here, top to bottom
+            std::vector<std::pair<Part*, int> > voices;
+            for (Part* p : players) {
+                const int pitch = topPitchAt(seg, p);
+                if (pitch >= 0) {
+                    voices.push_back({ p, pitch });
+                }
+            }
+            if (voices.size() < 2) {
+                continue;
+            }
+            const Measure* m = seg->measure();
+            const int bar = c.barNo.count(m) ? c.barNo[m] : 0;
+            auto once = [&](const std::string& kind, Part* part, const String& msg) {
+                const std::string key = kind + ":" + name.toStdString() + ":" + std::to_string(bar);
+                if (reported.insert(key).second) {
+                    EngravingItem* at = seg->element(part->startTrack());
+                    c.add(Severity::Suggestion, CheckCategory::Voicing, msg, at, seg->tick(), score->staffIdx(part), key);
+                }
+            };
+            for (size_t i = 0; i + 1 < voices.size(); ++i) {
+                const auto& [upper, hi] = voices[i];
+                const auto& [lower, lo] = voices[i + 1];
+                if (lo > hi) {
+                    once("cross", lower, muse::mtrc(CTX, "%1 is above %2 here: section players usually stay in score order")
+                         .arg(lower->partName(), upper->partName()));
+                }
+                const bool bottomPair = i + 2 == voices.size() && voices.size() >= 3;
+                const int widest = bottomPair ? 19 : 12;
+                if (hi - lo > widest) {
+                    once("gap", lower, muse::mtrc(CTX, "More than %1 between %2 and %3: the section may not sound as one")
+                         .arg(bottomPair ? muse::mtrc(CTX, "an octave and a fifth") : muse::mtrc(CTX, "an octave"),
+                              upper->partName(), lower->partName()));
+                }
+            }
+            const int lead = voices.front().second;
+            const int second = voices[1].second;
+            if (lead > second && lead - second < 3) {
+                once("close", voices[1].first, muse::mtrc(CTX, "Less than a minor third between %1 and %2: the lead line loses clarity")
+                     .arg(voices.front().first->partName(), voices[1].first->partName()));
+            }
+            if (voices.size() >= 4) {
+                for (size_t i = 1; i + 1 < voices.size(); ++i) {
+                    if (voices[i].second == lead - 12) {
+                        once("double", voices[i].first,
+                             muse::mtrc(CTX, "%1 doubles the lead an octave down: in a closed voicing only the bottom voice doubles the lead")
+                             .arg(voices[i].first->partName()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration: time to change instruments
+// ---------------------------------------------------------------------------
+
+void checkInstrumentChanges(Context& c)
+{
+    Score* score = c.score;
+    static constexpr double MIN_SECONDS = 5.0;
+    for (Segment* seg = score->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+        for (EngravingItem* a : seg->annotations()) {
+            if (!a || !a->isInstrumentChange()) {
+                continue;
+            }
+            const track_idx_t track0 = a->track() - (a->track() % VOICES);
+            // the last note before the change (the old instrument) and the first note after it (the new one)
+            Fraction lastEnd(-1, 1);
+            for (Segment* s = seg->prev1(SegmentType::ChordRest); s && lastEnd < Fraction(0, 1); s = s->prev1(SegmentType::ChordRest)) {
+                for (track_idx_t t = track0; t < track0 + VOICES; ++t) {
+                    if (EngravingItem* e = s->element(t); e && e->isChord()) {
+                        lastEnd = std::max(lastEnd, s->tick() + toChord(e)->actualTicks());
+                    }
+                }
+            }
+            Fraction firstNote(-1, 1);
+            for (Segment* s = seg; s && firstNote < Fraction(0, 1); s = s->next1(SegmentType::ChordRest)) {
+                for (track_idx_t t = track0; t < track0 + VOICES; ++t) {
+                    if (EngravingItem* e = s->element(t); e && e->isChord()) {
+                        firstNote = s->tick();
+                    }
+                }
+            }
+            if (lastEnd < Fraction(0, 1) || firstNote < Fraction(0, 1)) {
+                continue;
+            }
+            const double secs = score->tempomap()->tick2time(firstNote.ticks()) - score->tempomap()->tick2time(lastEnd.ticks());
+            if (secs < MIN_SECONDS) {
+                const InstrumentChange* ic = toInstrumentChange(a);
+                const String to = ic->instrument() ? ic->instrument()->trackName() : String();
+                c.add(Severity::Warning, CheckCategory::Orchestration,
+                      muse::mtrc(CTX, "Only %1 s to change to %2: players usually need at least %3 s")
+                      .arg(String::number(std::max(0.0, secs), 1), to, String::number(MIN_SECONDS, 0)),
+                      a, seg->tick(), a->staffIdx(), "change:" + eidKey(a));
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Copying: sizes, melisma lines, changes after page turns
+// ---------------------------------------------------------------------------
+
+void checkCopying(Context& c)
+{
+    Score* score = c.score;
+    // cue notes: about two-thirds of the normal size
+    const double cueMag = score->style().styleD(Sid::smallNoteMag);
+    if (cueMag < 0.6 || cueMag > 0.8) {
+        bool anyCue = false;
+        for (Segment* seg = score->firstSegment(SegmentType::ChordRest); seg && !anyCue; seg = seg->next1(SegmentType::ChordRest)) {
+            for (EngravingItem* e : seg->elist()) {
+                anyCue = anyCue || (e && e->isChordRest() && toChordRest(e)->isSmall());
+            }
+        }
+        if (anyCue) {
+            c.add(Severity::Suggestion, CheckCategory::Copying,
+                  muse::mtrc(CTX, "Small (cue) notes are %1% of normal size: cues are usually about two-thirds size (Format › Style › Sizes)")
+                  .arg(int(std::lround(cueMag * 100))), nullptr, Fraction(0, 1), 0, "cuesize");
+        }
+    }
+    const double staffMag = score->style().styleD(Sid::smallStaffMag);
+    for (size_t s = 0; s < score->nstaves(); ++s) {
+        const Staff* st = score->staff(s);
+        if (st && st->show() && st->staffType(Fraction(0, 1)) && st->staffType(Fraction(0, 1))->isSmall() && (staffMag < 0.6 || staffMag > 0.8)) {
+            c.add(Severity::Suggestion, CheckCategory::Copying,
+                  muse::mtrc(CTX, "Small staves (ossias, cue staves) are %1% of normal size: about two-thirds is usual")
+                  .arg(int(std::lround(staffMag * 100))), nullptr, Fraction(0, 1), s, "staffsize");
+            break;
+        }
+    }
+
+    // a word sung over several notes wants its extender line
+    for (size_t staffIdx = 0; staffIdx < score->nstaves(); ++staffIdx) {
+        for (track_idx_t track = staffIdx * VOICES; track < (staffIdx + 1) * VOICES; ++track) {
+            for (Segment* seg = score->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+                EngravingItem* e = seg->element(track);
+                if (!e || !e->isChord()) {
+                    continue;
+                }
+                for (Lyrics* l : toChord(e)->lyrics()) {
+                    const LyricsSyllabic syl = l->syllabic();
+                    if ((syl != LyricsSyllabic::SINGLE && syl != LyricsSyllabic::END) || l->ticks().isNotZero()) {
+                        continue;
+                    }
+                    // is the next chord in this voice without a syllable for this verse (a melisma)?
+                    Segment* next = seg->next1(SegmentType::ChordRest);
+                    while (next && !next->element(track)) {
+                        next = next->next1(SegmentType::ChordRest);
+                    }
+                    EngravingItem* ne = next ? next->element(track) : nullptr;
+                    if (!ne || !ne->isChord()) {
+                        continue;
+                    }
+                    bool hasSyllable = false;
+                    for (const Lyrics* nl : toChord(ne)->lyrics()) {
+                        hasSyllable = hasSyllable || nl->verse() == l->verse();
+                    }
+                    if (!hasSyllable) {
+                        c.add(Severity::Suggestion, CheckCategory::Copying,
+                              muse::mtrc(CTX, "“%1” is sung over more notes but has no extender line").arg(l->plainText()),
+                              l, seg->tick(), staffIdx, "melisma:" + eidKey(l));
+                    }
+                }
+            }
+        }
+    }
+
+    // parts: a key or clef change straight after a page turn is easily missed
+    if (!score->isMaster() && score->pages().size() > 1) {
+        const bool twoSided = score->style().styleB(Sid::pageTwosided);
+        for (size_t i = 1; i < score->pages().size(); ++i) {
+            // with two-sided pages the player turns before pages 3, 5, 7…; otherwise before every page
+            if (twoSided && (i % 2) != 0) {
+                continue;
+            }
+            const Page* page = score->pages()[i];
+            Measure* m = page ? page->firstMeasure() : nullptr;
+            if (!m) {
+                continue;
+            }
+            bool change = false;
+            EngravingItem* at = nullptr;
+            for (Segment* seg = m->first(); seg && seg->tick() == m->tick(); seg = seg->next()) {
+                if (!seg->isKeySigType() && !seg->isClefType() && !seg->isHeaderClefType()) {
+                    continue;
+                }
+                for (EngravingItem* e : seg->elist()) {
+                    if (e && e->isKeySig() && !toKeySig(e)->generated()) {
+                        change = true;
+                        at = e;
+                    } else if (e && e->isClef() && !toClef(e)->generated()) {
+                        change = true;
+                        at = e;
+                    }
+                }
+            }
+            if (change) {
+                c.add(Severity::Suggestion, CheckCategory::Copying,
+                      muse::mtrc(CTX, "A key or clef change comes straight after the turn to page %1: a reminder at the end of page %2, "
+                                      "or a different page turn, helps the player").arg(int(i + 1)).arg(int(i)),
+                      at, m->tick(), at ? at->staffIdx() : 0, "turnchange:" + std::to_string(i + 1));
+            }
+        }
+    }
+}
+
 void checkCollisions(Context& c)
 {
     for (const engraving::jubelle::Overlap& o : engraving::jubelle::findOverlaps(c.score)) {
@@ -570,6 +863,9 @@ String categoryTitle(CheckCategory cat)
     case CheckCategory::RehearsalMarks: return muse::mtrc(CTX, "Rehearsal marks");
     case CheckCategory::InstrumentNames: return muse::mtrc(CTX, "Instrument names");
     case CheckCategory::VoiceCrossings: return muse::mtrc(CTX, "Voice crossings");
+    case CheckCategory::Voicing: return muse::mtrc(CTX, "Section voicing");
+    case CheckCategory::Orchestration: return muse::mtrc(CTX, "Instrument changes");
+    case CheckCategory::Copying: return muse::mtrc(CTX, "Copying");
     case CheckCategory::Collisions: return muse::mtrc(CTX, "Collisions");
     case CheckCategory::MetricGrouping: return muse::mtrc(CTX, "Rhythm grouping");
     case CheckCategory::Placement: return muse::mtrc(CTX, "Placement");
@@ -644,6 +940,15 @@ std::vector<Finding> proofread(Score* score, const ProofreadOptions& options)
     }
     if (options.categories.count(CheckCategory::Preparation)) {
         checkPreparation(c);
+    }
+    if (options.categories.count(CheckCategory::Voicing)) {
+        checkVoicing(c);
+    }
+    if (options.categories.count(CheckCategory::Orchestration)) {
+        checkInstrumentChanges(c);
+    }
+    if (options.categories.count(CheckCategory::Copying)) {
+        checkCopying(c);
     }
 
     if (!options.includeIntentional) {

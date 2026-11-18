@@ -62,6 +62,10 @@ qt_add_qml_module(inspector_qml
         notation/accidentals/accidentalsettingsmodel.h
         notation/ambituses/ambitussettingsmodel.cpp
         notation/ambituses/ambitussettingsmodel.h
+        notation/jubelleplaybacksection.cpp
+        notation/jubellecontextsettingsmodel.cpp
+        notation/jubellecontextsettingsmodel.h
+        notation/jubelleplaybacksection.h
         notation/articulations/articulationsettingsmodel.cpp
         notation/articulations/articulationsettingsmodel.h
         notation/barlines/barlinesettingsmodel.cpp
@@ -241,6 +245,9 @@ qt_add_qml_module(inspector_qml
         common/CheckBoxPropertyView.qml
         common/ColorSection.qml
         common/JubelleRepeatPlaybackHeader.qml
+        common/JubelleDefaultValue.qml
+        common/JubellePlaybackValues.qml
+        common/JubelleContextSection.qml
         common/JubelleLinkedPassageHeader.qml
         common/DirectionSection.qml
         common/DropdownPropertyView.qml

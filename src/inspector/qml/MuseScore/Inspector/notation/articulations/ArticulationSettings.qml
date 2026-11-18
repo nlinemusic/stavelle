@@ -61,107 +61,11 @@ Column {
         ]
     }
 
-    // Jubelle: how the selected articulations sound (playback only)
-    Column {
-        id: playbackSection
-
+    // Jubelle: how the selected articulations sound (playback only), shared with other Properties
+    JubellePlaybackValues {
         width: parent.width
-        spacing: 8
-        visible: root.model ? root.model.playbackRows.length > 0 : false
-
-        readonly property color jubelleMagenta: "#E600A9"
-
-        SeparatorLine { anchors.margins: -12 }
-
-        StyledTextLabel {
-            width: parent.width
-            horizontalAlignment: Text.AlignLeft
-            font: ui.theme.bodyBoldFont
-            text: qsTrc("inspector", "Playback")
-        }
-
-        StyledTextLabel {
-            width: parent.width
-            horizontalAlignment: Text.AlignLeft
-            text: qsTrc("inspector", "Set for")
-        }
-
-        StyledDropdown {
-            width: parent.width
-            model: root.model ? root.model.playbackLevels : []
-            currentIndex: root.model ? root.model.playbackLevel : 0
-            navigation.name: "PlaybackLevelDropdown"
-            navigation.panel: root.navigationPanel
-            navigation.row: root.navigationRowStart + 10
-            onActivated: function(index, value) { root.model.playbackLevel = index }
-        }
-
-        StyledTextLabel {
-            width: parent.width
-            visible: text !== ""
-            horizontalAlignment: Text.AlignLeft
-            wrapMode: Text.Wrap
-            opacity: 0.7
-            text: root.model ? root.model.playbackNote : ""
-        }
-
-        Repeater {
-            model: root.model ? root.model.playbackRows : []
-
-            delegate: Column {
-                width: playbackSection.width
-                spacing: 4
-
-                StyledTextLabel {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignLeft
-                    wrapMode: Text.Wrap
-                    text: modelData.title
-                }
-
-                Row {
-                    width: parent.width
-                    spacing: 6
-
-                    IncrementalPropertyControl {
-                        width: parent.width / 2
-                        visible: modelData.unit !== "curve"
-                        isIndeterminate: modelData.varies
-                        currentValue: modelData.value
-                        step: 1
-                        decimals: 0
-                        minValue: modelData.min
-                        maxValue: modelData.max
-                        measureUnitsSymbol: modelData.unit === "semitones" ? qsTrc("inspector", "st")
-                                            : modelData.unit === "% of normal" ? "%" : modelData.unit
-                        navigation.name: "Playback " + modelData.key
-                        navigation.panel: root.navigationPanel
-                        navigation.row: root.navigationRowStart + 11 + index * 2
-                        navigation.accessible.name: modelData.title
-                        onValueEdited: function(newValue) { root.model.setPlaybackValue(modelData.key, Math.round(newValue)) }
-                    }
-
-                    FlatButton {
-                        icon: IconCode.UNDO
-                        enabled: modelData.isSet
-                        toolTipTitle: qsTrc("inspector", "Clear: use the inherited value")
-                        navigation.name: "Playback clear " + modelData.key
-                        navigation.panel: root.navigationPanel
-                        navigation.row: root.navigationRowStart + 12 + index * 2
-                        onClicked: root.model.clearPlaybackValue(modelData.key)
-                    }
-
-                    StyledTextLabel {
-                        width: parent.width / 2 - 40
-                        anchors.verticalCenter: parent.verticalCenter
-                        horizontalAlignment: Text.AlignLeft
-                        elide: Text.ElideRight
-                        color: modelData.isSet ? playbackSection.jubelleMagenta : ui.theme.fontPrimaryColor
-                        opacity: modelData.isSet ? 1.0 : 0.6
-                        text: modelData.source
-                    }
-                }
-            }
-        }
+        model: root.model
+        navigationPanel: root.navigationPanel
+        navigationRowStart: root.navigationRowStart + 10
     }
 }

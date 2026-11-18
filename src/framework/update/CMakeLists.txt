@@ -47,8 +47,9 @@ target_sources(muse_update PRIVATE
 # by the release workflow from the repository variable JUBELLE_RELEASE_PUBLIC_KEY.
 # Empty: updates are never installed by this build.
 set(JUBELLE_RELEASE_PUBLIC_KEY "" CACHE STRING "Jubelle release signing public key (hex)")
-if (NOT JUBELLE_RELEASE_PUBLIC_KEY AND DEFINED ENV{JUBELLE_RELEASE_PUBLIC_KEY})
-    set(JUBELLE_RELEASE_PUBLIC_KEY "$ENV{JUBELLE_RELEASE_PUBLIC_KEY}")
+if (NOT JUBELLE_RELEASE_PUBLIC_KEY AND DEFINED ENV{JUBELLE_RELEASE_PUBLIC_KEY} AND NOT "$ENV{JUBELLE_RELEASE_PUBLIC_KEY}" STREQUAL "")
+    # kept in the cache, so a later configure (packaging runs one) without the variable keeps the same key
+    set(JUBELLE_RELEASE_PUBLIC_KEY "$ENV{JUBELLE_RELEASE_PUBLIC_KEY}" CACHE STRING "Jubelle release signing public key (hex)" FORCE)
 endif()
 if (JUBELLE_RELEASE_PUBLIC_KEY AND NOT JUBELLE_RELEASE_PUBLIC_KEY MATCHES "^[0-9a-fA-F]+$")
     message(FATAL_ERROR "JUBELLE_RELEASE_PUBLIC_KEY must be 64 hex digits")

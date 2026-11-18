@@ -300,6 +300,39 @@ FocusScope {
                         onClicked: lc.setOnlyTransposing(!checked)
                     }
                     Item { Layout.fillWidth: true }
+                }
+
+                // Jubelle: which instruments: all, an ensemble (from the templates), or your own selection
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 12
+                    StyledTextLabel {
+                        text: qsTrc("appshell", "Show")
+                    }
+                    StyledDropdown {
+                        id: presetDropdown
+                        Layout.preferredWidth: 280
+                        model: {
+                            var items = [ { text: qsTrc("appshell", "All instruments"), value: -1 },
+                                          { text: qsTrc("appshell", "My selection (★)"), value: -2 } ]
+                            var presets = lc.presets
+                            for (var i = 0; i < presets.length; ++i) {
+                                items.push({ text: presets[i].name, value: i })
+                            }
+                            return items
+                        }
+                        currentIndex: indexOfValue(lc.preset)
+                        onActivated: function(index, value) { lc.preset = value }
+                    }
+                    FlatButton {
+                        text: qsTrc("appshell", "Fold all")
+                        onClicked: lc.setAllFamiliesCollapsed(true)
+                    }
+                    FlatButton {
+                        text: qsTrc("appshell", "Unfold all")
+                        onClicked: lc.setAllFamiliesCollapsed(false)
+                    }
+                    Item { Layout.fillWidth: true }
                     StyledTextLabel {
                         opacity: 0.6
                         text: qsTrc("appshell", "%n instrument(s)", "", lc.instrumentCount)
@@ -318,12 +351,27 @@ FocusScope {
                         id: instrumentRow
                         required property var modelData
                         width: instrumentList.width
-                        height: instrumentText.implicitHeight + 16
+                        height: modelData.isHeader ? familyHeader.implicitHeight + 12 : instrumentText.implicitHeight + 16
                         radius: 6
-                        color: ui.theme.backgroundPrimaryColor
+                        color: modelData.isHeader ? "transparent" : ui.theme.backgroundPrimaryColor
+
+                        // Jubelle: a family heading; click to fold or unfold it
+                        FlatButton {
+                            id: familyHeader
+                            visible: instrumentRow.modelData.isHeader
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            transparent: true
+                            orientation: Qt.Horizontal
+                            icon: instrumentRow.modelData.collapsed ? IconCode.SMALL_ARROW_RIGHT : IconCode.SMALL_ARROW_DOWN
+                            text: visible ? qsTrc("appshell", "%1 (%2)").arg(instrumentRow.modelData.title).arg(instrumentRow.modelData.count) : ""
+                            textFont: ui.theme.bodyBoldFont
+                            onClicked: lc.toggleFamily(instrumentRow.modelData.family)
+                        }
 
                         RowLayout {
                             id: instrumentText
+                            visible: !instrumentRow.modelData.isHeader
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
@@ -331,6 +379,13 @@ FocusScope {
                             anchors.rightMargin: 12
                             spacing: 12
 
+                            FlatButton {
+                                transparent: true
+                                text: instrumentRow.modelData.selected ? "★" : "☆"
+                                toolTipTitle: instrumentRow.modelData.selected ? qsTrc("appshell", "Remove from my selection")
+                                                                               : qsTrc("appshell", "Add to my selection")
+                                onClicked: lc.toggleSelected(instrumentRow.modelData.id)
+                            }
                             ColumnLayout {
                                 Layout.preferredWidth: 230
                                 Layout.maximumWidth: 230
@@ -339,7 +394,7 @@ FocusScope {
                                     Layout.fillWidth: true
                                     horizontalAlignment: Text.AlignLeft
                                     font: ui.theme.bodyBoldFont
-                                    text: instrumentRow.modelData.name
+                                    text: instrumentRow.modelData.name || ""   // header rows have no name
                                 }
                                 StyledTextLabel {
                                     Layout.fillWidth: true
@@ -372,7 +427,7 @@ FocusScope {
                                     horizontalAlignment: Text.AlignLeft
                                     wrapMode: Text.Wrap
                                     color: instrumentRow.modelData.transposing ? root.jubellePurple : ui.theme.fontPrimaryColor
-                                    text: instrumentRow.modelData.transposition
+                                    text: instrumentRow.modelData.transposition || ""
                                 }
                                 StyledTextLabel {
                                     Layout.fillWidth: true

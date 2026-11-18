@@ -55,7 +55,7 @@ Row {
             navigation.accessible.name: sampleRateLabel.text + " " + currentText
 
             model: root.model ? root.model.availableSampleRates().map(function(sampleRate) {
-                return { text: qsTrc("project/export", "%1 Hz").arg(sampleRate), value: sampleRate }
+                return { text: qsTrc("project/export", "%1 kHz").arg(sampleRate / 1000), value: sampleRate }
             }) : []
 
             currentIndex: root.model ? indexOfValue(root.model.sampleRate) : -1
@@ -69,7 +69,7 @@ Row {
     ExportOptionItem {
         id: bitrateLabel
         visible: root.showBitRateControl
-        text: qsTrc("project/export", "Bit rate:")
+        text: qsTrc("project/export", "Bit rate (compressed):")
 
         StyledDropdown {
             Layout.preferredWidth: 126
@@ -94,7 +94,7 @@ Row {
     ExportOptionItem {
         id: sampleFormatLabel
         visible: root.model ? root.model.availableSampleFormats.length > 0 : false
-        text: qsTrc("project/export", "Sample format:")
+        text: qsTrc("project/export", "Bit depth:")
 
         StyledDropdown {
             id: sampleFormatsDropdown

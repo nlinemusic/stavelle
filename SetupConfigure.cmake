@@ -56,8 +56,10 @@ endif()
 if(BUILD_MODE STREQUAL "TESTING")
     set(MUSE_APP_UNSTABLE OFF)
     set(MUSE_APP_RELEASE_CHANNEL "Testing")
-    set(MUSE_APP_NAME_VERSION "${MUSE_APP_NAME_VERSION} ${MUSE_APP_RELEASE_CHANNEL}")
-    set(MUSE_APP_TITLE_VERSION "${MUSE_APP_TITLE_VERSION} ${MUSE_APP_RELEASE_CHANNEL}")
+    # Jubelle: the application is called "Jubelle" in every user-facing place
+    # (installer, Start menu, desktop shortcut, Programs list, install folder),
+    # so the channel is not appended to the name here. The channel is still
+    # recorded for internal use (file-type IDs, update channel).
     set(MUSE_APP_IS_PRERELEASE ON)
     set(MUSESCORE_ALLOW_UPDATE_ON_PRERELEASE ON)
 endif()

@@ -20,6 +20,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "glissandosettingsmodel.h"
+#include "notation/inotationelements.h"
+#include "engraving/dom/spanner.h"
+#include "engraving/dom/chord.h"
+#include "engraving/dom/note.h"
 #include "types/linetypes.h"
 
 #include "translation.h"
@@ -121,6 +125,7 @@ void GlissandoSettingsModel::loadProperties()
     loadPropertyItem(m_lineStyle);
     loadPropertyItem(m_dashLineLength);
     loadPropertyItem(m_dashGapLength);
+    updatePlayback();
 
     onUpdateGlissPropertiesAvailability();
 }
@@ -148,4 +153,61 @@ void GlissandoSettingsModel::onUpdateGlissPropertiesAvailability()
 
     m_dashLineLength->setIsEnabled(isStraightLine && areDashPropertiesAvailable);
     m_dashGapLength->setIsEnabled(isStraightLine && areDashPropertiesAvailable);
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: glissando playback for the selected glissandos
+// ---------------------------------------------------------------------------
+
+void GlissandoSettingsModel::onNotationChanged(const mu::engraving::PropertyIdSet& changed, const mu::engraving::StyleIdSet& styles)
+{
+    AbstractInspectorModel::onNotationChanged(changed, styles);
+    updatePlayback();
+}
+
+void GlissandoSettingsModel::updatePlayback()
+{
+    const notation::INotationPtr notation = currentNotation();
+    const mu::engraving::Score* score = notation && notation->elements() ? notation->elements()->msScore() : nullptr;
+    const std::vector<mu::engraving::EngravingItem*> items(m_elementList.begin(), m_elementList.end());
+    m_playback.update(score, items);
+    m_startNoteTicks = 0;
+    for (const mu::engraving::EngravingItem* e : items) {
+        const mu::engraving::Spanner* sp = e && e->isGlissando() ? mu::engraving::toSpanner(e) : nullptr;
+        if (sp && sp->startElement() && sp->startElement()->isNote()) {
+            m_startNoteTicks = mu::engraving::toNote(sp->startElement())->chord()->actualTicks().ticks();
+            break;
+        }
+    }
+    emit playbackChanged();
+}
+
+void GlissandoSettingsModel::setPlaybackLevel(int level)
+{
+    if (level < 0 || level > 2 || level == m_playback.level) {
+        return;
+    }
+    m_playback.level = level;
+    updatePlayback();
+}
+
+void GlissandoSettingsModel::changePlayback(const QString& key, std::optional<int> value)
+{
+    const notation::INotationPtr notation = currentNotation();
+    mu::engraving::Score* score = notation && notation->elements() ? notation->elements()->msScore() : nullptr;
+    const std::vector<mu::engraving::EngravingItem*> items(m_elementList.begin(), m_elementList.end());
+    m_playback.change(score, items, key, value,
+                      [this]() { beginCommand(muse::TranslatableString("undoableAction", "Change glissando playback")); },
+                      [this]() { endCommand(); });
+    updatePlayback();
+}
+
+void GlissandoSettingsModel::setPlaybackValue(const QString& key, int value)
+{
+    changePlayback(key, value);
+}
+
+void GlissandoSettingsModel::clearPlaybackValue(const QString& key)
+{
+    changePlayback(key, std::nullopt);
 }

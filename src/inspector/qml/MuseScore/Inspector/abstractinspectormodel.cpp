@@ -20,6 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "abstractinspectormodel.h"
+#include "notation/jubellecontextsettingsmodel.h"
 
 #include "engraving/dom/barline.h"
 #include "engraving/dom/dynamic.h"
@@ -409,6 +410,10 @@ InspectorSectionTypeSet AbstractInspectorModel::sectionTypesByElementKeys(const 
 
     if (showPartsSection(selectedElementList)) {
         types << InspectorSectionType::SECTION_PARTS;
+    }
+
+    if (JubelleContextSettingsModel::appliesTo(selectedElementList)) {
+        types << InspectorSectionType::SECTION_JUBELLE;
     }
 
     return types;

@@ -78,6 +78,15 @@ public:
     virtual void revertToFactorySettings(bool keepDefaultSettings = false, bool notifyAboutChanges = true,
                                          bool notifyOtherInstances = true) const = 0;
 
+    //! Jubelle: performance profile (0 Automatic, 1 High performance, 2 Balanced, 3 Low resource)
+    virtual int jubellePerformanceProfile() const { return 0; }
+    virtual void setJubellePerformanceProfile(int) {}
+    //! Applies the profile's settings; at startup, Automatic leaves alone any value you changed yourself.
+    //! Returns a plain description of what is in effect.
+    virtual std::string applyJubellePerformanceProfile(bool /*atStartup*/) { return std::string(); }
+    //! The description from the last time the profile was applied
+    virtual std::string jubellePerformanceDescription() const { return std::string(); }
+
     virtual muse::io::paths_t sessionProjectsPaths() const = 0;
     virtual muse::Ret setSessionProjectsPaths(const muse::io::paths_t& paths) = 0;
 };

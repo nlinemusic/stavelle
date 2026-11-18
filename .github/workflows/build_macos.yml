@@ -234,6 +234,17 @@ jobs:
       run: |
         bash ./buildscripts/ci/macos/generate_dsym.sh
 
+    # Jubelle: built-in video export on macOS (LGPL FFmpeg with VideoToolbox), cached between runs
+    - name: "Jubelle: restore FFmpeg build"
+      id: ffmpeg-cache
+      uses: actions/cache@v5
+      with:
+        path: ffmpeg_stage_mac
+        key: ${{ runner.os }}-${{ runner.arch }}-jubelle-ffmpeg-8.0-lgpl-vt-1
+    - name: "Jubelle: build FFmpeg (LGPL, VideoToolbox) for video export"
+      timeout-minutes: 40
+      run: |
+        bash tools/jubelle_checks/bundle_ffmpeg_macos.sh build ffmpeg_stage_mac
     - name: Package
       run: |
         S_S="${{ secrets.MAC_SIGN_CERTIFICATE_ENCRYPT_SECRET }}"; if [ -z "$S_S" ]; then S_S="''"; fi
@@ -250,6 +261,34 @@ jobs:
     - name: Checksum
       run: |
         bash ./buildscripts/ci/tools/checksum.sh
+
+    # Jubelle: checks on the packaged app (with its FFmpeg). Reported, not fatal.
+    - name: "Jubelle: video and audio export checks (macOS)"
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 40
+      shell: bash
+      run: |
+        APP=applebuild/mscore.app/Contents/MacOS/mscore
+        # FFmpeg's command-line tool is used only to read the exported MP4 back (picture and sound); it isn't bundled
+        FF=$(command -v ffmpeg || true)
+        if [ -z "$FF" ]; then
+          brew install --quiet ffmpeg > /dev/null 2>&1 || true
+          FF=$(command -v ffmpeg || true)
+        fi
+        python3 -X utf8 tools/jubelle_checks/video_export_check.py "$APP" demos/Amazing_grace.mscz video_check $FF || true
+        python3 -X utf8 tools/jubelle_checks/audio_export_check.py "$APP" demos/Amazing_grace.mscz audio_check || true
+        cat video_check/video_check.md >> "$GITHUB_STEP_SUMMARY" || true
+        cat audio_check/audio_check.md >> "$GITHUB_STEP_SUMMARY" || true
+    - name: "Jubelle: upload export checks (macOS)"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-export-checks-macos
+        path: |
+          video_check/video_check.md
+          video_check/video_check.mp4
+          audio_check/audio_check.md
 
     - name: Upload debug files
       if: env.DO_UPLOAD_SYMBOLS == 'true'

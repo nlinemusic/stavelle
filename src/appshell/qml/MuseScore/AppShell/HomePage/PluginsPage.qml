@@ -36,6 +36,8 @@ FocusScope {
         id: prv
 
         readonly property int sideMargin: 46
+        //! Jubelle: 0 = score plugins (MuseScore plugins), 1 = audio plugins (VST3)
+        property int kind: 0
     }
 
     NavigationSection {
@@ -109,6 +111,7 @@ FocusScope {
                 id: categoryDropdown
 
                 width: searchField.width
+                visible: prv.kind === 0
 
                 navigation.name: "CategoryDropdown"
                 navigation.panel: navTopPanel
@@ -145,8 +148,32 @@ FocusScope {
             }
         }
 
+        // Jubelle: score plugins and audio plugins on one page
+        Row {
+            spacing: 4
+
+            FlatButton {
+                text: qsTrc("appshell", "Score plugins")
+                accentButton: prv.kind === 0
+                navigation.name: "PluginsKindScore"
+                navigation.panel: navTopPanel
+                navigation.order: 6
+                onClicked: prv.kind = 0
+            }
+
+            FlatButton {
+                text: qsTrc("appshell", "Audio plugins (VST3)")
+                accentButton: prv.kind === 1
+                navigation.name: "PluginsKindAudio"
+                navigation.panel: navTopPanel
+                navigation.order: 7
+                onClicked: prv.kind = 1
+            }
+        }
+
         // Jubelle: central plugin management
         Row {
+            visible: prv.kind === 0
             anchors.right: parent.right
             spacing: 8
 
@@ -200,9 +227,24 @@ FocusScope {
         }
     }
 
+    AudioPluginsSection {
+        visible: prv.kind === 1
+
+        anchors.top: topLayout.bottom
+        anchors.topMargin: 24
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+
+        search: searchField.searchText
+        sideMargin: prv.sideMargin
+        navigationSection: navSec
+    }
+
     ExtensionsListPanel {
         id: pluginsPage
 
+        visible: prv.kind === 0
         anchors.top: topLayout.bottom
         anchors.topMargin: 24
         anchors.left: parent.left

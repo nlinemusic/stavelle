@@ -391,3 +391,32 @@ TEST_F(ProjectLibraryTests, PicturesFolderIsMadeOnlyWhenAskedFor)
     EXPECT_EQ(picturesFolder((m_root / "not a project").u8string(), true), "") << "only inside a project";
     EXPECT_TRUE(isProjectFolder(project)) << "still a normal project";
 }
+
+// Jubelle: librarian export
+TEST(Jubelle_ProjectLibrary, LibrarianFileNames)
+{
+    using namespace mu::project::projectlibrary;
+    EXPECT_EQ(libraryFileName(0, "Full Score", "pdf"), "00 Full Score.pdf");
+    EXPECT_EQ(libraryFileName(3, "Tenor Saxophone 1", "pdf"), "03 Tenor Saxophone 1.pdf");
+    EXPECT_EQ(libraryFileName(12, "Trumpet 1/Flugelhorn", "pdf"), "12 Trumpet 1-Flugelhorn.pdf");
+    EXPECT_EQ(libraryFileName(7, "Bass: \"upright\"?", "pdf"), "07 Bass- -upright--.pdf");
+    EXPECT_EQ(libraryFileName(1, "  ", "pdf"), "01 Part.pdf");
+    EXPECT_EQ(libraryFileName(105, "Extra", "pdf"), "105 Extra.pdf");
+}
+
+TEST(Jubelle_ProjectLibrary, InstrumentationAndIndex)
+{
+    using namespace mu::project::projectlibrary;
+    const std::vector<LibraryPart> parts { { "Alto Saxophone 1", "Alto Saxophone 1 (doubling Flute)" }, { "Trumpet 1", "" } };
+    const std::string list = instrumentationList("Sleigh Ride", parts);
+    EXPECT_NE(list.find("Instrumentation: Sleigh Ride"), std::string::npos);
+    EXPECT_NE(list.find("1. Alto Saxophone 1 (doubling Flute)"), std::string::npos);
+    EXPECT_NE(list.find("2. Trumpet 1"), std::string::npos);
+    EXPECT_NE(list.find("2 players"), std::string::npos);
+
+    const std::string index = folderIndex("Sleigh Ride", "arr. N. Line", "2026-11-18",
+                                          { { "00 Full Score.pdf", "full score" }, { "Instrumentation.txt", "" } });
+    EXPECT_EQ(index.rfind("Sleigh Ride\narr. N. Line\nPrepared 2026-11-18\n", 0), 0u);
+    EXPECT_NE(index.find("  00 Full Score.pdf  \xE2\x80\x94 full score\n"), std::string::npos);
+    EXPECT_NE(index.find("  Instrumentation.txt\n"), std::string::npos);
+}

@@ -48,6 +48,8 @@ public:
     void setOutputSpec(const audio::OutputSpec& spec);
     void setProcessMode(VstProcessMode mode);
     void setVolumeGain(const muse::audio::gain_t newVolumeGain);
+    //! Jubelle: the instrument's level trim, on top of the dynamics gain
+    void setJubelleTrimGain(const muse::audio::gain_t gain) { m_jubelleTrimGain = gain; }
 
     bool handleEvent(const VstEvent& event);
     bool handleParamChange(const ParamChangeEvent& param);
@@ -79,6 +81,7 @@ private:
     void addParamChange(const ParamChangeEvent& param);
 
     bool m_isActive = false;
+    muse::audio::gain_t m_jubelleTrimGain = 1.f;
     muse::audio::gain_t m_volumeGain = 1.f; // 0.0 - 1.0
 
     IVstPluginInstancePtr m_pluginPtr = nullptr;

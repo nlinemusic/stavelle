@@ -117,8 +117,13 @@ void AppShellModule::onInit(const IApplication::RunMode& mode)
     }
 }
 
-void AppShellModule::onAllInited(const IApplication::RunMode&)
+void AppShellModule::onAllInited(const IApplication::RunMode& mode)
 {
+    // Jubelle: the performance profile (Automatic re-checks this computer at each start)
+    if (mode == IApplication::RunMode::GuiApp && m_appShellConfiguration) {
+        m_appShellConfiguration->applyJubellePerformanceProfile(true);
+    }
+
     //! NOTE: process QEvent::FileOpen as early as possible if it was postponed
 #ifdef Q_OS_MACOS
     qApp->processEvents();

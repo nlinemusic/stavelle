@@ -77,9 +77,20 @@ ExpandableBlank {
         case AbstractInspectorModel.SECTION_SCORE_DISPLAY: return scoreSection
         case AbstractInspectorModel.SECTION_SCORE_APPEARANCE: return scoreAppearanceSection
         case AbstractInspectorModel.SECTION_PARTS: return partsSection
+        case AbstractInspectorModel.SECTION_JUBELLE: return jubelleSection
         }
 
         return undefined
+    }
+
+    Component {
+        id: jubelleSection
+
+        JubelleContextSection {
+            model: root.sectionModel as JubelleContextSettingsModel
+            navigationPanel: root.navigationPanel
+            navigationRowStart: root.navigation.row + 1
+        }
     }
 
     Component {

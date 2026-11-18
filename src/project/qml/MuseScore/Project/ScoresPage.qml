@@ -51,6 +51,10 @@ FocusScope {
 
     onSubSectionChanged: {
         if (root.subSection !== "") {
+            // Jubelle: File › Import scores… opens this page and starts the import
+            if (root.subSection === "import") {
+                Qt.callLater(projectsModel.importScoresInteractive)
+            }
             root.subSectionApplied()
         }
     }

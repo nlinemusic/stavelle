@@ -170,12 +170,26 @@ ListView {
             }
         }
 
-        contentItem: StyledTextLabel {
-            id: textLabel
+        // Jubelle: a small icon before each menu's title; the title always stays
+        contentItem: Row {
+            spacing: 4
 
-            text: appMenuModel.isNavigationStarted ? radioButtonDelegate.titleWithMnemonicUnderline : radioButtonDelegate.title
-            textFormat: Text.RichText
-            font: ui.theme.defaultFont
+            StyledIconLabel {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: Boolean(radioButtonDelegate.item) && radioButtonDelegate.item.icon !== IconCode.NONE
+                iconCode: Boolean(radioButtonDelegate.item) ? radioButtonDelegate.item.icon : IconCode.NONE
+                color: ui.theme.fontPrimaryColor
+                opacity: 0.85
+            }
+
+            StyledTextLabel {
+                id: textLabel
+                anchors.verticalCenter: parent.verticalCenter
+
+                text: appMenuModel.isNavigationStarted ? radioButtonDelegate.titleWithMnemonicUnderline : radioButtonDelegate.title
+                textFormat: Text.RichText
+                font: ui.theme.defaultFont
+            }
         }
 
         backgroundItem: AppButtonBackground {

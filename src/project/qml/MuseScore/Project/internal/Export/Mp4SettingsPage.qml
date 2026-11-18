@@ -108,7 +108,33 @@ ExportSettingsPage {
                 model: root.model
                 navigationPanel: root.navigationPanel
                 navigationOrderStart: root.navigationOrder
-                showBitRateControl: true
+                // Jubelle: the video has its own sound quality below, separate from MP3 export
+                showBitRateControl: false
+            }
+
+            ExportOptionItem {
+                id: videoAudioLabel
+                text: qsTrc("project/export", "Sound quality (AAC):")
+
+                StyledDropdown {
+                    id: videoAudioDropdown
+                    Layout.preferredWidth: 126
+
+                    navigation.name: "VideoAudioBitrateDropdown"
+                    navigation.panel: root.navigationPanel
+                    navigation.row: audioSection.navigationOrderEnd + 1
+                    navigation.accessible.name: videoAudioLabel.text + " " + currentText
+
+                    model: root.model ? root.model.availableVideoAudioBitrates().map(function(rate) {
+                        return { text: qsTrc("project/export", "%1 kBit/s").arg(rate), value: rate }
+                    }) : []
+
+                    currentIndex: root.model ? indexOfValue(root.model.videoAudioBitrate) : -1
+
+                    onActivated: function(index, value) {
+                        root.model.videoAudioBitrate = value
+                    }
+                }
             }
 
             ExportOptionItem {
@@ -121,7 +147,7 @@ ExportSettingsPage {
 
                     navigation.name: "VideoResolutionDropdown"
                     navigation.panel: root.navigationPanel
-                    navigation.row: audioSection.navigationOrderEnd + 1
+                    navigation.row: audioSection.navigationOrderEnd + 2
                     navigation.accessible.name: videoResolutionLabel.text + " " + currentText
 
                     model: root.model ? root.model.availableVideoResolutions().map(function(res) {
@@ -160,34 +186,30 @@ ExportSettingsPage {
                 }
             }
 
-            // Jubelle: which pages, in which order
-            ExportOptionItem {
-                id: pagesLabel
-                text: qsTrc("project/export", "Pages")
-
-                TextInputField {
-                    Layout.preferredWidth: 160
-                    hint: qsTrc("project/export", "All pages")
-                    currentText: root.model ? root.model.videoPageList : ""
-                    onTextEditingFinished: function(newText) {
-                        root.model.videoPageList = newText
-                    }
-                    navigation.name: "VideoPagesField"
-                    navigation.panel: root.navigationPanel
-                    navigation.row: videoResolutionDropdown.navigation.row + 10
-                    navigation.accessible.name: pagesLabel.text
-                }
+            CheckBox {
+                width: parent.width
+                text: qsTrc("project/export", "Show playback cursor")
+                checked: root.model ? root.model.videoShowCursor : false
+                navigation.name: "VideoShowCursor"
+                navigation.panel: root.navigationPanel
+                navigation.row: videoResolutionDropdown.navigation.row + 8
+                onClicked: root.model.videoShowCursor = !checked
             }
 
             StyledTextLabel {
                 width: parent.width
                 horizontalAlignment: Text.AlignLeft
                 wrapMode: Text.WordWrap
-                opacity: root.model && root.model.videoPageListProblem !== "" ? 1.0 : 0.7
-                color: root.model && root.model.videoPageListProblem !== "" ? "#E5484D" : ui.theme.fontPrimaryColor
-                text: root.model && root.model.videoPageListProblem !== ""
-                      ? root.model.videoPageListProblem
-                      : qsTrc("project/export", "Leave empty for the whole piece. “2-4” shows pages 2 to 4; “1, 3, 1” shows page 1 again after page 3. The sound follows the pages you choose. Page numbers are the video's pages (the printed pages with “Whole page”).")
+                opacity: 0.7
+                text: qsTrc("project/export", "The video shows still pages on white paper, as printed. It begins on the first page, silent for the lead-in, with no title screen.")
+            }
+
+            // Jubelle: which pages, in which order
+            VideoPageSequence {
+                width: parent.width
+                model: root.model
+                navigationPanel: root.navigationPanel
+                navigationRowStart: videoResolutionDropdown.navigation.row + 10
             }
 
             StyledTextLabel {

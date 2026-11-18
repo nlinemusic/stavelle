@@ -36,6 +36,8 @@ StyledDialogView {
     contentWidth: 756
     contentHeight: 420
     margins: 24
+    // Jubelle: the dialog can be made larger, and the settings scroll, so no explanation is ever cut off
+    resizable: true
 
     ExportDialogModel {
         id: exportModel
@@ -124,15 +126,26 @@ StyledDialogView {
                 font: ui.theme.bodyBoldFont
             }
 
-            ExportOptionsView {
-                id: exportOptionsView
+            StyledFlickable {
+                id: optionsFlickable
 
                 Layout.fillHeight: true
                 Layout.fillWidth: true
 
-                exportModel: exportModel
-                navigation.section: root.navigationSection
-                navigation.order: 3
+                clip: true
+                contentWidth: width
+                contentHeight: exportOptionsView.implicitHeight
+                rightMargin: 12
+
+                ExportOptionsView {
+                    id: exportOptionsView
+
+                    width: optionsFlickable.width - optionsFlickable.rightMargin
+
+                    exportModel: exportModel
+                    navigation.section: root.navigationSection
+                    navigation.order: 3
+                }
             }
 
             RowLayout {

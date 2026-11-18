@@ -116,6 +116,12 @@ def fetch(staging: Path):
     with zipfile.ZipFile(archive) as z:
         for name in z.namelist():
             base = name.rsplit("/", 1)[-1]
+            if "/bin/" in name and base:
+                # the whole bin folder (ffmpeg.exe and its libraries) is kept for the build's own checks,
+                # which read the exported MP4 back; only the libraries below are installed with Jubelle
+                tools = staging / "tools"
+                tools.mkdir(exist_ok=True)
+                (tools / base).write_bytes(z.read(name))
             if base in NEEDED and "/bin/" in name:
                 (out / base).write_bytes(z.read(name))
             elif base == "LICENSE.txt":

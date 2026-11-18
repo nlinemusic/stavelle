@@ -12,8 +12,16 @@ on:
   workflow_dispatch:
     inputs:
       windows_run_id:
-        description: 'The "Build: Windows" run whose installer to publish (its number in the run URL)'
+        description: 'The "Build: Windows" run whose installer to publish (its number in the run URL); 0 with "check the key only"'
         required: true
+      key_check_only:
+        description: 'Only check that the signing secret and public-key variable are set and belong together (publishes nothing)'
+        type: boolean
+        default: false
+      macos_run_id:
+        description: 'Optional: the "Build: macOS" run whose disk image to publish alongside (its number in the run URL)'
+        required: false
+        default: ''
       channel:
         description: 'Stable, or Testing (shown only if you switch on testing releases in Preferences)'
         required: true
@@ -21,7 +29,7 @@ on:
         options: [Stable, Testing]
         default: Testing
       notes:
-        description: 'Release notes (shown in the update dialog)'
+        description: 'Release notes (shown in the update dialog). Empty: docs/jubelle/RELEASE_NOTES.md'
         required: false
         default: ''
 
@@ -30,7 +38,33 @@ permissions:
   actions: read
 
 jobs:
+  keycheck:
+    if: ${{ inputs.key_check_only }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Sign a test file and verify it as the updater would
+        env:
+          JUBELLE_RELEASE_SIGNING_KEY: ${{ secrets.JUBELLE_RELEASE_SIGNING_KEY }}
+          JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+        run: |
+          set -eo pipefail
+          if [ -z "$JUBELLE_RELEASE_SIGNING_KEY" ]; then echo "::error::The secret JUBELLE_RELEASE_SIGNING_KEY is not set"; exit 1; fi
+          if ! [[ "$JUBELLE_RELEASE_PUBLIC_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then echo "::error::The variable JUBELLE_RELEASE_PUBLIC_KEY is not 64 hex digits"; exit 1; fi
+          echo "Public key (not secret): $JUBELLE_RELEASE_PUBLIC_KEY"
+          pip install --quiet cryptography
+          mkdir -p keycheck/out
+          head -c 1048576 /dev/urandom > keycheck/Jubelle-0.0.0.1-x86_64.msi
+          python3 tools/jubelle_release/sign_release.py keycheck/out keycheck/Jubelle-0.0.0.1-x86_64.msi > /dev/null
+          echo "Signed with the secret, and the signature matches the public key."
+          g++ -std=c++17 -O2 -Isrc -DJUBELLE_RELEASE_PUBLIC_KEY="\"$JUBELLE_RELEASE_PUBLIC_KEY\"" \
+            tools/jubelle_release/verify_release.cpp src/framework/update/internal/jubelle/updateverify.cpp -o keycheck/verify_release
+          keycheck/verify_release keycheck/out/SHA256SUMS keycheck/out/SHA256SUMS.sig keycheck/Jubelle-0.0.0.1-x86_64.msi | tee -a "$GITHUB_STEP_SUMMARY"
+
   publish:
+    if: ${{ !inputs.key_check_only }}
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
@@ -46,7 +80,7 @@ jobs:
       - name: Find the installer and its version
         id: find
         run: |
-          set -e
+          set -eo pipefail
           MSI=$(find build-artifacts -name 'Jubelle-*-x86_64.msi' | head -1)
           if [ -z "$MSI" ]; then echo "::error::No Jubelle installer in run ${{ inputs.windows_run_id }}"; exit 1; fi
           VERSION=$(basename "$MSI" | sed -E 's/^Jubelle-(.*)-x86_64\.msi$/\1/')
@@ -56,23 +90,66 @@ jobs:
           echo "msi=release/$(basename "$MSI")" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Get the macOS disk image
+        if: ${{ inputs.macos_run_id != '' }}
+        uses: actions/download-artifact@v6
+        with:
+          run-id: ${{ inputs.macos_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build-artifacts-macos
+
+      - name: Find the disk image
+        id: findmac
+        if: ${{ inputs.macos_run_id != '' }}
+        run: |
+          set -eo pipefail
+          DMG=$(find build-artifacts-macos -name 'Jubelle-*.dmg' | head -1)
+          if [ -z "$DMG" ]; then echo "::error::No Jubelle disk image in run ${{ inputs.macos_run_id }}"; exit 1; fi
+          cp "$DMG" release/
+          echo "dmg=release/$(basename "$DMG")" >> "$GITHUB_OUTPUT"
+
       - name: Sign the checksums
         env:
           JUBELLE_RELEASE_SIGNING_KEY: ${{ secrets.JUBELLE_RELEASE_SIGNING_KEY }}
           JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
         run: |
           pip install --quiet cryptography
-          python3 tools/jubelle_release/sign_release.py release "${{ steps.find.outputs.msi }}"
+          python3 tools/jubelle_release/sign_release.py release "${{ steps.find.outputs.msi }}" ${{ steps.findmac.outputs.dmg }}
+
+      - name: Check the signed files exactly as Jubelle's updater will
+        env:
+          JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+        run: |
+          set -eo pipefail
+          g++ -std=c++17 -O2 -Isrc -DJUBELLE_RELEASE_PUBLIC_KEY="\"$JUBELLE_RELEASE_PUBLIC_KEY\"" \
+            tools/jubelle_release/verify_release.cpp src/framework/update/internal/jubelle/updateverify.cpp -o verify_release
+          ./verify_release release/SHA256SUMS release/SHA256SUMS.sig "${{ steps.find.outputs.msi }}" ${{ steps.findmac.outputs.dmg }} | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NOTES: ${{ inputs.notes }}
         run: |
-          set -e
+          set -eo pipefail
           TAG="v${{ steps.find.outputs.version }}"
           FLAGS=""
           if [ "${{ inputs.channel }}" = "Testing" ]; then FLAGS="--prerelease"; fi
           gh release create "$TAG" $FLAGS --target "$GITHUB_SHA" --title "Jubelle ${{ steps.find.outputs.version }} (${{ inputs.channel }})" \
-            --notes "${NOTES:-Jubelle ${{ steps.find.outputs.version }}}" \
-            "${{ steps.find.outputs.msi }}" release/SHA256SUMS release/SHA256SUMS.sig
+            $( [ -n "$NOTES" ] && printf -- '--notes\n' || printf -- '--notes-file\n' ) "${NOTES:-docs/jubelle/RELEASE_NOTES.md}" \
+            "${{ steps.find.outputs.msi }}" ${{ steps.findmac.outputs.dmg }} release/SHA256SUMS release/SHA256SUMS.sig
+
+      - name: Download the published release and check it again
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eo pipefail
+          TAG="v${{ steps.find.outputs.version }}"
+          mkdir -p published
+          gh release download "$TAG" --dir published
+          ls -la published
+          FILES=$(ls published | grep -v '^SHA256SUMS' | sed 's#^#published/#')
+          if ! ./verify_release published/SHA256SUMS published/SHA256SUMS.sig $FILES | tee -a "$GITHUB_STEP_SUMMARY"; then
+            echo "::error::The published files don't verify: the release is withdrawn"
+            gh release delete "$TAG" --yes --cleanup-tag
+            exit 1
+          fi

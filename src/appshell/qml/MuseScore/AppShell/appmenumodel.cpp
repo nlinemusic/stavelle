@@ -188,6 +188,33 @@ MenuItem* AppMenuModel::makeMenuItem(const ActionCode& actionCode, MenuItemRole 
     return item;
 }
 
+MenuItem* AppMenuModel::makeIconItem(const ActionCode& actionCode, IconCode::Code icon)
+{
+    MenuItem* item = makeMenuItem(actionCode);
+    if (item) {
+        UiAction action = item->action();
+        if (action.iconCode == IconCode::Code::NONE) {
+            action.iconCode = icon;
+            item->setAction(action);
+        }
+    }
+    return item;
+}
+
+MenuItem* AppMenuModel::withIcon(MenuItem* menu, IconCode::Code icon)
+{
+    if (menu) {
+        UiAction action = menu->action();
+        action.iconCode = icon;
+        menu->setAction(action);
+    }
+    return menu;
+}
+
+// Jubelle: menu reorganisation (approved 17 Nov 2026). The same nine menus as MuseScore; arranging and
+// part preparation in Tools submenus; playback settings together under Playback; Format for styling and
+// layout only. Every command that was in the menus is still in one (tools/jubelle_checks/menu_commands_check.py).
+
 MenuItem* AppMenuModel::makeFileMenu()
 {
     MenuItemList recentScoresList = makeRecentScoresItems();
@@ -196,6 +223,12 @@ MenuItem* AppMenuModel::makeFileMenu()
     if (!recentScoresList.empty()) {
         recentScoresList = appendClearRecentSection(recentScoresList);
     }
+
+    MenuItemList exportItems {
+        makeIconItem("file-export", IconCode::Code::SHARE_FILE),
+        makeIconItem("jubelle-export-drum-stems", IconCode::Code::AUDIO),
+        makeIconItem("jubelle-library-export", IconCode::Code::LIST),
+    };
 
     MenuItemList fileItems {
         makeMenuItem("file-new"),
@@ -209,18 +242,18 @@ MenuItem* AppMenuModel::makeFileMenu()
         makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems()),
         makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems()),
         makeSeparator(),
-        makeMenuItem("file-export"),
-        makeMenuItem("jubelle-export-drum-stems"),
+        makeIconItem("jubelle-import-scores", IconCode::Code::IMPORT),
+        withIcon(makeMenu(TranslatableString("appshell/menu/file", "E&xport"), exportItems, "menu-jubelle-export"), IconCode::Code::SHARE_FILE),
         makeSeparator(),
         makeMenuItem("project-properties"),
         makeMenuItem("parts", TranslatableString("action", "Parts…")),
         makeSeparator(),
-        makeMenuItem("print"),
+        makeIconItem("print", IconCode::Code::PRINT),
         makeSeparator(),
         makeMenuItem("quit", MenuItemRole::QuitRole)
     };
 
-    return makeMenu(TranslatableString("appshell/menu/file", "&File"), fileItems, "menu-file");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/file", "&File"), fileItems, "menu-file"), IconCode::Code::NEW_FILE);
 }
 
 MenuItemList AppMenuModel::makeSaveOtherSubItems()
@@ -261,12 +294,12 @@ MenuItem* AppMenuModel::makeEditMenu()
         makeMenuItem("notation-select-all"),
         makeMenuItem("notation-select-section"),
         makeMenuItem("find"),
-        makeMenuItem("jubelle-find-select"),
+        makeIconItem("jubelle-find-select", IconCode::Code::SEARCH),
         makeSeparator(),
         makeMenuItem("preference-dialog", MenuItemRole::PreferencesRole)
     };
 
-    return makeMenu(TranslatableString("appshell/menu/edit", "&Edit"), editItems, "menu-edit");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/edit", "&Edit"), editItems, "menu-edit"), IconCode::Code::EDIT);
 }
 
 mu::notation::INotationUndoStackPtr AppMenuModel::undoStack() const
@@ -314,7 +347,6 @@ MenuItem* AppMenuModel::makeViewMenu()
         makeMenuItem("toggle-mixer"),
         makeMenuItem("toggle-piano-keyboard"),
         makeMenuItem("toggle-percussion-panel"),
-        makeMenuItem("playback-setup"),
         //makeMenuItem("toggle-scorecmp-tool"), // not implemented
         makeSeparator(),
         makeMenu(TranslatableString("appshell/menu/view", "&Toolbars"), makeToolbarsItems(), "menu-toolbars")
@@ -329,7 +361,7 @@ MenuItem* AppMenuModel::makeViewMenu()
               << makeSeparator()
               << makeMenuItem("dock-restore-default-layout");
 
-    return makeMenu(TranslatableString("appshell/menu/view", "&View"), viewItems, "menu-view");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/view", "&View"), viewItems, "menu-view"), IconCode::Code::EYE_OPEN);
 }
 
 MenuItem* AppMenuModel::makeAddMenu()
@@ -347,18 +379,18 @@ MenuItem* AppMenuModel::makeAddMenu()
                  makeChordAndFretboardDiagramsItems(), "menu-chord-and-frets"),
     };
 
-    return makeMenu(TranslatableString("appshell/menu/add", "&Add"), addItems, "menu-add");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/add", "&Add"), addItems, "menu-add"), IconCode::Code::PLUS);
 }
 
 MenuItem* AppMenuModel::makeFormatMenu()
 {
     // Jubelle: title-page alignment
     MenuItemList alignItems {
-        makeMenuItem("jubelle-align-left"),
+        makeIconItem("jubelle-align-left", IconCode::Code::ALIGN_LEFT),
         makeMenuItem("jubelle-align-hcenter"),
-        makeMenuItem("jubelle-align-right"),
+        makeIconItem("jubelle-align-right", IconCode::Code::ALIGN_RIGHT),
         makeSeparator(),
-        makeMenuItem("jubelle-align-top"),
+        makeIconItem("jubelle-align-top", IconCode::Code::ALIGN_TOP),
         makeMenuItem("jubelle-align-vcenter"),
         makeMenuItem("jubelle-align-bottom"),
         makeSeparator(),
@@ -377,46 +409,56 @@ MenuItem* AppMenuModel::makeFormatMenu()
         makeMenuItem("reset-stretch")
     };
 
-    MenuItemList formatItems {
-        makeMenuItem("edit-style"),
-        makeMenuItem("page-settings"),
-        makeSeparator(),
-        makeMenuItem("measures-per-system"),
-        makeMenu(TranslatableString("appshell/menu/format", "&Align"), alignItems, "menu-jubelle-align"),
-        makeMenu(TranslatableString("appshell/menu/format", "Str&etch"), stretchItems, "menu-stretch"),
-        makeSeparator(),
-        makeMenuItem("reset-text-style-overrides"),
-        makeMenuItem("reset-beammode"),
-        makeMenuItem("reset"),
-        makeMenuItem("reset-to-default-layout"),
-        makeMenuItem("jubelle-apply-part-layout"),
-        makeMenuItem("jubelle-page-turns"),
-        makeMenuItem("jubelle-courtesy-toggle"),
-        makeSeparator(),
-        makeMenuItem("jubelle-articulation-playback"),
-        makeMenuItem("jubelle-passage-playback"),
-        makeMenuItem("jubelle-swing"),
-        makeSeparator(),
-        makeMenuItem("load-style"),
-        makeMenuItem("save-style"),
-        makeMenuItem("jubelle-engraving-presets"),
+    MenuItemList lookItems {
         makeMenuItem("jubelle-look-jazz"),
         makeMenuItem("jubelle-look-standard")
     };
 
-    return makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format");
+    MenuItemList resetItems {
+        makeMenuItem("reset-text-style-overrides"),
+        makeMenuItem("reset-beammode"),
+        makeMenuItem("reset"),
+        makeMenuItem("reset-to-default-layout"),
+    };
+
+    MenuItemList formatItems {
+        makeIconItem("edit-style", IconCode::Code::BRUSH),
+        makeMenuItem("page-settings"),
+        makeMenuItem("jubelle-engraving-presets"),
+        makeMenu(TranslatableString("appshell/menu/format", "&Look"), lookItems, "menu-jubelle-look"),
+        makeMenuItem("jubelle-courtesy-toggle"),
+        makeSeparator(),
+        withIcon(makeMenu(TranslatableString("appshell/menu/format", "&Align"), alignItems, "menu-jubelle-align"), IconCode::Code::ALIGN_LEFT),
+        makeMenu(TranslatableString("appshell/menu/format", "Str&etch"), stretchItems, "menu-stretch"),
+        makeMenuItem("measures-per-system"),
+        makeSeparator(),
+        makeMenu(TranslatableString("appshell/menu/format", "&Reset"), resetItems, "menu-jubelle-reset"),
+        makeSeparator(),
+        makeMenuItem("load-style"),
+        makeMenuItem("save-style"),
+    };
+
+    return withIcon(makeMenu(TranslatableString("appshell/menu/format", "F&ormat"), formatItems, "menu-format"), IconCode::Code::BRUSH);
 }
 
-//! Jubelle Phase 5D: playback controls
+//! Jubelle: every playback setting in one place
 MenuItem* AppMenuModel::makePlaybackMenu()
 {
     MenuItemList playbackItems {
-        makeMenuItem("jubelle-repeats"),
+        makeIconItem("playback-setup", IconCode::Code::SETTINGS_COG),
+        makeIconItem("jubelle-swing", IconCode::Code::MUSIC_NOTES),
+        makeMenuItem("jubelle-articulation-playback"),
+        makeMenuItem("jubelle-passage-playback"),
         makeSeparator(),
-        makeMenuItem("jubelle-record-tempo"),
+        makeMenuItem("jubelle-repeats"),
+        makeIconItem("jubelle-record-tempo", IconCode::Code::METRONOME),
+        makeSeparator(),
+        makeIconItem("jubelle-sound-sources", IconCode::Code::AUDIO),
+        makeMenuItem("playback-reload-cache"),
     };
 
-    return makeMenu(TranslatableString("appshell/menu/playback", "&Playback"), playbackItems, "menu-jubelle-playback");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/playback", "&Playback"), playbackItems, "menu-jubelle-playback"),
+                    IconCode::Code::PLAY);
 }
 
 MenuItem* AppMenuModel::makeToolsMenu()
@@ -432,30 +474,46 @@ MenuItem* AppMenuModel::makeToolsMenu()
 
     MenuItemList measuresItems {
         makeMenuItem("split-measure"),
-        makeMenuItem("join-measures")
+        makeMenuItem("join-measures"),
+        makeMenuItem("time-delete"),
     };
 
     MenuItemList enharmonicSpellingItems {
+        makeMenuItem("pitch-spell-sharps"),
+        makeMenuItem("pitch-spell-flats"),
+        makeSeparator(),
         makeMenuItem("enh-both"),
         makeMenuItem("enh-current"),
         makeMenuItem("pitch-spell"),
     };
 
-    MenuItemList toolsItems {
-        makeMenuItem("jubelle-identify-chords"),
-        makeMenuItem("jubelle-toggle-proofread"),
-        makeSeparator(),
-        makeMenuItem("transpose"),
+    //! Jubelle: arranging
+    MenuItemList arrangingItems {
+        makeIconItem("jubelle-harmonise-melody", IconCode::Code::MUSIC_NOTES),
+        makeIconItem("jubelle-linked-passages", IconCode::Code::LINK),
+        makeIconItem("jubelle-identify-chords", IconCode::Code::MUSIC_NOTES),
         makeSeparator(),
         makeMenuItem("explode"),
         makeMenuItem("implode"),
         makeMenuItem("realize-chord-symbols"),
-        makeMenu(TranslatableString("appshell/menu/tools", "&Voices"), voicesItems, "menu-voices"),
-        makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
-        makeMenuItem("time-delete"),
         makeSeparator(),
-        makeMenuItem("jubelle-linked-passages"),
-        makeMenu(TranslatableString("appshell/menu/tools", "Condensin&g"), {
+        makeMenuItem("slash-fill"),
+        makeMenuItem("slash-rhythm"),
+        makeSeparator(),
+        makeMenuItem("transpose"),
+    };
+
+    //! Jubelle: getting the score and parts ready for players
+    MenuItemList scoreAndPartsItems {
+        makeIconItem("jubelle-proofread-score", IconCode::Code::SEARCH),
+        makeMenuItem("jubelle-apply-part-layout"),
+        makeIconItem("jubelle-page-turns", IconCode::Code::PAGE),
+        makeMenuItem("jubelle-prepare-parts"),
+        makeSeparator(),
+        makeMenuItem("resequence-rehearsal-marks"),
+        makeMenuItem("del-empty-measures"),
+        makeSeparator(),
+        makeMenu(TranslatableString("appshell/menu/tools", "Condensed &score"), {
             makeMenuItem("jubelle-condensing-enabled"),
             makeMenuItem("jubelle-condensed-score"),
             makeSeparator(),
@@ -463,31 +521,31 @@ MenuItem* AppMenuModel::makeToolsMenu()
             makeMenuItem("jubelle-condense-share"),
             makeMenuItem("jubelle-condense-automatic"),
         }, "menu-jubelle-condensing"),
+    };
+
+    MenuItemList toolsItems {
+        makeMenu(TranslatableString("appshell/menu/tools", "&Arranging"), arrangingItems, "menu-jubelle-arranging"),
+        makeMenu(TranslatableString("appshell/menu/tools", "&Score and parts"), scoreAndPartsItems, "menu-jubelle-score-parts"),
         makeSeparator(),
-        makeMenuItem("slash-fill"),
-        makeMenuItem("slash-rhythm"),
-        makeSeparator(),
-        makeMenuItem("pitch-spell-sharps"),
-        makeMenuItem("pitch-spell-flats"),
+        makeMenu(TranslatableString("appshell/menu/tools", "&Voices"), voicesItems, "menu-voices"),
+        makeMenu(TranslatableString("appshell/menu/tools", "&Measures"), measuresItems, "menu-tools-measures"),
         makeMenu(TranslatableString("appshell/menu/tools", "Enharmonic spelling"), enharmonicSpellingItems, "menu-enharmonic-spelling"),
         makeSeparator(),
         makeMenuItem("reset-groupings"),
-        makeMenuItem("resequence-rehearsal-marks"),
         /*
          * TODO: https://github.com/musescore/MuseScore/issues/9670
         makeMenuItem("unroll-repeats"),
          */
-        makeSeparator(),
         makeMenuItem("copy-lyrics-to-clipboard"),
-        makeMenuItem("del-empty-measures"),
     };
 
-    return makeMenu(TranslatableString("appshell/menu/tools", "&Tools"), toolsItems, "menu-tools");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/tools", "&Tools"), toolsItems, "menu-tools"), IconCode::Code::SETTINGS_COG);
 }
 
 MenuItem* AppMenuModel::makePluginsMenu()
 {
-    return makeMenu(TranslatableString("appshell/menu/plugins", "&Plugins"), makePluginsMenuSubitems(), "menu-plugins");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/plugins", "&Plugins"), makePluginsMenuSubitems(), "menu-plugins"),
+                    IconCode::Code::PLUGIN);
 }
 
 MenuItemList AppMenuModel::makePluginsMenuSubitems()
@@ -510,6 +568,9 @@ MenuItemList AppMenuModel::makePluginsMenuSubitems()
 MenuItem* AppMenuModel::makeHelpMenu(bool addDiagnosticsSubMenu)
 {
     MenuItemList helpItems;
+
+    helpItems << makeIconItem("jubelle-learning-center", IconCode::Code::GRADUATION_CAP);
+    helpItems << makeSeparator();
 
     if (updateConfiguration()->isAppUpdatable()) {
         helpItems << makeMenuItem("check-update");
@@ -540,7 +601,7 @@ MenuItem* AppMenuModel::makeHelpMenu(bool addDiagnosticsSubMenu)
 
     helpItems << makeMenuItem("revert-factory");
 
-    return makeMenu(TranslatableString("appshell/menu/help", "&Help"), helpItems, "menu-help");
+    return withIcon(makeMenu(TranslatableString("appshell/menu/help", "&Help"), helpItems, "menu-help"), IconCode::Code::QUESTION_MARK);
 }
 
 MenuItem* AppMenuModel::makeDiagnosticsMenu()

@@ -34,6 +34,7 @@
 #include "notation/inotationconfiguration.h"
 #include "playback/iplaybackconfiguration.h"
 #include "languages/ilanguagesconfiguration.h"
+#include "audio/main/iaudioconfiguration.h"
 
 #include "iappshellconfiguration.h"
 
@@ -48,6 +49,7 @@ class AppShellConfiguration : public IAppShellConfiguration, public muse::Contex
     muse::GlobalInject<notation::INotationConfiguration> notationConfiguration;
     muse::GlobalInject<playback::IPlaybackConfiguration> playbackConfiguration;
     muse::GlobalInject<muse::languages::ILanguagesConfiguration> languagesConfiguration;
+    muse::GlobalInject<muse::audio::IAudioConfiguration> audioConfiguration;
     muse::ContextInject<muse::IApplication> application = { this };
 
 public:
@@ -55,6 +57,11 @@ public:
         : muse::Contextable(iocCtx) {}
 
     void init();
+
+    int jubellePerformanceProfile() const override;
+    void setJubellePerformanceProfile(int profile) override;
+    std::string applyJubellePerformanceProfile(bool atStartup) override;
+    std::string jubellePerformanceDescription() const override { return m_jubellePerformanceDescription; }
 
     bool hasCompletedFirstLaunchSetup() const override;
     void setHasCompletedFirstLaunchSetup(bool has) override;
@@ -118,5 +125,6 @@ private:
 
     muse::async::Notification m_startupModeTypeChanged;
     muse::async::Notification m_startupScorePathChanged;
+    std::string m_jubellePerformanceDescription;
 };
 }

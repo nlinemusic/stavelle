@@ -125,6 +125,13 @@ const UiActionList ProjectUiActions::m_actions = {
              TranslatableString("action", "Export &drum stems…"),
              TranslatableString("action", "Export each drum of a drum kit, or groups of drums, as separate audio files")
              ),
+    //! Jubelle: a numbered set of PDFs with an instrumentation list and an index
+    UiAction("jubelle-library-export",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Export for &library…"),
+             TranslatableString("action", "Make a folder with the full score and every part as numbered PDFs, an instrumentation list and an index")
+             ),
     //! Jubelle: an extra Publish destination. It opens YouTube Studio in the browser
     //! with the chosen video ready to drag in; nothing is uploaded by Jubelle itself.
     UiAction("jubelle-publish-youtube",

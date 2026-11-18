@@ -388,6 +388,18 @@ TEST_F(Jubelle_ArticulationPassage, PropertiesPanelLevels)
     const jap::PassageRow here = row(jap::EditLevel::Passage, ArtParam::StaccatoLength);
     EXPECT_EQ(here.value, 25);
     EXPECT_EQ(here.source, jap::ValueSource::Here);
+    // "Use default" would go back to the instrument's 40%
+    EXPECT_EQ(here.inheritedValue, 40);
+    EXPECT_EQ(here.inheritedSource, jap::ValueSource::Instrument);
+    // At instrument level the default is the whole score's 50%
+    const jap::PassageRow inst = row(jap::EditLevel::Instrument, ArtParam::StaccatoLength);
+    EXPECT_EQ(inst.inheritedValue, 50);
+    EXPECT_EQ(inst.inheritedSource, jap::ValueSource::WholeScore);
+    // At whole-score level the default is the standard value
+    const jap::PassageRow whole = row(jap::EditLevel::WholeScore, ArtParam::StaccatoLength);
+    EXPECT_EQ(whole.value, 50);
+    EXPECT_EQ(whole.inheritedValue, artParamInfo(ArtParam::StaccatoLength).defaultValue);
+    EXPECT_EQ(whole.inheritedSource, jap::ValueSource::MuseScore);
     std::vector<int> expectedSax = concat({ repeat(40, 8), repeat(25, 2), repeat(40, 22) });
     EXPECT_EQ(lengths(sax), expectedSax);
 

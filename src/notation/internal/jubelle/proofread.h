@@ -38,6 +38,17 @@
 //  - preparation: more than 16 bars without a rehearsal mark; a player
 //    resting 16 bars or more who then enters without a cue; no tempo marking
 //    at the start; no title or composer; bar numbers switched off.
+//  - voicing (18 Nov 2026), for trumpets, trombones, saxophones and horns
+//    playing together: a player above the one written above them (crossing);
+//    less than a minor third between the lead and the second voice; a gap of
+//    more than an octave between neighbouring voices (more than an octave and
+//    a fifth above the bottom voice); in four or more voices, a middle voice
+//    doubling the lead an octave down (in a closed voicing only the bottom
+//    voice doubles the lead) (suggestions);
+//  - orchestration: less than 5 seconds to change instrument (warning);
+//  - copying: cue notes or a small staff far from about two-thirds size; a
+//    word sung over several notes without its extender line; a key or clef
+//    change straight after a page turn in a part (suggestions).
 
 #pragma once
 
@@ -75,6 +86,10 @@ enum class CheckCategory {
     MetricGrouping,   // rhythms that hide the middle of the bar
     Placement,        // dynamics above for voices, below for instruments
     Preparation,      // what players, conductors and librarians expect in score and parts
+    // Professional preparation, part 2 (18 Nov 2026)
+    Voicing,          // section voicing: crossings and gaps between section players, the lead doubled in a middle voice
+    Orchestration,    // time to change instruments (doublings)
+    Copying,          // cue and ossia sizes, melisma lines, key and clef changes just after a page turn
 };
 
 struct Finding {
@@ -93,7 +108,8 @@ struct ProofreadOptions {
         CheckCategory::Range, CheckCategory::Leaps, CheckCategory::Spelling, CheckCategory::IncompleteBars,
         CheckCategory::Dynamics, CheckCategory::RehearsalMarks, CheckCategory::InstrumentNames,
         CheckCategory::VoiceCrossings, CheckCategory::Collisions, CheckCategory::MetricGrouping,
-        CheckCategory::Placement, CheckCategory::Preparation,
+        CheckCategory::Placement, CheckCategory::Preparation, CheckCategory::Voicing, CheckCategory::Orchestration,
+        CheckCategory::Copying,
     };
     bool includeIntentional = false;   // also list findings marked as intentional
 };

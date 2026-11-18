@@ -255,6 +255,11 @@ void VstPluginInstance::rescanParams()
         updatedConfig.emplace(CONTROLLER_STATE_KEY, std::string(m_controllerStateBuffer.getData(), m_controllerStateBuffer.getSize()));
     }
 
+    // Jubelle: the instrument's own settings (key switches, level trim, bend range) travel with the plugin's state
+    for (const auto& [key, value] : m_jubelleExtras) {
+        updatedConfig[key] = value;
+    }
+
     m_pluginSettingsChanges.send(updatedConfig);
 }
 
@@ -279,6 +284,13 @@ void VstPluginInstance::setPluginConfig(const audio::AudioUnitConfig& config)
     if (!controller || !component) {
         LOGE() << "Unable to update settings for VST plugin";
         return;
+    }
+
+    // Jubelle: remember the instrument's own settings saved with the score
+    for (const auto& [key, value] : config) {
+        if (key.rfind("jubelle.", 0) == 0) {
+            m_jubelleExtras[key] = value;
+        }
     }
 
     auto componentState = config.find(COMPONENT_STATE_KEY.data());
@@ -459,4 +471,20 @@ async::Channel<muse::audio::AudioUnitConfig> VstPluginInstance::pluginSettingsCh
     ONLY_AUDIO_THREAD(threadSecurer);
 
     return m_pluginSettingsChanges;
+}
+
+std::map<std::string, std::string> VstPluginInstance::jubelleExtras() const
+{
+    std::lock_guard lock(m_mutex);
+    return m_jubelleExtras;
+}
+
+void VstPluginInstance::jubelleSetExtra(const std::string& key, const std::string& value)
+{
+    ONLY_MAIN_THREAD(threadSecurer);
+    {
+        std::lock_guard lock(m_mutex);
+        m_jubelleExtras[key] = value;   // an empty value is kept, so a cleared setting is saved as cleared
+    }
+    rescanParams();
 }

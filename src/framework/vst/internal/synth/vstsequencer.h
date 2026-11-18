@@ -25,6 +25,7 @@
 #include "audio/engine/internal/abstracteventsequencer.h"
 
 #include "vsttypes.h"
+#include "../jubelle/vstkeyswitches.h"
 
 namespace muse::vst {
 class VstSequencer : public audio::engine::AbstractEventSequencer<VstEvent, ParamChangeEvent, muse::audio::gain_t>
@@ -33,6 +34,11 @@ public:
     void init(ParamsMapping&& mapping, bool useDynamicEvents);
 
     muse::audio::gain_t currentGain() const;
+
+    //! Jubelle: key switches for this instrument (empty = none) and the library's pitch-bend range in
+    //! semitones (2 is the usual default; set it to what the library uses so wide glides don't jump)
+    void setJubelleKeySwitches(const jubelle::KeySwitchMap& map);
+    void setJubelleBendRange(float semitones);
 
 private:
     void updateOffStreamEvents(const mpe::PlaybackEventsMap& events, const mpe::DynamicLevelLayers& dynamics) override;
@@ -60,6 +66,11 @@ private:
     float noteVelocityFraction(const mpe::NoteEvent& noteEvent) const;
     float expressionLevel(const mpe::dynamic_level_t dynamicLevel) const;
     float pitchBendLevel(const mpe::pitch_level_t pitchLevel) const;
+
+    void addKeySwitch(EventSequenceMap& destination, const mpe::NoteEvent& noteEvent);
+
+    jubelle::KeySwitchMap m_keySwitches;
+    float m_bendRange = 2.f;
 
     bool m_inited = false;
     bool m_useDynamicEvents = false;

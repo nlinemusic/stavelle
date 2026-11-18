@@ -99,6 +99,7 @@ qt_add_qml_module(preferences_qml
         internal/ImportStyleSection.qml
         internal/IncrementalPropertyControlWithTitle.qml
         internal/KeyboardLayoutsSection.qml
+        internal/PerformanceSection.qml
         internal/LanguagesSection.qml
         internal/MeiSection.qml
         internal/MnxSection.qml

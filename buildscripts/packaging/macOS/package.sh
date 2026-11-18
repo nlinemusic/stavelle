@@ -59,6 +59,14 @@ echo "Rename Resources/qml to Resources/qml_mu"
 mv ${APP_PATH}/Contents/Resources/qml ${APP_PATH}/Contents/Resources/qml_mu
 sed -i '' 's:Resources/qml:Resources/qml_mu:g' ${APP_PATH}/Contents/Resources/qt.conf
 
+# Jubelle: built-in video export. The LGPL FFmpeg libraries (built by
+# tools/jubelle_checks/bundle_ffmpeg_macos.sh) go next to the program, before signing.
+if [ -d "ffmpeg_stage_mac/ffmpeg" ]; then
+    bash tools/jubelle_checks/bundle_ffmpeg_macos.sh install ffmpeg_stage_mac "${APP_PATH}"
+else
+    echo "warning: no FFmpeg staged; video export will ask for FFmpeg"
+fi
+
 if $DO_SIGN; then
     # Re-sign appex to ensure proper entitlements
     echo "Re-sign appex"

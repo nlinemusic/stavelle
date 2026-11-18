@@ -106,6 +106,30 @@ PreferencesPage {
             }
         }
 
+        // Jubelle: what happened to an installed MuseSounds engine, in plain words
+        SeparatorLine { visible: museSoundsNote.text !== "" }
+
+        Column {
+            width: parent.width
+            spacing: 8
+            visible: museSoundsNote.text !== ""
+
+            StyledTextLabel {
+                width: parent.width
+                horizontalAlignment: Text.AlignLeft
+                font: ui.theme.bodyBoldFont
+                text: qsTrc("preferences", "MuseSounds")
+            }
+
+            StyledTextLabel {
+                id: museSoundsNote
+                width: parent.width
+                horizontalAlignment: Text.AlignLeft
+                wrapMode: Text.WordWrap
+                text: audioMidiModel.museSoundsStatus()
+            }
+        }
+
         SeparatorLine { visible: onlineSoundsSection.visible }
 
         OnlineSoundsSection {

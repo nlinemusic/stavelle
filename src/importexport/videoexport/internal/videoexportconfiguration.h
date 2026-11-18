@@ -55,6 +55,13 @@ public:
 
     std::string pageList() const override { return m_pageList ? m_pageList.value() : std::string(); }
     void setPageList(std::optional<std::string> pages) override { m_pageList = pages; }
+
+    bool showCursor() const override { return m_showCursor.value_or(false); }
+    void setShowCursor(std::optional<bool> show) override { m_showCursor = show; }
+    int audioBitrateKbps() const override;
+    std::vector<SequenceEntry> planPageSequence(const std::string& pages, int pageCount, double totalSecs,
+                                                const std::function<int(double)>& pageAt) const override;
+    void setAudioBitrateKbps(std::optional<int> kbps) override { m_audioBitrateKbps = kbps; }
     std::string checkPageList(const std::string& pages, int pageCount) const override;
 
 private:
@@ -66,6 +73,8 @@ private:
     std::optional<double> m_leadingSec = std::nullopt;
     std::optional<double> m_trailingSec = std::nullopt;
     std::optional<std::string> m_pageList = std::nullopt;
+    std::optional<bool> m_showCursor = std::nullopt;
+    std::optional<int> m_audioBitrateKbps = std::nullopt;
 };
 }
 

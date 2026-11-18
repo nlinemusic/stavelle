@@ -30,6 +30,7 @@
 #include "inotationselection.h"
 #include "inotationselectionfilter.h"
 #include "internal/jubelle/chordidentifierrunner.h"
+#include "internal/jubelle/harmony/harmonyrunner.h"
 
 class QKeyEvent;
 class QInputMethodEvent;
@@ -264,6 +265,10 @@ public:
     virtual chordidentifier::Scope chordIdentifierScope() const = 0;
     virtual chordidentifier::Report identifyChords(const chordidentifier::Options& options) = 0;
     virtual chordidentifier::Report removeChordToneHighlight() = 0;
+    //! Jubelle Harmonise melody (Big Band Harmony and Orchestration): what it would work on, and writing the
+    //! parts as one undoable step.
+    virtual jubelle::harmony::Scope harmonyScope(const jubelle::harmony::RunOptions& options) = 0;
+    virtual jubelle::harmony::Report harmoniseMelody(const jubelle::harmony::RunOptions& options) = 0;
     virtual void removeSelectedMeasures() = 0;
     virtual void removeSelectedRange() = 0;
     virtual void removeEmptyTrailingMeasures() = 0;

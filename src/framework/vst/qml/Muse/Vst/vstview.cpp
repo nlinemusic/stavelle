@@ -110,6 +110,14 @@ VstView::VstView(QQuickItem* parent)
 #ifdef USE_LINUX_RUNLOOP
     m_runLoop = new RunLoop();
 #endif
+
+    // Jubelle: the plugin's own window follows this item's visibility (hidden while the
+    // instrument settings are shown in its place)
+    connect(this, &QQuickItem::visibleChanged, this, [this]() {
+        if (m_vstWindow) {
+            m_vstWindow->setVisible(isVisible());
+        }
+    });
 }
 
 VstView::~VstView()

@@ -115,6 +115,22 @@ PreferencesPage {
 
         SeparatorLine { }
 
+        // Jubelle: performance profile
+        PerformanceSection {
+            profiles: preferencesModel.performanceProfiles()
+            currentProfile: preferencesModel.performanceProfile
+            detail: preferencesModel.performanceDetail
+
+            navigation.section: root.navigationSection
+            navigation.order: root.navigationOrderStart + 3
+
+            onProfileSelected: function(profile) {
+                preferencesModel.performanceProfile = profile
+            }
+        }
+
+        SeparatorLine { }
+
         AutomaticUpdateSection {
             isAppUpdatable: preferencesModel.isAppUpdatable()
             needCheckForNewAppVersion: preferencesModel.needCheckForNewAppVersion

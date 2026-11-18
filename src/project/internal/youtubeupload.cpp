@@ -21,6 +21,8 @@
 #include <windows.h>
 #include <wincred.h>
 #pragma comment(lib, "advapi32.lib")
+#elif defined(__APPLE__)
+#include <Security/Security.h>
 #else
 #include <sys/stat.h>
 #endif
@@ -163,6 +165,73 @@ std::string readSecret(const std::string& name, const std::string&)
 void removeSecret(const std::string& name, const std::string&)
 {
     CredDeleteW(target(name).c_str(), CRED_TYPE_GENERIC, 0);
+}
+#elif defined(__APPLE__)
+// Jubelle (macOS): secrets go in the login Keychain, under the service "Jubelle", like
+// Credential Manager on Windows. The fallback folder isn't used.
+namespace {
+CFStringRef cfString(const std::string& s)
+{
+    return CFStringCreateWithBytes(kCFAllocatorDefault, reinterpret_cast<const UInt8*>(s.data()), CFIndex(s.size()),
+                                   kCFStringEncodingUTF8, false);
+}
+
+CFMutableDictionaryRef query(const std::string& name)
+{
+    CFMutableDictionaryRef q = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
+                                                         &kCFTypeDictionaryValueCallBacks);
+    CFStringRef service = cfString("Jubelle");
+    CFStringRef account = cfString(name);
+    CFDictionarySetValue(q, kSecClass, kSecClassGenericPassword);
+    CFDictionarySetValue(q, kSecAttrService, service);
+    CFDictionarySetValue(q, kSecAttrAccount, account);
+    CFRelease(service);
+    CFRelease(account);
+    return q;
+}
+}
+
+bool storeSecret(const std::string& name, const std::string& secret, const std::string&)
+{
+    CFMutableDictionaryRef q = query(name);
+    CFDataRef data = CFDataCreate(kCFAllocatorDefault, reinterpret_cast<const UInt8*>(secret.data()), CFIndex(secret.size()));
+    OSStatus st = SecItemCopyMatching(q, nullptr);
+    if (st == errSecSuccess) {
+        CFMutableDictionaryRef update = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks,
+                                                                  &kCFTypeDictionaryValueCallBacks);
+        CFDictionarySetValue(update, kSecValueData, data);
+        st = SecItemUpdate(q, update);
+        CFRelease(update);
+    } else {
+        CFDictionarySetValue(q, kSecValueData, data);
+        st = SecItemAdd(q, nullptr);
+    }
+    CFRelease(data);
+    CFRelease(q);
+    return st == errSecSuccess;
+}
+
+std::string readSecret(const std::string& name, const std::string&)
+{
+    CFMutableDictionaryRef q = query(name);
+    CFDictionarySetValue(q, kSecReturnData, kCFBooleanTrue);
+    CFDictionarySetValue(q, kSecMatchLimit, kSecMatchLimitOne);
+    CFTypeRef result = nullptr;
+    std::string out;
+    if (SecItemCopyMatching(q, &result) == errSecSuccess && result) {
+        CFDataRef data = static_cast<CFDataRef>(result);
+        out.assign(reinterpret_cast<const char*>(CFDataGetBytePtr(data)), size_t(CFDataGetLength(data)));
+        CFRelease(result);
+    }
+    CFRelease(q);
+    return out;
+}
+
+void removeSecret(const std::string& name, const std::string&)
+{
+    CFMutableDictionaryRef q = query(name);
+    SecItemDelete(q);
+    CFRelease(q);
 }
 #else
 namespace {

@@ -80,6 +80,7 @@ public:
         SECTION_SCORE_DISPLAY,
         SECTION_SCORE_APPEARANCE,
         SECTION_PARTS,
+        SECTION_JUBELLE,   // Jubelle: contextual Properties for Jubelle's own items
     };
     Q_ENUM(InspectorSectionType)
 

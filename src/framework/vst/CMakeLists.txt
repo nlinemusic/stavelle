@@ -57,6 +57,8 @@ target_sources(muse_vst PRIVATE
 
     internal/jubelle/vstpresetfile.cpp
     internal/jubelle/vstpresetfile.h
+    internal/jubelle/vstkeyswitches.cpp
+    internal/jubelle/vstkeyswitches.h
 
     internal/synth/vstsynthesiser.cpp
     internal/synth/vstsynthesiser.h

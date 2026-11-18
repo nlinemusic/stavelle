@@ -228,6 +228,24 @@ jobs:
         cp demos/*.mscz demos/Dawn.mscx smoke_scores/
         python -X utf8 tools/jubelle_checks/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15
         python -X utf8 tools/jubelle_checks/smoke_test.py "build.install/bin/Jubelle.exe" smoke_scores smoke_work --runs 3
+    - name: "Jubelle: release key built in (the updater can verify signed releases)"
+      shell: bash
+      env:
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+      run: |
+        if [ -z "$JUBELLE_RELEASE_PUBLIC_KEY" ]; then
+          echo "::warning::No release key is set up: this build will refuse every update"
+          echo "- release key: **not set up** (this build refuses every update)" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        python -X utf8 - "$JUBELLE_RELEASE_PUBLIC_KEY" build.install/bin <<'PY'
+        import pathlib, sys
+        key, folder = sys.argv[1].lower().encode(), pathlib.Path(sys.argv[2])
+        found = [p.name for p in folder.iterdir() if p.suffix.lower() in (".exe", ".dll") and key in p.read_bytes().lower()]
+        print("release key found in:", ", ".join(found) or "nothing")
+        sys.exit(0 if found else 1)
+        PY
+        echo "- release key: built in (public key $JUBELLE_RELEASE_PUBLIC_KEY)" >> "$GITHUB_STEP_SUMMARY"
     - name: "Jubelle: upload app check results"
       if: always()
       uses: actions/upload-artifact@v6
@@ -252,7 +270,7 @@ jobs:
       timeout-minutes: 25
       shell: bash
       run: |
-        python -X utf8 tools/jubelle_checks/video_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz video_check
+        python -X utf8 tools/jubelle_checks/video_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz video_check ffmpeg_stage/tools/ffmpeg.exe
         cat video_check/video_check.md >> "$GITHUB_STEP_SUMMARY"
     - name: "Jubelle: upload video export check"
       if: always()
@@ -262,6 +280,20 @@ jobs:
         path: |
           video_check/video_check.md
           video_check/video_check.mp4
+    - name: "Jubelle: audio export check (bit depth and sample rate of WAV, FLAC, MP3, OGG)"
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 30
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/audio_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz audio_check
+        cat audio_check/audio_check.md >> "$GITHUB_STEP_SUMMARY"
+    - name: "Jubelle: upload audio export check"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-audio-check
+        path: audio_check/audio_check.md
     - name: "Jubelle: template prints (PDF, for visual review)"
       if: always()
       timeout-minutes: 30
@@ -276,6 +308,9 @@ jobs:
         path: template_prints/
     - name: Package
       shell: cmd
+      env:
+        # packaging configures again: the same release key, so nothing is rebuilt
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
       run: |
         :: Jubelle: no code-signing certificate, and the installer uses Jubelle's own
         :: upgrade code (set in package.bat), never MuseScore's.
@@ -283,6 +318,26 @@ jobs:
     - name: Checksum
       run: |
         bash ./buildscripts/ci/tools/checksum.sh
+    - name: "Jubelle: release key inside the installer"
+      shell: bash
+      env:
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+      run: |
+        if [ -z "$JUBELLE_RELEASE_PUBLIC_KEY" ]; then exit 0; fi
+        MSI=$(ls build.artifacts/*.msi | head -1)
+        mkdir -p msi_unpacked
+        # an administrative install only unpacks the files; nothing is installed
+        cmd //c "msiexec /a $(cygpath -w "$MSI") /qn TARGETDIR=$(cygpath -w "$PWD/msi_unpacked")"
+        python -X utf8 - "$JUBELLE_RELEASE_PUBLIC_KEY" msi_unpacked <<'PY'
+        import pathlib, sys
+        key, folder = sys.argv[1].lower().encode(), pathlib.Path(sys.argv[2])
+        exes = [p for p in folder.rglob("Jubelle.exe")]
+        found = [str(p) for p in exes if key in p.read_bytes().lower()]
+        print("Jubelle.exe in the installer:", [str(p) for p in exes])
+        print("release key found in:", found or "nothing")
+        sys.exit(0 if found else 1)
+        PY
+        echo "- release key inside the installer: yes" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload debug files
       if: env.DO_UPLOAD_SYMBOLS == 'true'

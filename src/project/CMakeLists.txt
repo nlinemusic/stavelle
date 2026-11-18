@@ -141,6 +141,10 @@ set_source_files_properties(
 )
 
 target_link_libraries(project PRIVATE notation)
+# Jubelle: YouTube sign-in details in the macOS Keychain
+if (APPLE)
+    target_link_libraries(project PRIVATE "-framework Security" "-framework CoreFoundation")
+endif()
 
 if (QT_ADD_CONCURRENT)
     target_link_libraries(project PRIVATE Qt::Concurrent)

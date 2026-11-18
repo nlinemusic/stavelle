@@ -35,6 +35,10 @@ public:
     size_t encode(samples_t samplesPerChannel, const float* input) override;
     size_t flush() override;
 
+    //! Jubelle: the encoder's delay (priming) in samples per channel, known after init(). A raw AAC stream
+    //! carries no note of it, so a player starts the sound this much late unless the input is shifted.
+    samples_t jubelleEncoderDelay() const;
+
 protected:
     size_t requiredOutputBufferSize(samples_t totalSamplesNumber) const override;
     void prepareOutputBuffer(const samples_t totalSamplesNumber) override;

@@ -39,6 +39,8 @@ qt_add_qml_module(notationscene_qml
         continuouspanel.cpp
         chordidentifiermodel.cpp
         chordidentifiermodel.h
+        harmonisemelodymodel.cpp
+        harmonisemelodymodel.h
         articulationplaybackmodel.cpp
         articulationplaybackmodel.h
         swingmodel.cpp
@@ -191,6 +193,7 @@ qt_add_qml_module(notationscene_qml
         ConcertPitchControl.qml
         EditGridSizeDialog.qml
         ChordIdentifierDialog.qml
+        HarmoniseMelodyDialog.qml
         ArticulationPlaybackDialog.qml
         SwingDialog.qml
         RepeatsDialog.qml

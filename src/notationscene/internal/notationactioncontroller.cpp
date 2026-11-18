@@ -42,6 +42,7 @@
 #include "notation/internal/jubelle/pagealignment.h"
 #include "notation/internal/jubelle/condensedscore.h"
 #include "notation/internal/jubelle/linkedpassages.h"
+#include "notation/internal/jubelle/prepareparts.h"
 
 #include <QGuiApplication>
 
@@ -403,6 +404,9 @@ void NotationActionController::init()
     registerAction("jubelle-identify-chords", [this]() {
         interactive()->open("musescore://notation/jubelle/chordidentifier");
     });
+    registerAction("jubelle-harmonise-melody", [this]() {
+        interactive()->open("musescore://notation/jubelle/harmonise");
+    });
     registerAction("jubelle-articulation-playback", [this]() {
         interactive()->open("musescore://notation/jubelle/articulationplayback");
     });
@@ -424,6 +428,7 @@ void NotationActionController::init()
     registerAction("jubelle-apply-part-layout", [this]() {
         interactive()->open("musescore://notation/jubelle/applypartlayout");
     });
+    registerAction("jubelle-prepare-parts", [this]() { jubellePrepareParts(); });
     registerAction("jubelle-passage-playback", [this]() {
         interactive()->open("musescore://notation/jubelle/passageplayback");
     });
@@ -2490,6 +2495,62 @@ void NotationActionController::jubelleLinkMarkerAction(bool resync)
     }
     notation->undoStack()->commitChanges();
     notation->notationChanged().notify();
+}
+
+void NotationActionController::jubellePrepareParts()
+{
+    // Jubelle: every part made ready for players in one step (see prepareparts.h); one undo step
+    const IMasterNotationPtr master = currentMasterNotation();
+    mu::engraving::MasterScore* score = master ? master->masterScore() : nullptr;
+    if (!score) {
+        return;
+    }
+    if (score->excerpts().empty()) {
+        interactive()->info(muse::trc("notation", "No parts yet"),
+                            muse::trc("notation", "Create the parts first (Parts in the toolbar), then prepare them."));
+        return;
+    }
+    const INotationPtr notation = currentNotation();
+    notation->undoStack()->prepareChanges(muse::TranslatableString("undoableAction", "Prepare parts"));
+    const std::vector<mu::notation::jubelle::PreparedPart> done = mu::notation::jubelle::prepareParts(score);
+    notation->undoStack()->commitChanges();
+    notation->notationChanged().notify();
+
+    std::string body;
+    for (const auto& p : done) {
+        std::vector<std::string> said;
+        if (p.turnedOnMMRests) {
+            said.push_back(muse::trc("notation", "multi-measure rests on"));
+        }
+        if (!p.instrumentLine.isEmpty()) {
+            said.push_back(muse::qtrc("notation", "first page: “%1”").arg(p.instrumentLine.toQString()).toStdString());
+        }
+        if (p.wholeTacet) {
+            said.push_back(muse::trc("notation", "Tacet"));
+        } else if (!p.tacetSectionBars.empty()) {
+            said.push_back(muse::qtrc("notation", "Tacet in %n section(s)", nullptr, int(p.tacetSectionBars.size())).toStdString());
+        }
+        if (p.turnsMoved > 0) {
+            said.push_back(muse::qtrc("notation", "%n page turn(s) moved", nullptr, p.turnsMoved).toStdString());
+        }
+        if (p.turnsStillPoor > 0) {
+            said.push_back(muse::qtrc("notation", "%n page turn(s) still without enough rest", nullptr, p.turnsStillPoor).toStdString());
+        }
+        if (p.findings > 0) {
+            said.push_back(muse::qtrc("notation", "%n point(s) for Proofread", nullptr, int(p.findings)).toStdString());
+        }
+        std::string line = p.name.toStdString() + ": ";
+        if (said.empty()) {
+            line += muse::trc("notation", "already ready");
+        } else {
+            for (size_t i = 0; i < said.size(); ++i) {
+                line += (i ? "; " : "") + said[i];
+            }
+        }
+        body += line + "\n";
+    }
+    body += "\n" + muse::trc("notation", "Nothing in the music was changed. Edit › Undo takes all of this back in one step.");
+    interactive()->info(muse::trc("notation", "Parts prepared"), body);
 }
 
 void NotationActionController::jubelleToggleCourtesy()

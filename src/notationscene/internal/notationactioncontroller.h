@@ -290,6 +290,7 @@ private:
     void jubelleAlign(int command);
     void jubelleSetLook(bool jazz);
     void jubelleToggleCourtesy();     // R8
+    void jubellePrepareParts();
     void jubelleLinkMarkerAction(bool resync);   // R7: re-sync or unlink from a marker   // T2: Jazz handwritten / standard engraved look
     void setJubelleAlignReference(int reference);
     muse::async::Notification m_jubelleAlignReferenceChanged;

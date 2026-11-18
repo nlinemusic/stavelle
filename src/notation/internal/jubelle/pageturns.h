@@ -22,6 +22,7 @@
 #include <vector>
 
 namespace mu::engraving {
+class EngravingItem;
 class Measure;
 class Score;
 }
@@ -85,6 +86,11 @@ TurnResult optimiseTurns(engraving::Score* score, const TurnSettings& settings);
 
 //! Removes the page breaks Jubelle added (yours are kept). Inside an open undo command. Returns how many.
 int clearJubelleTurns(engraving::Score* score);
+
+//! Jubelle: a page break that Page turns placed (not one of yours)
+bool isJubelleTurnBreak(const engraving::EngravingItem* item);
+//! Makes a page break Page turns placed into your own (kept when turns are optimised again). Undoable.
+void keepTurnBreakAsOwn(engraving::Score* score, engraving::EngravingItem* item);
 
 //! Seconds of rest (all staves silent) just before and just after a tick
 double restBefore(engraving::Score* score, int tick);

@@ -86,4 +86,14 @@ Column {
         navigationPanel: root.navigationPanel
         navigationRowStart: showTextCheckBox.navigation.row + 1
     }
+
+    // Jubelle: where the slide starts and how it moves (playback only), for this glissando,
+    // its instrument or the whole score; also used for chromatic and white-key glissandos
+    JubellePlaybackValues {
+        width: parent.width
+        model: root.model
+        startNoteTicks: root.model ? root.model.startNoteTicks : 0
+        navigationPanel: root.navigationPanel
+        navigationRowStart: showTextCheckBox.navigation.row + 20
+    }
 }

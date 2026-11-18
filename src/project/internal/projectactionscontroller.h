@@ -42,6 +42,7 @@
 #include "playback/iplaybackcontroller.h"
 #include "print/iprintprovider.h"
 #include "iexportprojectscenario.h"
+#include "inotationwritersregister.h"
 #include "inotationreadersregister.h"
 #include "iopensaveprojectscenario.h"
 #include "imscmetareader.h"
@@ -73,6 +74,7 @@ class ProjectActionsController : public IProjectFilesController, public muse::mi
     muse::ContextInject<IProjectAutoSaver> projectAutoSaver = { this };
     muse::ContextInject<IOpenSaveProjectScenario> openSaveProjectScenario = { this };
     muse::ContextInject<IExportProjectScenario> exportProjectScenario = { this };
+    muse::ContextInject<INotationWritersRegister> writers = { this };
     muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
     muse::ContextInject<context::IGlobalContext> globalContext = { this };
@@ -111,6 +113,7 @@ public:
     muse::Uri resolveNotationPageUri() const override;
 
 private:
+    void jubelleLibraryExport();
     void setupConnections();
 
     project::INotationProjectPtr currentNotationProject() const;

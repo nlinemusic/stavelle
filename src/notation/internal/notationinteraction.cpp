@@ -6419,6 +6419,26 @@ chordidentifier::Report NotationInteraction::removeChordToneHighlight()
     return report;
 }
 
+jubelle::harmony::Scope NotationInteraction::harmonyScope(const jubelle::harmony::RunOptions& options)
+{
+    return jubelle::harmony::scope(score(), options);
+}
+
+jubelle::harmony::Report NotationInteraction::harmoniseMelody(const jubelle::harmony::RunOptions& options)
+{
+    // Jubelle Harmonise melody: one undoable step. The melody staff is never changed.
+    const jubelle::harmony::Scope sc = jubelle::harmony::scope(score(), options);
+    if (!sc.ok) {
+        jubelle::harmony::Report nothing;
+        nothing.problem = sc.problem;
+        return nothing;
+    }
+    startEdit(TranslatableString("undoableAction", "Harmonise melody"));
+    const jubelle::harmony::Report report = jubelle::harmony::run(score(), options);
+    apply();
+    return report;
+}
+
 void NotationInteraction::extendToNextNote()
 {
     if (selection()->isNone()) {

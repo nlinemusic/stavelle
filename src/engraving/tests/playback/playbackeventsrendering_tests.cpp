@@ -21,6 +21,8 @@
  */
 
 #include <gtest/gtest.h>
+
+#include "engraving/playback/jubelle/articulationplayback.h"
 #include <memory>
 
 #include "mpe/tests/utils/articulationutils.h"
@@ -784,6 +786,48 @@ TEST_F(Engraving_PlaybackEventsRendererTests, TwoNotes_Discrete_Glissando)
             EXPECT_EQ(noteEvent.pitchCtx().nominalPitchLevel, expectedPitches.at(i));
         }
     }
+}
+
+/**
+ * @brief Jubelle: "Slide starts at" also moves the start of a stepped (chromatic) glissando:
+ *        the first note is held for that part of the note and the steps share the rest.
+ */
+TEST_F(Engraving_PlaybackEventsRendererTests, Jubelle_Discrete_Glissando_Start)
+{
+    Score* score = ScoreRW::readScore(
+        PLAYBACK_EVENTS_RENDERING_DIR + "two_notes_discrete_glissando/two_notes_discrete_glissando.mscx");
+    ChordRest* chord = score->firstMeasure()->segments().firstCRSegment()->nextChordRest(0);
+    ASSERT_TRUE(chord);
+
+    jubelle::ArticulationPlaybackSettings settings = jubelle::ArticulationPlaybackSettings::read(score);
+    settings.scoreValues.set(jubelle::ArtParam::GlissandoStart, 50);
+    settings.write(score);
+
+    const size_t steps = pitchStepsCount(std::abs(pitchLevelDiff(PitchClass::F, 4, PitchClass::B, 4)));
+    ASSERT_GT(steps, 2u);
+    const float held = QUARTER_NOTE_DURATION * 0.5f;
+    const float step = (QUARTER_NOTE_DURATION - held) / static_cast<float>(steps - 1);
+
+    m_defaultProfile->setPattern(ArticulationType::DiscreteGlissando, m_dummyPattern);
+    PlaybackContextPtr ctx = std::make_shared<PlaybackContext>();
+    PlaybackEventsMap result;
+    m_renderer.render(chord, 0, m_defaultProfile, ctx, result);
+
+    for (const auto& pair : result) {
+        ASSERT_EQ(pair.second.size(), steps);
+        const mpe::NoteEvent& first = std::get<mpe::NoteEvent>(pair.second.at(0));
+        EXPECT_EQ(first.arrangementCtx().nominalTimestamp, 0);
+        EXPECT_EQ(first.arrangementCtx().nominalDuration, static_cast<int>(held));
+        for (size_t i = 1; i < steps; ++i) {
+            const mpe::NoteEvent& ev = std::get<mpe::NoteEvent>(pair.second.at(i));
+            EXPECT_EQ(ev.arrangementCtx().nominalTimestamp, static_cast<int>(held + (i - 1) * step));
+            EXPECT_EQ(ev.arrangementCtx().nominalDuration, static_cast<int>(step));
+        }
+        // the last step still ends with the written note
+        const mpe::NoteEvent& last = std::get<mpe::NoteEvent>(pair.second.back());
+        EXPECT_NEAR(last.arrangementCtx().nominalTimestamp + last.arrangementCtx().nominalDuration, QUARTER_NOTE_DURATION, 2);
+    }
+    delete score;
 }
 
 /**

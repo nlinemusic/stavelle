@@ -28,6 +28,10 @@
 
 #include "modularity/imoduleinterface.h"
 
+#include <functional>
+#include <string>
+#include <vector>
+
 #include "videoexporttypes.h"
 
 namespace mu::iex::videoexport {
@@ -64,6 +68,30 @@ public:
     virtual void setPageList(std::optional<std::string>) {}
     //! Jubelle: what is wrong with a page list for a score of `pageCount` pages; empty = fine
     virtual std::string checkPageList(const std::string&, int) const { return std::string(); }
+
+    //! Jubelle: the page sequence a page list gives, as (page, seconds) entries in playing order, for a score
+    //! whose music lasts `totalSecs`; `pageAt(seconds)` gives the page on screen at a moment (1 = first page).
+    //! Uses the same engine as the export, so the builder and the video always agree.
+    struct SequenceEntry {
+        int page = 0;
+        double seconds = 0.0;
+    };
+    virtual std::vector<SequenceEntry> planPageSequence(const std::string&, int, double, const std::function<int(double)>&) const
+    {
+        return {};
+    }
+
+    //! Jubelle: draw MuseScore's playback cursor over the music (off by default)
+    virtual bool showCursor() const { return false; }
+    virtual void setShowCursor(std::optional<bool>) {}
+    //! Jubelle: the video's own sound quality (AAC, kbit/s), separate from MP3 export
+    virtual int audioBitrateKbps() const { return 256; }
+    virtual void setAudioBitrateKbps(std::optional<int>) {}
+    virtual const std::vector<int>& availableAudioBitratesKbps() const
+    {
+        static const std::vector<int> rates { 128, 192, 256, 320 };
+        return rates;
+    }
 };
 }
 

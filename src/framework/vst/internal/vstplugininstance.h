@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include <map>
+
 #include <mutex>
 #include <atomic>
 
@@ -76,6 +78,8 @@ public:
     std::string jubellePluginName() const override;
     std::string jubellePluginClassId() const override;
     bool jubelleApplyPresetStates(const std::string& componentState, const std::string& controllerState) override;
+    std::map<std::string, std::string> jubelleExtras() const override;
+    void jubelleSetExtra(const std::string& key, const std::string& value) override;
 
 private:
     void syncControllerToComponentState();
@@ -94,6 +98,7 @@ private:
     VstMemoryStream m_controllerStateBuffer;
     mutable async::Channel<muse::audio::AudioUnitConfig> m_pluginSettingsChanges;
 
+    std::map<std::string, std::string> m_jubelleExtras;   // "jubelle.*" settings of this instrument
     std::string m_jubelleVendor;
     std::string m_jubelleClassName;
     std::string m_jubelleClassId;

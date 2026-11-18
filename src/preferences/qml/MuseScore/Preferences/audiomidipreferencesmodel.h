@@ -21,6 +21,7 @@
  */
 #pragma once
 
+#include "musesampler/imusesamplerinfo.h"
 #include <qqmlintegration.h>
 
 #include <QObject>
@@ -71,6 +72,7 @@ class AudioMidiPreferencesModel : public QObject, public muse::Contextable, publ
     muse::ContextInject<muse::midi::IMidiOutPort> midiOutPort = { this };
     muse::ContextInject<muse::midi::IMidiInPort> midiInPort = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
+    muse::ContextInject<muse::musesampler::IMuseSamplerInfo> museSamplerInfo = { this };
 
 public:
     explicit AudioMidiPreferencesModel(QObject* parent = nullptr);
@@ -90,6 +92,9 @@ public:
     Q_INVOKABLE void restartAudioAndMidiDevices();
 
     Q_INVOKABLE bool onlineSoundsSectionVisible() const;
+
+    //! Jubelle: what happened to an installed MuseSounds engine ("" when none was found)
+    Q_INVOKABLE QString museSoundsStatus() const;
 
     QVariantList midiInputDevices() const;
     QVariantList midiOutputDevices() const;

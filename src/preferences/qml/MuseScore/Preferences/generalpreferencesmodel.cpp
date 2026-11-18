@@ -279,3 +279,40 @@ QString GeneralPreferencesModel::museScorePrivacyPolicyUrl() const
 {
     return QString::fromStdString(updateConfiguration()->museScorePrivacyPolicyUrl());
 }
+
+// Jubelle: performance profiles (see appshell/internal/jubelle/performanceprofile.h)
+
+int GeneralPreferencesModel::performanceProfile() const
+{
+    return configuration()->jubellePerformanceProfile();
+}
+
+void GeneralPreferencesModel::setPerformanceProfile(int profile)
+{
+    if (profile == performanceProfile()) {
+        return;
+    }
+    configuration()->setJubellePerformanceProfile(profile);
+    emit performanceProfileChanged();
+}
+
+QString GeneralPreferencesModel::performanceDetail() const
+{
+    return QString::fromStdString(configuration()->jubellePerformanceDescription());
+}
+
+QVariantList GeneralPreferencesModel::performanceProfiles() const
+{
+    auto item = [](const QString& text, int value) {
+        QVariantMap m;
+        m["text"] = text;
+        m["value"] = value;
+        return m;
+    };
+    return {
+        item(muse::qtrc("preferences", "Automatic (chosen for this computer)"), 0),
+        item(muse::qtrc("preferences", "High performance (lowest latency)"), 1),
+        item(muse::qtrc("preferences", "Balanced"), 2),
+        item(muse::qtrc("preferences", "Low resource (older or busy computers)"), 3),
+    };
+}

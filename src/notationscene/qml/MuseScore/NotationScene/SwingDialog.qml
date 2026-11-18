@@ -246,6 +246,7 @@ StyledDialogView {
                 RowLabel { text: qsTrc("notation", "Name:") }
                 TextInputField {
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 100   // see DrumStemsDialog: avoids a recursive layout
                     currentText: root.feel.name || ""
                     navigation.panel: panel
                     onTextEditingFinished: function(newTextValue) { swingModel.setFeelValue("name", newTextValue) }

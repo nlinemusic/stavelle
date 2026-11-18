@@ -122,8 +122,11 @@ void VstModulesRepository::refresh()
 
 muse::audio::AudioResourceMetaList VstModulesRepository::modulesMetaList(const audioplugins::AudioPluginType& type) const
 {
-    auto infoAccepted = [type](const audioplugins::AudioPluginInfo& info) {
-        return info.type == type && info.meta.type == muse::audio::AudioResourceType::VstPlugin && info.enabled;
+    // Jubelle: plugins switched off on the Plugins page are not offered
+    auto conf = pluginsConfiguration();
+    auto infoAccepted = [type, conf](const audioplugins::AudioPluginInfo& info) {
+        return info.type == type && info.meta.type == muse::audio::AudioResourceType::VstPlugin && info.enabled
+               && !(conf && conf->isUserDisabled(info.meta.id));
     };
 
     audioplugins::AudioPluginInfoList infoList = knownPlugins()->pluginInfoList(infoAccepted);

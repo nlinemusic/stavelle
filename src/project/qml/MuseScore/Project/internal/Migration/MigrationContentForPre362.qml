@@ -154,7 +154,7 @@ ColumnLayout {
 
         StyledTextLabel {
             id: affectedLabel
-            text: qsTrc("project/migration", "Please note: score layouts will be affected by improvements to MuseScore Studio")
+            text: qsTrc("project/migration", "Please note: score layouts will be affected by improvements in MuseScore Studio 4, on which Jubelle is based")
         }
 
         FlatButton {

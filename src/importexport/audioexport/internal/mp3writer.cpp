@@ -22,6 +22,8 @@
 
 #include "mp3writer.h"
 
+#include <algorithm>
+
 #include "log.h"
 
 using namespace muse;
@@ -33,7 +35,8 @@ Ret Mp3Writer::write(notation::INotationPtr notation, io::IODevice& destinationD
     const SoundTrackFormat format {
         SoundTrackType::MP3,
         {
-            static_cast<sample_rate_t>(configuration()->exportSampleRate()),
+            // MP3 goes up to 48 kHz: a 96 kHz choice is written at 48 kHz
+            static_cast<sample_rate_t>(std::min(configuration()->exportSampleRate(), 48000)),
             configuration()->exportBufferSize(),
             2 /* audioChannelsNumber */
         },

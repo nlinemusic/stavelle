@@ -133,6 +133,7 @@ void VstSequencer::addNoteEvent(EventSequenceMap& destination, const mpe::NoteEv
     const float tuning = noteTuning(noteEvent, noteId);
 
     if (arrangementCtx.hasStart()) {
+        addKeySwitch(destination, noteEvent);
         destination[arrangementCtx.actualTimestamp].emplace_back(buildEvent(VstEvent::kNoteOnEvent, noteId, velocityFraction, tuning));
     }
 
@@ -164,6 +165,64 @@ void VstSequencer::addNoteEvent(EventSequenceMap& destination, const mpe::NoteEv
             continue;
         }
     }
+}
+
+// Jubelle: which key-switch group each playback articulation belongs to
+static const std::vector<std::pair<mpe::ArticulationTypeSet, const char*> >& keySwitchGroupTypes()
+{
+    using T = mpe::ArticulationType;
+    static const std::vector<std::pair<mpe::ArticulationTypeSet, const char*> > groups {
+        { { T::Fall, T::QuickFall, T::SlideOutDown }, "fall" },
+        { { T::Doit, T::SlideOutUp }, "doit" },
+        { { T::Scoop, T::Plop, T::SlideInAbove, T::SlideInBelow }, "scoop" },
+        { { T::Mute, T::PalmMute }, "mute" },
+        { { T::Open }, "open" },
+        { { T::Pizzicato, T::SnapPizzicato, T::RandomPizzicato }, "pizzicato" },
+        { { T::Harmonic }, "harmonic" },
+        { { T::Tremolo8th, T::Tremolo16th, T::Tremolo32nd, T::Tremolo64th, T::TremoloBuzz }, "tremolo" },
+        { { T::Trill, T::TrillBaroque }, "trill" },
+        { { T::Staccato, T::Staccatissimo }, "staccato" },
+        { { T::Marcato }, "marcato" },
+        { { T::Accent, T::SoftAccent }, "accent" },
+        { { T::Tenuto }, "tenuto" },
+    };
+    return groups;
+}
+
+void VstSequencer::setJubelleKeySwitches(const jubelle::KeySwitchMap& map)
+{
+    m_keySwitches = map;
+}
+
+void VstSequencer::setJubelleBendRange(float semitones)
+{
+    m_bendRange = std::clamp(semitones, 1.f, 48.f);
+}
+
+void VstSequencer::addKeySwitch(EventSequenceMap& destination, const mpe::NoteEvent& noteEvent)
+{
+    if (m_keySwitches.empty()) {
+        return;
+    }
+    std::vector<std::string> present;
+    for (const auto& artPair : noteEvent.expressionCtx().articulations) {
+        for (const auto& [types, group] : keySwitchGroupTypes()) {
+            if (muse::contains(types, artPair.first)) {
+                present.push_back(group);
+            }
+        }
+    }
+    const int key = m_keySwitches.keyFor(present);
+    if (key < 0) {
+        return;
+    }
+    // A millisecond before the note, so the library has switched when the note arrives (key switches
+    // can be above or below the note, so ordering by pitch at the same moment isn't enough)
+    static constexpr mpe::timestamp_t LEAD = 1000;     // microseconds
+    static constexpr mpe::timestamp_t LENGTH = 10000;
+    const mpe::timestamp_t at = std::max<mpe::timestamp_t>(0, noteEvent.arrangementCtx().actualTimestamp - LEAD);
+    destination[at].emplace_back(buildEvent(VstEvent::kNoteOnEvent, key, 0.8f, 0.f));
+    destination[at + LENGTH].emplace_back(buildEvent(VstEvent::kNoteOffEvent, key, 0.8f, 0.f));
 }
 
 void VstSequencer::addPedalEvent(EventSequenceMap& destination, const mpe::ArticulationMeta& meta)
@@ -394,8 +453,9 @@ float VstSequencer::expressionLevel(const mpe::dynamic_level_t dynamicLevel) con
 
 float VstSequencer::pitchBendLevel(const mpe::pitch_level_t pitchLevel) const
 {
-    static constexpr float SEMITONE_RANGE = 2.f;
-    static constexpr float PITCH_BEND_SEMITONE_STEP = 0.5f / SEMITONE_RANGE;
+    // Jubelle: the instrument's own bend range (2 semitones unless set for the library)
+    const float SEMITONE_RANGE = m_bendRange > 0.f ? m_bendRange : 2.f;
+    const float PITCH_BEND_SEMITONE_STEP = 0.5f / SEMITONE_RANGE;
 
     float pitchLevelSteps = pitchLevel / static_cast<float>(mpe::PITCH_LEVEL_STEP);
     float offset = pitchLevelSteps * PITCH_BEND_SEMITONE_STEP;

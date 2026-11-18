@@ -86,8 +86,14 @@ target_sources(notation PRIVATE
     internal/jubelle/timelinemarkers.h
     internal/jubelle/tempotap.cpp
     internal/jubelle/tempotap.h
+    internal/jubelle/harmony/harmonyrules.cpp
+    internal/jubelle/harmony/harmonyrules.h
+    internal/jubelle/harmony/harmonyrunner.cpp
+    internal/jubelle/harmony/harmonyrunner.h
     internal/jubelle/partlayout.cpp
     internal/jubelle/partlayout.h
+    internal/jubelle/prepareparts.cpp
+    internal/jubelle/prepareparts.h
     internal/jubelle/pageturns.cpp
     internal/jubelle/pageturns.h
     internal/jubelle/drumstems.cpp
@@ -178,8 +184,11 @@ set_source_files_properties(
     internal/jubelle/templatepage.cpp
     internal/jubelle/findselect.cpp
     internal/jubelle/proofread.cpp
+    internal/jubelle/prepareparts.cpp
     internal/jubelle/timelinemarkers.cpp
     internal/jubelle/tempotap.cpp
+    internal/jubelle/harmony/harmonyrules.cpp
+    internal/jubelle/harmony/harmonyrunner.cpp
     PROPERTIES
     SKIP_UNITY_BUILD_INCLUSION ON
 )

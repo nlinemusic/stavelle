@@ -220,6 +220,8 @@ public:
     MOCK_METHOD(chordidentifier::Scope, chordIdentifierScope, (), (const, override));
     MOCK_METHOD(chordidentifier::Report, identifyChords, (const chordidentifier::Options&), (override));
     MOCK_METHOD(chordidentifier::Report, removeChordToneHighlight, (), (override));
+    MOCK_METHOD(jubelle::harmony::Scope, harmonyScope, (const jubelle::harmony::RunOptions&), (override));
+    MOCK_METHOD(jubelle::harmony::Report, harmoniseMelody, (const jubelle::harmony::RunOptions&), (override));
     MOCK_METHOD(void, removeSelectedMeasures, (), (override));
     MOCK_METHOD(void, removeSelectedRange, (), (override));
     MOCK_METHOD(void, removeEmptyTrailingMeasures, (), (override));
