@@ -30,3 +30,6 @@ jobs:
       run: cmake --build build-platform-tests --config Release --parallel
     - name: Run tests
       run: ctest --test-dir build-platform-tests -C Release --output-on-failure
+    - name: "Jubelle: every menu command is still in the menus"
+      shell: bash
+      run: python3 tools/jubelle_checks/menu_commands_check.py || python tools/jubelle_checks/menu_commands_check.py
