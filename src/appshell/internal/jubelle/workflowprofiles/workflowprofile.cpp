@@ -583,6 +583,30 @@ std::vector<std::string> commandsIn(const std::vector<MenuNode>& menus)
     return std::vector<std::string>(s.begin(), s.end());
 }
 
+namespace {
+std::vector<std::string>& problems()
+{
+    static std::vector<std::string> p;
+    return p;
+}
+}
+
+void recordArrangement(const std::string& profileId, const std::vector<MenuNode>& before, const std::vector<MenuNode>& after)
+{
+    const std::vector<std::string> a = commandsIn(before);
+    const std::vector<std::string> b = commandsIn(after);
+    for (const std::string& c : a) {
+        if (!std::binary_search(b.begin(), b.end(), c)) {
+            problems().push_back(profileId + ": " + c + " is missing from the menus");
+        }
+    }
+}
+
+std::vector<std::string> arrangementProblems()
+{
+    return problems();
+}
+
 // ---------------------------------------------------------------------------
 // Toolbar
 // ---------------------------------------------------------------------------

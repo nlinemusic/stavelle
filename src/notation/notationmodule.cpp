@@ -21,6 +21,9 @@
  */
 #include "notationmodule.h"
 
+#include "global/jubelle/diagnosticsregistry.h"
+#include "engraving/types/constants.h"
+
 #include "modularity/ioc.h"
 #include "project/inotationwritersregister.h"
 
@@ -69,6 +72,22 @@ void NotationModule::resolveImports()
 void NotationModule::onInit(const IApplication::RunMode&)
 {
     m_configuration->init();
+
+    // Jubelle (Report a Bug): this notation engine describes itself. A future
+    // engine registers under the same id, so bug reports always say which
+    // engine was in use.
+    muse::jubelle::DiagnosticsRegistry::instance().add("engine", []() {
+        muse::jubelle::DiagnosticSection s;
+        s.id = "engine";
+        s.title = "Notation engine";
+        s.order = 30;
+        s.items = {
+            { "Engine", "MuseScore Studio 4.7.7 notation engine" },
+            { "Status", "current (the engine in use)" },
+            { "Score format", std::string("MuseScore ") + mu::engraving::Constants::MSC_VERSION_STR },
+        };
+        return s;
+    });
     m_instrumentsRepository->init();
 
     // Jubelle: keep linked passages in step after every edit

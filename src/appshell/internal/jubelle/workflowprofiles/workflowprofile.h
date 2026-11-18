@@ -139,6 +139,12 @@ MenuResolution resolveMenus(const std::vector<MenuNode>& source, const Profile& 
 //! Every command (non-menu, non-separator id) in a tree, sorted, without repeats
 std::vector<std::string> commandsIn(const std::vector<MenuNode>& menus);
 
+//! Checked by the app each time it arranges its menus (the interface
+//! self-test reads it): commands that were in Jubelle's menus but not in the
+//! arranged ones. Should always be empty.
+void recordArrangement(const std::string& profileId, const std::vector<MenuNode>& before, const std::vector<MenuNode>& after);
+std::vector<std::string> arrangementProblems();
+
 // ---------------------------------------------------------------------------
 // Toolbar
 // ---------------------------------------------------------------------------

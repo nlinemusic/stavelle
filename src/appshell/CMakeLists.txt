@@ -46,6 +46,15 @@ target_sources(appshell PRIVATE
     internal/jubelle/uiselftest.h
     internal/jubelle/crashreport.cpp
     internal/jubelle/crashreport.h
+    internal/jubelle/bugreport/bugreport.cpp
+    internal/jubelle/bugreport/bugreport.h
+    internal/jubelle/bugreport/bugreportdiagnostics.cpp
+    internal/jubelle/bugreport/bugreportdiagnostics.h
+    internal/jubelle/workflowprofiles/workflowprofile.cpp
+    internal/jubelle/workflowprofiles/workflowprofile.h
+    internal/jubelle/workflowprofiles/workflowprofilesservice.cpp
+    internal/jubelle/workflowprofiles/workflowprofilesservice.h
+    iworkflowprofiles.h
     widgets/splashscreen/splashscreen.cpp
     widgets/splashscreen/splashscreen.h
     widgets/splashscreen/loadingscreenview.cpp
@@ -84,6 +93,10 @@ qt_add_resources(appshell appshell_resources
         resources/LoadingScreen.svg
         resources/jubelle_splash_logo.png
         resources/win_opengl_buglist.json
+        resources/workflowprofiles/jubelle.json
+        resources/workflowprofiles/musescore.json
+        resources/workflowprofiles/finale.json
+        resources/workflowprofiles/noteflight.json
 )
 
 target_link_libraries(appshell PRIVATE

@@ -250,6 +250,47 @@ const UiActionList ApplicationUiActions::m_actions = {
              TranslatableString("action", "Sound so&urces…"),
              TranslatableString("action", "Where Jubelle's sounds come from: built-in sounds, VST3, SoundFonts and MuseSounds")
              ),
+    UiAction("jubelle-report-bug",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Report a bug…"),
+             TranslatableString("action", "Describe a problem; Jubelle prepares a report you can review and send yourself")
+             ),
+    //! Jubelle: Workflow Profiles (View › Workflow profile)
+    UiAction("jubelle-workflow-profile-jubelle",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Jubelle"),
+             TranslatableString("action", "Workflow profile: Jubelle's own menus, shortcuts and toolbar"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-workflow-profile-musescore",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&MuseScore Studio"),
+             TranslatableString("action", "Workflow profile: MuseScore Studio 4's menus and shortcuts"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-workflow-profile-finale",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Finale-style"),
+             TranslatableString("action", "Workflow profile: Finale Simple Entry keys and Finale-like menus"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-workflow-profile-noteflight",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Noteflight-style"),
+             TranslatableString("action", "Workflow profile: Noteflight keys and menus"),
+             Checkable::Yes
+             ),
+    UiAction("jubelle-workflow-restore-defaults",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Restore this profile's defaults…"),
+             TranslatableString("action", "Undo your changes to the current profile's shortcuts, toolbar and note input settings")
+             ),
     UiAction("jubelle-proofread-score",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,
@@ -326,6 +367,13 @@ ApplicationUiActions::ApplicationUiActions(std::shared_ptr<ApplicationActionCont
 
 void ApplicationUiActions::init()
 {
+    if (workflowProfiles()) {
+        workflowProfiles()->currentProfileChanged().onNotify(this, [this]() {
+            m_actionCheckedChanged.send({ "jubelle-workflow-profile-jubelle", "jubelle-workflow-profile-musescore",
+                                          "jubelle-workflow-profile-finale", "jubelle-workflow-profile-noteflight" });
+        });
+    }
+
     mainWindow()->isFullScreenChanged().onNotify(this, [this]() {
         m_actionCheckedChanged.send({ FULL_SCREEN_CODE });
     });
@@ -386,6 +434,11 @@ bool ApplicationUiActions::actionEnabled(const UiAction& act) const
 
 bool ApplicationUiActions::actionChecked(const UiAction& act) const
 {
+    static const std::string PROFILE_PREFIX = "jubelle-workflow-profile-";
+    if (act.code.rfind(PROFILE_PREFIX, 0) == 0) {
+        return workflowProfiles() && workflowProfiles()->currentProfileId() == act.code.substr(PROFILE_PREFIX.size());
+    }
+
     if (act.code == FULL_SCREEN_CODE) {
         return mainWindow()->isFullScreen();
     }

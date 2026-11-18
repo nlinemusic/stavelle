@@ -81,6 +81,8 @@ public:
 
     void resetStyleDialogPageIndices() override;
 
+    const muse::ui::ToolConfig& defaultNoteInputBarConfig() const override;
+
 private:
     muse::async::Notification m_isSmoothPanningChanged;
     muse::async::Notification m_isLimitCanvasScrollAreaChanged;
