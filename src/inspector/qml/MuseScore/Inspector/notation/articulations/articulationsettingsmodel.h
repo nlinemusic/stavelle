@@ -27,6 +27,7 @@
 #include <qqmlintegration.h>
 
 #include "abstractinspectormodel.h"
+#include "../jubelleplaybacksection.h"
 
 namespace mu::inspector {
 class ArticulationSettingsModel : public AbstractInspectorModel
@@ -74,10 +75,7 @@ private:
                            const mu::engraving::StyleIdSet& changedStyleIdSet) override;
     void updatePlayback();
     void changePlayback(const QString& key, std::optional<int> value);
-    QVariantList m_playbackRows;
-    QVariantList m_playbackLevels;
-    QString m_playbackNote;
-    int m_playbackLevel = 0;   // jubelle::EditLevel
+    JubellePlaybackSection m_playback;
 
     PropertyItem* m_direction = nullptr;
     PropertyItem* m_placement = nullptr;

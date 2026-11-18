@@ -24,6 +24,7 @@
 #include <qqmlintegration.h>
 
 #include "abstractinspectormodel.h"
+#include "../jubelleplaybacksection.h"
 
 namespace mu::inspector {
 class GlissandoSettingsModel : public AbstractInspectorModel
@@ -42,6 +43,14 @@ class GlissandoSettingsModel : public AbstractInspectorModel
     Q_PROPERTY(mu::inspector::PropertyItem * dashLineLength READ dashLineLength CONSTANT)
     Q_PROPERTY(mu::inspector::PropertyItem * dashGapLength READ dashGapLength CONSTANT)
 
+    // Jubelle: how this glissando sounds ("Slide starts at" and speed), shared with the articulation Properties
+    Q_PROPERTY(QVariantList playbackRows READ playbackRows NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(int playbackLevel READ playbackLevel WRITE setPlaybackLevel NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(QVariantList playbackLevels READ playbackLevels NOTIFY playbackChanged FINAL)
+    Q_PROPERTY(QString playbackNote READ playbackNote NOTIFY playbackChanged FINAL)
+    //! The start note's length in ticks (480 = a quarter), to set the start as a musical position
+    Q_PROPERTY(int startNoteTicks READ startNoteTicks NOTIFY playbackChanged FINAL)
+
 public:
     explicit GlissandoSettingsModel(QObject* parent, const muse::modularity::ContextPtr& iocCtx, IElementRepositoryService* repository);
 
@@ -57,11 +66,29 @@ public:
 
     Q_INVOKABLE QVariantList possibleLineTypes() const;
 
+    QVariantList playbackRows() const { return m_playback.rows; }
+    int playbackLevel() const { return m_playback.level; }
+    void setPlaybackLevel(int level);
+    QVariantList playbackLevels() const { return m_playback.levels; }
+    QString playbackNote() const { return m_playback.note; }
+    int startNoteTicks() const { return m_startNoteTicks; }
+    Q_INVOKABLE void setPlaybackValue(const QString& key, int value);
+    Q_INVOKABLE void clearPlaybackValue(const QString& key);
+
+signals:
+    void playbackChanged();
+
 private:
     void createProperties() override;
     void loadProperties() override;
     void resetProperties() override;
     void onUpdateGlissPropertiesAvailability();
+    void onNotationChanged(const mu::engraving::PropertyIdSet&, const mu::engraving::StyleIdSet&) override;
+    void updatePlayback();
+    void changePlayback(const QString& key, std::optional<int> value);
+
+    JubellePlaybackSection m_playback;
+    int m_startNoteTicks = 0;
 
     PropertyItem* m_lineType = nullptr;
     PropertyItem* m_showText = nullptr;

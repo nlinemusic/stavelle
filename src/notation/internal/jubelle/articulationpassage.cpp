@@ -9,6 +9,7 @@
  */
 
 #include "articulationpassage.h"
+#include "engraving/dom/glissando.h"
 
 #include <algorithm>
 #include <climits>
@@ -347,6 +348,11 @@ PassageRange passageForItems(const Score* score, const std::vector<EngravingItem
     int end = 0;
     for (const EngravingItem* e : items) {
         const EngravingItem* p = e ? e->parentItem() : nullptr;
+        // Jubelle: a glissando (or a segment of one) stands for the note it starts from
+        const Spanner* sp = e && e->isGlissandoSegment() ? toGlissandoSegment(e)->spanner() : (e && e->isGlissando() ? toSpanner(e) : nullptr);
+        if (sp && sp->startElement() && sp->startElement()->isNote()) {
+            p = toNote(sp->startElement())->chord();
+        }
         if (!p || !p->isChordRest()) {
             continue;
         }
@@ -366,6 +372,10 @@ std::vector<ArtParam> paramsForItems(const std::vector<EngravingItem*>& items)
 {
     std::set<ArtParam> found;
     for (const EngravingItem* e : items) {
+        if (e && (e->isGlissando() || e->isGlissandoSegment())) {
+            found.insert({ ArtParam::GlissandoStart, ArtParam::GlissandoCurve });
+            continue;
+        }
         if (!e || !e->isArticulationFamily()) {
             continue;
         }

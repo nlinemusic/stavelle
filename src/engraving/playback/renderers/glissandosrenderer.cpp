@@ -25,6 +25,9 @@
 #include "dom/glissando.h"
 
 #include "playback/renderingcontext.h"
+#include "playback/jubelle/articulationplayback.h"
+
+#include <algorithm>
 #include "playback/utils/expressionutils.h"
 
 using namespace mu::engraving;
@@ -69,20 +72,35 @@ void GlissandosRenderer::renderDiscreteGlissando(const Note* note, NominalNoteCt
     }
 
     const size_t stepsCount = steps.size();
-    const float durationStep = ctx.duration / static_cast<float>(stepsCount);
+
+    // Jubelle: chromatic and white-key glissandos honour "Slide starts at" too: the first note is held
+    // for that part of the note and the steps fill the rest (0% = MuseScore's even steps)
+    const Chord* chord = note->chord();
+    const int startPercent = chord && stepsCount > 1 ? std::clamp(jubelle::effectiveValue(chord->score(), chord->part(), chord->tick().ticks(),
+                                                                        jubelle::ArtParam::GlissandoStart), 0, 90) : 0;
+    const float held = ctx.duration * (static_cast<float>(startPercent) / 100.f);
+    const float durationStep = stepsCount > 1 ? (ctx.duration - held) / static_cast<float>(stepsCount - 1 + (startPercent > 0 ? 0 : 1))
+                               : ctx.duration;
     size_t firstStep = 0;
 
     if (note->tieBack()) {
         mpe::ArticulationMeta& meta = ctx.articulations.at(ArticulationType::DiscreteGlissando).meta;
-        meta.timestamp += durationStep;
-        meta.overallDuration -= durationStep;
+        const float firstLength = startPercent > 0 ? held : durationStep;
+        meta.timestamp += firstLength;
+        meta.overallDuration -= firstLength;
         firstStep = 1;
     }
 
     for (size_t i = firstStep; i < stepsCount; ++i) {
         NominalNoteCtx noteCtx(ctx);
-        noteCtx.duration = durationStep;
-        noteCtx.timestamp += i * durationStep;
+        if (startPercent > 0) {
+            // step 0 is held; the others share what is left of the note
+            noteCtx.duration = i == 0 ? held : durationStep;
+            noteCtx.timestamp += i == 0 ? 0 : held + (i - 1) * durationStep;
+        } else {
+            noteCtx.duration = durationStep;
+            noteCtx.timestamp += i * durationStep;
+        }
         noteCtx.pitchLevel += steps.at(i) * mpe::PITCH_LEVEL_STEP;
 
         const int utick = timestampToTick(noteCtx.chordCtx.score, noteCtx.timestamp);
