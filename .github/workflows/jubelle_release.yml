@@ -12,8 +12,12 @@ on:
   workflow_dispatch:
     inputs:
       windows_run_id:
-        description: 'The "Build: Windows" run whose installer to publish (its number in the run URL)'
+        description: 'The "Build: Windows" run whose installer to publish (its number in the run URL); 0 with "check the key only"'
         required: true
+      key_check_only:
+        description: 'Only check that the signing secret and public-key variable are set and belong together (publishes nothing)'
+        type: boolean
+        default: false
       macos_run_id:
         description: 'Optional: the "Build: macOS" run whose disk image to publish alongside (its number in the run URL)'
         required: false
@@ -34,7 +38,33 @@ permissions:
   actions: read
 
 jobs:
+  keycheck:
+    if: ${{ inputs.key_check_only }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Sign a test file and verify it as the updater would
+        env:
+          JUBELLE_RELEASE_SIGNING_KEY: ${{ secrets.JUBELLE_RELEASE_SIGNING_KEY }}
+          JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+        run: |
+          set -eo pipefail
+          if [ -z "$JUBELLE_RELEASE_SIGNING_KEY" ]; then echo "::error::The secret JUBELLE_RELEASE_SIGNING_KEY is not set"; exit 1; fi
+          if ! [[ "$JUBELLE_RELEASE_PUBLIC_KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then echo "::error::The variable JUBELLE_RELEASE_PUBLIC_KEY is not 64 hex digits"; exit 1; fi
+          echo "Public key (not secret): $JUBELLE_RELEASE_PUBLIC_KEY"
+          pip install --quiet cryptography
+          mkdir -p keycheck/out
+          head -c 1048576 /dev/urandom > keycheck/Jubelle-0.0.0.1-x86_64.msi
+          python3 tools/jubelle_release/sign_release.py keycheck/out keycheck/Jubelle-0.0.0.1-x86_64.msi > /dev/null
+          echo "Signed with the secret, and the signature matches the public key."
+          g++ -std=c++17 -O2 -Isrc -DJUBELLE_RELEASE_PUBLIC_KEY="\"$JUBELLE_RELEASE_PUBLIC_KEY\"" \
+            tools/jubelle_release/verify_release.cpp src/framework/update/internal/jubelle/updateverify.cpp -o keycheck/verify_release
+          keycheck/verify_release keycheck/out/SHA256SUMS keycheck/out/SHA256SUMS.sig keycheck/Jubelle-0.0.0.1-x86_64.msi | tee -a "$GITHUB_STEP_SUMMARY"
+
   publish:
+    if: ${{ !inputs.key_check_only }}
     runs-on: ubuntu-latest
     steps:
       - name: Clone repository
