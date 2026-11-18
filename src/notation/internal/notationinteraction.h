@@ -270,6 +270,8 @@ public:
     chordidentifier::Scope chordIdentifierScope() const override;
     chordidentifier::Report identifyChords(const chordidentifier::Options& options) override;
     chordidentifier::Report removeChordToneHighlight() override;
+    jubelle::harmony::Scope harmonyScope(const jubelle::harmony::RunOptions& options) override;
+    jubelle::harmony::Report harmoniseMelody(const jubelle::harmony::RunOptions& options) override;
     void removeSelectedMeasures() override;
     void removeSelectedRange() override;
     void removeEmptyTrailingMeasures() override;

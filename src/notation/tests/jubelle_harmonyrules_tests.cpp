@@ -214,6 +214,16 @@ TEST(Jubelle_HarmonyRules, SharpNineAboveTheThirdAndFlatNineAboveTheRoot)
 
 // ---------------------------------------------------------------- non-chord tones (§1.5)
 
+TEST(Jubelle_HarmonyRules, DiminishedSeventhChordsCloseInMinorThirds)
+{
+    const ChordSymbol c = parseChordSymbol("B°7");
+    for (int lead : { 71, 74, 77, 80 }) {
+        const Voicing v = closedVoicing(lead, c);
+        expectClosedRules(v, c, "B°7 lead " + std::to_string(lead));
+        EXPECT_EQ(v.pitches, (P4 { lead, lead - 3, lead - 6, lead - 9 }));
+    }
+}
+
 TEST(Jubelle_HarmonyRules, DiminishedPassingChord)
 {
     EXPECT_EQ(diminishedVoicing(72).pitches, (P4 { 72, 69, 66, 63 }));

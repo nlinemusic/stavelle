@@ -479,6 +479,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Realize chord symbols")
              ),
     //! Jubelle: Chord Identifier (built in; replaces the old plugin)
+    //! Jubelle: the Big Band Harmony and Orchestration System
+    UiAction("jubelle-harmonise-melody",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Harmonise Melody…"),
+             TranslatableString("action", "Voice the selected melody for trumpets, trombones and saxophones over the score's chord symbols")
+             ),
     UiAction("jubelle-identify-chords",
              mu::context::UiCtxProjectOpened,
              mu::context::CTX_NOTATION_OPENED,

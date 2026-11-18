@@ -32,6 +32,7 @@
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/pitchspelling.h"
+#include "engraving/dom/utils.h"
 #include "engraving/dom/rehearsalmark.h"
 #include "engraving/dom/rest.h"
 #include "engraving/dom/segment.h"
@@ -303,6 +304,20 @@ void checkStaff(Context& c, const ProofreadOptions& o, size_t staffIdx)
                             c.add(Severity::Suggestion, CheckCategory::Leaps,
                                   muse::mtrc(CTX, "A leap of %n semitone(s): check it's intended and playable", nullptr, interval),
                                   const_cast<Note*>(top), seg->tick(), staffIdx, eidKey(const_cast<Note*>(top)));
+                        }
+                    }
+                    // lesson 8: intervals must look the way they sound (a second written as a third, or the reverse)
+                    if (previous && o.categories.count(CheckCategory::Spelling) && !top->tieBack()) {
+                        const int semis = std::abs(top->pitch() - previous->pitch());
+                        const int letters = std::abs(absStep(top->tpc(), top->epitch()) - absStep(previous->tpc(), previous->epitch()));
+                        if ((semis == 1 || semis == 2) && letters == 2) {
+                            c.add(Severity::Suggestion, CheckCategory::Spelling,
+                                  muse::mtrc(CTX, "This step looks like a third but sounds like a second: respell it so it reads as it sounds"),
+                                  const_cast<Note*>(top), seg->tick(), staffIdx, "looks:" + eidKey(const_cast<Note*>(top)));
+                        } else if ((semis == 3 || semis == 4) && letters == 1) {
+                            c.add(Severity::Suggestion, CheckCategory::Spelling,
+                                  muse::mtrc(CTX, "This interval looks like a second but sounds like a third: respell it so it reads as it sounds"),
+                                  const_cast<Note*>(top), seg->tick(), staffIdx, "looks:" + eidKey(const_cast<Note*>(top)));
                         }
                     }
                     previous = top;

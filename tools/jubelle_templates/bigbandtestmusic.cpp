@@ -70,7 +70,7 @@ const std::vector<Change>& changes()
         { 1, 0, { u"D7", 2, DOM } },
         { 2, 0, { u"Gm7", 7, MIN7 } }, { 2, 8, { u"C7", 0, DOM } },
         { 3, 0, { u"F6", 5, SIX } },
-        { 4, 0, { u"B♭7", 10, DOM } },
+        { 4, 0, { u"Bb7", 10, DOM } },   // "Bb": MuseScore reads "♭" as part of the quality when no chord list is loaded
         { 5, 0, { u"B°7", 11, DIM7 } },
         { 6, 0, { u"Am7", 9, MIN7 } }, { 6, 8, { u"D7", 2, DOM } },
         { 7, 0, { u"Gm7", 7, MIN7 } }, { 7, 8, { u"C7", 0, DOM } },

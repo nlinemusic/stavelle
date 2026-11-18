@@ -429,6 +429,12 @@ Voicing closedVoicing(int lead, const ChordSymbol& chord)
         return best;
     }
     const int mel = mod12(lead - chord.rootPc);
+    if (chord.family == Family::Diminished) {
+        // a diminished seventh closes itself: minor thirds down from the lead, every tone a chord tone (lesson 3)
+        if (mel % 3 == 0) {
+            return diminishedVoicing(lead);
+        }
+    }
     const int third = thirdOf(chord);
     const std::vector<int> tones = colourTones(chord);
     const bool melodyOnThird = mel == third;
@@ -456,8 +462,20 @@ Voicing closedVoicing(int lead, const ChordSymbol& chord)
 
     int bestScore = -1;
     int bestSum = -1;
-    for (int pass = 0; pass < 2 && bestScore < 0; ++pass) {
-        const bool strict = pass == 0;   // pass 2 drops the second-voice preferences, never the minor-third rule
+    // the alterations the chord asks for, other than the melody itself: the horns must play them (lessons 5 and 7)
+    std::vector<int> required;
+    if (chord.family == Family::Dominant) {
+        for (auto [flag, iv] : { std::pair<unsigned, int> { Flat9, 1 }, { Sharp9, 3 }, { Flat5, 6 }, { Sharp5, 8 } }) {
+            if ((chord.alterations & flag) && iv != mel) {
+                required.push_back(iv);
+            }
+        }
+    }
+    // pass 1: every rule; pass 2: without the second-voice preferences; pass 3: without the alterations.
+    // The minor third under the lead is never given up.
+    for (int pass = 0; pass < 3 && bestScore < 0; ++pass) {
+        const bool strict = pass == 0;
+        const bool needAlterations = pass < 2;
         for (size_t a = 0; a < cand.size(); ++a) {
             for (size_t b = a + 1; b < cand.size(); ++b) {
                 for (size_t d = b + 1; d < cand.size(); ++d) {
@@ -470,7 +488,9 @@ Voicing closedVoicing(int lead, const ChordSymbol& chord)
                         continue;
                     }
                     if (strict) {
-                        if (melodyOnThird && v[0].second != 0) {
+                        // melody on the 3rd: the second voice takes the root, unless a ♭9 asks for the root to be
+                        // left out (lesson 7)
+                        if (melodyOnThird && v[0].second != 0 && !(chord.alterations & Flat9)) {
                             continue;   // melody on the 3rd: the second voice takes the root
                         }
                         if (melodyOnRoot) {
@@ -508,6 +528,15 @@ Voicing closedVoicing(int lead, const ChordSymbol& chord)
                     }
                     if (pFlat9 >= 0 && pRoot >= 0 && pFlat9 < pRoot) {
                         continue;
+                    }
+                    if (needAlterations) {
+                        bool all = true;
+                        for (int iv : required) {
+                            all = all && (v[0].second == iv || v[1].second == iv || v[2].second == iv);
+                        }
+                        if (!all) {
+                            continue;
+                        }
                     }
                     // what the chord sounds like with the melody
                     std::set<int> present { mel };

@@ -93,6 +93,7 @@ void NotationSceneModule::resolveImports()
         ir->registerQmlUri(Uri("musescore://notation/editgridsize"), "MuseScore.NotationScene", "EditGridSizeDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/engravingpresets"), "MuseScore.NotationScene", "EngravingPresetsDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/chordidentifier"), "MuseScore.NotationScene", "ChordIdentifierDialog");
+        ir->registerQmlUri(Uri("musescore://notation/jubelle/harmonise"), "MuseScore.NotationScene", "HarmoniseMelodyDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/articulationplayback"), "MuseScore.NotationScene",
                            "ArticulationPlaybackDialog");
         ir->registerQmlUri(Uri("musescore://notation/jubelle/swing"), "MuseScore.NotationScene", "SwingDialog");

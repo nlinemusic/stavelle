@@ -140,6 +140,31 @@ TEST(Jubelle_Proofread, DoubleSharpsAreSuggested)
     EXPECT_EQ(found[0].severity, jp::Severity::Suggestion);
 }
 
+TEST(Jubelle_Proofread, IntervalsMustLookTheWayTheySound)
+{
+    // lesson 8: C then D♯ sounds like a minor third but looks like a second; C then E♭ is fine
+    for (int tpc : { int(Tpc::TPC_D_S), int(Tpc::TPC_E_B) }) {
+        auto s = violinAndPiano();
+        ASSERT_TRUE(s);
+        s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+        NoteVal c(72);
+        c.tpc1 = c.tpc2 = int(Tpc::TPC_C);
+        NoteVal x(75);
+        x.tpc1 = x.tpc2 = tpc;
+        Segment* seg = barStart(s.get(), 0);
+        s->setNoteRest(seg, 0, c, Fraction(1, 2));
+        Segment* half = s->tick2segment(Fraction(1, 2), true, SegmentType::ChordRest);
+        s->setNoteRest(half, 0, x, Fraction(1, 2));
+        s->endCmd();
+        const auto found = jp::proofread(s.get(), just(jp::CheckCategory::Spelling));
+        int looks = 0;
+        for (const auto& f : found) {
+            looks += f.message.contains(u"looks like") ? 1 : 0;
+        }
+        EXPECT_EQ(looks, tpc == int(Tpc::TPC_D_S) ? 1 : 0) << "tpc " << tpc;
+    }
+}
+
 TEST(Jubelle_Proofread, DynamicsMissingAtTheStartAndRepeated)
 {
     auto s = violinAndPiano();

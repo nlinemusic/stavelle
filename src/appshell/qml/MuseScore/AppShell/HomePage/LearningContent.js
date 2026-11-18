@@ -51,6 +51,21 @@ var topics = [
         "<b>Format › Courtesy accidentals on/off</b> switches them for the score. The rules are in <b>Format › Style</b>: how many bars to look back, whether other staves of the same instrument count, and whether reminders get parentheses.",
         "Courtesy accidentals update as you edit and never change what is played."
       ] },
+    { section: "Writing", title: "Harmonise melody (big band)",
+      summary: "Voice a melody for trumpets, trombones and saxophones with the Pandemonium Big Band lesson rules.",
+      body: [
+        "1. Write the melody (usually in Trumpet 1) and the chord symbols (usually in the piano or guitar staff).",
+        "2. Select the melody bars on the melody staff.",
+        "3. <b>Tools › Arranging › Harmonise Melody…</b> and choose a technique for each section.",
+        "4. <b>Preview</b> writes the parts and plays them. <b>Keep</b> leaves them in the score; <b>Discard</b> puts the score back exactly as it was. One Undo also removes everything.",
+        "5. To compare, <b>Save as version</b>, change the techniques, save again, and click a version to hear it.",
+        "<b>Trumpets:</b> closed voicing (four notes within an octave, at least a minor third under the lead; the root is left out unless the melody is on the 3rd; a melody on the root gets the 6th or 13th underneath). Above concert A5 the automatic choice switches to trumpet triads: trumpets 1 and 4 in octaves.",
+        "<b>Trombones:</b> an octave below the trumpets. With trumpet triads, trombone 1 sits between B♭3 and A4 and the others close under it.",
+        "<b>Saxophones:</b> doubling the trombones with the baritone on roots (the full-band soli), or one of the nine section voicings: unison, octave unison (4/1 or 2/3), two-part, closed, Drop 2, Drop 2 and 4, four-part Drop 2, Drop 2 with baritone roots. Spread voicings need medium tempo or slower: the dialog warns when the line is too fast.",
+        "<b>Passing notes:</b> a note that isn't in the chord is planed (when it moves a half step to a chord tone), re-harmonised as a diatonic passing chord (V7 of a major or minor chord, ii of a dominant), or voiced as a diminished chord.",
+        "<b>Alterations:</b> on a V chord that resolves, ♭9 and ♯5 are added where the melody allows (never a ♯9 under a melody on the 3rd). The chord symbol is updated so the rhythm section plays the same.",
+        "Nothing is guessed: the chords come from your chord symbols, and the same settings always write the same notes. Notes outside a player's range are listed after Preview."
+      ] },
     { section: "Writing", title: "Chord Identifier",
       summary: "Names the chords in a selection as chord symbols or Roman numerals.",
       body: [

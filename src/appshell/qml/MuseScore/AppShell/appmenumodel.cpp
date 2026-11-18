@@ -487,8 +487,9 @@ MenuItem* AppMenuModel::makeToolsMenu()
         makeMenuItem("pitch-spell"),
     };
 
-    //! Jubelle: arranging (the harmony system will join here when approved)
+    //! Jubelle: arranging
     MenuItemList arrangingItems {
+        makeIconItem("jubelle-harmonise-melody", IconCode::Code::MUSIC_NOTES),
         makeIconItem("jubelle-linked-passages", IconCode::Code::LINK),
         makeIconItem("jubelle-identify-chords", IconCode::Code::MUSIC_NOTES),
         makeSeparator(),

@@ -404,6 +404,9 @@ void NotationActionController::init()
     registerAction("jubelle-identify-chords", [this]() {
         interactive()->open("musescore://notation/jubelle/chordidentifier");
     });
+    registerAction("jubelle-harmonise-melody", [this]() {
+        interactive()->open("musescore://notation/jubelle/harmonise");
+    });
     registerAction("jubelle-articulation-playback", [this]() {
         interactive()->open("musescore://notation/jubelle/articulationplayback");
     });
