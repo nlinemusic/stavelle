@@ -211,9 +211,10 @@ def compare(ms_exe, st_exe, work):
             "in time (within 15 ms)": abs(lag) <= 15 and corr > 0.8,
             "repeatable": same,
         }
+        checks = {k: bool(v) for k, v in checks.items()}
         passed = all(checks.values())
         failures += 0 if passed else 1
-        entry.update({"musescore": ma, "jubelle": mb, "offset_ms": lag, "envelope_correlation": round(corr, 3),
+        entry.update({"musescore": ma, "jubelle": mb, "offset_ms": float(lag), "envelope_correlation": round(float(corr), 3),
                       "repeatable": same, "checks": checks, "pass": passed})
         results.append(entry)
         rows.append(
@@ -231,8 +232,11 @@ def compare(ms_exe, st_exe, work):
             "", f"**Result: {'PASS' if failures == 0 else f'FAIL ({failures})'}**"]
     md = "\n".join(head + rows + tail) + "\n"
     (work / "audio_quality.md").write_text(md, encoding="utf-8")
-    (work / "audio_quality.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
     print(md, flush=True)
+
+    def plain(o):   # numpy numbers and booleans as JSON
+        return o.item() if hasattr(o, "item") else str(o)
+    (work / "audio_quality.json").write_text(json.dumps(results, indent=2, default=plain), encoding="utf-8")
     return failures == 0
 
 
