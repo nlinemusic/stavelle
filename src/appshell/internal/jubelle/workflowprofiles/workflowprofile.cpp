@@ -629,19 +629,19 @@ std::vector<std::string> resolveToolbarOrder(const std::vector<std::string>& cur
         while (end < out.size() && !out[end].empty()) {
             ++end;
         }
-        std::vector<size_t> slots;
+        std::vector<size_t> places;
         std::vector<std::string> listed;
         for (size_t i = start; i < end; ++i) {
             if (rank.count(out[i])) {
-                slots.push_back(i);
+                places.push_back(i);
                 listed.push_back(out[i]);
             }
         }
         std::stable_sort(listed.begin(), listed.end(), [&rank](const std::string& a, const std::string& b) {
             return rank[a] < rank[b];
         });
-        for (size_t k = 0; k < slots.size(); ++k) {
-            out[slots[k]] = listed[k];
+        for (size_t k = 0; k < places.size(); ++k) {
+            out[places[k]] = listed[k];
         }
         start = end + 1;
     }
