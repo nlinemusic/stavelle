@@ -141,25 +141,35 @@ Column {
                         onValueEdited: function(newValue) { root.model.setPlaybackValue(modelData.key, Math.round(newValue)) }
                     }
 
-                    FlatButton {
-                        icon: IconCode.UNDO
-                        enabled: modelData.isSet
-                        toolTipTitle: qsTrc("inspector", "Clear: use the inherited value")
-                        navigation.name: "Playback clear " + modelData.key
+                    // Speed curves: three named choices instead of -1 / 0 / +1
+                    StyledDropdown {
+                        width: parent.width
+                        visible: modelData.unit === "curve"
+                        model: [
+                            { text: qsTrc("inspector", "slows down"), value: -1 },
+                            { text: qsTrc("inspector", "even"), value: 0 },
+                            { text: qsTrc("inspector", "speeds up"), value: 1 }
+                        ]
+                        currentIndex: modelData.varies ? -1 : modelData.value + 1
+                        displayText: modelData.varies ? qsTrc("inspector", "varies") : modelData.valueText
+                        navigation.name: "Playback curve " + modelData.key
                         navigation.panel: root.navigationPanel
-                        navigation.row: root.navigationRowStart + 12 + index * 2
-                        onClicked: root.model.clearPlaybackValue(modelData.key)
+                        navigation.row: root.navigationRowStart + 11 + index * 2
+                        navigation.accessible.name: modelData.title + " " + modelData.valueText
+                        onActivated: function(i, value) { root.model.setPlaybackValue(modelData.key, value) }
                     }
+                }
 
-                    StyledTextLabel {
-                        width: parent.width / 2 - 40
-                        anchors.verticalCenter: parent.verticalCenter
-                        horizontalAlignment: Text.AlignLeft
-                        elide: Text.ElideRight
-                        color: modelData.isSet ? playbackSection.jubelleMagenta : ui.theme.fontPrimaryColor
-                        opacity: modelData.isSet ? 1.0 : 0.6
-                        text: modelData.source
-                    }
+                JubelleDefaultValue {
+                    width: parent.width
+                    isSet: modelData.isSet
+                    sourceText: modelData.source
+                    defaultText: modelData.defaultText
+                    highlightColor: playbackSection.jubelleMagenta
+                    navigationPanel: root.navigationPanel
+                    navigationRow: root.navigationRowStart + 12 + index * 2
+                    navigationName: "Playback use default " + modelData.key
+                    onUseDefaultRequested: root.model.clearPlaybackValue(modelData.key)
                 }
             }
         }

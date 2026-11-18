@@ -199,29 +199,32 @@ std::vector<PassageRow> passageRows(const Score* score, const PassageRange& rang
         row.param = info.param;
         row.inSelection = present.count(info.param) > 0;
         row.value = info.defaultValue;
+        // What applies without a value set for exactly this passage
+        const PassageAt* from = nullptr;
+        for (const PassageAt& p : others) {
+            if (p.values.get(info.param)) {
+                from = &p;   // the latest-starting other passage that sets it
+            }
+        }
+        if (from) {
+            row.value = *from->values.get(info.param);
+            row.source = ValueSource::OtherPassage;
+            row.sourceName = barsText(master, from->line->tick().ticks(), from->line->tick2().ticks());
+        } else if (instrument != settings.partValues.end() && instrument->second.get(info.param)) {
+            row.value = *instrument->second.get(info.param);
+            row.source = ValueSource::Instrument;
+            row.sourceName = part->partName();
+        } else if (settings.scoreValues.get(info.param)) {
+            row.value = *settings.scoreValues.get(info.param);
+            row.source = ValueSource::WholeScore;
+        }
+        row.inheritedValue = row.value;
+        row.inheritedSource = row.source;
+        row.inheritedSourceName = row.sourceName;
         if (hereValues && hereValues->get(info.param)) {
             row.value = *hereValues->get(info.param);
             row.source = ValueSource::Here;
-        } else {
-            // The latest-starting other passage that sets it
-            const PassageAt* from = nullptr;
-            for (const PassageAt& p : others) {
-                if (p.values.get(info.param)) {
-                    from = &p;
-                }
-            }
-            if (from) {
-                row.value = *from->values.get(info.param);
-                row.source = ValueSource::OtherPassage;
-                row.sourceName = barsText(master, from->line->tick().ticks(), from->line->tick2().ticks());
-            } else if (instrument != settings.partValues.end() && instrument->second.get(info.param)) {
-                row.value = *instrument->second.get(info.param);
-                row.source = ValueSource::Instrument;
-                row.sourceName = part->partName();
-            } else if (settings.scoreValues.get(info.param)) {
-                row.value = *settings.scoreValues.get(info.param);
-                row.source = ValueSource::WholeScore;
-            }
+            row.sourceName.clear();
         }
         rows.push_back(row);
     }
@@ -400,14 +403,27 @@ static PassageRow instrumentOrScoreRow(const ArticulationPlaybackSettings& setti
     PassageRow row;
     row.param = param;
     row.value = artParamInfo(param).defaultValue;
+    const std::optional<int> scoreValue = settings.scoreValues.get(param);
     auto inst = settings.partValues.find(part->id().toUint64());
-    if (level == EditLevel::Instrument && inst != settings.partValues.end() && inst->second.get(param)) {
-        row.value = *inst->second.get(param);
+    const std::optional<int> instValue = inst != settings.partValues.end() ? inst->second.get(param) : std::nullopt;
+
+    // What applies at this level when nothing is set at it
+    if (level == EditLevel::Instrument && scoreValue) {
+        row.value = *scoreValue;
+        row.source = ValueSource::WholeScore;
+    }
+    row.inheritedValue = row.value;
+    row.inheritedSource = row.source;
+
+    if (level == EditLevel::Instrument && instValue) {
+        row.value = *instValue;
         row.source = ValueSource::Here;
         row.sourceName = part->partName();
-    } else if (settings.scoreValues.get(param)) {
-        row.value = *settings.scoreValues.get(param);
-        row.source = level == EditLevel::WholeScore ? ValueSource::Here : ValueSource::WholeScore;
+    } else if (level == EditLevel::WholeScore && scoreValue) {
+        row.value = *scoreValue;
+        row.source = ValueSource::Here;
+    } else if (level == EditLevel::Instrument) {
+        // nothing set for the instrument: the score value (already in row) applies
     }
     return row;
 }

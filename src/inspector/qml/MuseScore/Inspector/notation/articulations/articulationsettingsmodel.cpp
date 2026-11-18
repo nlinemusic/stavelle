@@ -154,6 +154,37 @@ void ArticulationSettingsModel::updatePlayback()
                 source = muse::qtrc("inspector", "varies between instruments");
             }
             m["source"] = source;
+
+            // Jubelle: what "Use default" goes back to, shown beside a value set here
+            const QString unit = QString::fromLatin1(jap::paramUnit(r.param));
+            auto valueText = [&unit](int v) {
+                if (unit == "curve") {
+                    return v < 0 ? muse::qtrc("inspector", "slows down")
+                           : v > 0 ? muse::qtrc("inspector", "speeds up") : muse::qtrc("inspector", "even");
+                }
+                if (unit == "semitones") {
+                    return muse::qtrc("inspector", "%n semitone(s)", nullptr, v);
+                }
+                if (unit.startsWith("%")) {
+                    return QString::number(v) + "%";
+                }
+                return QString::number(v);
+            };
+            QString inheritedFrom;
+            switch (r.inheritedSource) {
+            case jap::ValueSource::OtherPassage: inheritedFrom = muse::qtrc("inspector", "passage, %1").arg(r.inheritedSourceName.toQString());
+                break;
+            case jap::ValueSource::Instrument: inheritedFrom = r.inheritedSourceName.toQString();
+                break;
+            case jap::ValueSource::WholeScore: inheritedFrom = muse::qtrc("inspector", "whole score");
+                break;
+            case jap::ValueSource::MuseScore:
+            case jap::ValueSource::Here: inheritedFrom = muse::qtrc("inspector", "standard");
+                break;
+            }
+            m["inheritedValue"] = r.inheritedValue;
+            m["valueText"] = valueText(r.value);
+            m["defaultText"] = muse::qtrc("inspector", "Default: %1 (%2)").arg(valueText(r.inheritedValue), inheritedFrom);
             m_playbackRows << m;
         }
     }

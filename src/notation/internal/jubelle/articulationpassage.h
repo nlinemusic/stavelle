@@ -54,6 +54,12 @@ struct PassageRow {
     muse::String sourceName;   // instrument name, or "bars 33–40"
     bool inSelection = false;  // the articulation occurs in the passage
     bool varies = false;       // differs between the selected instruments
+    //! What would apply if the value set here were cleared ("Use default"):
+    //! the value from the next level up and where it comes from. Equal to
+    //! value/source when nothing is set here.
+    int inheritedValue = 0;
+    ValueSource inheritedSource = ValueSource::MuseScore;
+    muse::String inheritedSourceName;
 };
 
 //! One row per setting, as it applies at the start of the passage for its
