@@ -248,7 +248,7 @@ const UiActionList ApplicationUiActions::m_actions = {
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
              TranslatableString("action", "Sound so&urces…"),
-             TranslatableString("action", "Where Jubelle's sounds come from: built-in sounds, VST3, SoundFonts and MuseSounds")
+             TranslatableString("action", "Where Jubelle’s sounds come from: built-in sounds, VST3, SoundFonts and MuseSounds")
              ),
     UiAction("jubelle-report-bug",
              mu::context::UiCtxAny,
@@ -261,14 +261,14 @@ const UiActionList ApplicationUiActions::m_actions = {
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
              TranslatableString("action", "&Jubelle"),
-             TranslatableString("action", "Workflow profile: Jubelle's own menus, shortcuts and toolbar"),
+             TranslatableString("action", "Workflow profile: Jubelle’s own menus, shortcuts and toolbar"),
              Checkable::Yes
              ),
     UiAction("jubelle-workflow-profile-musescore",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
              TranslatableString("action", "&MuseScore Studio"),
-             TranslatableString("action", "Workflow profile: MuseScore Studio 4's menus and shortcuts"),
+             TranslatableString("action", "Workflow profile: MuseScore Studio 4’s menus and shortcuts"),
              Checkable::Yes
              ),
     UiAction("jubelle-workflow-profile-finale",
@@ -288,7 +288,7 @@ const UiActionList ApplicationUiActions::m_actions = {
     UiAction("jubelle-workflow-restore-defaults",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,
-             TranslatableString("action", "&Restore this profile's defaults…"),
+             TranslatableString("action", "&Restore this profile’s defaults…"),
              TranslatableString("action", "Undo your changes to the current profile's shortcuts, toolbar and note input settings")
              ),
     UiAction("jubelle-proofread-score",
