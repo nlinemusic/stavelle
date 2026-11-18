@@ -1,0 +1,79 @@
+# Jubelle: installs the macOS disk image from a "Build: macOS" run the way a person would (open the .dmg,
+# copy the app to Applications), then starts the installed app and has it open and export a score.
+name: 'Jubelle: macOS installation check'
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: 'Run ID of the "Build: macOS" run whose disk image to install'
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  install:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v6
+
+      - name: Download the disk image
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          set -e
+          ART=$(gh api "repos/${{ github.repository }}/actions/runs/$BUILD_RUN_ID/artifacts" --jq '[.artifacts[] | select(.name | startswith("MU4_"))][0].name')
+          echo "Artifact: $ART"
+          gh run download "$BUILD_RUN_ID" --repo "${{ github.repository }}" --name "$ART" --dir dmg_artifact
+          ls -la dmg_artifact
+
+      - name: Install from the disk image and run the installed app
+        run: |
+          set -e
+          DMG=$(find dmg_artifact -name 'Jubelle-*.dmg' | head -1)
+          [ -n "$DMG" ] || { echo "FAIL: no Jubelle disk image"; exit 1; }
+          echo "Disk image: $DMG"
+          {
+            echo "# macOS installation check"
+            echo
+            echo "- disk image: \`$(basename "$DMG")\` ($(du -h "$DMG" | cut -f1))"
+          } > install_check.md
+          MNT=$(mktemp -d)
+          hdiutil attach "$DMG" -nobrowse -readonly -mountpoint "$MNT" > /dev/null
+          APP=$(find "$MNT" -maxdepth 1 -name '*.app' | head -1)
+          [ -n "$APP" ] || { echo "FAIL: no app in the disk image"; hdiutil detach "$MNT"; exit 1; }
+          echo "- app in the disk image: \`$(basename "$APP")\`" >> install_check.md
+          [ -L "$MNT/Applications" ] && echo "- Applications shortcut for drag-to-install: yes" >> install_check.md || echo "- Applications shortcut for drag-to-install: no" >> install_check.md
+          rm -rf "/Applications/$(basename "$APP")"
+          cp -R "$APP" /Applications/
+          hdiutil detach "$MNT" > /dev/null
+          INSTALLED="/Applications/$(basename "$APP")"
+          NAME=$(/usr/libexec/PlistBuddy -c "Print :CFBundleName" "$INSTALLED/Contents/Info.plist" 2>/dev/null || true)
+          VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INSTALLED/Contents/Info.plist" 2>/dev/null || true)
+          echo "- installed as: \`$INSTALLED\` (name \"$NAME\", version $VERSION)" >> install_check.md
+          codesign --verify --deep "$INSTALLED" 2>/dev/null && echo "- code signature (ad hoc) intact after copying: yes" >> install_check.md || echo "- code signature intact after copying: NO" >> install_check.md
+          EXE=$(find "$INSTALLED/Contents/MacOS" -maxdepth 1 -type f -perm -u+x | head -1)
+          mkdir -p out
+          set +e
+          "$EXE" -o out/Amazing_grace.pdf demos/Amazing_grace.mscz > out/app.log 2>&1
+          RC=$?
+          "$EXE" -o out/Amazing_grace.mp3 demos/Amazing_grace.mscz >> out/app.log 2>&1
+          RC2=$?
+          set -e
+          PDF=$( [ -s out/Amazing_grace.pdf ] && echo yes || echo no )
+          MP3=$( [ -s out/Amazing_grace.mp3 ] && echo yes || echo no )
+          echo "- the installed app exported a PDF: $PDF (exit code $RC)" >> install_check.md
+          echo "- the installed app exported an MP3: $MP3 (exit code $RC2)" >> install_check.md
+          if [ "$NAME" = "Jubelle" ] && [ "$PDF" = yes ] && [ "$MP3" = yes ]; then
+            echo "" >> install_check.md; echo "**Result: PASS**" >> install_check.md
+          else
+            echo "" >> install_check.md; echo "**Result: FAIL**" >> install_check.md
+          fi
+          cat install_check.md
+          cat install_check.md >> "$GITHUB_STEP_SUMMARY"
+          grep -q "Result: PASS" install_check.md

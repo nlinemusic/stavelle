@@ -228,6 +228,24 @@ jobs:
         cp demos/*.mscz demos/Dawn.mscx smoke_scores/
         python -X utf8 tools/jubelle_checks/make_large_score.py demos/Dawn.mscx smoke_scores/Large_Orchestra_39_staves_285_bars.mscx --instruments 3 --measures 15
         python -X utf8 tools/jubelle_checks/smoke_test.py "build.install/bin/Jubelle.exe" smoke_scores smoke_work --runs 3
+    - name: "Jubelle: release key built in (the updater can verify signed releases)"
+      shell: bash
+      env:
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+      run: |
+        if [ -z "$JUBELLE_RELEASE_PUBLIC_KEY" ]; then
+          echo "::warning::No release key is set up: this build will refuse every update"
+          echo "- release key: **not set up** (this build refuses every update)" >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        python -X utf8 - "$JUBELLE_RELEASE_PUBLIC_KEY" build.install/bin <<'PY'
+        import pathlib, sys
+        key, folder = sys.argv[1].lower().encode(), pathlib.Path(sys.argv[2])
+        found = [p.name for p in folder.iterdir() if p.suffix.lower() in (".exe", ".dll") and key in p.read_bytes().lower()]
+        print("release key found in:", ", ".join(found) or "nothing")
+        sys.exit(0 if found else 1)
+        PY
+        echo "- release key: built in (public key $JUBELLE_RELEASE_PUBLIC_KEY)" >> "$GITHUB_STEP_SUMMARY"
     - name: "Jubelle: upload app check results"
       if: always()
       uses: actions/upload-artifact@v6

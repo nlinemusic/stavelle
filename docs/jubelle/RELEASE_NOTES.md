@@ -22,9 +22,14 @@
    - or go to System Settings › Privacy & Security and click **Open Anyway** under the Jubelle message.
 4. The Mac build is compiled and checked automatically, but has **not yet been tried by hand**.
 
-**Checking a download:**
-- `SHA256SUMS` lists each file's checksum;
-- `SHA256SUMS.sig` is its signature with Jubelle's release key, which Jubelle's updater checks before it installs anything.
+### Updates
+- **Windows:** Jubelle can update itself. Help › Check for updates works at any time; automatic checks are off until you switch them on in Preferences. Testing releases like this one are offered only if you switch on testing releases.
+- Before installing anything, the updater checks that the release's checksum list is signed with Jubelle's release key, which is built into this version, and that the download matches it. An unsigned, altered or damaged download is refused.
+- **macOS:** there is no in-app updater yet. Download the new disk image from the Releases page.
+
+### Checking a download yourself
+- `SHA256SUMS` lists each file's SHA-256 checksum.
+- `SHA256SUMS.sig` is the Ed25519 signature of that list, made with Jubelle's release key.
 
 ## What's new since Complete Build 1
 ### Arranging
@@ -98,7 +103,8 @@ The results of each run are listed in the release report.
 
 ## Known limitations
 - Live score condensing is not included yet. It is last, by design.
-- The installers are not code-signed (Windows) or notarised (macOS).
+- The installers are not code-signed by Microsoft or notarised by Apple, so Windows and macOS warn the first time (see Installing). This is separate from Jubelle's own release signature, which the updater checks.
+- No in-app updater on macOS yet.
 - The Mac app has not been tried by hand.
 - On the largest scores, Jubelle's extra layout features add a little to each edit. See the release report for the measurements against MuseScore 4.7.7.
 - A hybrid audio cache (pre-rendering playback) is not included. It was judged too risky for playback reliability at this stage.
