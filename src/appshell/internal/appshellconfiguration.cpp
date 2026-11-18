@@ -21,12 +21,17 @@
  */
 #include "appshellconfiguration.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <QJsonArray>
 #include <QJsonDocument>
 
 #include "settings.h"
 
 #include "multiwindows/resourcelockguard.h"
+#include "jubelle/performanceprofile.h"
+#include "translation.h"
 
 #include "log.h"
 
@@ -42,6 +47,8 @@ static const Settings::Key HAS_COMPLETED_FIRST_LAUNCH_SETUP(module_name, "applic
 
 static const Settings::Key STARTUP_MODE_TYPE(module_name, "application/startup/modeStart");
 static const Settings::Key STARTUP_SCORE_PATH(module_name, "application/startup/startScore");
+static const Settings::Key JUBELLE_PERFORMANCE_PROFILE(module_name, "jubelle/performance/profile");
+static const Settings::Key JUBELLE_PERFORMANCE_APPLIED(module_name, "jubelle/performance/applied");
 
 static const std::string MUSESCORE_ONLINE_HANDBOOK_URL("https://handbook.musescore.org");
 
@@ -330,4 +337,66 @@ muse::io::paths_t AppShellConfiguration::parseSessionProjectsPaths(const QByteAr
     }
 
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: performance profiles
+// ---------------------------------------------------------------------------
+
+int AppShellConfiguration::jubellePerformanceProfile() const
+{
+    const int p = settings()->value(JUBELLE_PERFORMANCE_PROFILE).toInt();
+    return p >= 0 && p <= 3 ? p : 0;
+}
+
+void AppShellConfiguration::setJubellePerformanceProfile(int profile)
+{
+    settings()->setSharedValue(JUBELLE_PERFORMANCE_PROFILE, Val(std::clamp(profile, 0, 3)));
+    // choosing a profile applies it now, replacing your own values
+    settings()->setSharedValue(JUBELLE_PERFORMANCE_APPLIED, Val(std::string()));
+    applyJubellePerformanceProfile(false);
+}
+
+std::string AppShellConfiguration::applyJubellePerformanceProfile(bool atStartup)
+{
+    namespace jp = mu::appshell::jubelle;
+    const auto profile = static_cast<jp::PerformanceProfile>(jubellePerformanceProfile());
+    const jp::MachineInfo machine = jp::currentMachine();
+    const jp::ProfileSettings wanted = jp::settingsFor(profile, machine);
+    if (!audioConfiguration() || !projectConfiguration()) {
+        return std::string();
+    }
+    const unsigned buffer = audioConfiguration()->driverBufferSize();
+    const bool lowPass = audioConfiguration()->useSoundFontLowPassFilter();
+    const int autosave = projectConfiguration()->autoSaveIntervalMinutes();
+    const std::string applied = settings()->value(JUBELLE_PERFORMANCE_APPLIED).toString();
+
+    const bool yoursKept = atStartup && !jp::unchangedSinceApplied(applied, buffer, lowPass, autosave);
+    if (!yoursKept) {
+        if (buffer != wanted.audioBufferSamples) {
+            audioConfiguration()->setDriverBufferSize(wanted.audioBufferSamples);
+        }
+        if (lowPass != wanted.soundFontLowPass) {
+            audioConfiguration()->setUseSoundFontLowPassFilter(wanted.soundFontLowPass);
+        }
+        if (autosave != wanted.autosaveMinutes) {
+            projectConfiguration()->setAutoSaveInterval(wanted.autosaveMinutes);
+        }
+        settings()->setSharedValue(JUBELLE_PERFORMANCE_APPLIED, Val(wanted.fingerprint()));
+    }
+
+    std::string text = muse::trc("appshell", jp::profileName(wanted.resolved));
+    if (profile == jp::PerformanceProfile::Automatic) {
+        text = muse::qtrc("appshell", "Automatic: %1 for this computer (%2 cores, %3 GB memory)")
+               .arg(QString::fromStdString(text)).arg(machine.cores).arg(int(std::lround(machine.memoryGb))).toStdString();
+    }
+    text += ". " + muse::qtrc("appshell", "Audio buffer %1 samples, SoundFont filter %2, automatic save every %3 min.")
+            .arg(wanted.audioBufferSamples)
+            .arg(wanted.soundFontLowPass ? muse::qtrc("appshell", "on") : muse::qtrc("appshell", "off"))
+            .arg(wanted.autosaveMinutes).toStdString();
+    if (yoursKept) {
+        text += " " + muse::trc("appshell", "You changed some of these yourself, so your values are kept.");
+    }
+    m_jubellePerformanceDescription = text;
+    return text;
 }

@@ -54,6 +54,10 @@ class GeneralPreferencesModel : public QObject, public muse::Contextable, public
 
     Q_PROPERTY(bool restartRequired READ restartRequired WRITE setRestartRequired NOTIFY restartRequiredChanged)
 
+    //! Jubelle: performance profile
+    Q_PROPERTY(int performanceProfile READ performanceProfile WRITE setPerformanceProfile NOTIFY performanceProfileChanged)
+    Q_PROPERTY(QString performanceDetail READ performanceDetail NOTIFY performanceProfileChanged)
+
     Q_PROPERTY(QVariantList startupModes READ startupModes CONSTANT)
     Q_PROPERTY(int currentStartupMode READ currentStartupMode WRITE setCurrentStartupMode NOTIFY currentStartupModeChanged)
     Q_PROPERTY(QString startupScorePath READ startupScorePath WRITE setStartupScorePath NOTIFY startupScorePathChanged)
@@ -108,7 +112,13 @@ public slots:
     void setStartupScorePath(const QString& scorePath);
     void setNeedCheckForNewAppVersion(bool value);
 
+    int performanceProfile() const;
+    void setPerformanceProfile(int profile);
+    QString performanceDetail() const;
+    Q_INVOKABLE QVariantList performanceProfiles() const;
+
 signals:
+    void performanceProfileChanged();
     void languagesChanged(QVariantList languages);
     void currentLanguageCodeChanged(QString currentLanguageCode);
     void currentKeyboardLayoutChanged();

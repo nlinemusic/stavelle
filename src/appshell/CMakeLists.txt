@@ -38,6 +38,8 @@ target_sources(appshell PRIVATE
     internal/sessionsmanager.h
     internal/startupscenario.cpp
     internal/startupscenario.h
+    internal/jubelle/performanceprofile.cpp
+    internal/jubelle/performanceprofile.h
     internal/jubelle/crashguard.cpp
     internal/jubelle/crashguard.h
     internal/jubelle/uiselftest.cpp

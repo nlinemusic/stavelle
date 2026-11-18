@@ -54,6 +54,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.cpp
     ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.h
     ${ROOT}/src/importexport/videoexport/tests/jubelle_audiosplice_tests.cpp
+    ${ROOT}/src/appshell/internal/jubelle/performanceprofile.cpp
+    ${ROOT}/src/appshell/internal/jubelle/performanceprofile.h
+    ${ROOT}/src/appshell/tests/jubelle_performanceprofile_tests.cpp
 )
 target_include_directories(jubelle_platform_tests PRIVATE ${ROOT}/src)
 target_link_libraries(jubelle_platform_tests PRIVATE gtest_main)
