@@ -119,12 +119,13 @@ jobs:
           VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$INSTALLED/Contents/Info.plist" 2>/dev/null || true)
           echo "- installed as: \`$INSTALLED\` (name \"$NAME\", version $VERSION)" >> install_check.md
           codesign --verify --deep "$INSTALLED" 2>/dev/null && echo "- code signature (ad hoc) intact after copying: yes" >> install_check.md || echo "- code signature intact after copying: NO" >> install_check.md
-          EXE=$(find "$INSTALLED/Contents/MacOS" -maxdepth 1 -type f -perm -u+x | head -1)
+          EXE="$INSTALLED/Contents/MacOS/$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$INSTALLED/Contents/Info.plist")"
+          echo "- program: \`${EXE#$INSTALLED/}\`" >> install_check.md
           mkdir -p out
           set +e
-          "$EXE" -o out/Amazing_grace.pdf demos/Amazing_grace.mscz > out/app.log 2>&1
+          "$EXE" -o "$PWD/out/Amazing_grace.pdf" "$PWD/demos/Amazing_grace.mscz" > out/app.log 2>&1
           RC=$?
-          "$EXE" -o out/Amazing_grace.mp3 demos/Amazing_grace.mscz >> out/app.log 2>&1
+          "$EXE" -o "$PWD/out/Amazing_grace.mp3" "$PWD/demos/Amazing_grace.mscz" >> out/app.log 2>&1
           RC2=$?
           set -e
           PDF=$( [ -s out/Amazing_grace.pdf ] && echo yes || echo no )
@@ -137,5 +138,6 @@ jobs:
             echo "" >> install_check.md; echo "**Result: FAIL**" >> install_check.md
           fi
           cat install_check.md
+          echo "--- last lines of the app's output ---"; tail -30 out/app.log || true
           cat install_check.md >> "$GITHUB_STEP_SUMMARY"
           grep -q "Result: PASS" install_check.md
