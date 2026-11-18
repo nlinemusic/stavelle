@@ -30,6 +30,8 @@ qt_add_qml_module(project_qml
         enums.h
         internal/Export/exportdialogmodel.cpp
         internal/Export/exportdialogmodel.h
+        internal/Export/videopagethumbnail.cpp
+        internal/Export/videopagethumbnail.h
         internal/NewScore/additionalinfomodel.cpp
         internal/NewScore/additionalinfomodel.h
         internal/NewScore/newscoremodel.cpp
@@ -78,6 +80,7 @@ qt_add_qml_module(project_qml
         internal/Export/ExportOptionsView.qml
         internal/Export/ExportScoresListView.qml
         internal/Export/ExportSettingsPage.qml
+        internal/Export/VideoPageSequence.qml
         internal/Export/LrcSettingsPage.qml
         internal/Export/MeiSettingsPage.qml
         internal/Export/MidiSettingsPage.qml

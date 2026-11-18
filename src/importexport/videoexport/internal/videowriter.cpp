@@ -41,6 +41,9 @@
 
 #include "draw/fontmetrics.h"
 
+#include "jubelle/audiosplice.h"
+#include "audio/engine/internal/export/aacencoder.h"
+
 #include "defer.h"
 #include "log.h"
 
@@ -114,6 +117,8 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
     }
 
     muse::io::path_t finalPath(filePath);
+    // Jubelle: the sound is rendered as WAV, then cut to the shown pages with crossfades and encoded as AAC
+    muse::io::path_t tempWavPath = finalPath + ".tmp_audio.wav";
     muse::io::path_t tempAudioPath = finalPath + ".tmp_audio.aac";
 
     auto encoder = videoEncodeResolver()->currentVideoEncoder();
@@ -131,20 +136,38 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
         return make_ret(muse::Ret::Code::UnknownError);
     }
 
-    m_isCompleted = false;
+    // The video part counts as finished until it starts, so cancelling during the sound doesn't wait for it
+    m_isCompleted = true;
     m_audioCompleted = false;
     m_abort = false;
     m_writeRet = muse::Ret();
     m_audioRet = muse::Ret();
 
-    startVideoExport(encoder, notation, cfg);
-
+    // Jubelle: render the sound first and only then lay the score out for the video. Before, both ran
+    // at once, so the score was being re-laid out (page size, margins) while its sound was rendered.
     if (withAudio) {
-        startAudioExport(notation, tempAudioPath, cfg);
+        startAudioExport(notation, tempWavPath, cfg);
+        while (!m_audioCompleted) {
+            application()->processEvents();
+            QThread::yieldCurrentThread();
+        }
+        if (m_audioWriter) {
+            m_audioWriter->progress()->finished().disconnect(this);
+            m_audioWriter = nullptr;
+        }
     } else {
         m_audioCompleted = true;
         m_audioRet = muse::make_ok();
     }
+
+    if (m_abort) {
+        encoder->close();
+        muse::io::File::remove(tempWavPath);
+        return make_ret(muse::Ret::Code::Cancel);
+    }
+
+    m_isCompleted = false;
+    startVideoExport(encoder, notation, cfg);
 
     while (!m_isCompleted || !m_audioCompleted) {
         application()->processEvents();
@@ -165,21 +188,11 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
 
     if (withAudio) {
         if (result && m_audioRet) {
-            // Jubelle: with a page list, only the music of those pages is heard (the title time and end time stay)
-            std::vector<std::pair<double, double> > pieces;
-            if (m_usePageList) {
-                const double lead = cfg.leadingSec;
-                pieces.push_back({ 0.0, lead });
-                for (const jubelle::VideoSegment& seg : m_segments) {
-                    pieces.push_back({ lead + seg.start, lead + seg.end });
-                }
-                if (cfg.trailingSec > 0.0) {
-                    const double total = notation->masterNotation()->playback()->totalPlayTime();
-                    pieces.push_back({ lead + total, lead + total + cfg.trailingSec });
-                }
-            }
-            encoder->setAudioSegments(pieces);
-            if (!encoder->addAudio(tempAudioPath)) {
+            // Jubelle: the AAC is already cut to the shown pages, so it is added whole
+            encoder->setAudioSegments({});
+            if (!encodeVideoAudio(tempWavPath, tempAudioPath, cfg, notation)) {
+                result = make_ret(muse::Ret::Code::UnknownError);
+            } else if (!encoder->addAudio(tempAudioPath)) {
                 result = make_ret(muse::Ret::Code::UnknownError);
             }
         } else if (!result) {
@@ -189,6 +202,7 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
         }
 
         muse::io::File::remove(tempAudioPath);
+        muse::io::File::remove(tempWavPath);
     }
 
     encoder->close();
@@ -249,6 +263,8 @@ VideoWriter::Config VideoWriter::makeConfig() const
 
     cfg.viewMode = configuration()->viewMode();
     cfg.pageList = configuration()->pageList();
+    cfg.showCursor = configuration()->showCursor();
+    cfg.audioBitrateKbps = configuration()->audioBitrateKbps();
 
     return cfg;
 }
@@ -262,9 +278,9 @@ void VideoWriter::startVideoExport(muse::media::IVideoEncoderPtr encoder, INotat
 
 void VideoWriter::startAudioExport(INotationPtr notation, const muse::io::path_t& audioPath, const Config& cfg)
 {
-    m_audioWriter = writers()->writer("aac");
+    m_audioWriter = writers()->writer("wav");
     if (!m_audioWriter) {
-        LOGE() << "aac writer not found";
+        LOGE() << "wav writer not found";
         m_audioRet = make_ret(muse::Ret::Code::InternalError);
         m_audioCompleted = true;
         return;
@@ -486,7 +502,7 @@ void VideoWriter::doGenerate(muse::media::IVideoEncoderPtr encoder, INotationPtr
         return;
     }
 
-    // Add "Made with MuseScore"
+    // Add the end card (off in Jubelle unless an end time is given)
     if (!generateTrailingFrames(encoder, actualConfig)) {
         return;
     }
@@ -504,51 +520,9 @@ bool VideoWriter::generateLeadingFrames(muse::media::IVideoEncoderPtr encoder, I
         return true;
     }
 
-    muse::String title = notationTitle(notation);
-    muse::String subtitle = notationSubtitle(notation);
-
-    auto scaledFontPointSize = [&config](double basePixelSize) {
-        double pixelSize = basePixelSize * config.height / 1080.0;
-        return pixelSize * 72.0 / engraving::DPI;
-    };
-
-    Font titleFont(Font::FontFamily(u"Muse Sans"), Font::Type::Text);
-    titleFont.setPointSizeF(scaledFontPointSize(128.0));
-    titleFont.setWeight(Font::Weight::Medium);
-
-    Font subtitleFont(titleFont);
-    subtitleFont.setPointSizeF(scaledFontPointSize(48.0));
-
+    // Jubelle: no title screen. The lead-in is the first page shown, still and silent, on white paper.
+    const Page* first = firstShownPage(notation);
     muse::RectF frameRect = muse::RectF::fromQRectF(QRectF(frame.rect()));
-
-    const double maxTextWidth = frameRect.width() * 0.9;
-    const double textLeft = (frameRect.width() - maxTextWidth) / 2.0;
-
-    auto lineCount = [&](const FontMetrics& fm, const muse::String& text) {
-        if (text.isEmpty()) {
-            return 0;
-        }
-        double textWidth = fm.horizontalAdvance(text);
-        return std::max(1, static_cast<int>(std::ceil(textWidth / maxTextWidth)));
-    };
-
-    FontMetrics titleFontMetrics(titleFont);
-    const int titleLines = lineCount(titleFontMetrics, title);
-    const double titleHeight = titleLines * titleFontMetrics.lineSpacing();
-
-    FontMetrics subtitleFontMetrics(subtitleFont);
-    const int subtitleLines = lineCount(subtitleFontMetrics, subtitle);
-    const double subtitleHeight = subtitleLines * subtitleFontMetrics.lineSpacing();
-
-    double centerY = frameRect.center().y();
-    double titleTop = centerY - titleHeight / 2.0;
-    muse::RectF titleRect(textLeft, titleTop, maxTextWidth, titleHeight);
-
-    const double subtitleOffset = config.height / 20.0;
-    double subtitleTop = titleRect.bottom() + subtitleOffset;
-    muse::RectF subtitleRect(textLeft, subtitleTop, maxTextWidth, subtitleHeight);
-
-    const int textFlags = AlignCenter | TextWordWrap;
 
     for (int f = 0; f < leadingFrameCount; f++) {
         if (m_abort) {
@@ -559,20 +533,50 @@ bool VideoWriter::generateLeadingFrames(muse::media::IVideoEncoderPtr encoder, I
 
         m_progress.progress(f, totalFrameCount);
 
-        painter.fillRect(frameRect, Color::BLACK);
-        painter.setPen(Color::WHITE);
-        painter.setFont(titleFont);
-        painter.drawText(titleRect, textFlags, title);
-
-        if (!subtitle.isEmpty()) {
-            painter.setFont(subtitleFont);
-            painter.drawText(subtitleRect, textFlags, subtitle);
+        if (first) {
+            paintPage(notation, first, painter, frame, config);
+        } else {
+            painter.fillRect(frameRect, Color::WHITE);
         }
 
         encoder->encodeImage(frame);
     }
 
     return true;
+}
+
+const Page* VideoWriter::firstShownPage(INotationPtr notation) const
+{
+    PageList pages = notation->elements()->pages();
+    if (m_usePageList && !m_segments.empty()) {
+        const size_t idx = size_t(m_segments.front().page - 1);
+        if (idx < pages.size()) {
+            return pages[idx];
+        }
+    }
+    for (const Page* p : pages) {
+        if (p->firstMeasure()) {
+            return p;
+        }
+    }
+    return pages.empty() ? nullptr : pages.front();
+}
+
+void VideoWriter::paintPage(INotationPtr notation, const Page* page, Painter& painter, QImage& frame, const Config& config) const
+{
+    muse::RectF frameRect = muse::RectF::fromQRectF(QRectF(frame.rect()));
+    // White paper across the whole frame, as in a PDF viewer; never black bars
+    painter.fillRect(frameRect, Color::WHITE);
+
+    INotationPainting::Options opt;
+    opt.fromPage = static_cast<int>(page->pageNumber());
+    opt.toPage = opt.fromPage;
+    opt.deviceDpi = config.canvasDpi;
+
+    painter.save();
+    painter.translate(config.moveToCenter);
+    notation->painting()->paintPrint(&painter, opt);
+    painter.restore();
 }
 
 bool VideoWriter::generateTrailingFrames(muse::media::IVideoEncoderPtr encoder, const Config& config)
@@ -608,9 +612,7 @@ bool VideoWriter::generateScoreFrames(muse::media::IVideoEncoderPtr encoder, INo
     }
 
     PageList pages = notation->elements()->pages();
-    auto painting = notation->painting();
     INotationPlaybackPtr playback = notation->masterNotation()->playback();
-    muse::RectF frameRect = muse::RectF::fromQRectF(QRectF(frame.rect()));
 
     auto pageByTick = [](const PageList& pages, tick_t tick) -> const Page* {
         for (const Page* p : pages) {
@@ -665,30 +667,66 @@ bool VideoWriter::generateScoreFrames(muse::media::IVideoEncoderPtr encoder, INo
             continue;
         }
 
-        INotationPainting::Options opt;
-        opt.fromPage = static_cast<int>(page->pageNumber());
-        opt.toPage = opt.fromPage;
-        opt.deviceDpi = config.canvasDpi;
+        paintPage(notation, page, painter, frame, config);
 
-        painter.fillRect(frameRect, Color::BLACK);
-
-        painter.save();
-        painter.translate(config.moveToCenter);
-
-        painting->paintPrint(&painter, opt);
-
-        cursor.move(tick);
-
-        muse::RectF cursorRect = cursor.rect();
-        muse::PointF pagePos = page->pos();
-        muse::RectF cursorAbsRect = cursorRect.translated(-pagePos);
-
-        painter.fillRect(cursorAbsRect, CURSOR_COLOR);
-
-        painter.restore();
+        if (config.showCursor) {
+            painter.save();
+            painter.translate(config.moveToCenter);
+            cursor.move(tick);
+            muse::RectF cursorRect = cursor.rect();
+            muse::PointF pagePos = page->pos();
+            muse::RectF cursorAbsRect = cursorRect.translated(-pagePos);
+            painter.fillRect(cursorAbsRect, CURSOR_COLOR);
+            painter.restore();
+        }
 
         encoder->encodeImage(frame);
     }
 
+    return true;
+}
+
+bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::io::path_t& aacPath, const Config& cfg,
+                                   INotationPtr notation) const
+{
+    jubelle::WavReader wav;
+    if (!wav.open(wavPath.toStdString())) {
+        LOGE() << "video sound: " << wav.error();
+        return false;
+    }
+
+    // The pieces of the WAV to keep: the lead-in, the music of the shown pages, and any end time.
+    // With no page list the whole rendering is kept.
+    std::vector<jubelle::Piece> pieces;
+    if (m_usePageList) {
+        const double lead = cfg.leadingSec;
+        pieces.push_back({ 0.0, lead });
+        for (const jubelle::VideoSegment& seg : m_segments) {
+            pieces.push_back({ lead + seg.start, lead + seg.end });
+        }
+        if (cfg.trailingSec > 0.0) {
+            const double total = notation->masterNotation()->playback()->totalPlayTime();
+            pieces.push_back({ lead + total, lead + total + cfg.trailingSec });
+        }
+    }
+
+    muse::audio::SoundTrackFormat format;
+    format.type = muse::audio::SoundTrackType::AAC;
+    format.outputSpec.sampleRate = static_cast<muse::audio::sample_rate_t>(wav.sampleRate());
+    format.outputSpec.samplesPerChannel = 1024;
+    format.outputSpec.audioChannelCount = static_cast<muse::audio::audioch_t>(wav.channels());
+    format.bitRate = cfg.audioBitrateKbps;
+
+    muse::audio::encode::AacEncoder aac;
+    if (!aac.init(aacPath, format, static_cast<muse::audio::samples_t>(jubelle::splicedFrames(wav, pieces)))) {
+        LOGE() << "video sound: AAC encoder could not start";
+        return false;
+    }
+    jubelle::SpliceOptions options;
+    jubelle::splice(wav, pieces, options, [&aac](int64_t frames, const float* samples) {
+        aac.encode(static_cast<muse::audio::samples_t>(frames), samples);
+    });
+    aac.flush();
+    aac.deinit();
     return true;
 }

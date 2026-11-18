@@ -81,6 +81,8 @@ private:
         ViewMode viewMode = ViewMode::PageFull;
         muse::PointF moveToCenter;
         std::string pageList;      // Jubelle: pages to show and their order; empty = all
+        bool showCursor = false;   // Jubelle: MuseScore's playback cursor, off by default
+        int audioBitrateKbps = 256; // Jubelle: the video's own AAC quality
     };
 
     Config makeConfig() const;
@@ -97,6 +99,14 @@ private:
                              QImage& frame, const Config& config, float totalPlayTimeSec, int leadingFrameCount, int totalFrameCount);
 
     bool generateTrailingFrames(muse::media::IVideoEncoderPtr encoder, const Config& config);
+
+    //! Jubelle: the first page shown, drawn still on white paper (the lead-in)
+    const engraving::Page* firstShownPage(notation::INotationPtr notation) const;
+    void paintPage(notation::INotationPtr notation, const engraving::Page* page, muse::draw::Painter& painter, QImage& frame,
+                   const Config& config) const;
+    //! Jubelle: the video's sound from the WAV rendering: the shown pieces, crossfaded, encoded as AAC
+    bool encodeVideoAudio(const muse::io::path_t& wavPath, const muse::io::path_t& aacPath, const Config& cfg,
+                          notation::INotationPtr notation) const;
 
     struct ScoreRestoreData
     {

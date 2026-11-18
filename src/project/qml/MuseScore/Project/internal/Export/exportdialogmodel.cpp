@@ -22,12 +22,20 @@
 #include "exportdialogmodel.h"
 
 #include <algorithm>
+#include <cmath>
+#include <map>
 
 #include <QItemSelectionModel>
 #include <QTimer>
 
 #include "media/mediatypes.h"
 #include "notation/inotationelements.h"
+#include "notation/inotationinteraction.h"
+#include "notation/inotationplayback.h"
+#include "notation/imasternotation.h"
+#include "engraving/dom/segment.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/page.h"
 
 #include "app_config.h"
 
@@ -645,6 +653,260 @@ QString ExportDialogModel::videoPageListProblem() const
         return QString();
     }
     return QString::fromStdString(videoExportConfiguration()->checkPageList(pages, int(notation->elements()->pages().size())));
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: page-sequence builder for video export
+// ---------------------------------------------------------------------------
+
+namespace {
+QString lengthText(double secs)
+{
+    const int total = int(std::lround(secs));
+    if (total < 60) {
+        return muse::qtrc("project/export", "%n s", nullptr, total);
+    }
+    return muse::qtrc("project/export", "%1 min %2 s").arg(total / 60).arg(total % 60);
+}
+}
+
+std::vector<int> ExportDialogModel::videoSequencePages() const
+{
+    std::vector<int> pages;
+    for (const QVariant& v : videoSequence()) {
+        pages.push_back(v.toMap().value("page").toInt());
+    }
+    return pages;
+}
+
+void ExportDialogModel::setVideoSequencePages(const std::vector<int>& pages)
+{
+    QStringList parts;
+    for (int p : pages) {
+        parts << QString::number(p);
+    }
+    setVideoPageList(parts.join(", "));
+}
+
+int ExportDialogModel::videoPageCount() const
+{
+    INotationPtr notation = context() ? context()->currentNotation() : nullptr;
+    return notation && notation->elements() ? int(notation->elements()->pages().size()) : 0;
+}
+
+QVariantList ExportDialogModel::videoSequence() const
+{
+    QVariantList result;
+    INotationPtr notation = context() ? context()->currentNotation() : nullptr;
+    if (!notation || !notation->elements() || !notation->masterNotation() || !notation->masterNotation()->playback()) {
+        return result;
+    }
+    const PageList pages = notation->elements()->pages();
+    INotationPlaybackPtr playback = notation->masterNotation()->playback();
+    auto pageAt = [&pages, &playback](double secs) -> int {
+        const int tick = int(playback->secToTick(secs));
+        for (const mu::engraving::Page* p : pages) {
+            if (tick < p->endTick().ticks()) {
+                return p->firstMeasure() ? int(p->pageNumber()) + 1 : 0;
+            }
+        }
+        return 0;
+    };
+    for (const auto& e : videoExportConfiguration()->planPageSequence(videoExportConfiguration()->pageList(), int(pages.size()),
+                                                                       double(playback->totalPlayTime()), pageAt)) {
+        QVariantMap m;
+        m["page"] = e.page;
+        m["seconds"] = e.seconds;
+        m["hasMusic"] = e.seconds > 0.0;
+        m["lengthText"] = e.seconds > 0.0 ? lengthText(e.seconds) : muse::qtrc("project/export", "no music: skipped");
+        result << m;
+    }
+    return result;
+}
+
+QString ExportDialogModel::videoSequenceSummary() const
+{
+    if (!videoPageListProblem().isEmpty()) {
+        return QString();
+    }
+    const QVariantList seq = videoSequence();
+    if (seq.isEmpty()) {
+        return QString();
+    }
+    QStringList parts;
+    std::map<int, int> seen;
+    double total = 0.0;
+    for (const QVariant& v : seq) {
+        const QVariantMap m = v.toMap();
+        if (!m.value("hasMusic").toBool()) {
+            continue;
+        }
+        const int page = m.value("page").toInt();
+        total += m.value("seconds").toDouble();
+        const QString again = seen[page]++ > 0 ? muse::qtrc("project/export", " again") : QString();
+        parts << (parts.isEmpty() ? muse::qtrc("project/export", "page %1%2").arg(page).arg(again)
+                  : muse::qtrc("project/export", "then %1%2").arg(page).arg(again));
+    }
+    if (parts.isEmpty()) {
+        return muse::qtrc("project/export", "None of these pages has music, so the video would be empty.");
+    }
+    const QString lead = videoExportConfiguration()->leadingSec() > 0.0
+                         ? muse::qtrc("project/export", " (plus %1 of the first page, silent, before the music starts)")
+                         .arg(lengthText(videoExportConfiguration()->leadingSec()))
+                         : QString();
+    return muse::qtrc("project/export", "The video shows %1: %2%3.").arg(parts.join(", "), lengthText(total), lead);
+}
+
+void ExportDialogModel::videoSequenceAppend(int page)
+{
+    std::vector<int> pages = videoExportConfiguration()->pageList().empty() ? std::vector<int>() : videoSequencePages();
+    pages.push_back(page);
+    setVideoSequencePages(pages);
+}
+
+void ExportDialogModel::videoSequenceRepeatAt(int index)
+{
+    std::vector<int> pages = videoSequencePages();
+    if (index < 0 || size_t(index) >= pages.size()) {
+        return;
+    }
+    pages.insert(pages.begin() + index + 1, pages[size_t(index)]);
+    setVideoSequencePages(pages);
+}
+
+void ExportDialogModel::videoSequenceRemoveAt(int index)
+{
+    std::vector<int> pages = videoSequencePages();
+    if (index < 0 || size_t(index) >= pages.size()) {
+        return;
+    }
+    pages.erase(pages.begin() + index);
+    if (pages.empty()) {
+        setVideoPageList(QString());   // nothing left: back to every page
+        return;
+    }
+    setVideoSequencePages(pages);
+}
+
+void ExportDialogModel::videoSequenceMove(int from, int to)
+{
+    std::vector<int> pages = videoSequencePages();
+    if (from < 0 || to < 0 || size_t(from) >= pages.size() || size_t(to) >= pages.size() || from == to) {
+        return;
+    }
+    const int p = pages[size_t(from)];
+    pages.erase(pages.begin() + from);
+    pages.insert(pages.begin() + to, p);
+    setVideoSequencePages(pages);
+}
+
+void ExportDialogModel::videoSequenceUseAllPages()
+{
+    setVideoPageList(QString());
+}
+
+bool ExportDialogModel::videoPreviewing() const
+{
+    return m_videoPreviewing;
+}
+
+void ExportDialogModel::videoPreviewStart()
+{
+    m_videoPreviewPages.clear();
+    for (const QVariant& v : videoSequence()) {
+        const QVariantMap m = v.toMap();
+        if (m.value("hasMusic").toBool()) {
+            m_videoPreviewPages.push_back(m.value("page").toInt());
+        }
+    }
+    if (m_videoPreviewPages.empty()) {
+        return;
+    }
+    m_videoPreviewIndex = 0;
+    m_videoPreviewing = true;
+    emit videoPreviewingChanged();
+    videoPreviewStep();
+}
+
+void ExportDialogModel::videoPreviewStop()
+{
+    if (!m_videoPreviewing) {
+        return;
+    }
+    m_videoPreviewing = false;
+    dispatcher()->dispatch("stop");
+    emit videoPreviewingChanged();
+}
+
+void ExportDialogModel::videoPreviewStep()
+{
+    // Plays the first few seconds of each entry in turn, from the first note on its page
+    static constexpr int PREVIEW_MS = 4000;
+    if (!m_videoPreviewing) {
+        return;
+    }
+    if (m_videoPreviewIndex >= m_videoPreviewPages.size()) {
+        videoPreviewStop();
+        return;
+    }
+    INotationPtr notation = context() ? context()->currentNotation() : nullptr;
+    const PageList pages = notation && notation->elements() ? notation->elements()->pages() : PageList();
+    const size_t idx = size_t(m_videoPreviewPages[m_videoPreviewIndex] - 1);
+    ++m_videoPreviewIndex;
+    if (!notation || idx >= pages.size() || !pages[idx]->firstMeasure()) {
+        videoPreviewStep();
+        return;
+    }
+    const mu::engraving::Measure* m = pages[idx]->firstMeasure();
+    mu::engraving::EngravingItem* start = nullptr;
+    if (const mu::engraving::Segment* seg = m->first(mu::engraving::SegmentType::ChordRest)) {
+        for (size_t t = 0; t < seg->elist().size() && !start; ++t) {
+            start = seg->elist()[t];
+        }
+    }
+    dispatcher()->dispatch("stop");
+    if (start) {
+        notation->interaction()->select({ start }, SelectType::SINGLE);
+    }
+    dispatcher()->dispatch("play");
+    QTimer::singleShot(PREVIEW_MS, this, [this]() { videoPreviewStep(); });
+}
+
+bool ExportDialogModel::videoShowCursor() const
+{
+    return videoExportConfiguration()->showCursor();
+}
+
+void ExportDialogModel::setVideoShowCursor(bool show)
+{
+    if (show == videoShowCursor()) {
+        return;
+    }
+    videoExportConfiguration()->setShowCursor(show);
+    emit videoShowCursorChanged();
+}
+
+QList<int> ExportDialogModel::availableVideoAudioBitrates() const
+{
+    QList<int> result;
+    for (int r : videoExportConfiguration()->availableAudioBitratesKbps()) {
+        result << r;
+    }
+    return result;
+}
+
+int ExportDialogModel::videoAudioBitrate() const
+{
+    return videoExportConfiguration()->audioBitrateKbps();
+}
+
+void ExportDialogModel::setVideoAudioBitrate(int kbps)
+{
+    if (kbps == videoAudioBitrate()) {
+        return;
+    }
+    videoExportConfiguration()->setAudioBitrateKbps(kbps);
+    emit videoAudioBitrateChanged();
 }
 
 QVariantList ExportDialogModel::availableViewModes() const

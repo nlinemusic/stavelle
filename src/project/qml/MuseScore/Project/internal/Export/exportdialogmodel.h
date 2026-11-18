@@ -35,6 +35,7 @@
 #include "iinteractive.h"
 #include "media/ivideoencoderresolver.h"
 #include "context/iglobalcontext.h"
+#include "actions/iactionsdispatcher.h"
 #include "importexport/imagesexport/iimagesexportconfiguration.h"
 #include "importexport/musicxml/imusicxmlconfiguration.h"
 #include "importexport/midi/imidiconfiguration.h"
@@ -82,6 +83,14 @@ class ExportDialogModel : public QAbstractListModel, public QQmlParserStatus, pu
     //! Jubelle: the pages a video shows and their order ("1-3, 5"); empty = all
     Q_PROPERTY(QString videoPageList READ videoPageList WRITE setVideoPageList NOTIFY videoPageListChanged)
     Q_PROPERTY(QString videoPageListProblem READ videoPageListProblem NOTIFY videoPageListChanged)
+    //! Jubelle: the page-sequence builder. Entries {page, seconds, lengthText, hasMusic} in playing order.
+    Q_PROPERTY(QVariantList videoSequence READ videoSequence NOTIFY videoPageListChanged)
+    Q_PROPERTY(QString videoSequenceSummary READ videoSequenceSummary NOTIFY videoPageListChanged)
+    Q_PROPERTY(int videoPageCount READ videoPageCount NOTIFY videoPageListChanged)
+    Q_PROPERTY(bool videoPreviewing READ videoPreviewing NOTIFY videoPreviewingChanged)
+    //! Jubelle: MuseScore's playback cursor on the video (off by default) and the video's own sound quality
+    Q_PROPERTY(bool videoShowCursor READ videoShowCursor WRITE setVideoShowCursor NOTIFY videoShowCursorChanged)
+    Q_PROPERTY(int videoAudioBitrate READ videoAudioBitrate WRITE setVideoAudioBitrate NOTIFY videoAudioBitrateChanged)
 
     using ViewMode = mu::iex::videoexport::ViewMode;
     Q_ENUM(ViewMode);
@@ -129,6 +138,7 @@ class ExportDialogModel : public QAbstractListModel, public QQmlParserStatus, pu
     muse::ContextInject<context::IGlobalContext> context = { this };
     muse::ContextInject<INotationWritersRegister> writers = { this };
     muse::ContextInject<IExportProjectScenario> exportProjectScenario = { this };
+    muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
 
 public:
     explicit ExportDialogModel(QObject* parent = nullptr);
@@ -185,6 +195,24 @@ public:
     QString videoPageList() const;
     void setVideoPageList(const QString& pages);
     QString videoPageListProblem() const;
+
+    QVariantList videoSequence() const;
+    QString videoSequenceSummary() const;
+    int videoPageCount() const;
+    Q_INVOKABLE void videoSequenceAppend(int page);
+    Q_INVOKABLE void videoSequenceRepeatAt(int index);
+    Q_INVOKABLE void videoSequenceRemoveAt(int index);
+    Q_INVOKABLE void videoSequenceMove(int from, int to);
+    Q_INVOKABLE void videoSequenceUseAllPages();
+    Q_INVOKABLE void videoPreviewStart();
+    Q_INVOKABLE void videoPreviewStop();
+    bool videoPreviewing() const;
+
+    bool videoShowCursor() const;
+    void setVideoShowCursor(bool show);
+    Q_INVOKABLE QList<int> availableVideoAudioBitrates() const;
+    int videoAudioBitrate() const;
+    void setVideoAudioBitrate(int kbps);
 
     Q_INVOKABLE QVariantList availableViewModes() const;
     ViewMode viewMode() const;
@@ -266,6 +294,9 @@ signals:
 
     void videoResolutionChanged(const QString& resolution);
     void videoPageListChanged();
+    void videoPreviewingChanged();
+    void videoShowCursorChanged();
+    void videoAudioBitrateChanged();
     void viewModeChanged(ViewMode v);
 
     void availableSampleRatesChanged();
@@ -326,5 +357,14 @@ private:
     ExportType m_selectedExportType = ExportType();
     muse::io::path_t m_exportPath;
     project::INotationWriter::UnitType m_selectedUnitType = project::INotationWriter::UnitType::PER_PART;
+
+private:
+    //! Jubelle: page sequence helpers
+    std::vector<int> videoSequencePages() const;   // the list as pages; every page with music when empty
+    void setVideoSequencePages(const std::vector<int>& pages);
+    void videoPreviewStep();
+    std::vector<int> m_videoPreviewPages;
+    size_t m_videoPreviewIndex = 0;
+    bool m_videoPreviewing = false;
 };
 }

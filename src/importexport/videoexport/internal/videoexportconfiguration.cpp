@@ -23,6 +23,9 @@
 
 #include "jubelle/videopages.h"
 
+#include <algorithm>
+#include <map>
+
 using namespace mu::iex::videoexport;
 
 static const ViewMode DEFAULT_VIEW_MODE = ViewMode::PageFull;
@@ -115,4 +118,70 @@ std::string VideoExportConfiguration::checkPageList(const std::string& pages, in
 {
     const jubelle::PageList list = jubelle::parsePageList(pages, pageCount);
     return list.ok ? std::string() : list.error;
+}
+
+int VideoExportConfiguration::audioBitrateKbps() const
+{
+    const int kbps = m_audioBitrateKbps.value_or(256);
+    const std::vector<int>& rates = availableAudioBitratesKbps();
+    return std::find(rates.begin(), rates.end(), kbps) != rates.end() ? kbps : 256;
+}
+
+std::vector<IVideoExportConfiguration::SequenceEntry> VideoExportConfiguration::planPageSequence(
+    const std::string& pages, int pageCount, double totalSecs, const std::function<int(double)>& pageAt) const
+{
+    // One entry per page in the list (or per page with music, for "every page"), with the length of music
+    // it shows. Follows the same rules as planSegments: a page listed once shows all its visits; a page
+    // listed more than once shows its next visit each time.
+    std::vector<SequenceEntry> out;
+    const jubelle::PageList list = jubelle::parsePageList(pages, pageCount);
+    if (!list.ok || totalSecs <= 0.0) {
+        return out;
+    }
+    const std::vector<jubelle::PageVisit> visits = jubelle::pageVisits(totalSecs, 0.1, pageAt);
+    auto visitsOf = [&visits](int page) {
+        std::vector<double> lengths;
+        for (const jubelle::PageVisit& v : visits) {
+            if (v.page == page) {
+                lengths.push_back(v.end - v.start);
+            }
+        }
+        return lengths;
+    };
+    if (list.pages.empty()) {
+        std::vector<int> order;
+        for (const jubelle::PageVisit& v : visits) {
+            if (std::find(order.begin(), order.end(), v.page) == order.end()) {
+                order.push_back(v.page);
+            }
+        }
+        for (int page : order) {
+            double total = 0.0;
+            for (double l : visitsOf(page)) {
+                total += l;
+            }
+            out.push_back({ page, total });
+        }
+        return out;
+    }
+    std::map<int, size_t> used;
+    for (int page : list.pages) {
+        const std::vector<double> mine = visitsOf(page);
+        if (mine.empty()) {
+            out.push_back({ page, 0.0 });   // no music on this page: the video skips it
+            continue;
+        }
+        if (std::count(list.pages.begin(), list.pages.end(), page) == 1) {
+            double total = 0.0;
+            for (double l : mine) {
+                total += l;
+            }
+            out.push_back({ page, total });
+            continue;
+        }
+        size_t& n = used[page];
+        out.push_back({ page, mine[n < mine.size() ? n : 0] });
+        ++n;
+    }
+    return out;
 }

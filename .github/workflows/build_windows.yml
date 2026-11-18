@@ -252,7 +252,7 @@ jobs:
       timeout-minutes: 25
       shell: bash
       run: |
-        python -X utf8 tools/jubelle_checks/video_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz video_check
+        python -X utf8 tools/jubelle_checks/video_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz video_check ffmpeg_stage/tools/ffmpeg.exe
         cat video_check/video_check.md >> "$GITHUB_STEP_SUMMARY"
     - name: "Jubelle: upload video export check"
       if: always()
@@ -262,6 +262,20 @@ jobs:
         path: |
           video_check/video_check.md
           video_check/video_check.mp4
+    - name: "Jubelle: audio export check (bit depth and sample rate of WAV, FLAC, MP3, OGG)"
+      if: always()
+      continue-on-error: true
+      timeout-minutes: 30
+      shell: bash
+      run: |
+        python -X utf8 tools/jubelle_checks/audio_export_check.py "build.install/bin/Jubelle.exe" demos/Amazing_grace.mscz audio_check
+        cat audio_check/audio_check.md >> "$GITHUB_STEP_SUMMARY"
+    - name: "Jubelle: upload audio export check"
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-audio-check
+        path: audio_check/audio_check.md
     - name: "Jubelle: template prints (PDF, for visual review)"
       if: always()
       timeout-minutes: 30
