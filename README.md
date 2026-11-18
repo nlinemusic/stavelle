@@ -19,6 +19,10 @@ Get the latest version from **[Releases](https://github.com/nlinemusic/stavelle/
 - **macOS:** download the `.dmg`, open it and drag **Jubelle** to **Applications**. The app isn't
   notarised yet, so the first time, Control-click it and choose **Open**.
 
+**If your browser won't download it** (Edge: "isn't commonly downloaded"), or the Mac won't open it,
+the release page has step-by-step help, including one-line commands that download it with PowerShell
+or Terminal instead.
+
 Jubelle installs alongside MuseScore Studio and doesn't touch its files or settings. Each release
 carries a signed checksum list; on Windows, Jubelle's updater (Help › Check for updates) installs
 only releases signed with Jubelle's release key.

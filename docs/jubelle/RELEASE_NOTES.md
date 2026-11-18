@@ -9,18 +9,44 @@
 ## Installing
 
 ### Windows (10 or 11, 64-bit)
-1. Download `Jubelle-4.7.7.<build>-x86_64.msi` from this release.
+1. Download `Jubelle-4.7.7.261118172-x86_64.msi` from this release.
 2. Double-click it. The installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**.
 3. It replaces an earlier Jubelle and leaves MuseScore alone. Your scores, projects, settings and plugins stay where they are.
 4. Start Jubelle from the Start menu.
 
 ### macOS (Apple Silicon and Intel)
-1. Download `Jubelle-4.7.7.<build>.dmg` and open it.
+1. Download `Jubelle-4.7.7.261118162.dmg` and open it.
 2. Drag **Jubelle** into **Applications**.
 3. The app is not notarised by Apple, so the first time:
    - **Control-click** Jubelle in Applications and choose **Open**, then **Open** again;
    - or go to System Settings › Privacy & Security and click **Open Anyway** under the Jubelle message.
 4. The Mac build is compiled and checked automatically, but has **not yet been tried by hand**.
+
+### If your browser won't let you download it
+
+**Windows (Edge says the file "isn't commonly downloaded"):** the warning appears because the installer is new and isn't code-signed. The file is safe to keep.
+1. Press **Ctrl+J** to open your downloads, hover over the Jubelle file, click **…**, then **Keep**.
+2. In the dialog that opens, click **Show more**, then **Keep anyway**. Don't use the arrow beside **Delete**: it only deletes.
+
+Or skip the browser and download it with PowerShell. Press Start, type **PowerShell**, open it, paste this one line and press Enter:
+```
+$ProgressPreference='SilentlyContinue'; Invoke-WebRequest "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118172-x86_64.msi" -OutFile "$HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi"
+```
+The installer (about 180 MB) arrives in your Downloads folder. Double-click it. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**.
+
+**macOS (the app "can't be opened" or "can't be checked for malicious software"):** Control-click **Jubelle** in Applications, choose **Open**, then **Open** again. Or go to System Settings › Privacy & Security and click **Open Anyway** beside the Jubelle message.
+
+Or download it with Terminal. Open **Terminal** (Applications › Utilities), paste this one line and press Return:
+```
+curl -L -o ~/Downloads/Jubelle-4.7.7.261118162.dmg "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118162.dmg"
+```
+Then open the disk image from your Downloads folder and drag **Jubelle** to **Applications**.
+
+**Checking the file (optional):**
+- **Windows (PowerShell):** `Get-FileHash $HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi`
+- **macOS (Terminal):** `shasum -a 256 ~/Downloads/Jubelle-4.7.7.261118162.dmg`
+
+The code it prints should match the file's line in `SHA256SUMS` on this page.
 
 ### Updates
 - **Windows:** Jubelle can update itself. Help › Check for updates works at any time; automatic checks are off until you switch them on in Preferences. Testing releases like this one are offered only if you switch on testing releases.
