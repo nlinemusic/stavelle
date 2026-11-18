@@ -35,6 +35,28 @@ var topics = [
         "<b>Format › Jazz handwritten look</b> and <b>Format › Standard engraved look</b> change the music and text fonts without touching your layout. <b>Format › Engraving presets…</b> applies a whole house style."
       ] },
 
+    { section: "Start here", title: "Workflow profiles: MuseScore, Finale or Noteflight habits",
+      summary: "Menus, shortcuts and note input arranged the way you are used to.",
+      body: [
+        "<b>View › Workflow profile</b> has four profiles. The change happens at once, without restarting, and only changes how Jubelle is laid out: every command is still there in every profile, and your scores are not affected.",
+        "<b>Jubelle</b>: Jubelle's own menus and shortcuts (the default).",
+        "<b>MuseScore Studio</b>: MuseScore 4's menus (no Playback menu: its commands are in View and Tools) and MuseScore's shortcuts.",
+        "<b>Finale-style</b>: the number keys add intervals (2 = a second above, Shift+2 below), durations are on the numeric keypad or Alt/Option + 2–7, L flips stems, H hides, / breaks beams; accidentals change the note you just entered. Menus include Utilities, Document and MIDI/Audio.",
+        "<b>Noteflight-style</b>: Space turns the note into a rest, P plays, Z respells (C♯ ↔ D♭), : adds a tenuto; accidentals change the selected note. Menus include Score, Staff, Measure, Notes and Text.",
+        "Your own changes (Preferences › Shortcuts, the note input toolbar, note input preferences) are kept for each profile and come back when you return to it. <b>Restore this profile's defaults…</b> undoes them for the current profile.",
+        "The Finale and Noteflight profiles follow those programs' habits; they are not copies of them. On guitar tablature staves, Shift+number keeps MuseScore's tab durations."
+      ] },
+    { section: "Start here", title: "Reporting a bug",
+      summary: "A report you check and send yourself, with your private details removed.",
+      body: [
+        "1. <b>Help › Report a bug…</b>",
+        "2. Give it a title and describe what happened. Steps to reproduce, what you expected and what actually happened help most.",
+        "3. Add screenshots if they help: <b>Add picture…</b> for a file, or <b>Capture Jubelle's window</b>.",
+        "4. <b>Preview report</b> shows everything that will be in it. <b>Create report</b> saves a ZIP file; <b>Show in folder</b> finds it. Send it by e-mail or attach it to a GitHub issue yourself.",
+        "Jubelle adds its version, your system's name and version, the graphics system, screen sizes, processor cores and memory, which notation engine is in use, and (if you leave the box ticked) the end of its log and the last crash. Your user name, folders, file names, score titles, e-mail addresses, passwords and keys are removed first.",
+        "Your score is only added if you tick <b>Include the open score</b>. Nothing is ever uploaded."
+      ] },
+
     // ---------------------------------------------------------------- Writing
     { section: "Writing", title: "Linked passages: write it once",
       summary: "Link a passage to other staves; edits follow, pitches stay each player's own.",
@@ -186,11 +208,19 @@ var topics = [
     { section: "Playback", title: "Levels, dynamics and other sounds",
       summary: "Built-in instruments are balanced against each other; dynamics are clearly graded.",
       body: [
-        "Jubelle balances the built-in sounds so a section sounds like a section before you touch the mixer, and plays dynamics from ppp to fff in clear steps (mf to f is plainly louder). The mixer's faders stay yours and sit on top of this.",
+        "Jubelle balances the built-in sounds so a section sounds like a section before you touch the mixer, and plays dynamics from ppp to fff in clear steps (mf to f is plainly louder) for winds, brass, strings and voices. The mixer's faders stay yours and sit on top of this.",
+        "Piano and other keyboards, guitars, harp and percussion follow MuseScore's own dynamics exactly: with these sounds a harder key press also brightens the tone, so they keep MuseScore's sound.",
         "For other sounds, load a VST3 instrument in the mixer. Its presets can be saved and recalled from the plug-in's window. The status bar shows which sound source is playing."
       ] },
 
     // ---------------------------------------------------------------- Export
+    { section: "Export and sharing", title: "Exporting audio",
+      summary: "The same defaults as MuseScore; no clipping on loud passages.",
+      body: [
+        "1. <b>File › Export › Export…</b>, then choose MP3, WAV, OGG or FLAC.",
+        "The defaults are the same as MuseScore Studio's: 44.1 kHz, WAV in 32-bit float, FLAC in 16-bit, MP3 at 128 kbps. 32, 48 and 96 kHz and 16 or 24-bit are there if you need them (MP3 goes no higher than 48 kHz).",
+        "Loud tuttis never clip: a limiter turns the whole mix down gently, just before a peak and only as far as needed, and leaves everything quieter untouched. 16-bit files get a tiny, inaudible dither so quiet endings stay clean. Exporting the same score twice gives identical files."
+      ] },
     { section: "Export and sharing", title: "Drum stems",
       summary: "Kick, snare, hi-hat, toms and cymbals as separate audio files.",
       body: [
