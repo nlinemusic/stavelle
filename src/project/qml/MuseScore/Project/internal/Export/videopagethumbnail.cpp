@@ -12,6 +12,7 @@
 #include <cmath>
 
 #include <QPainter>
+#include <QQuickWindow>
 
 #include "draw/painter.h"
 #include "engraving/dom/page.h"

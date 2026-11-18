@@ -42,6 +42,10 @@ namespace muse::draw {
 class Painter;
 }
 
+namespace mu::engraving {
+class Page;
+}
+
 #include "jubelle/videopages.h"
 
 namespace mu::iex::videoexport {

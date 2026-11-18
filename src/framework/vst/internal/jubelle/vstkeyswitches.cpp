@@ -58,7 +58,7 @@ int KeySwitchMap::keyFor(const std::vector<std::string>& groupsOnNote) const
 }
 
 namespace {
-std::string trim(const std::string& s)
+std::string ksTrim(const std::string& s)
 {
     size_t a = 0;
     size_t b = s.size();
@@ -71,7 +71,7 @@ std::string trim(const std::string& s)
     return s.substr(a, b - a);
 }
 
-std::string lower(std::string s)
+std::string ksLower(std::string s)
 {
     for (char& c : s) {
         c = char(std::tolower(static_cast<unsigned char>(c)));
@@ -82,7 +82,7 @@ std::string lower(std::string s)
 
 int noteNameToMidi(const std::string& raw, bool middleCIsC4)
 {
-    const std::string name = trim(raw);
+    const std::string name = ksTrim(raw);
     if (name.empty()) {
         return -1;
     }
@@ -135,7 +135,7 @@ KeySwitchMap parseKeySwitches(const std::string& text, bool middleCIsC4)
         if (eq == std::string::npos) {
             continue;
         }
-        const std::string group = lower(trim(item.substr(0, eq)));
+        const std::string group = ksLower(ksTrim(item.substr(0, eq)));
         const auto& groups = keySwitchGroups();
         if (std::find(groups.begin(), groups.end(), group) == groups.end()) {
             continue;
@@ -166,7 +166,7 @@ std::string keySwitchesToString(const KeySwitchMap& map)
 
 double parseTrimDb(const std::string& text)
 {
-    const std::string t = trim(text);
+    const std::string t = ksTrim(text);
     if (t.empty()) {
         return 0.0;
     }
