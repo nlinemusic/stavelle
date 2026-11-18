@@ -8,6 +8,11 @@
 #include <memory>
 
 #include "engraving/dom/chord.h"
+#include <algorithm>
+#include "engraving/dom/part.h"
+#include "engraving/dom/lyrics.h"
+#include "engraving/dom/instrtemplate.h"
+#include "engraving/dom/instrchange.h"
 #include "engraving/dom/dynamic.h"
 #include "engraving/dom/excerpt.h"
 #include "engraving/dom/factory.h"
@@ -372,4 +377,126 @@ TEST(Jubelle_Proofread, HairpinsWithoutADynamicAndPartChecks)
         mmrest = mmrest || f.key.find(":mmrest") != std::string::npos;
     }
     EXPECT_TRUE(mmrest);
+}
+
+// ---------------------------------------------------------------------------
+// Professional preparation, part 2 (18 Nov 2026)
+// ---------------------------------------------------------------------------
+
+namespace {
+std::unique_ptr<MasterScore> bigBand()
+{
+    jubelle_templates::loadInstrumentData();
+    return std::unique_ptr<MasterScore>(jubelle_templates::readTemplate(
+                                            ROOT + "share/templates/05-Jazz/02-Big_Band/02-Big_Band.mscx"));
+}
+
+std::vector<Part*> trumpets(MasterScore* s)
+{
+    std::vector<Part*> out;
+    for (Part* p : s->parts()) {
+        if (p->instrument()->id().contains(u"trumpet")) {
+            out.push_back(p);
+        }
+    }
+    return out;
+}
+
+void chordFor(MasterScore* s, int bar, Part* p, int pitch)
+{
+    s->setNoteRest(barStart(s, bar), p->startTrack(), NoteVal(pitch), Fraction(1, 4));
+}
+
+size_t countWith(const std::vector<jp::Finding>& f, const std::string& kind)
+{
+    return size_t(std::count_if(f.begin(), f.end(), [&kind](const jp::Finding& x) { return x.key.find(":" + kind + ":") != std::string::npos; }));
+}
+}
+
+TEST(Jubelle_Proofread, SectionVoicing)
+{
+    auto s = bigBand();
+    ASSERT_TRUE(s);
+    const std::vector<Part*> tpt = trumpets(s.get());
+    ASSERT_EQ(tpt.size(), 4u);
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    // bar 1: a good closed voicing (C5 A4 F4 C4 over F major): nothing to say
+    chordFor(s.get(), 0, tpt[0], 72);
+    chordFor(s.get(), 0, tpt[1], 69);
+    chordFor(s.get(), 0, tpt[2], 65);
+    chordFor(s.get(), 0, tpt[3], 60);
+    // bar 2: trumpet 2 above trumpet 1
+    chordFor(s.get(), 1, tpt[0], 72);
+    chordFor(s.get(), 1, tpt[1], 74);
+    chordFor(s.get(), 1, tpt[2], 65);
+    chordFor(s.get(), 1, tpt[3], 60);
+    // bar 3: only a semitone under the lead, and trumpet 3 doubling the lead an octave down
+    chordFor(s.get(), 2, tpt[0], 72);
+    chordFor(s.get(), 2, tpt[1], 71);
+    chordFor(s.get(), 2, tpt[2], 60);
+    chordFor(s.get(), 2, tpt[3], 55);
+    // bar 4: more than an octave between trumpets 1 and 2
+    chordFor(s.get(), 3, tpt[0], 84);
+    chordFor(s.get(), 3, tpt[1], 69);
+    s->endCmd();
+
+    const auto found = jp::proofread(s.get(), just(jp::CheckCategory::Voicing));
+    for (const auto& f : found) {
+        EXPECT_NE(f.bar, 1) << f.message.toStdString();   // the good voicing is left alone
+    }
+    EXPECT_EQ(countWith(found, "cross"), 1u);
+    EXPECT_EQ(countWith(found, "close"), 1u);
+    EXPECT_EQ(countWith(found, "double"), 1u);
+    EXPECT_EQ(countWith(found, "gap"), 1u);
+    for (const auto& f : found) {
+        EXPECT_EQ(f.severity, jp::Severity::Suggestion);
+    }
+}
+
+TEST(Jubelle_Proofread, TimeToChangeInstrument)
+{
+    auto s = bigBand();
+    ASSERT_TRUE(s);
+    Part* alto = s->parts().front();
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    // a note in bar 1, then a change to flute in bar 2 with a note straight away
+    s->setNoteRest(barStart(s.get(), 0), alto->startTrack(), NoteVal(70), Fraction(1, 1));
+    s->setNoteRest(barStart(s.get(), 1), alto->startTrack(), NoteVal(77), Fraction(1, 1));
+    const InstrumentTemplate* flute = searchTemplate(u"flute");
+    ASSERT_TRUE(flute);
+    Segment* seg = barStart(s.get(), 1);
+    InstrumentChange* ic = Factory::createInstrumentChange(seg, Instrument::fromTemplate(flute));
+    ic->setParent(seg);
+    ic->setTrack(alto->startTrack());
+    s->undoAddElement(ic);
+    s->endCmd();
+    const auto found = jp::proofread(s.get(), just(jp::CheckCategory::Orchestration));
+    ASSERT_EQ(found.size(), 1u);
+    EXPECT_EQ(found[0].severity, jp::Severity::Warning);
+    EXPECT_EQ(found[0].item, ic);
+}
+
+TEST(Jubelle_Proofread, MelismaWithoutExtender)
+{
+    auto s = violinAndPiano();
+    ASSERT_TRUE(s);
+    s->startCmd(muse::TranslatableString::untranslatable("proofread test"));
+    put(s.get(), 0, 67);
+    put(s.get(), 1, 69);
+    Chord* first = toChord(barStart(s.get(), 0)->element(0));
+    Lyrics* l = Factory::createLyrics(first);
+    l->setPlainText(u"love");
+    l->setSyllabic(LyricsSyllabic::SINGLE);
+    l->setParent(first);
+    l->setTrack(0);
+    s->undoAddElement(l);
+    s->endCmd();
+    auto found = jp::proofread(s.get(), just(jp::CheckCategory::Copying));
+    ASSERT_EQ(found.size(), 1u);
+    EXPECT_EQ(found[0].item, l);
+
+    // with an extender line there is nothing to say
+    l->setTicks(Fraction(1, 1));
+    found = jp::proofread(s.get(), just(jp::CheckCategory::Copying));
+    EXPECT_TRUE(found.empty());
 }
