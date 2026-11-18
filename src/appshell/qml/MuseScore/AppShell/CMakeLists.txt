@@ -28,8 +28,8 @@ qt_add_qml_module(appshell_qml
         aboutmodel.h
         appmenumodel.cpp
         appmenumodel.h
-        BugReport/bugreportmodel.cpp
-        BugReport/bugreportmodel.h
+        jubellebugreportmodel.cpp
+        jubellebugreportmodel.h
         DevTools/Settings/settingslistmodel.cpp
         DevTools/Settings/settingslistmodel.h
         FirstLaunchSetup/firstlaunchsetupmodel.cpp

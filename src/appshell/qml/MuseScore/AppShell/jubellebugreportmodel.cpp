@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: GPL-3.0-only
  * Jubelle addition (not part of MuseScore). Help › Report a bug…: the window.
  */
-#include "bugreportmodel.h"
+#include "jubellebugreportmodel.h"
 
 #include <random>
 
