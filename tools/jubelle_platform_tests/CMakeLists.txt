@@ -39,6 +39,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.cpp
     ${ROOT}/src/notation/internal/jubelle/chordidentifier.h
     ${ROOT}/src/notation/tests/chordidentifier_tests.cpp
+    ${ROOT}/src/notation/internal/jubelle/harmony/harmonyrules.cpp
+    ${ROOT}/src/notation/internal/jubelle/harmony/harmonyrules.h
+    ${ROOT}/src/notation/tests/jubelle_harmonyrules_tests.cpp
     ${ROOT}/src/notation/internal/jubelle/condensingplanner.cpp
     ${ROOT}/src/notation/internal/jubelle/condensingplanner.h
     ${ROOT}/src/notation/tests/condensingplanner_tests.cpp
