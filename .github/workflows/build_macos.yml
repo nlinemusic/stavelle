@@ -270,7 +270,12 @@ jobs:
       shell: bash
       run: |
         APP=applebuild/mscore.app/Contents/MacOS/mscore
+        # FFmpeg's command-line tool is used only to read the exported MP4 back (picture and sound); it isn't bundled
         FF=$(command -v ffmpeg || true)
+        if [ -z "$FF" ]; then
+          brew install --quiet ffmpeg > /dev/null 2>&1 || true
+          FF=$(command -v ffmpeg || true)
+        fi
         python3 -X utf8 tools/jubelle_checks/video_export_check.py "$APP" demos/Amazing_grace.mscz video_check $FF || true
         python3 -X utf8 tools/jubelle_checks/audio_export_check.py "$APP" demos/Amazing_grace.mscz audio_check || true
         cat video_check/video_check.md >> "$GITHUB_STEP_SUMMARY" || true
