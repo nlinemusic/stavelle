@@ -43,9 +43,20 @@ TEST(Jubelle_YouTube, TheTokenIsKeptPrivatelyAndCanBeRemoved)
 {
     const std::string dir = ::testing::TempDir() + "jubelle_youtube_secret";
     std::filesystem::create_directories(dir);
+#ifdef __APPLE__
+    // macOS: the Keychain. A build machine with no unlocked login keychain can't store anything;
+    // that is reported as skipped, not passed.
+    if (!jy::storeSecret("test", "refresh-token-value", dir)) {
+        GTEST_SKIP() << "no unlocked Keychain on this machine";
+    }
+#else
     ASSERT_TRUE(jy::storeSecret("test", "refresh-token-value", dir));
+#endif
     EXPECT_EQ(jy::readSecret("test", dir), "refresh-token-value");
-#ifndef _WIN32
+    // storing again replaces the old value
+    ASSERT_TRUE(jy::storeSecret("test", "second-value", dir));
+    EXPECT_EQ(jy::readSecret("test", dir), "second-value");
+#if !defined(_WIN32) && !defined(__APPLE__)
     const auto perms = std::filesystem::status(dir + "/jubelle_test.secret").permissions();
     EXPECT_EQ(perms & (std::filesystem::perms::group_all | std::filesystem::perms::others_all), std::filesystem::perms::none)
         << "nobody else can read it";

@@ -57,6 +57,9 @@ add_executable(jubelle_platform_tests
 )
 target_include_directories(jubelle_platform_tests PRIVATE ${ROOT}/src)
 target_link_libraries(jubelle_platform_tests PRIVATE gtest_main)
+if (APPLE)
+    target_link_libraries(jubelle_platform_tests PRIVATE "-framework Security" "-framework CoreFoundation")
+endif()
 
 if (MSVC)
     target_compile_options(jubelle_platform_tests PRIVATE /W4 /utf-8)
