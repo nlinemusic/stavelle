@@ -1,0 +1,52 @@
+{
+  "schema": "jubelle.workflowprofile/1",
+  "id": "finale",
+  "name": "Finale-style",
+  "description": "Finale Simple Entry habits: number keys add intervals, durations on the numeric keypad (or Alt/Option + number), L flips stems, H hides, / breaks beams; Finale-like Utilities and Document menus.",
+  "shortcuts": {
+    "interval1": ["1"], "interval2": ["2"], "interval3": ["3"], "interval4": ["4"],
+    "interval5": ["5"], "interval6": ["6"], "interval7": ["7"], "interval8": ["8"], "interval9": ["Ctrl+Shift+9"],
+    "interval-2": ["Shift+2"], "interval-3": ["Shift+3"], "interval-4": ["Shift+4"], "interval-5": ["Shift+5"],
+    "interval-6": ["Shift+6"], "interval-7": ["Shift+7"], "interval-8": ["Shift+8"], "interval-9": ["Shift+9"],
+    "pad-note-64": ["Num+1", "Ctrl+Alt+Shift+1"],
+    "pad-note-32": ["Num+2", "Alt+2", "Ctrl+Alt+Shift+2"],
+    "pad-note-16": ["Num+3", "Alt+3", "Ctrl+Alt+Shift+3"],
+    "pad-note-8": ["Num+4", "Alt+4", "Ctrl+Alt+Shift+4"],
+    "pad-note-4": ["Num+5", "Alt+5", "Ctrl+Alt+Shift+5"],
+    "pad-note-2": ["Num+6", "Alt+6", "Ctrl+Alt+Shift+6"],
+    "pad-note-1": ["Num+7", "Alt+7", "Ctrl+Alt+Shift+7"],
+    "note-breve": ["Num+8", "Ctrl+Alt+Shift+8"],
+    "flip": ["X", "L"],
+    "toggle-visible": ["V", "H"],
+    "beam-break-left": ["/"],
+    "acciaccatura": ["Num+/"]
+  },
+  "menus": [
+    { "id": "menu-file", "title": "&File", "takes": ["menu-file"] },
+    { "id": "menu-edit", "title": "&Edit", "takes": ["menu-edit"] },
+    { "id": "menu-finale-utilities", "title": "&Utilities",
+      "entries": ["transpose", "menu-enharmonic-spelling", "-", "explode", "implode", "realize-chord-symbols", "-",
+                  "reset-beammode", "reset-groupings", "-", "menu-voices", "-", "jubelle-proofread-score",
+                  "del-empty-measures", "-", "slash-fill", "slash-rhythm"],
+      "takes": ["menu-tools"] },
+    { "id": "menu-view", "title": "&View", "takes": ["menu-view"] },
+    { "id": "menu-format", "title": "&Document",
+      "entries": ["edit-style", "page-settings", "parts", "-", "menu-jubelle-look", "-", "measures-per-system",
+                  "menu-stretch", "menu-jubelle-align", "-", "menu-jubelle-reset", "-", "load-style", "save-style"],
+      "takes": ["menu-format"] },
+    { "id": "menu-jubelle-playback", "title": "&MIDI/Audio", "takes": ["menu-jubelle-playback"] },
+    { "id": "menu-plugins", "title": "Plu&g-ins", "takes": ["menu-plugins"] },
+    { "id": "menu-add", "title": "&Tools",
+      "entries": ["note-input", "-", "menu-notes", "menu-intervals", "menu-tuplets", "-", "menu-text", "menu-lines",
+                  "menu-chord-and-frets", "-", "menu-measures", "menu-frames"],
+      "takes": ["menu-add"] },
+    { "id": "menu-help", "title": "&Help", "takes": ["menu-help"] }
+  ],
+  "toolbar": ["pad-note-1", "pad-note-2", "pad-note-4", "pad-note-8", "pad-note-16", "pad-note-32", "pad-note-64"],
+  "behaviour": {
+    "noteInputMethod": "BY_NOTE_NAME",
+    "accidentalsApplyToNextNote": false,
+    "noteInputCursorInInputByDuration": false,
+    "selectionProximity": 2
+  }
+}

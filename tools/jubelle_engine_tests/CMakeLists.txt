@@ -123,6 +123,10 @@ add_executable(jubelle_engine_tests
     jubelle_playbacklevels_tests.cpp
     jubelle_updateverify_tests.cpp
     jubelle_crashreport_tests.cpp
+    jubelle_bugreport_tests.cpp
+    ${MU_ROOT}/src/appshell/internal/jubelle/bugreport/bugreport.cpp
+    jubelle_workflowprofiles_tests.cpp
+    ${MU_ROOT}/src/appshell/internal/jubelle/workflowprofiles/workflowprofile.cpp
     ${MU_ROOT}/src/appshell/internal/jubelle/crashreport.cpp
     ${MU_ROOT}/src/framework/update/internal/jubelle/updateverify.cpp
     # Engine baselines (measurements only)

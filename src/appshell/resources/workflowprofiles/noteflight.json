@@ -1,0 +1,43 @@
+{
+  "schema": "jubelle.workflowprofile/1",
+  "id": "noteflight",
+  "name": "Noteflight-style",
+  "description": "Noteflight habits: Space turns the note into a rest, Z respells enharmonically, : tenuto, P plays; menus grouped as Score, Staff, Measure, Notes and Text.",
+  "shortcuts": {
+    "rest": ["0", "Num+0", "Space"],
+    "play": ["P"],
+    "toggle-piano-keyboard": ["Alt+Shift+P"],
+    "enh-both": ["J", "Z"],
+    "add-tenuto": [":"]
+  },
+  "menus": [
+    { "id": "menu-file", "title": "&File", "takes": ["menu-file"] },
+    { "id": "menu-edit", "title": "&Edit", "takes": ["menu-edit"] },
+    { "id": "menu-view", "title": "&View", "takes": ["menu-view"] },
+    { "id": "menu-noteflight-score", "title": "&Score",
+      "entries": ["edit-style", "page-settings", "project-properties", "-", "menu-jubelle-look", "-",
+                  "measures-per-system", "menu-stretch", "menu-jubelle-align", "-", "transpose", "-",
+                  "menu-jubelle-score-parts", "parts", "-", "menu-jubelle-reset", "-", "load-style", "save-style"],
+      "takes": ["menu-format"] },
+    { "id": "menu-noteflight-staff", "title": "S&taff",
+      "entries": ["toggle-instruments", "-", "menu-voices", "-", "explode", "implode"] },
+    { "id": "menu-noteflight-measure", "title": "&Measure",
+      "entries": ["menu-measures", "menu-frames", "-", "menu-tools-measures", "-", "resequence-rehearsal-marks"] },
+    { "id": "menu-noteflight-notes", "title": "&Notes",
+      "entries": ["note-input", "menu-notes", "menu-intervals", "menu-tuplets", "-", "menu-enharmonic-spelling", "-",
+                  "slash-fill", "slash-rhythm", "realize-chord-symbols", "reset-groupings"] },
+    { "id": "menu-noteflight-text", "title": "Te&xt", "takes": ["menu-text", "menu-lines", "menu-chord-and-frets"],
+      "entries": ["*", "-", "copy-lyrics-to-clipboard"] },
+    { "id": "menu-jubelle-playback", "title": "&Playback", "takes": ["menu-jubelle-playback"] },
+    { "id": "menu-tools", "title": "T&ools", "takes": ["menu-tools", "menu-add"] },
+    { "id": "menu-plugins", "title": "&Plugins", "takes": ["menu-plugins"] },
+    { "id": "menu-help", "title": "&Help", "takes": ["menu-help"] }
+  ],
+  "toolbar": ["pad-note-1", "pad-note-2", "pad-note-4", "pad-note-8", "pad-note-16", "pad-note-32", "pad-note-64"],
+  "behaviour": {
+    "noteInputMethod": "BY_NOTE_NAME",
+    "accidentalsApplyToNextNote": false,
+    "noteInputCursorInInputByDuration": false,
+    "selectionProximity": 2
+  }
+}

@@ -239,8 +239,8 @@ MenuItem* AppMenuModel::makeFileMenu()
         makeMenuItem("file-save"),
         makeMenuItem("file-save-as"),
         makeMenuItem("file-save-to-cloud"),
-        makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems()),
-        makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems()),
+        makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems(), "menu-file-save-other"),
+        makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems(), "menu-file-publish"),
         makeSeparator(),
         makeIconItem("jubelle-import-scores", IconCode::Code::IMPORT),
         withIcon(makeMenu(TranslatableString("appshell/menu/file", "E&xport"), exportItems, "menu-jubelle-export"), IconCode::Code::SHARE_FILE),
@@ -839,7 +839,7 @@ MenuItemList AppMenuModel::makeFramesItems()
         makeMenuItem("insert-textframe"),
         makeMenuItem("insert-fretframe"),
         makeSeparator(),
-        makeMenu(TranslatableString("notation", "Insert at end of score"), makeFramesAppendItems())
+        makeMenu(TranslatableString("notation", "Insert at end of score"), makeFramesAppendItems(), "menu-frames-append")
     };
 
     return items;
