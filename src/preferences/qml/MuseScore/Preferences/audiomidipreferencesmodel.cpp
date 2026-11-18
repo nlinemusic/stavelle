@@ -309,3 +309,23 @@ void AudioMidiPreferencesModel::setUseSoundFontLowPassFilter(bool value)
 
     audioConfiguration()->setUseSoundFontLowPassFilter(value);
 }
+
+QString AudioMidiPreferencesModel::museSoundsStatus() const
+{
+    // Jubelle: detection and diagnostics stay; this explains them in plain words
+    if (!museSamplerInfo()) {
+        return QString();
+    }
+    if (museSamplerInfo()->initFailed()) {
+        return muse::qtrc("preferences", "A MuseSounds engine (version %1) is installed, but it refused to start in Jubelle. "
+                                         "It is most likely made to work only inside MuseScore Studio, and Jubelle will not get round that. "
+                                         "MuseSounds instruments play with Jubelle's built-in sounds instead; for realistic sounds use VST3 "
+                                         "instruments, SoundFonts or SFZ libraries. Learning Center › Playback explains more.")
+               .arg(museSamplerInfo()->version().toString().toQString());
+    }
+    if (museSamplerInfo()->isLoaded()) {
+        return muse::qtrc("preferences", "A MuseSounds engine (version %1) is installed and started.")
+               .arg(museSamplerInfo()->version().toString().toQString());
+    }
+    return QString();
+}

@@ -117,6 +117,31 @@ var topics = [
       ] },
 
     // ---------------------------------------------------------------- Playback
+    { section: "Playback", title: "Why MuseSounds don't play in Jubelle",
+      summary: "Jubelle finds an installed MuseSounds engine, but the engine won't start outside MuseScore Studio.",
+      body: [
+        "MuseSounds are Muse Group's own sound libraries, installed with Muse Hub. Jubelle can see an installed MuseSounds engine, and it tries to use it the same way MuseScore does. The engine then refuses to start, without saying why. It is most likely made to work only inside the official MuseScore Studio.",
+        "Jubelle will not imitate MuseScore or get round the engine's checks, so MuseSounds stay silent in Jubelle. Nothing is wrong with your computer or your installation, and MuseScore Studio still plays them as before.",
+        "Scores that use MuseSounds open normally in Jubelle; those instruments play with Jubelle's built-in sounds instead. To hear realistic instruments in Jubelle, use VST3 instruments (Mixer › the instrument's sound › VST3), SoundFonts (SF2, SF3) or SFZ libraries through the free sfizz VST3 plugin.",
+        "<b>Preferences › Audio & MIDI</b> shows whether a MuseSounds engine was found and whether it started."
+      ] },
+    { section: "Playback", title: "VST3 instruments: key switches, level and bend range",
+      summary: "Make a sample library change articulation by itself, sit at the right level and glide smoothly.",
+      body: [
+        "1. Open the instrument's window from the Mixer and press <b>Instrument settings…</b>.",
+        "2. <b>Level trim</b> makes this instrument louder or quieter than the others without changing its dynamics.",
+        "3. <b>Pitch-bend range</b>: set it to the bend range in the library's own settings. Glissandos and falls wider than that then glide instead of jumping.",
+        "4. <b>Key switches</b>: if the library changes articulation with low \"key switch\" notes, enter the key for staccato, mute, falls and so on, and the key for Normal. Choose whether the library calls middle C \"C4\" or \"C3\". Before each note Jubelle sends the right key.",
+        "Everything is saved with the score. The Plugins page (Home › Plugins › Audio plugins) lists every VST3 plugin, switches plugins on or off and explains any that could not be loaded."
+      ] },
+    { section: "Export", title: "Making a video of the score",
+      summary: "Still printed pages on white paper, with the sound, in the order you choose.",
+      body: [
+        "1. <b>File › Export…</b> and choose MP4 Video.",
+        "2. Under <b>Pages and order</b>, click pages to add them, use <b>Add again</b> to repeat one, <b>Remove</b> to leave one out, and the arrows to change the order. The sentence below the list says what the video will show and how long it is. <b>Preview</b> plays the first seconds of each entry.",
+        "3. The video starts on the first page, silent for the lead-in, with no title screen. The playback cursor is off unless you tick <b>Show playback cursor</b>.",
+        "The sound follows the pages you chose, with a short crossfade wherever music is skipped or repeated. <b>Sound quality (AAC)</b> sets the video's own sound quality, separate from MP3 export."
+      ] },
     { section: "Playback", title: "Swing",
       summary: "Choose a feel for the score or for single instruments. Playback only.",
       body: [
