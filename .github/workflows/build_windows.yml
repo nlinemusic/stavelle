@@ -308,6 +308,9 @@ jobs:
         path: template_prints/
     - name: Package
       shell: cmd
+      env:
+        # packaging configures again: the same release key, so nothing is rebuilt
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
       run: |
         :: Jubelle: no code-signing certificate, and the installer uses Jubelle's own
         :: upgrade code (set in package.bat), never MuseScore's.
@@ -315,6 +318,26 @@ jobs:
     - name: Checksum
       run: |
         bash ./buildscripts/ci/tools/checksum.sh
+    - name: "Jubelle: release key inside the installer"
+      shell: bash
+      env:
+        JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
+      run: |
+        if [ -z "$JUBELLE_RELEASE_PUBLIC_KEY" ]; then exit 0; fi
+        MSI=$(ls build.artifacts/*.msi | head -1)
+        mkdir -p msi_unpacked
+        # an administrative install only unpacks the files; nothing is installed
+        cmd //c "msiexec /a $(cygpath -w "$MSI") /qn TARGETDIR=$(cygpath -w "$PWD/msi_unpacked")"
+        python -X utf8 - "$JUBELLE_RELEASE_PUBLIC_KEY" msi_unpacked <<'PY'
+        import pathlib, sys
+        key, folder = sys.argv[1].lower().encode(), pathlib.Path(sys.argv[2])
+        exes = [p for p in folder.rglob("Jubelle.exe")]
+        found = [str(p) for p in exes if key in p.read_bytes().lower()]
+        print("Jubelle.exe in the installer:", [str(p) for p in exes])
+        print("release key found in:", found or "nothing")
+        sys.exit(0 if found else 1)
+        PY
+        echo "- release key inside the installer: yes" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Upload debug files
       if: env.DO_UPLOAD_SYMBOLS == 'true'
