@@ -25,6 +25,8 @@
 
 #include "global/io/path.h"
 
+#include <string>
+
 namespace muse::audioplugins {
 class IAudioPluginsConfiguration : MODULE_GLOBAL_INTERFACE
 {
@@ -34,5 +36,10 @@ public:
     virtual ~IAudioPluginsConfiguration() = default;
 
     virtual io::path_t knownAudioPluginsFilePath() const = 0;
+
+    //! Jubelle: plugins you have switched off on the Plugins page. Kept apart from the
+    //! scan results, so a rescan never switches them back on. Thread-safe.
+    virtual bool isUserDisabled(const std::string&) const { return false; }
+    virtual void setUserDisabled(const std::string&, bool) {}
 };
 }

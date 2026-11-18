@@ -48,6 +48,9 @@ add_executable(jubelle_platform_tests
     ${ROOT}/src/framework/vst/internal/jubelle/vstpresetfile.cpp
     ${ROOT}/src/framework/vst/internal/jubelle/vstpresetfile.h
     ${ROOT}/src/framework/vst/tests/jubelle_vstpreset_tests.cpp
+    ${ROOT}/src/framework/vst/internal/jubelle/vstkeyswitches.cpp
+    ${ROOT}/src/framework/vst/internal/jubelle/vstkeyswitches.h
+    ${ROOT}/src/framework/vst/tests/jubelle_vstkeyswitches_tests.cpp
     ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.cpp
     ${ROOT}/src/importexport/videoexport/internal/jubelle/audiosplice.h
     ${ROOT}/src/importexport/videoexport/tests/jubelle_audiosplice_tests.cpp

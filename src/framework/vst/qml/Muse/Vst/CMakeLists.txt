@@ -8,6 +8,8 @@ qt_add_qml_module(muse_vst_qml
         vstview.h
         vstpresetsmodel.cpp
         vstpresetsmodel.h
+        vstinstrumentsettingsmodel.cpp
+        vstinstrumentsettingsmodel.h
     QML_FILES
         VstEditor.qml
         VstEditorDialog.qml

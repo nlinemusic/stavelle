@@ -24,6 +24,10 @@
 
 #include "../iaudiopluginsconfiguration.h"
 
+#include <mutex>
+#include <set>
+#include <string>
+
 #include "modularity/ioc.h"
 #include "global/iglobalconfiguration.h"
 
@@ -37,5 +41,16 @@ public:
         : Contextable(iocCtx) {}
 
     io::path_t knownAudioPluginsFilePath() const override;
+
+    bool isUserDisabled(const std::string& resourceId) const override;
+    void setUserDisabled(const std::string& resourceId, bool disabled) override;
+
+private:
+    io::path_t userDisabledFilePath() const;
+    void loadUserDisabled() const;
+
+    mutable std::mutex m_mutex;
+    mutable bool m_userDisabledLoaded = false;
+    mutable std::set<std::string> m_userDisabled;
 };
 }

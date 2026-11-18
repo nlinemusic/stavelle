@@ -71,6 +71,7 @@ public:
     muse::audio::samples_t process(float* buffer, muse::audio::samples_t samplesPerChannel) override;
 
 private:
+    void applyJubelleSettings(bool rebuildEvents);
     void updateRenderingMode(const audio::RenderMode mode) override;
 
     void toggleVolumeGain(const bool isActive);

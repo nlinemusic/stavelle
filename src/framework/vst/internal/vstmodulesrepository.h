@@ -30,6 +30,7 @@
 
 #include "modularity/ioc.h"
 #include "audioplugins/iknownaudiopluginsregister.h"
+#include "audioplugins/iaudiopluginsconfiguration.h"
 #include "audio/common/iaudiothreadsecurer.h"
 
 #include "audioplugins/audiopluginstypes.h"
@@ -41,6 +42,7 @@ class VstModulesRepository : public IVstModulesRepository, public muse::Contexta
     muse::GlobalInject<muse::audio::IAudioThreadSecurer> threadSecurer;
 
     muse::ContextInject<audioplugins::IKnownAudioPluginsRegister> knownPlugins { this };
+    muse::GlobalInject<audioplugins::IAudioPluginsConfiguration> pluginsConfiguration;
 public:
     VstModulesRepository(const muse::modularity::ContextPtr& ctx)
         : muse::Contextable(ctx) {}

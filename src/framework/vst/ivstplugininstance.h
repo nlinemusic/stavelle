@@ -21,6 +21,9 @@
  */
 #pragma once
 
+#include <map>
+#include <string>
+
 #include <string>
 
 #include "global/async/notification.h"
@@ -57,6 +60,10 @@ public:
     virtual std::string jubellePluginVendor() const { return {}; }
     virtual std::string jubellePluginName() const { return {}; }
     virtual std::string jubellePluginClassId() const { return {}; }
+    //! Jubelle: this instrument's own settings ("jubelle.keyswitches", "jubelle.trimDb", "jubelle.bendRange"),
+    //! saved with the score alongside the plugin's state
+    virtual std::map<std::string, std::string> jubelleExtras() const { return {}; }
+    virtual void jubelleSetExtra(const std::string& /*key*/, const std::string& /*value*/) {}
     virtual bool jubelleApplyPresetStates(const std::string& /*componentState*/, const std::string& /*controllerState*/)
     {
         return false;

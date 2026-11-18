@@ -34,6 +34,8 @@ qt_add_qml_module(appshell_qml
         FirstLaunchSetup/firstlaunchsetupmodel.h
         FirstLaunchSetup/themespagemodel.cpp
         FirstLaunchSetup/themespagemodel.h
+        HomePage/audiopluginsmodel.cpp
+        HomePage/audiopluginsmodel.h
         HomePage/learningcentermodel.cpp
         HomePage/learningcentermodel.h
         maintoolbarmodel.cpp
@@ -72,6 +74,7 @@ qt_add_qml_module(appshell_qml
         HomePage/LearningCenterPage.qml
         HomePage/LearningContent.js
         HomePage/PluginsPage.qml
+        HomePage/AudioPluginsSection.qml
         HomePage/SettingsPage.qml
         MainToolBar.qml
         NotationPage/NotationPage.qml

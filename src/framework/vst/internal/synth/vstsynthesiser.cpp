@@ -21,6 +21,10 @@
  */
 #include "vstsynthesiser.h"
 
+#include <cstdlib>
+
+#include "../jubelle/vstkeyswitches.h"
+
 #include "log.h"
 
 using namespace muse;
@@ -67,6 +71,7 @@ void VstSynthesiser::init(const OutputSpec& spec)
         m_vstAudioClient->setOutputSpec(m_outputSpec);
         m_vstAudioClient->loadSupportedParams();
         m_sequencer.init(m_vstAudioClient->paramsMapping(SUPPORTED_CONTROLLERS), m_useDynamicEvents);
+        applyJubelleSettings(false);
         m_inited = true;
     };
 
@@ -77,11 +82,20 @@ void VstSynthesiser::init(const OutputSpec& spec)
     }
 
     m_pluginPtr->pluginSettingsChanged().onReceive(this, [this](const muse::audio::AudioUnitConfig& newConfig) {
-        if (m_params.configuration == newConfig) {
+        // Jubelle: the plugin reports only its own state; keep the instrument's Jubelle settings
+        // (key switches, level trim, bend range) unless the new settings carry them
+        muse::audio::AudioUnitConfig merged = newConfig;
+        for (const auto& [key, value] : m_params.configuration) {
+            if (key.rfind("jubelle.", 0) == 0 && merged.find(key) == merged.end()) {
+                merged.emplace(key, value);
+            }
+        }
+        if (m_params.configuration == merged) {
             return;
         }
 
-        m_params.configuration = newConfig;
+        m_params.configuration = merged;
+        applyJubelleSettings(true);
         m_paramsChanges.send(m_params);
     });
 
@@ -261,4 +275,20 @@ samples_t VstSynthesiser::processSequence(const VstSequencer::EventSequence& seq
     }
 
     return m_vstAudioClient->process(buffer, samples, m_currentPositionSamples);
+}
+
+void VstSynthesiser::applyJubelleSettings(bool rebuildEvents)
+{
+    // Jubelle: the instrument's key switches, level trim and pitch-bend range, from its saved settings
+    auto value = [this](const char* key) {
+        auto it = m_params.configuration.find(key);
+        return it != m_params.configuration.end() ? it->second : std::string();
+    };
+    m_sequencer.setJubelleKeySwitches(jubelle::parseKeySwitches(value(jubelle::KEYSWITCHES_SETTING)));
+    const std::string bend = value("jubelle.bendRange");
+    m_sequencer.setJubelleBendRange(bend.empty() ? 2.f : float(std::atof(bend.c_str())));
+    m_vstAudioClient->setJubelleTrimGain(jubelle::trimGain(jubelle::parseTrimDb(value(jubelle::TRIM_SETTING))));
+    if (rebuildEvents && m_inited) {
+        m_sequencer.updateMainStream();
+    }
 }
