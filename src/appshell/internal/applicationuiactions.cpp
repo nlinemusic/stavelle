@@ -231,6 +231,32 @@ const UiActionList ApplicationUiActions::m_actions = {
              Checkable::Yes
              ),
 
+    //! Jubelle: menu entry points (menu reorganisation)
+    UiAction("jubelle-learning-center",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Learning Center"),
+             TranslatableString("action", "Guides, instrument ranges and shortcuts, offline")
+             ),
+    UiAction("jubelle-import-scores",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "&Import scores…"),
+             TranslatableString("action", "Bring MuseScore files, MusicXML and Noteflight exports into Projects; the originals are kept")
+             ),
+    UiAction("jubelle-sound-sources",
+             mu::context::UiCtxAny,
+             mu::context::CTX_ANY,
+             TranslatableString("action", "Sound so&urces…"),
+             TranslatableString("action", "Where Jubelle's sounds come from: built-in sounds, VST3, SoundFonts and MuseSounds")
+             ),
+    UiAction("jubelle-proofread-score",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "&Proofread score"),
+             TranslatableString("action", "Open the Proofread panel and check the score")
+             ),
+
     UiAction("preference-dialog",
              mu::context::UiCtxAny,
              mu::context::CTX_ANY,

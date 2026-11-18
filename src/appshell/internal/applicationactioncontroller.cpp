@@ -20,6 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "applicationactioncontroller.h"
+#include "appshelltypes.h"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -76,6 +77,22 @@ void ApplicationActionController::init()
 
     dispatcher()->reg(this, "manage-plugins", [this]() {
         interactive()->open("musescore://home?section=plugins");
+    });
+    // Jubelle: menu entry points (menu reorganisation, 18 Nov 2026)
+    dispatcher()->reg(this, "jubelle-learning-center", [this]() {
+        interactive()->open("musescore://home?section=learning");
+    });
+    dispatcher()->reg(this, "jubelle-import-scores", [this]() {
+        interactive()->open("musescore://home?section=scores&subSection=import");
+    });
+    dispatcher()->reg(this, "jubelle-proofread-score", [this]() {
+        // opens the panel (never closes it; View › Proofread is the on/off)
+        dispatcher()->dispatch("dock-set-open", ActionData::make_arg2<QString, bool>(JUBELLE_PROOFREAD_PANEL_NAME, true));
+    });
+    dispatcher()->reg(this, "jubelle-sound-sources", [this]() {
+        UriQuery uri("muse://preferences");
+        uri.addParam("currentPageId", Val("audio-midi"));
+        interactive()->open(uri);
     });
 
     // Global actions

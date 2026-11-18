@@ -92,6 +92,10 @@ private:
 
     using muse::uicomponents::AbstractMenuModel::makeMenuItem;
     muse::uicomponents::MenuItem* makeMenuItem(const muse::actions::ActionCode& actionCode, muse::uicomponents::MenuItemRole role);
+    //! Jubelle: a menu item with an icon beside its label (the label always stays)
+    muse::uicomponents::MenuItem* makeIconItem(const muse::actions::ActionCode& actionCode, muse::ui::IconCode::Code icon);
+    //! Jubelle: an icon beside a menu's title
+    static muse::uicomponents::MenuItem* withIcon(muse::uicomponents::MenuItem* menu, muse::ui::IconCode::Code icon);
 
     muse::uicomponents::MenuItem* makeFileMenu();
     muse::uicomponents::MenuItemList makeSaveOtherSubItems();

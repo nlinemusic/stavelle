@@ -63,6 +63,8 @@ qt_add_qml_module(inspector_qml
         notation/ambituses/ambitussettingsmodel.cpp
         notation/ambituses/ambitussettingsmodel.h
         notation/jubelleplaybacksection.cpp
+        notation/jubellecontextsettingsmodel.cpp
+        notation/jubellecontextsettingsmodel.h
         notation/jubelleplaybacksection.h
         notation/articulations/articulationsettingsmodel.cpp
         notation/articulations/articulationsettingsmodel.h
@@ -245,6 +247,7 @@ qt_add_qml_module(inspector_qml
         common/JubelleRepeatPlaybackHeader.qml
         common/JubelleDefaultValue.qml
         common/JubellePlaybackValues.qml
+        common/JubelleContextSection.qml
         common/JubelleLinkedPassageHeader.qml
         common/DirectionSection.qml
         common/DropdownPropertyView.qml

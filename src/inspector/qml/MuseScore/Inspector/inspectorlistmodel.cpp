@@ -20,6 +20,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 #include "inspectorlistmodel.h"
+#include "notation/jubellecontextsettingsmodel.h"
 
 #include "general/generalsettingsmodel.h"
 #include "measures/measuressettingsmodel.h"
@@ -241,6 +242,9 @@ void InspectorListModel::createModelsBySectionType(const InspectorSectionTypeSet
             break;
         case InspectorSectionType::SECTION_PARTS:
             newModel = new PartsSettingsModel(this, iocContext(), m_repository.get());
+            break;
+        case InspectorSectionType::SECTION_JUBELLE:
+            newModel = new JubelleContextSettingsModel(this, iocContext(), m_repository.get());
             break;
         case AbstractInspectorModel::InspectorSectionType::SECTION_UNDEFINED:
             break;

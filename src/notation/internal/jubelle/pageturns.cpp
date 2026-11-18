@@ -327,4 +327,19 @@ TurnResult optimiseTurns(Score* score, const TurnSettings& settings)
     }
     return result;
 }
+
+bool isJubelleTurnBreak(const EngravingItem* item)
+{
+    return item && item->isLayoutBreak() && toLayoutBreak(item)->layoutBreakType() == LayoutBreakType::PAGE
+           && isJubelleBreak(toLayoutBreak(item));
+}
+
+void keepTurnBreakAsOwn(Score* score, EngravingItem* item)
+{
+    if (!score || !isJubelleTurnBreak(item)) {
+        return;
+    }
+    // Jubelle's own breaks are told apart by their stacking order only; the default makes it yours
+    item->undoChangeProperty(Pid::Z, item->propertyDefault(Pid::Z));
+}
 }
