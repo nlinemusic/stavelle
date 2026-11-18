@@ -21,6 +21,9 @@
  */
 #include "videowriter.h"
 
+#include <algorithm>
+#include <vector>
+
 #include <cmath>
 
 #include <QPainter>
@@ -718,14 +721,33 @@ bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::
     format.bitRate = cfg.audioBitrateKbps;
 
     muse::audio::encode::AacEncoder aac;
-    if (!aac.init(aacPath, format, static_cast<muse::audio::samples_t>(jubelle::splicedFrames(wav, pieces)))) {
+    const int64_t totalFrames = jubelle::splicedFrames(wav, pieces);
+    if (!aac.init(aacPath, format, static_cast<muse::audio::samples_t>(totalFrames))) {
         LOGE() << "video sound: AAC encoder could not start";
         return false;
+    }
+    // The AAC encoder starts its output with a few hundredths of a second of priming, and a raw AAC stream
+    // can't tell the player to skip it, so the sound would run that much behind the pictures. The silent
+    // lead-in absorbs it: that much less lead-in at the start, the same amount of silence at the end, so the
+    // music lands exactly on its pages and the length is unchanged.
+    const double rate = double(wav.sampleRate());
+    const double skip = rate > 0 ? std::min(double(aac.jubelleEncoderDelay()) / rate, double(cfg.leadingSec)) : 0.0;
+    int64_t padFrames = 0;
+    if (skip > 0.0) {
+        if (pieces.empty()) {
+            pieces.push_back({ 0.0, double(wav.frames()) / rate });
+        }
+        pieces.front().first += skip;
+        padFrames = std::max<int64_t>(0, totalFrames - jubelle::splicedFrames(wav, pieces));
     }
     jubelle::SpliceOptions options;
     jubelle::splice(wav, pieces, options, [&aac](int64_t frames, const float* samples) {
         aac.encode(static_cast<muse::audio::samples_t>(frames), samples);
     });
+    if (padFrames > 0) {
+        const std::vector<float> silence(size_t(padFrames) * size_t(std::max(1, wav.channels())), 0.0f);
+        aac.encode(static_cast<muse::audio::samples_t>(padFrames), silence.data());
+    }
     aac.flush();
     aac.deinit();
     return true;

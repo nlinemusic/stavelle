@@ -161,6 +161,11 @@ void AacEncoder::prepareOutputBuffer(const samples_t /*totalSamplesNumber*/)
     m_outputBuffer.clear();
 }
 
+samples_t AacEncoder::jubelleEncoderDelay() const
+{
+    return m_handler ? static_cast<samples_t>(m_handler->info.nDelay) : 0;
+}
+
 size_t AacEncoder::encode(samples_t samplesPerChannel, const float* input)
 {
     IF_ASSERT_FAILED(m_handler && m_fileStream) {

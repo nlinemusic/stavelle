@@ -180,9 +180,11 @@ def main():
             length_diff = abs(len(body) / m_rate - len(ref) / r_rate)
             lead_db = rms_db(mp4[:lead])
             peak = max((abs(v) for v in body), default=0.0)
-            # timing: correlate 100-sample averages (fast in plain Python), ±0.5 s
+            # timing: correlate the loudness envelopes (mean of |sample| over 2 ms blocks, fast in plain Python), ±0.5 s.
+            # Averaging the signed samples instead would cancel everything above ~250 Hz and leave noise.
             factor = 100
-            lag, corr = best_lag(downsample(ref, factor), downsample(body, factor), int(0.5 * r_rate / factor))
+            lag, corr = best_lag(downsample([abs(v) for v in ref], factor), downsample([abs(v) for v in body], factor),
+                                 int(0.5 * r_rate / factor))
             lag_ms = lag * factor * 1000.0 / r_rate
             f_ref, f_mp4 = peak_frequency(ref, r_rate), peak_frequency(body, m_rate)
             lvl_ref, lvl_mp4 = rms_db(ref), rms_db(body)

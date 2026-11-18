@@ -394,7 +394,7 @@ FocusScope {
                                     Layout.fillWidth: true
                                     horizontalAlignment: Text.AlignLeft
                                     font: ui.theme.bodyBoldFont
-                                    text: instrumentRow.modelData.name
+                                    text: instrumentRow.modelData.name || ""   // header rows have no name
                                 }
                                 StyledTextLabel {
                                     Layout.fillWidth: true
@@ -427,7 +427,7 @@ FocusScope {
                                     horizontalAlignment: Text.AlignLeft
                                     wrapMode: Text.Wrap
                                     color: instrumentRow.modelData.transposing ? root.jubellePurple : ui.theme.fontPrimaryColor
-                                    text: instrumentRow.modelData.transposition
+                                    text: instrumentRow.modelData.transposition || ""
                                 }
                                 StyledTextLabel {
                                     Layout.fillWidth: true

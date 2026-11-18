@@ -236,6 +236,14 @@ void LearningCenterModel::rebuild()
         header["title"] = family.isEmpty() ? QStringLiteral("—") : family;
         header["count"] = int(list.size());
         header["collapsed"] = collapsed;
+        // the row delegate binds these on every row, headers included
+        header["name"] = QString();
+        header["transposition"] = QString();
+        header["comfortable"] = QString();
+        header["written"] = QString();
+        header["sounding"] = QString();
+        header["transposing"] = false;
+        header["selected"] = false;
         m_instruments << header;
         if (!collapsed) {
             m_instruments << list;
