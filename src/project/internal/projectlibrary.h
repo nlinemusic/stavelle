@@ -182,4 +182,23 @@ ExportKind exportKindFor(const std::string& suffix, bool combinedIntoOneFile, bo
 
 //! True if both paths name the same existing folder.
 bool isSameFolder(const std::string& a, const std::string& b);
+
+// ---------------------------------------------------------------------------
+// Jubelle: librarian export (File › Export for Library…): what a library or a
+// band's music folder expects. Plain text, no Qt; written by the command.
+// ---------------------------------------------------------------------------
+
+struct LibraryPart {
+    std::string name;           // "Tenor Saxophone 1"
+    std::string instrumentLine; // "Tenor Saxophone 1 (doubling Flute)"
+};
+
+//! "00 Full Score.pdf", "03 Tenor Saxophone 1.pdf": numbered in score order, so a folder sorts
+//! the way the band sits; characters a file name can't hold are replaced
+std::string libraryFileName(int number, const std::string& name, const std::string& suffix);
+//! The instrumentation list: one line per player, in score order, with doublings
+std::string instrumentationList(const std::string& title, const std::vector<LibraryPart>& parts);
+//! The folder index: title, composer or arranger, date, and every file with what it is
+std::string folderIndex(const std::string& title, const std::string& composer, const std::string& date,
+                        const std::vector<std::pair<std::string, std::string> >& files);
 }

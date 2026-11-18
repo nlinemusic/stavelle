@@ -18,6 +18,8 @@
  */
 #include "projectlibrary.h"
 
+#include <cstdio>
+
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -930,5 +932,50 @@ Result silenceAddToProjects(const std::string& mainFolder, const std::string& sc
     std::ofstream out(list, std::ios::binary | std::ios::app);
     out << scorePath << "\n";
     return out ? success(list) : fail("The list could not be written.");
+}
+
+std::string libraryFileName(int number, const std::string& name, const std::string& suffix)
+{
+    std::string clean;
+    for (char c : name) {
+        clean += (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') ? '-' : c;
+    }
+    while (!clean.empty() && (clean.back() == ' ' || clean.back() == '.')) {
+        clean.pop_back();
+    }
+    if (clean.empty()) {
+        clean = "Part";
+    }
+    char num[16];
+    std::snprintf(num, sizeof(num), "%02d", number);
+    return std::string(num) + " " + clean + "." + suffix;
+}
+
+std::string instrumentationList(const std::string& title, const std::vector<LibraryPart>& parts)
+{
+    std::string out = "Instrumentation: " + title + "\n\n";
+    int n = 1;
+    for (const LibraryPart& p : parts) {
+        out += std::to_string(n++) + ". " + (p.instrumentLine.empty() ? p.name : p.instrumentLine) + "\n";
+    }
+    out += "\n" + std::to_string(parts.size()) + (parts.size() == 1 ? " player\n" : " players\n");
+    return out;
+}
+
+std::string folderIndex(const std::string& title, const std::string& composer, const std::string& date,
+                        const std::vector<std::pair<std::string, std::string> >& files)
+{
+    std::string out = title + "\n";
+    if (!composer.empty()) {
+        out += composer + "\n";
+    }
+    if (!date.empty()) {
+        out += "Prepared " + date + "\n";
+    }
+    out += "\nContents of this folder\n";
+    for (const auto& [file, what] : files) {
+        out += "  " + file + (what.empty() ? std::string() : "  \xE2\x80\x94 " + what) + "\n";
+    }
+    return out;
 }
 }

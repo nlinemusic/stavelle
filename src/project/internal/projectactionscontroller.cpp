@@ -22,6 +22,10 @@
 #include "projectactionscontroller.h"
 #include "usertemplates.h"
 #include "projectlibrary.h"
+#include "notation/internal/jubelle/prepareparts.h"
+#include "io/filestream.h"
+
+#include <QDate>
 
 #include <QBuffer>
 #include <QEventLoop>
@@ -108,6 +112,9 @@ void ProjectActionsController::init()
             interactive()->open(DRUM_STEMS_URI);
         }
     });
+
+    //! Jubelle: a folder ready for a library or the band's music folder
+    dispatcher()->reg(this, "jubelle-library-export", [this]() { jubelleLibraryExport(); });
 
     dispatcher()->reg(this, "print", this, &ProjectActionsController::printScore);
 
@@ -2126,4 +2133,112 @@ QUrl ProjectActionsController::scoreManagerUrl() const
 void ProjectActionsController::openProjectProperties()
 {
     interactive()->open(PROJECT_PROPERTIES_URI);
+}
+
+// ---------------------------------------------------------------------------
+// Jubelle: librarian export
+// ---------------------------------------------------------------------------
+
+void ProjectActionsController::jubelleLibraryExport()
+{
+    INotationProjectPtr project = globalContext()->currentProject();
+    IMasterNotationPtr master = project ? project->masterNotation() : nullptr;
+    if (!master) {
+        return;
+    }
+    if (master->excerpts().empty()) {
+        interactive()->info(muse::trc("project", "No parts yet"),
+                            muse::trc("project", "Create the parts first (Parts in the toolbar), then export for the library."));
+        return;
+    }
+    INotationWriterPtr pdf = writers() ? writers()->writer("pdf") : nullptr;
+    if (!pdf) {
+        return;
+    }
+
+    const std::string projectFolder = projectlibrary::projectFolderForScore(project->path().toStdString());
+    const muse::io::path_t startDir = projectFolder.empty() ? configuration()->userProjectsPath() : muse::io::path_t(projectFolder);
+    const muse::io::path_t chosen = interactive()->selectDirectory(muse::trc("project", "Choose where to make the library folder"), startDir);
+    if (chosen.empty()) {
+        return;
+    }
+
+    mu::engraving::MasterScore* score = master->masterScore();
+    String title = score->metaTag(u"workTitle");
+    if (title.isEmpty()) {
+        title = io::filename(project->path(), false).toString();
+    }
+    const String composer = score->metaTag(u"arranger").isEmpty() ? score->metaTag(u"composer") : score->metaTag(u"arranger");
+    const std::string folderName = projectlibrary::libraryFileName(0, title.toStdString() + " - Library", "x");
+    // libraryFileName adds a number and a suffix; keep only the cleaned name
+    const std::string cleanTitle = folderName.substr(3, folderName.size() - 5);
+    const muse::io::path_t folder = chosen + "/" + cleanTitle;
+    fileSystem()->makePath(folder);
+
+    // make sure every part is laid out
+    ExcerptNotationList toInit;
+    for (const IExcerptNotationPtr& ex : master->excerpts()) {
+        if (!ex->isInited()) {
+            toInit.push_back(ex);
+        }
+    }
+    if (!toInit.empty()) {
+        master->initExcerpts(toInit);
+    }
+
+    auto writePdf = [&pdf](INotationPtr notation, const muse::io::path_t& path) {
+        io::FileStream out(path);
+        out.setMeta("file_path", path.toStdString());
+        if (!out.open(io::FileStream::WriteOnly)) {
+            return false;
+        }
+        const Ret ret = pdf->write(notation, out);
+        out.close();
+        return bool(ret) && !out.hasError();
+    };
+
+    std::vector<std::pair<std::string, std::string> > files;
+    std::vector<projectlibrary::LibraryPart> players;
+    std::vector<std::string> failed;
+
+    const std::string full = projectlibrary::libraryFileName(0, muse::trc("project", "Full Score"), "pdf");
+    if (writePdf(master->notation(), folder + "/" + full)) {
+        files.push_back({ full, muse::trc("project", "full score") });
+    } else {
+        failed.push_back(full);
+    }
+    int number = 1;
+    for (const IExcerptNotationPtr& ex : master->excerpts()) {
+        const std::string name = ex->name().toStdString();
+        const std::string file = projectlibrary::libraryFileName(number++, name, "pdf");
+        mu::engraving::Score* partScore = ex->notation() && ex->notation()->elements() ? ex->notation()->elements()->msScore() : nullptr;
+        players.push_back({ name, partScore ? mu::notation::jubelle::instrumentLine(partScore).toStdString() : std::string() });
+        if (writePdf(ex->notation(), folder + "/" + file)) {
+            files.push_back({ file, muse::trc("project", "part") });
+        } else {
+            failed.push_back(file);
+        }
+    }
+
+    auto writeText = [this](const muse::io::path_t& path, const std::string& text) {
+        return bool(fileSystem()->writeFile(path, muse::ByteArray(text.c_str(), text.size())));
+    };
+    const std::string instrumentation = muse::trc("project", "Instrumentation") + std::string(".txt");
+    if (writeText(folder + "/" + instrumentation, projectlibrary::instrumentationList(title.toStdString(), players))) {
+        files.push_back({ instrumentation, muse::trc("project", "who plays what, with doublings") });
+    }
+    const std::string date = QDate::currentDate().toString(Qt::ISODate).toStdString();
+    const std::string index = muse::trc("project", "Index") + std::string(".txt");
+    files.push_back({ index, muse::trc("project", "this list") });
+    writeText(folder + "/" + index, projectlibrary::folderIndex(title.toStdString(), composer.toStdString(), date, files));
+
+    std::string body = muse::qtrc("project", "%n file(s) in “%1”.", nullptr, int(files.size())).arg(folder.toQString()).toStdString();
+    if (!failed.empty()) {
+        body += "\n" + muse::trc("project", "Could not write:");
+        for (const std::string& f : failed) {
+            body += " " + f;
+        }
+    }
+    interactive()->info(muse::trc("project", "Library folder ready"), body);
+    interactive()->revealInFileBrowser(folder + "/" + index);
 }

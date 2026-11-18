@@ -88,6 +88,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/notation/internal/jubelle/chordidentifierrunner.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/swingmarking.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/partlayout.cpp
+    ${MU_ROOT}/src/notation/internal/jubelle/prepareparts.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/pageturns.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/drumstems.cpp
     ${MU_ROOT}/src/notation/internal/jubelle/instrumentreference.cpp
@@ -132,6 +133,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/engraving/tests/jubelle_repeats_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_swingmarking_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_partlayout_tests.cpp
+    ${MU_ROOT}/src/notation/tests/jubelle_prepareparts_tests.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_pageturns_tests.cpp
     jubelle_featurescore.cpp
     ${MU_ROOT}/src/notation/tests/jubelle_drumstems_tests.cpp

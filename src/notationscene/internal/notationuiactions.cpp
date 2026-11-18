@@ -534,6 +534,13 @@ const UiActionList NotationUiActions::s_actions = {
              TranslatableString("action", "Apply &Part Layout…"),
              TranslatableString("action", "Copy one part’s system and page breaks and other layout to other parts, without changing any music")
              ),
+    //! Jubelle: every part made ready for players in one step
+    UiAction("jubelle-prepare-parts",
+             mu::context::UiCtxProjectOpened,
+             mu::context::CTX_NOTATION_OPENED,
+             TranslatableString("action", "Prepare Parts"),
+             TranslatableString("action", "For every part: multi-measure rests, the instrument and its doublings on the first page, Tacet where the player has nothing, better page turns, and a check")
+             ),
     //! Jubelle Phase 4 / G2: link the highlighted passage to other staves; manage links
     //! Jubelle R7: from a linked passage's marker
     UiAction("jubelle-link-resync",
