@@ -121,6 +121,7 @@ void HarmoniseMelodyModel::load()
     m_options.harmony.halfStepSlide = readInt("halfStepSlide", 0) != 0;
     m_options.existing = readInt("keepExisting", 1) != 0 ? jh::ExistingNotes::KeepExisting : jh::ExistingNotes::Replace;
     m_options.writeChordSymbols = readInt("writeChordSymbols", 1) != 0;
+    m_options.orchestration.altosFillHighTriads = readInt("altosFill", 0) != 0;   // lesson 4 "sometimes": off unless you ask
     emit optionsChanged();
 
     m_scopeTitle.clear();
@@ -140,8 +141,12 @@ void HarmoniseMelodyModel::load()
             m_scopeTitle = qtrc("notation", "Melody: %1, %2").arg(QString::fromStdString(sc.melodyStaffName), bars);
             QStringList lines;
             lines << qtrc("notation", "%n melody note(s) over %1 chord symbol(s).", nullptr, sc.melodyNotes).arg(sc.chordSymbols);
-            if (sc.chordSymbols == 0) {
-                lines << qtrc("notation", "There are no chord symbols for this passage: add them first (the lessons harmonise from the chords).");
+            if (sc.identifiedChords > 0) {
+                lines << qtrc("notation", "Where there is no chord symbol, %n chord(s) are read from what the rhythm section plays; those are never altered.",
+                              nullptr, sc.identifiedChords);
+            }
+            if (sc.chordSymbols == 0 && sc.identifiedChords == 0) {
+                lines << qtrc("notation", "There are no chords for this passage: add chord symbols first (the lessons harmonise from the chords).");
                 m_canRun = false;
             } else if (sc.notesWithoutChord > 0) {
                 lines << qtrc("notation", "%n note(s) before the first chord symbol are played in unison.", nullptr, sc.notesWithoutChord);
@@ -251,6 +256,15 @@ void HarmoniseMelodyModel::setKeepExisting(bool v)
     if (v != keepExisting()) {
         m_options.existing = v ? jh::ExistingNotes::KeepExisting : jh::ExistingNotes::Replace;
         optionChanged("keepExisting", v ? 1 : 0);
+    }
+}
+
+bool HarmoniseMelodyModel::altosFill() const { return m_options.orchestration.altosFillHighTriads; }
+void HarmoniseMelodyModel::setAltosFill(bool v)
+{
+    if (v != altosFill()) {
+        m_options.orchestration.altosFillHighTriads = v;
+        optionChanged("altosFill", v ? 1 : 0);
     }
 }
 

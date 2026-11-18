@@ -361,6 +361,55 @@ TEST(Jubelle_HarmonyRules, FullBandClosed)
     EXPECT_LT(t[0].trombones[3], t[0].trombones[2]);
 }
 
+TEST(Jubelle_HarmonyRules, BaritoneOnShortNotes)
+{
+    // four short notes on one chord: root, another chord tone nearby, root, another (lesson 1: "mostly roots")
+    std::vector<ChordSymbol> chords { parseChordSymbol("C6") };
+    std::vector<MelodyNote> m { note(76, 0, 0.25), note(74, 0, 0.25), note(72, 0, 0.25), note(76, 0, 0.25) };
+    const auto voiced = voiceMelody(m, chords, {});
+    const auto s = orchestrate(m, voiced, {});
+    EXPECT_EQ(pc(s[0].saxes[4]), 0);
+    EXPECT_NE(pc(s[1].saxes[4]), 0);
+    EXPECT_LE(std::abs(s[1].saxes[4] - s[0].saxes[4]), 5);
+    EXPECT_TRUE(isChordTone(s[1].saxes[4], chords[0]));
+    EXPECT_EQ(pc(s[2].saxes[4]), 0) << "back to the root";
+    // long notes: always the root
+    for (MelodyNote& n : m) {
+        n.seconds = 0.6;
+    }
+    const auto l = orchestrate(m, voiceMelody(m, chords, {}), {});
+    for (const auto& x : l) {
+        EXPECT_EQ(pc(x.saxes[4]), 0);
+    }
+}
+
+TEST(Jubelle_HarmonyRules, AltosMayFillHighTrumpetTriads)
+{
+    std::vector<ChordSymbol> chords { parseChordSymbol("C6") };
+    const std::vector<MelodyNote> m { note(84, 0) };
+    const auto voiced = voiceMelody(m, chords, {});
+    OrchestrationOptions o;
+    o.trumpets = TrumpetTechnique::Automatic;
+    const auto off = orchestrate(m, voiced, o);
+    EXPECT_EQ(off[0].saxes[0], off[0].trombones[0]) << "off by default: the saxes double the trombones";
+    o.altosFillHighTriads = true;
+    const auto on = orchestrate(m, voiced, o);
+    EXPECT_EQ(on[0].saxes[0], on[0].trumpets[1]);
+    EXPECT_EQ(on[0].saxes[1], on[0].trumpets[2]);
+}
+
+TEST(Jubelle_HarmonyRules, ChordsNamedFromTheRhythmSectionAreNeverAltered)
+{
+    std::vector<ChordSymbol> chords { parseChordSymbol("Dm7"), parseChordSymbol("G7"), parseChordSymbol("Cmaj7") };
+    chords[1].fixed = true;
+    HarmonyOptions o;
+    o.addAlterations = true;
+    o.halfStepSlide = true;
+    voiceMelody({ note(77, 0), note(71, 1), note(72, 2) }, chords, o);
+    EXPECT_EQ(chords[1].alterations, 0u);
+    EXPECT_EQ(chords[1].rootPc, 7);
+}
+
 TEST(Jubelle_HarmonyRules, ShoutChorusTrumpetTriads)
 {
     std::vector<ChordSymbol> chords { parseChordSymbol("C6") };

@@ -55,6 +55,7 @@ struct ChordSymbol {
     bool sus = false;            // V9sus / 7sus4: the 4th replaces the 3rd (§1.7)
     unsigned alterations = 0;    // Alteration flags written in the symbol
     int bassPc = -1;             // a slash bass, if any
+    bool fixed = false;          // named from the rhythm section's written notes: never altered or substituted
     std::string text;            // as read
 };
 

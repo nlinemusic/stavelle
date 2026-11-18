@@ -74,7 +74,8 @@ struct Scope {
     int lastBar = 0;
     int melodyNotes = 0;
     int chordSymbols = 0;         //!< chord symbols that sound under the melody
-    int notesWithoutChord = 0;    //!< melody notes with no chord symbol before them (left in unison)
+    int identifiedChords = 0;     //!< chords named from the rhythm section's notes where there is no chord symbol
+    int notesWithoutChord = 0;    //!< melody notes with no chord at all (left in unison)
     std::vector<std::string> chordNames;
     std::optional<std::string> saxWarning;   //!< the lessons' speed rule for spread voicings (lesson 6)
     int fastNotes = 0;            //!< melody notes shorter than FAST_NOTE_SECONDS

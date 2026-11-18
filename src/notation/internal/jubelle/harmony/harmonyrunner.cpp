@@ -9,8 +9,11 @@
  */
 #include "harmonyrunner.h"
 
+#include "../chordidentifier.h"
+
 #include <algorithm>
 #include <map>
+#include <set>
 
 #include "engraving/dom/chord.h"
 #include "engraving/dom/chordlist.h"
@@ -92,6 +95,7 @@ struct ChordAt {
     Fraction tick;
     ChordSymbol before;
     std::vector<Harmony*> copies;
+    bool identified = false;   //!< named from the rhythm section's notes (no chord symbol here)
 };
 
 ChordSymbol fromHarmony(const Score* score, Harmony* h)
@@ -157,6 +161,42 @@ std::vector<ChordAt> chordsFor(Score* score, const Fraction& start, const Fracti
         out.push_back(at);
     }
     return out;
+}
+
+//! Where no chord symbol is in force, the chord the other parts sound (the rhythm section's written voicings),
+//! named by Jubelle's Chord Identifier, which is reused here rather than duplicated
+ChordSymbol chordSoundingAt(Score* score, const Fraction& tick, const std::set<staff_idx_t>& skip)
+{
+    std::vector<chordidentifier::InputNote> notes;
+    for (staff_idx_t st = 0; st < score->nstaves(); ++st) {
+        if (skip.count(st)) {
+            continue;
+        }
+        const Staff* staff = score->staff(st);
+        const Instrument* ins = staff->part() ? staff->part()->instrument(tick) : nullptr;
+        if (!ins || ins->useDrumset()) {
+            continue;
+        }
+        for (voice_idx_t v = 0; v < VOICES; ++v) {
+            ChordRest* cr = score->findCR(tick, st * VOICES + v);
+            if (cr && cr->isChord() && cr->tick() <= tick && cr->endTick() > tick) {
+                for (const Note* n : toChord(cr)->notes()) {
+                    notes.push_back({ n->pitch(), n->tpc1() });
+                }
+            }
+        }
+    }
+    const chordidentifier::Result r = chordidentifier::identify(notes);
+    if (!r.ok) {
+        return ChordSymbol();
+    }
+    unsigned mask = 0;
+    for (int iv : r.intervals) {
+        mask |= 1u << (((iv % 12) + 12) % 12);
+    }
+    ChordSymbol c = chordFromIntervals(r.rootTpc, mask, r.bassPc);
+    c.text = r.name;
+    return c;
 }
 
 bool hasNotes(Score* score, staff_idx_t staffIdx, const Fraction& start, const Fraction& end)
@@ -327,6 +367,7 @@ struct Work {
     SectionStaves staves;
     std::vector<ChordAt> chords;
     Melody melody;
+    int identifiedChords = 0;
 };
 
 Work workFor(Score* score, const RunOptions& options)
@@ -352,6 +393,42 @@ Work workFor(Score* score, const RunOptions& options)
     w.staves = options.useStaves ? options.staves : findSections(score);
     w.chords = chordsFor(score, w.start, w.end, w.staves.chordSymbols);
     w.melody = readMelody(score, w.melodyStaff, w.start, w.end, w.chords);
+    // no chord symbol in force: name the chord the rhythm section sounds (horns and the melody are not counted)
+    {
+        std::set<staff_idx_t> skip { w.melodyStaff };
+        for (auto arr : { std::vector<staff_idx_t>(w.staves.trumpets.begin(), w.staves.trumpets.end()),
+                          std::vector<staff_idx_t>(w.staves.trombones.begin(), w.staves.trombones.end()),
+                          std::vector<staff_idx_t>(w.staves.saxes.begin(), w.staves.saxes.end()) }) {
+            skip.insert(arr.begin(), arr.end());
+        }
+        bool added = false;
+        ChordSymbol last;
+        for (size_t i = 0; i < w.melody.notes.size(); ++i) {
+            const MelodyNote& n = w.melody.notes[i];
+            if (n.rest || n.chordIndex >= 0) {
+                continue;
+            }
+            const ChordSymbol c = chordSoundingAt(score, w.melody.ticks[i], skip);
+            if (!c.valid || (last.valid && last.rootPc == c.rootPc && last.family == c.family && last.alterations == c.alterations)) {
+                continue;
+            }
+            ChordAt at;
+            at.tick = w.melody.ticks[i];
+            at.before = c;
+            at.before.fixed = true;   // the rhythm section's own notes: no alterations or substitutions
+            at.identified = true;
+            w.chords.push_back(at);
+            last = c;
+            added = true;
+        }
+        if (added) {
+            std::stable_sort(w.chords.begin(), w.chords.end(), [](const ChordAt& a, const ChordAt& b) { return a.tick < b.tick; });
+            w.melody = readMelody(score, w.melodyStaff, w.start, w.end, w.chords);
+            for (const ChordAt& c : w.chords) {
+                w.identifiedChords += c.identified ? 1 : 0;
+            }
+        }
+    }
     bool anyNote = false;
     for (const MelodyNote& n : w.melody.notes) {
         anyNote = anyNote || !n.rest;
@@ -411,7 +488,11 @@ Scope scope(Score* score, const RunOptions& options)
         sc.longestNoteSeconds = std::max(sc.longestNoteSeconds, n.seconds);
     }
     for (const ChordAt& c : w.chords) {
-        ++sc.chordSymbols;
+        if (c.identified) {
+            ++sc.identifiedChords;
+        } else {
+            ++sc.chordSymbols;
+        }
         sc.chordNames.push_back(c.before.text);
     }
     sc.saxWarning = techniqueUnsuitable(options.orchestration.saxes, w.melody.notes);

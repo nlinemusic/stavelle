@@ -210,6 +210,14 @@ StyledDialogView {
                     onChosen: function(v) { hm.saxes = v }
                 }
 
+                CheckBox {
+                    text: qsTrc("notation", "With trumpet triads, the altos fill the middle trumpet notes")
+                    checked: hm.altosFill
+                    navigation.panel: optionsPanel
+                    navigation.row: 10
+                    onClicked: hm.altosFill = !checked
+                }
+
                 StyledTextLabel {
                     width: parent.width
                     visible: hm.saxWarning !== ""

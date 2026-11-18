@@ -436,6 +436,39 @@ TEST(Jubelle_HarmonyRunner, ShoutChorusOnTheTemplate)
     EXPECT_EQ(r.outOfRange, 0);
 }
 
+TEST(Jubelle_HarmonyRunner, WithoutChordSymbolsTheRhythmSectionIsRead)
+{
+    // no chord symbols, but the piano plays C E G B♭ (C7): the Chord Identifier names it
+    auto s = bigBand();
+    ASSERT_TRUE(s);
+    s->startCmd(muse::TranslatableString::untranslatable("test"));
+    writeLine(s.get(), TPT1, { { 76, 2 }, { 79, 2 } });
+    Segment* seg = s->firstMeasure()->first(SegmentType::ChordRest);
+    const int voicing[4] = { 48, 52, 55, 58 };
+    for (voice_idx_t v = 0; v < VOICES; ++v) {
+        s->setNoteRest(seg, PIANO * VOICES + v, NoteVal(voicing[v]), Fraction(1, 1));
+    }
+    s->endCmd();
+    selectBars(s.get(), TPT1, 1, 1);
+    const hr::Scope sc = hr::scope(s.get(), {});
+    ASSERT_TRUE(sc.ok) << sc.problem;
+    EXPECT_EQ(sc.chordSymbols, 0);
+    EXPECT_EQ(sc.identifiedChords, 1);
+    EXPECT_EQ(sc.notesWithoutChord, 0);
+    s->startCmd(muse::TranslatableString::untranslatable("Harmonise melody"));
+    const hr::Report r = hr::run(s.get(), {});
+    s->endCmd();
+    ASSERT_TRUE(r.ok);
+    const hr::ChordSymbol c7 = hr::parseChordSymbol("C7");
+    for (staff_idx_t st : { TPT2, staff_idx_t(7), staff_idx_t(8), BARI }) {
+        for (const Played& p : notesOn(s.get(), st)) {
+            EXPECT_TRUE(hr::isChordTone(p.pitch, c7)) << "staff " << st << " pitch " << p.pitch;
+        }
+    }
+    EXPECT_TRUE(chordTexts(s.get(), PIANO).empty()) << "no chord symbols are invented";
+    EXPECT_EQ(r.chordSymbolsWritten + r.chordSymbolsChanged, 0);
+}
+
 TEST(Jubelle_HarmonyRunner, NoSelectionExplainsWhatToDo)
 {
     auto s = bigBand();

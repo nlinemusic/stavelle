@@ -46,6 +46,7 @@ class HarmoniseMelodyModel : public QObject, public muse::Contextable
     Q_PROPERTY(bool halfStepSlide READ halfStepSlide WRITE setHalfStepSlide NOTIFY optionsChanged)
     Q_PROPERTY(bool keepExisting READ keepExisting WRITE setKeepExisting NOTIFY optionsChanged)
     Q_PROPERTY(bool writeChordSymbols READ writeChordSymbols WRITE setWriteChordSymbols NOTIFY optionsChanged)
+    Q_PROPERTY(bool altosFill READ altosFill WRITE setAltosFill NOTIFY optionsChanged)
     Q_PROPERTY(QString saxWarning READ saxWarning NOTIFY optionsChanged)
 
     Q_PROPERTY(bool applied READ applied NOTIFY resultChanged)
@@ -98,6 +99,8 @@ public:
     void setHalfStepSlide(bool v);
     bool keepExisting() const;
     void setKeepExisting(bool v);
+    bool altosFill() const;
+    void setAltosFill(bool v);
     bool writeChordSymbols() const;
     void setWriteChordSymbols(bool v);
     QString saxWarning() const { return m_saxWarning; }

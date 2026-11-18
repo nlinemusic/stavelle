@@ -679,7 +679,7 @@ std::vector<VoicedNote> voiceMelody(const std::vector<MelodyNote>& melody, std::
         for (size_t i = 1; i + 1 < chords.size(); ++i) {
             const bool ii = chords[i - 1].valid && chords[i - 1].family == Family::Minor
                             && chords[i - 1].rootPc == mod12(chords[i].rootPc + 7);
-            if (ii && chords[i].family == Family::Dominant && !chords[i].sus
+            if (ii && !chords[i].fixed && chords[i].family == Family::Dominant && !chords[i].sus
                 && chords[i + 1].rootPc == mod12(chords[i].rootPc + 5)) {
                 chords[i] = halfStepSlide(chords[i]);
             }
@@ -688,7 +688,7 @@ std::vector<VoicedNote> voiceMelody(const std::vector<MelodyNote>& melody, std::
     // §1.7: alterations on a V that resolves, chosen so every melody note on that chord allows them
     if (options.addAlterations) {
         for (size_t c = 0; c < chords.size(); ++c) {
-            if (!resolvesAsV(chords, c) || chords[c].alterations || chords[c].sus) {
+            if (!resolvesAsV(chords, c) || chords[c].alterations || chords[c].sus || chords[c].fixed) {
                 continue;
             }
             unsigned allowed = Flat9 | Sharp9 | Flat5 | Sharp5;
@@ -987,6 +987,14 @@ std::vector<SectionNotes> orchestrateAt(const std::vector<MelodyNote>& melody, c
             break;
         case SaxTechnique::DoubleTrombones:
             x = { tbn[0], tbn[1], tbn[2], tbn[3], -1 };
+            if (triads && harmonised && o.altosFillHighTriads) {
+                // very high trumpets: the altos may fill the middle voices (lesson 4, an option)
+                for (size_t j = 0; j < 2; ++j) {
+                    if (tpt[j + 1] >= rg.saxLow[j] && tpt[j + 1] <= rg.saxHigh[j]) {
+                        x[j] = tpt[j + 1];
+                    }
+                }
+            }
             // a trombone note out of a sax's reach is doubled an octave away (still the same chord tone)
             for (size_t j = 0; j < 4; ++j) {
                 while (x[j] < rg.saxLow[j] && x[j] + 12 <= rg.saxHigh[j]) {
@@ -1053,6 +1061,31 @@ std::vector<SectionNotes> orchestrateAt(const std::vector<MelodyNote>& melody, c
             x = { L, sv[2], sv[3], sv[1] - 12, -1 };
             x[4] = bariRoot(x[3]);
             break;
+        }
+        // the baritone plays mostly roots; on a short note after the root of the same chord it may take another
+        // tone of the voicing (lesson 1): the nearest one, within a fourth, so the line moves and comes back
+        if ((o.saxes == SaxTechnique::DoubleTrombones || o.saxes == SaxTechnique::Drop2BariRoots) && o.bariAvailable
+            && x[4] >= 0 && harmonised && vn.chordTone && n.seconds < SHORT_NOTE_SECONDS && i > 0 && !melody[i - 1].rest
+            && melody[i - 1].chordIndex == n.chordIndex && writtenRootPc >= 0) {
+            const int prev = out[i - 1].saxes[4];
+            if (prev >= 0 && mod12(prev) == writtenRootPc) {
+                int best = -1;
+                for (int d = 1; d <= 5 && best < 0; ++d) {
+                    for (int cand : { prev - d, prev + d }) {
+                        bool inVoicing = false;
+                        for (int q : v) {
+                            inVoicing = inVoicing || mod12(q) == mod12(cand);
+                        }
+                        if (best < 0 && inVoicing && mod12(cand) != writtenRootPc && cand >= rg.saxLow[4] && cand <= rg.saxHigh[4]
+                            && cand < x[3]) {
+                            best = cand;
+                        }
+                    }
+                }
+                if (best >= 0) {
+                    x[4] = best;
+                }
+            }
         }
         if (o.saxes != SaxTechnique::LeaveOut && !o.bariAvailable) {
             x[4] = -1;
