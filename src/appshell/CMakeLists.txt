@@ -68,6 +68,15 @@ if (OS_IS_MAC)
     )
 endif(OS_IS_MAC)
 
+# Jubelle: the performance profile reads the machine's memory and processors through system headers
+# (sys/sysctl.h on macOS), whose integer_t clashes with muse::integer_t in a unity build
+set_source_files_properties(
+    internal/jubelle/performanceprofile.cpp
+    PROPERTIES
+    SKIP_UNITY_BUILD_INCLUSION ON
+    SKIP_PRECOMPILE_HEADERS ON
+)
+
 qt_add_resources(appshell appshell_resources
     PREFIX
         /
