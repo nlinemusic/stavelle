@@ -31,6 +31,9 @@ public:
     //! Adds an object; an invalid parent means the score itself. `id` invalid = a new id.
     Id add(Kind kind, Id parent, std::vector<std::pair<Field, Value> > fields, Order order = Order::Append, Id id = Id());
 
+    //! Sets a field of an object already added (a tie's target, known once both notes are read)
+    void setField(Id id, Field field, Value value);
+
     //! Puts everything into the model (replacing what it held) and returns the number of objects
     size_t finish(Model& model);
 

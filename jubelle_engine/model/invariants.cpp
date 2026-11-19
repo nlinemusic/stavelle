@@ -162,7 +162,8 @@ std::vector<std::string> checkInvariants(const Snapshot& s, size_t limit)
         }
 
         // written note values, dots and tuplets add up to the actual duration
-        if ((kind == Kind::Chord || kind == Kind::Rest) && o.has(F::BASE_DURATION) && !o.has(F::MEASURE_REST)) {
+        if ((kind == Kind::Chord || kind == Kind::Rest) && o.has(F::BASE_DURATION) && !o.has(F::MEASURE_REST)
+            && !o.has(F::EXPLICIT_DURATION)) {
             Fraction factor;
             if (!tupletFactor(s, o.idOr(F::TUPLET), factor)) {
                 report(o, "belongs to a missing or invalid tuplet");
@@ -300,9 +301,12 @@ std::vector<std::string> checkInvariants(const Snapshot& s, size_t limit)
                 if (!to || to->kind() != Kind::Note) {
                     report(o, "is tied to something that isn't a note");
                 } else if (chord && toChord) {
-                    const Fraction end = chord->fractionOr(F::TIME, Fraction()) + chord->fractionOr(F::DURATION, Fraction());
-                    if (!(toChord->fractionOr(F::TIME, Fraction()) == end)) {
-                        report(o, "is tied to a note that doesn't follow it");
+                    // a tie goes to a later note of the same pitch: usually the next one, but it may pass over other
+                    // chords (ties held through an arpeggio); from a grace note it goes to its main chord
+                    const Fraction start = chord->fractionOr(F::TIME, Fraction());
+                    const Fraction end = chord->has(F::GRACE) ? start : start + chord->fractionOr(F::DURATION, Fraction());
+                    if (toChord->fractionOr(F::TIME, Fraction()) < end) {
+                        report(o, "is tied to a note that doesn't come after it");
                     }
                     if (to->intOr(F::PITCH, -1) != o.intOr(F::PITCH, -2)) {
                         report(o, "is tied to a note of another pitch");

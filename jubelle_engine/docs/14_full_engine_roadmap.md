@@ -73,7 +73,14 @@ flowchart LR
 7. The user's hands-on test. Then a **pre-release** with its own version. Until then the stable release
    v4.7.7.261118230 remains the current Jubelle, and **no new testing release is published**.
 
-## 6. Scale and timeline
+## 6. Progress
+| Subsystem | Status (19 Nov 2026) |
+|---|---|
+| S1 model | **foundations complete**: persistent model, O(1) snapshots, structural edits, consistency rules, bulk building, notation coverage (tuplets, graces, ties, lyrics, chord symbols, repeats, voltas, instrument changes, spanners, layouts); orchestra model 23.9 MB. Next: typed views, layout-related fields as S7 needs them |
+| S2 files | **started**: archives, lossless XML, engine store with the style mirror, MuseScore 4.x reader; 2,118 of 2,118 repository 4.x scores read, 2,104 fully consistent (`15_file_handling.md`). Next: the reference comparison with MuseScore's reading, the generated writer, MuseScore 4.7.7 tests in CI |
+| S3–S10 | not started |
+
+## 7. Scale and timeline
 MuseScore's engine is about 260,000 lines, built over many years. This is a long programme, realistically many months
 of work. No dates are promised: progress is reported per milestone, with measured results. The work is ordered so
 that each finished subsystem is complete and tested on its own.

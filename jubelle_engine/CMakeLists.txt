@@ -66,6 +66,34 @@ add_library(je_core STATIC
 target_include_directories(je_core PUBLIC ${JE_ROOT})
 target_link_libraries(je_core PUBLIC Threads::Threads)
 
+# ---- je::io: MuseScore 4.x files (S2). zlib (zlib licence) for the archives: the system's, or fetched
+# from zlib's official repository when the system has none (Windows CI)
+find_package(ZLIB QUIET)
+if (NOT ZLIB_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(zlib GIT_REPOSITORY https://github.com/madler/zlib.git GIT_TAG v1.3.1)
+    set(ZLIB_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(zlib)
+    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    target_include_directories(zlibstatic PUBLIC ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+endif()
+add_library(je_io STATIC
+    io/xml.cpp
+    io/xml.h
+    io/zip.cpp
+    io/zip.h
+    io/scorefile.cpp
+    io/scorefile.h
+    io/mscxreader.cpp
+    io/mscxreader.h
+)
+target_include_directories(je_io PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(je_io PUBLIC je_core PRIVATE ZLIB::ZLIB)
+
+# the corpus tool: round trips and reading checks over a folder of scores (used by CI and locally)
+add_executable(je_io_tool tools/je_io_tool.cpp)
+target_link_libraries(je_io_tool PRIVATE je_io)
+
 # Tests (GoogleTest from the repository's framework, as Jubelle's other test tools use)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -85,9 +113,10 @@ add_executable(je_tests
     tests/model_tests.cpp
     tests/bulkbuilder_tests.cpp
     tests/notation_tests.cpp
+    tests/io_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
-target_link_libraries(je_tests PRIVATE je_core gtest)
+target_link_libraries(je_tests PRIVATE je_core je_io gtest)
 
 add_executable(je_bench bench/main.cpp)
 target_link_libraries(je_bench PRIVATE je_core)

@@ -7,7 +7,7 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 |---|---|
 | Last updated | 18 Nov 2026 |
 | Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
-| Current work | **S1 model and data management** (design done; foundations in place) → S2 file handling |
+| Current work | **S2 file handling** (S1 model foundations complete) |
 | Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
@@ -57,6 +57,7 @@ repository nlinemusic/stavelle
         │                05 licensing · 06 roadmap and testing · 07 decisions log · 08 AAC licensing
         │                09 model mapping · 10 edit vocabulary · 11 pipeline interfaces
         │                12 bridge migration · 13 .mscz storage results · 14 full engine roadmap
+        │                15 file handling (S2)
         ├── CMakeLists.txt   standalone build (C++17, no Qt), GoogleTest, sanitizer options
         ├── corpus/      corpus description (the user's scores are never in Git: D-E17)
         ├── model/ edit/ present/ layout/ render/ perform/ io/ style/ exec/   engine modules (plain C++17)
@@ -230,14 +231,18 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 18 Nov 2026 | **S1 first increment:** persistent id map, immutable objects, field vocabulary, model with O(1) snapshots, structural edits, invariant checker, score builder; 35 tests (property tests for the map and for random edit/undo/redo sequences; snapshots read on other threads) clean under AddressSanitizer/UBSan and ThreadSanitizer. Orchestra size (39 × 285, 89,324 objects): one note edit or undo ≈ 1 µs, chord insert or delete ≈ 35 µs, snapshot O(1), model heap 41.6 MB |
 | 18 Nov 2026 | S1: `BulkBuilder` (whole score at once, for file reading; same model as the transaction path, tested) and one-pass `IdMap` construction; orchestra built in 148 ms; 39 tests |
 | 19 Nov 2026 | S1: memory per object reduced (24-byte values with shared text; kind and parent stored directly): orchestra model **41.6 → 23.9 MB**, bulk build 103 ms. Notation coverage: written values, dots and nested tuplets with exact duration arithmetic, grace notes (before and after), voices, full-measure rests, ties, articulations, lyrics (verses, syllables), chord symbols, dynamics, tempo, keys, clefs, instrument changes, rehearsal marks, jumps, repeats with play counts, voltas, slurs, hairpins, part layouts; consistency rules for each, with tests that break each rule. 42 tests |
+| 19 Nov 2026 | AAC: **Windows and macOS export checks passed** (AAC-LC at 44.1/48/96 kHz; MP4 sound) |
+| 19 Nov 2026 | **S2 started** (`docs/15_…`): ZIP with zlib, lossless XML (byte-for-byte for MuseScore's layout), score file, engine store with the 11-setting style mirror and restore, MuseScore 4.x reader into the model. Repository corpus (2,909 scores): **0 XML content changes**, 627/627 archives, **2,118/2,118 4.x scores read**, 2,104 consistent (14 known test-file issues); ASan clean. Large orchestra: open in 235–360 ms against 918 ms with MuseScore's engine (same machine and file). 47 tests. CI: corpus check on Windows/macOS/Linux; MuseScore 4.7.7 both-ways test |
 
 ## 15. Outstanding work
-- **S1** (in progress; foundations done): typed views and remaining kinds' rules (tuplets, grace notes,
-  spanners, flow items, layouts, tempo and meter maps); reduce memory per object (41.6 MB for the orchestra: smaller
-  values and interned strings). The bulk builder for loading files is done: the orchestra builds in 148 ms
-  (0.84–0.98 s through transactions), giving exactly the same model (tested).
-- **S2** next: native MuseScore 4.x reader and writer; engine store; style-setting preservation with the
-  Jubelle → MuseScore → Jubelle test; round trips on the corpus.
+- **S2** (now): compare the reader with MuseScore's own reading of every corpus score (music listing from the
+  existing engine test tool) and settle the 14 known issues; the writer that generates XML from the model, checked
+  against the lossless writer; part layouts in full; older formats (1.x–3.x), MusicXML and MIDI later in S2;
+  reduce the kept XML's memory (64 MB for the large orchestra).
+- Results of the MuseScore 4.7.7 both-ways test (CI, Windows).
+- The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
+  `je_io_tool corpus <folder> --private` once it is available.
+- **S1** follow-ups as S7 needs them (layout fields, typed views).
 - Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
 
 ## 16. Important technical decisions
@@ -250,7 +255,8 @@ engine, after approval · D-E12 configurable condensing groups, per-section defa
 by time and IDs · D-E14 performance goals · D-E15 FFmpeg's own AAC encoder replaces FDK · D-E16 hidden developer switch ·
 D-E17 private scores never in Git · D-E18 abbreviated labels · D-E19 style settings in metadata · D-E20 no testing
 release until the complete engine passes its gates · D-E21 (withdrawn) · D-E22 complete, independent engine ·
-D-E23 the interface stays and is rewired to the engine · D-E24 model representation.
+D-E23 the interface stays and is rewired to the engine · D-E24 model representation · D-E25 lossless XML kept
+next to the model · D-E26 known-issues list for corpus checks.
 Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 
 ## 17. Risks

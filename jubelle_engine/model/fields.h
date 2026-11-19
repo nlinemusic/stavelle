@@ -95,6 +95,8 @@ constexpr Field BASE_DURATION = ENGINE_BASE + 63;   // Fraction: written note va
 constexpr Field GRACE_TYPE = ENGINE_BASE + 64;      // string: acciaccatura, appoggiatura, grace4, grace16, grace32,
                                                     // grace8after, grace16after, grace32after
 constexpr Field MEASURE_REST = ENGINE_BASE + 65;    // bool: a full-measure rest
+constexpr Field EXPLICIT_DURATION = ENGINE_BASE + 66;   // bool: DURATION is given, not the written value (the two
+                                                        // chords of a two-note tremolo each sound for half)
 
 // tuplets
 constexpr Field RATIO_NUM = ENGINE_BASE + 70;   // int64: 3 in "3 in the time of 2"
@@ -113,7 +115,7 @@ constexpr Field SYLLABIC = ENGINE_BASE + 86;     // string: single, begin, middl
 constexpr Field PLAYERS = ENGINE_BASE + 90;      // IdList: the players a layout shows, in order
 
 // where an object came from in a file (je::io), kept so files round-trip
-constexpr Field ORIGIN_EID = ENGINE_BASE + 95;   // int64: MuseScore's element id
+constexpr Field ORIGIN_EID = ENGINE_BASE + 95;   // string: MuseScore's element id (<eid>), as written
 
 /* Flow items (SUBKIND): clef, keySig, timeSig, tempo, harmony (chord symbol), dynamic, staffText, systemText,
  * rehearsalMark, jump, marker, instrumentChange, breath, fermata, … — ANCHOR = the staff, or absent for the

@@ -38,6 +38,7 @@ at the repository root.
 12. [Bridge and consumer migration plan](docs/12_bridge_migration_plan.md)
 13. [`.mscz` storage test results](docs/13_mscz_storage_results.md)
 14. [Roadmap: the complete, independent engine](docs/14_full_engine_roadmap.md)
+15. [File handling (S2): MuseScore 4.x files without MuseScore's engine](docs/15_file_handling.md)
 
 ## Building and testing (standalone, no Qt)
 ```

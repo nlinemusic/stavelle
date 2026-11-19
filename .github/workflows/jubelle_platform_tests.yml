@@ -70,3 +70,19 @@ jobs:
         if [ ! -f jubelle_engine/CMakeLists.txt ]; then exit 0; fi
         B=build-je/je_bench; [ -f build-je/Release/je_bench.exe ] && B=build-je/Release/je_bench.exe
         "$B" | tee -a "$GITHUB_STEP_SUMMARY"
+    - name: Files (S2) - every repository score through the native reader and writer
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/corpus/known_issues.txt ]; then exit 0; fi
+        T=build-je/je_io_tool; [ -f build-je/Release/je_io_tool.exe ] && T=build-je/Release/je_io_tool.exe
+        "$T" corpus . --known jubelle_engine/corpus/known_issues.txt --report je_corpus.md > je_corpus.out; rc=$?
+        { echo "### ${{ matrix.os }}"; cat je_corpus.md; } >> "$GITHUB_STEP_SUMMARY"
+        exit $rc
+    - name: Files (S2) - reading and writing the large orchestra score (informational)
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/corpus/known_issues.txt ]; then exit 0; fi
+        T=build-je/je_io_tool; [ -f build-je/Release/je_io_tool.exe ] && T=build-je/Release/je_io_tool.exe
+        PY=python3; command -v python3 >/dev/null || PY=python
+        $PY tools/jubelle_checks/make_large_score.py demos/Dawn.mscx large_orchestra.mscx
+        "$T" bench large_orchestra.mscx | tee -a "$GITHUB_STEP_SUMMARY"

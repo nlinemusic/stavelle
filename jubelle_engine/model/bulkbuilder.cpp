@@ -48,6 +48,15 @@ Id BulkBuilder::add(Kind kind, Id parent, std::vector<std::pair<Field, Value> > 
     return id;
 }
 
+void BulkBuilder::setField(Id id, Field field, Value value)
+{
+    auto it = m_index.find(id);
+    if (it == m_index.end()) {
+        throw std::logic_error("je::model::BulkBuilder::setField: unknown object");
+    }
+    m_objects[it->second].fields.emplace_back(field, std::move(value));   // a later value wins (Object's constructor)
+}
+
 size_t BulkBuilder::finish(Model& model)
 {
     // times first (fields are moved into the objects below)
