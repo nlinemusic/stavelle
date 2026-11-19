@@ -1,0 +1,15 @@
+# je::io (S2): repository scores whose music listing still differs from MuseScore 4.7.7's own reading, with the cause.
+# The reference job fails on a difference in any other file, and when a listed file starts matching (remove it then).
+# Format: path<TAB>cause
+src/importexport/capella/tests/data/testTuplet3.capx-ref.mscx	invalid file: a tuplet's notes last longer than the tuplet; MuseScore repairs it its own way, Jubelle keeps it and warns
+src/importexport/guitarpro/tests/data/dotted-tuplets.gp-ref.mscx	invalid file: overflowing tuplet (as above)
+src/importexport/guitarpro/tests/data/dotted-tuplets.gp5-ref.mscx	invalid file: overflowing tuplet (as above)
+src/importexport/guitarpro/tests/data/dotted-tuplets.gpx-ref.mscx	invalid file: overflowing tuplet (as above)
+src/engraving/tests/midi/midirenderer_bend_data/bend-grace-after.mscx	invalid file: grace chords without a duration type; MuseScore reads negative durations
+src/importexport/mnx/tests/data/project_examples/tupletHiddenRest_ref.mscx	a hole inside a tuplet in voice 1: MuseScore fills it with rests; not yet handled
+src/importexport/tabledit/tests/data/rests-dotted.mscx	dotted rests in 1/128 values: the split of the completing rests differs; not yet understood
+src/engraving/tests/copypaste_data/copypaste27.mscx	MuseScore reads the first measure as 4/4 despite a 3/2 time signature at its start; not yet understood
+src/engraving/tests/copypaste_data/copypaste27-ref.mscx	the same file after a paste (as above)
+src/engraving/tests/midi/midirenderer_data/trill_on_hidden_staff.mscx	the hidden staff's second measure: MuseScore reads 1/1 where Jubelle reads 1/2; not yet understood
+src/importexport/guitarpro/tests/data/line_elements.gp-ref.mscx	staff 3, measure 2: MuseScore reads a measure rest where the file has notes; not yet understood
+vtest/scores/beams-32.mscz	the last measures of both staves differ (an extra rest in staff 1, a longer event in staff 2); not yet understood

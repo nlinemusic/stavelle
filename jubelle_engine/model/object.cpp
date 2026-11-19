@@ -208,6 +208,7 @@ std::string_view fieldName(Field field)
     case GRACE_TYPE: return "graceType";
     case MEASURE_REST: return "measureRest";
     case EXPLICIT_DURATION: return "explicitDuration";
+    case STRETCH: return "stretch";
     case REPEAT_START: return "repeatStart";
     case REPEAT_END: return "repeatEnd";
     case IRREGULAR: return "irregular";

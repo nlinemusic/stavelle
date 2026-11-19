@@ -74,7 +74,12 @@ std::string listing(MasterScore* s)
                     }
                     ChordRest* cr = toChordRest(e);
                     if (cr->isRest() && toRest(cr)->isGap()) {
-                        continue;   // a gap rest: MuseScore's invisible placeholder for a hole in a voice, not music
+                        // a gap rest: MuseScore's invisible placeholder for a hole in a voice, not music
+                        // (JUBELLE_REFERENCE_SHOW_GAPS=1 lists them, marked, for investigating differences)
+                        if (std::getenv("JUBELLE_REFERENCE_SHOW_GAPS")) {
+                            out << "# gap " << staffIndex << ' ' << v << ' ' << frac(cr->tick()) << ' ' << frac(cr->actualTicks()) << '\n';
+                        }
+                        continue;
                     }
                     if (cr->isChord()) {
                         for (Chord* g : toChord(cr)->graceNotesBefore()) {

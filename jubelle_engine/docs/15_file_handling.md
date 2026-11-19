@@ -56,14 +56,18 @@ left out). `tools/jubelle_checks/je_reference_compare.py` compares the two listi
 | first comparison | 1,983 of 2,118 |
 | multi-measure rest measures skipped (MuseScore's layout-only measures), after-graces in MuseScore's order | 2,037 |
 | end-of-measure time signatures; measure rests fill their measure; gap rests left out of MuseScore's listing | 2,078 |
-| two-note tremolos inside tuplets | **2,079 of 2,118 (98.2%)** |
+| two-note tremolos inside tuplets | 2,079 of 2,118 (98.2%) |
+| voice 1 completed with rests as MuseScore does (judged by the last chord or rest, not a rewound cursor); local time signatures (stretch); full tuplets close; a repeated duration type: the last counts | **2,106 of 2,118 (99.4%)** |
 
-The 39 remaining are test files of these kinds: Capella import references whose last measure is unfinished
-(MuseScore completes it; a general "complete short measures" rule was tried and made 50 other files differ, so it was
-withdrawn), staves with their own time signature ("local time signatures", the `<stretch>` of MusicXML tests),
-tuplet edge cases from the Guitar Pro, Capella and MNX importers, a copy-paste test whose measure length MuseScore
-corrects, and a bend test where MuseScore itself reads negative grace durations. Each is to be resolved or explained
-before S2 is complete.
+**The 12 remaining** are listed with their causes in `corpus/reference_differences.txt`; the CI job fails on any
+other difference and when a listed file starts matching. Five are invalid files (four tuplets whose notes overflow
+them, which MuseScore repairs by its own heuristics while Jubelle keeps them as written and warns; grace chords with no
+duration type, which MuseScore reads as negative durations). One is a supported case not yet handled (a hole inside a
+tuplet in voice 1). Six are not yet understood (two copy-paste test files whose first measure MuseScore reads as 4/4,
+a hidden-staff test, a Guitar Pro line-elements test, a dotted 1/128 rest split, the end of `beams-32`).
+
+Each fixed behaviour has a regression test (`tests/io_reader_regression_tests.cpp`) whose expected listing is what
+MuseScore's engine reads from the same XML.
 
 ## 3. Performance (this machine, the same files; MuseScore's engine measured with the existing baseline tool)
 | Score | MuseScore's engine: read (no layout) | Jubelle engine: open (parse + model) | Jubelle engine: memory |

@@ -3,6 +3,8 @@
 """Jubelle engine (S2): the native reader against MuseScore's own reading, file by file.
 
 Usage: je_reference_compare.py <je_io_tool> <repository root> <file list> <MuseScore listings folder> <report.md>
+       [--expected <file>]   accepted differences (path<TAB>cause): exit 1 on a difference outside the list, or when a
+                             listed file matches (remove it from the list then)
 The MuseScore listings come from jubelle_engine_tests (Jubelle_Reference.MusicListing).
 """
 import subprocess
@@ -14,6 +16,13 @@ from pathlib import Path
 def main():
     tool, root, lst, ref, report = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]), Path(sys.argv[5])
     files = [l.strip() for l in lst.read_text(encoding="utf-8").splitlines() if l.strip()]
+    expected = {}
+    if "--expected" in sys.argv:
+        for line in Path(sys.argv[sys.argv.index("--expected") + 1]).read_text(encoding="utf-8").splitlines():
+            if line.strip() and not line.startswith("#"):
+                path, _, cause = line.partition("\t")
+                expected[path.strip()] = cause.strip()
+    differing = set()
     same, different, unread, examples, kinds = 0, 0, 0, [], Counter()
     for rel in files:
         ms = ref / (rel + ".txt")
@@ -26,6 +35,7 @@ def main():
             same += 1
             continue
         different += 1
+        differing.add(rel)
         first = next((i for i in range(min(len(a), len(b))) if a[i] != b[i]), min(len(a), len(b)))
         ja = a[first] if first < len(a) else "(end)"
         mb = b[first] if first < len(b) else "(end)"
@@ -37,9 +47,15 @@ def main():
           f"{len(files)} MuseScore 4.x scores: **{same} identical music listings**, {different} different, "
           f"{unread} not read by MuseScore's engine.", "", "Differences by kind: " +
           (", ".join(f"{k} {n}" for k, n in kinds.items()) or "none"), ""] + examples
+    unexpected = sorted(differing - set(expected))
+    now_matching = sorted(p for p in expected if p in files and p not in differing)
+    if expected:
+        md += ["", f"Accepted differences: {len(expected)} listed; **outside the list: {len(unexpected)}**; listed files now "
+                   f"matching (remove them): {len(now_matching)}"]
+        md += [f"- new difference: {p}" for p in unexpected] + [f"- now matching: {p}" for p in now_matching]
     report.write_text("\n".join(md) + "\n", encoding="utf-8")
     print("\n".join(md))
-    return 0
+    return 1 if (unexpected or now_matching) else 0
 
 
 if __name__ == "__main__":

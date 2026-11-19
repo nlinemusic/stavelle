@@ -319,6 +319,7 @@ private:
     struct OpenTuplet {
         Id id;
         Fraction factor;   // actual/written, including enclosing tuplets
+        Fraction end;      // where the tuplet's span ends
     };
 
     void readStaffMusic(const Node& staffNode)
@@ -346,6 +347,7 @@ private:
                 return;
             }
             int vi = 0;
+            voice0End = Fraction(-1, 1);
             for (const Node& v : m.children) {
                 if (v.name == "voice") {
                     readVoice(v, staff, mi, vi++);
@@ -356,6 +358,7 @@ private:
                     report.keptOnly[v.name]++;
                 }
             }
+            completeVoice1(staff, mi);
         }
     }
 
@@ -369,18 +372,34 @@ private:
             return voiceId;
         };
         Fraction t = measureStart[size_t(mi)];
+        // a local time signature in this staff stretches its music (actual = written / stretch)
+        for (const Node& e : voice.children) {
+            if (e.name == "TimeSig" && e.child("stretchN")) {
+                const int64_t n = toInt(e.childText("stretchN"), 1), d = toInt(e.childText("stretchD"), 1);
+                staffStretch[staff.value()] = (n > 0 && d > 0) ? Fraction(n, d) : Fraction(1, 1);
+            } else if (e.name == "TimeSig") {
+                staffStretch[staff.value()] = Fraction(1, 1);
+            }
+            if (e.name == "Chord" || e.name == "Rest") {
+                break;
+            }
+        }
+        const Fraction stretch = stretchOf(staff);
         Fraction lastMainTime = t;
         Id lastMainChord;
         std::vector<OpenTuplet> tuplets;
         std::vector<const Node*> pendingAfter;
-        auto factor = [&tuplets]() { return tuplets.empty() ? Fraction(1, 1) : tuplets.back().factor; };
+        int closedFull = 0;
+        Fraction lastEventEnd = measureStart[size_t(mi)];
+        // the tuplets' ratio, and the local time signature's stretch
+        auto factor = [&tuplets, &stretch]() { return (tuplets.empty() ? Fraction(1, 1) : tuplets.back().factor) / stretch; };
 
         for (const Node& e : voice.children) {
             const std::string& n = e.name;
             if (n == "location") {
                 Fraction df;
                 if (parseFraction(e.childText("fractions").empty() ? "0" : e.childText("fractions"), df)) {
-                    t += df;
+                    t += df;   // a location is in actual time, not stretched (checked against MuseScore)
                 }
                 if (const int64_t dm = toInt(e.childText("measures"))) {
                     report.warnings.push_back("a voice location that moves across measures");
@@ -392,29 +411,50 @@ private:
                 Fraction base;
                 if (actual <= 0 || normal <= 0 || !durationOf(e.childText("baseNote"), base)) {
                     report.warnings.push_back("a tuplet without a valid ratio or note value");
-                    tuplets.push_back({ Id(), factor() });
+                    tuplets.push_back({ Id(), factor(), t });
                     continue;
                 }
                 const Fraction outer = factor();
                 Fields f { { F::TIME, t }, { F::DURATION, base * Fraction(normal, 1) * outer }, { F::BASE_DURATION, base },
                            { F::RATIO_NUM, actual }, { F::RATIO_DEN, normal } };
+                if (!(stretch == Fraction(1, 1))) {
+                    f.push_back({ F::STRETCH, stretch });
+                }
                 if (!tuplets.empty() && tuplets.back().id.isValid()) {
                     f.push_back({ F::TUPLET, tuplets.back().id });
                 }
                 eid(e, f);
-                tuplets.push_back({ bb.add(Kind::Tuplet, vid(), f, Order::ByTime), outer * Fraction(normal, actual) });
+                tuplets.push_back({ bb.add(Kind::Tuplet, vid(), f, Order::ByTime), outer * stretch * Fraction(normal, actual),
+                                    t + base * Fraction(normal, 1) * outer });
                 report.tuplets++;
                 report.modelled["Tuplet"]++;
             } else if (n == "endTuplet") {
-                if (!tuplets.empty()) {
+                if (tuplets.empty() && closedFull > 0) {
+                    // the file meant more notes in a tuplet that was already full
+                    --closedFull;
+                    report.warnings.push_back("a tuplet whose notes last longer than the tuplet (an invalid file; the notes "
+                                              "past its end are read after it)");
+                } else if (!tuplets.empty()) {
+                    if (tuplets.back().id.isValid() && tuplets.back().end < t) {
+                        report.warnings.push_back("a tuplet whose notes last longer than the tuplet (an invalid file; kept as written)");
+                    }
                     tuplets.pop_back();
                 }
             } else if (n == "Chord" || n == "Rest" || n == "MeasureRepeat") {
+                // a tuplet holds nothing past its span: one that is full is closed even without <endTuplet/>
+                // (files written that way read like this in MuseScore too)
+                while (!tuplets.empty() && tuplets.back().id.isValid() && !isGrace(e) && !(t < tuplets.back().end)) {
+                    tuplets.pop_back();
+                    ++closedFull;
+                }
                 if (isAfterGrace(e)) {
                     pendingAfter.push_back(&e);   // MuseScore writes it before its main chord; it follows it in the voice
                     continue;
                 }
                 readEvent(e, vid(), staff, mi, t, tuplets.empty() ? Id() : tuplets.back().id, factor(), lastMainTime, lastMainChord);
+                if (lastEventEnd < t) {
+                    lastEventEnd = t;
+                }
                 if (isGrace(e)) {
                     continue;   // after-graces wait for their main chord (grace notes before it may come first)
                 }
@@ -433,6 +473,52 @@ private:
                 report.keptOnly[n]++;
             }
         }
+        if (index == 0) {
+            voice0End = lastEventEnd;   // where the last chord or rest ends (a <location> may rewind the cursor after it)
+        }
+    }
+
+    //! As MuseScore's reader does (Measure::checkMeasure): voice 1 of every measure ends at the measure's end; a short
+    //! one is completed with rests, split on the beat (a whole empty measure gets one measure rest). Other voices'
+    //! holes become MuseScore's invisible gap rests, which aren't music, so nothing is added for them.
+    //! Rests for a hole in voice 1 from `at` to `to` (MuseScore's split: the largest note value that fits and starts
+    //! on a multiple of itself, from the measure start)
+    void fillVoice1(Id voice, Fraction at, const Fraction& to, const Fraction& measureStartTime)
+    {
+        for (int guard = 0; at < to && guard < 64; ++guard) {
+            const Fraction pos = at - measureStartTime;
+            const Fraction rem = to - at;
+            Fraction d(1, 1);
+            while (Fraction(1, 1024) < d && (rem < d || (pos / d).denominator() != 1)) {
+                d = d * Fraction(1, 2);
+            }
+            if (rem < d) {
+                break;
+            }
+            bb.add(Kind::Rest, voice, { { F::TIME, at }, { F::DURATION, d }, { F::BASE_DURATION, d } }, Order::ByTime);
+            report.rests++;
+            report.modelled["(rest completing voice 1)"]++;
+            at += d;
+        }
+    }
+
+    void completeVoice1(Id staff, int mi)
+    {
+        const Fraction start = measureStart[size_t(mi)];
+        const Fraction end = start + measureLen[size_t(mi)];
+        const Fraction from = voice0End < Fraction() ? start : voice0End;
+        if (!(from < end)) {
+            return;
+        }
+        const Id voice = voiceFor(staff, 0);
+        if (from == start) {
+            bb.add(Kind::Rest, voice, { { F::TIME, start }, { F::DURATION, measureLen[size_t(mi)] }, { F::MEASURE_REST, true } },
+                   Order::ByTime);
+            report.rests++;
+            report.modelled["(rest completing voice 1)"]++;
+            return;
+        }
+        fillVoice1(voice, from, end, start);
     }
 
     static bool isGrace(const Node& e)
@@ -462,8 +548,18 @@ private:
                    Id& lastMainChord)
     {
         const bool isRest = e.name != "Chord";
-        const std::string type = e.childText("durationType");
-        const int64_t dots = toInt(e.childText("dots"));
+        // a value given twice: the last one counts (MuseScore reads in order and overwrites)
+        auto last = [&e](const char* tag) {
+            std::string v;
+            for (const Node& c : e.children) {
+                if (c.name == tag) {
+                    v = c.text();
+                }
+            }
+            return v;
+        };
+        const std::string type = last("durationType");
+        const int64_t dots = toInt(last("dots"));
         std::string grace;
         for (const Node& c : e.children) {
             if (graceTags().count(c.name)) {
@@ -491,6 +587,10 @@ private:
                 f.push_back({ F::DOTS, dots });
             }
             duration = grace.empty() ? dotted(base, dots) * factor : dotted(base, dots);
+            const Fraction st = stretchOf(staff);
+            if (grace.empty() && !(st == Fraction(1, 1))) {
+                f.push_back({ F::STRETCH, st });
+            }
             Fraction given;
             if (grace.empty() && !e.childText("duration").empty() && parseFraction(e.childText("duration"), given)
                 && !(given * factor == duration)) {
@@ -738,6 +838,13 @@ private:
     std::vector<std::pair<Id, std::string> > players;
     std::map<int64_t, Id> staffById;
     int64_t staffCount = 0;
+    std::map<uint64_t, Fraction> staffStretch;
+    Fraction stretchOf(Id staff) const
+    {
+        auto it = staffStretch.find(staff.value());
+        return it == staffStretch.end() ? Fraction(1, 1) : it->second;
+    }
+    Fraction voice0End;
     std::map<std::pair<uint64_t, int>, Id> voices;
     std::vector<Id> measureIds;
     std::vector<Fraction> measureStart, measureLen;

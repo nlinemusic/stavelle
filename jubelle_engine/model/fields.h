@@ -95,6 +95,8 @@ constexpr Field BASE_DURATION = ENGINE_BASE + 63;   // Fraction: written note va
 constexpr Field GRACE_TYPE = ENGINE_BASE + 64;      // string: acciaccatura, appoggiatura, grace4, grace16, grace32,
                                                     // grace8after, grace16after, grace32after
 constexpr Field MEASURE_REST = ENGINE_BASE + 65;    // bool: a full-measure rest
+constexpr Field STRETCH = ENGINE_BASE + 67;             // Fraction: a staff's local time signature (MuseScore's
+                                                        // stretch, e.g. 3/4 against 9/8 = 2/3): actual = written / STRETCH
 constexpr Field EXPLICIT_DURATION = ENGINE_BASE + 66;   // bool: DURATION is given, not the written value (the two
                                                         // chords of a two-note tremolo each sound for half)
 

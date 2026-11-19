@@ -10,10 +10,6 @@ src/engraving/tests/parts_data/linked-ties-1.mscx
 src/engraving/tests/parts_data/linked-ties-parts.mscx
 src/engraving/tests/parts_data/linked-ties.mscx
 src/importexport/capella/tests/data/testTuplet3.capx-ref.mscx
-src/importexport/guitarpro/tests/data/dotted-tuplets.gp-ref.mscx
-src/importexport/guitarpro/tests/data/dotted-tuplets.gp5-ref.mscx
-src/importexport/guitarpro/tests/data/dotted-tuplets.gpx-ref.mscx
-src/importexport/guitarpro/tests/guitarbendimporter_data/split_durations/tuples_tied_bends-gp.mscx
 src/importexport/musicxml/tests/data/testBackupRoundingError_ref.mscx
 src/importexport/tabledit/tests/data/rests-dotted.mscx
 test/fractional_beams.mscz

@@ -168,7 +168,8 @@ std::vector<std::string> checkInvariants(const Snapshot& s, size_t limit)
             if (!tupletFactor(s, o.idOr(F::TUPLET), factor)) {
                 report(o, "belongs to a missing or invalid tuplet");
             } else if (!o.has(F::GRACE)) {
-                const Fraction expected = dotted(o.fractionOr(F::BASE_DURATION, Fraction()), o.intOr(F::DOTS, 0)) * factor;
+                const Fraction stretch = o.fractionOr(F::STRETCH, Fraction(1, 1));
+                const Fraction expected = dotted(o.fractionOr(F::BASE_DURATION, Fraction()), o.intOr(F::DOTS, 0)) * factor / stretch;
                 if (!(expected == o.fractionOr(F::DURATION, Fraction()))) {
                     report(o, "its written value, dots and tuplets don't add up to its duration");
                 }
@@ -195,7 +196,8 @@ std::vector<std::string> checkInvariants(const Snapshot& s, size_t limit)
             } else if (!tupletFactor(s, o.idOr(F::TUPLET), outer)) {
                 report(o, "is inside a missing or invalid tuplet");
             } else if (o.has(F::BASE_DURATION)) {
-                const Fraction expected = o.fractionOr(F::BASE_DURATION, Fraction()) * Fraction(o.intOr(F::RATIO_DEN, 0), 1) * outer;
+                const Fraction expected = o.fractionOr(F::BASE_DURATION, Fraction()) * Fraction(o.intOr(F::RATIO_DEN, 0), 1) * outer
+                                          / o.fractionOr(F::STRETCH, Fraction(1, 1));
                 if (!(expected == o.fractionOr(F::DURATION, Fraction()))) {
                     report(o, "its span doesn't match its ratio and note value");
                 }

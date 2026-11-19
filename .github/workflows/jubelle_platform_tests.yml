@@ -119,8 +119,10 @@ jobs:
         PY
         JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_listings \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
-        python3 tools/jubelle_checks/je_reference_compare.py build-je/je_io_tool . v4_scores.txt ref_listings je_reference.md
+        python3 tools/jubelle_checks/je_reference_compare.py build-je/je_io_tool . v4_scores.txt ref_listings je_reference.md \
+          --expected jubelle_engine/corpus/reference_differences.txt; rc=$?
         cat je_reference.md >> "$GITHUB_STEP_SUMMARY"
+        exit $rc
     - name: Upload the comparison
       if: always()
       uses: actions/upload-artifact@v6
