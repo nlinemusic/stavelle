@@ -241,6 +241,10 @@ std::string_view fieldName(Field field)
     case END_STAFF: return "endStaff";
     case END_VOICE: return "endVoice";
     case END_GRACE: return "endGrace";
+    case LINK_EID: return "linkEid";
+    case LINK_MARK: return "linkMark";
+    case TIE_LINK: return "tieLink";
+    case GRACE_LENGTH: return "graceLength";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

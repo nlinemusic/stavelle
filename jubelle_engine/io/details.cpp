@@ -15,7 +15,7 @@ namespace {
 bool excluded(model::Field f)
 {
     static const std::set<model::Field> skip { F::KIND, F::CHILDREN, F::PARENT, F::ORIGIN_EID, F::DETAILS, F::DETAILS_KEY,
-                                                F::DETAILS_2, F::DETAILS_AFTER, F::TIE_EID, F::SEQ, F::AT_END, F::TAG, F::HOME_STAFF, F::TIE_TO };
+                                                F::DETAILS_2, F::DETAILS_AFTER, F::TIE_EID, F::LINK_EID, F::LINK_MARK, F::TIE_LINK, F::SEQ, F::AT_END, F::TAG, F::HOME_STAFF, F::TIE_TO };
     return skip.count(f) > 0;
 }
 

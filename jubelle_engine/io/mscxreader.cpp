@@ -728,8 +728,7 @@ private:
         std::vector<Node> copies;
         copies.reserve(nodes.size());
         for (const Node* n : nodes) {
-            copies.push_back(*n);
-            stripLinks(copies.back());
+            copies.push_back(*n);   // links kept: whole elements are written as they were
         }
         std::vector<const Node*> ptrs;
         for (const Node& c : copies) {
@@ -791,11 +790,24 @@ private:
         return e.child("grace8after") || e.child("grace16after") || e.child("grace32after");
     }
 
+    //! The element's identity, and its link to another element of the same score (a linked staff's copy)
     void eid(const Node& e, Fields& f)
     {
         const std::string id = e.childText("eid");
         if (!id.empty()) {
             f.push_back({ F::ORIGIN_EID, Text(id) });
+        }
+        if (const Node* l = e.child("linkedTo")) {
+            f.push_back({ F::LINK_EID, Text(l->text()) });
+        }
+        if (e.child("linkedMain")) {
+            f.push_back({ F::LINK_MARK, Text(std::string("main")) });
+        } else if (const Node* l = e.child("linked")) {
+            std::vector<const Node*> inner;
+            for (const Node& c : l->children) {
+                inner.push_back(&c);
+            }
+            f.push_back({ F::LINK_MARK, Text("linked:" + fragment(inner)) });
         }
     }
 
@@ -850,6 +862,9 @@ private:
                 f.push_back({ F::STRETCH, st });
             }
             Fraction given;
+            if (!grace.empty() && !e.childText("duration").empty() && parseFraction(e.childText("duration"), given)) {
+                f.push_back({ F::GRACE_LENGTH, given });   // how long the grace note plays
+            }
             if (grace.empty() && !e.childText("duration").empty() && parseFraction(e.childText("duration"), given)
                 && !(given * factor == duration)) {
                 duration = given * factor;   // two-note tremolo: each chord sounds for half its written value (in a tuplet, scaled)
@@ -998,6 +1013,9 @@ private:
                 }
                 if (!c.child("Tie")->childText("eid").empty()) {
                     f.push_back({ F::TIE_EID, Text(c.child("Tie")->childText("eid")) });
+                }
+                if (!c.child("Tie")->childText("linkedTo").empty()) {
+                    f.push_back({ F::TIE_LINK, Text(c.child("Tie")->childText("linkedTo")) });
                 }
             }
         }

@@ -138,13 +138,15 @@ jobs:
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_listings ref_listings je_generated.md \
           --expected jubelle_engine/corpus/reference_differences.txt || rc=1
         cat je_generated.md >> "$GITHUB_STEP_SUMMARY"
-        # and in detail (ties, slurs and other lines, articulations, spellings, annotations: what playback uses)
-        JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_detail \
+        # and in detail (ties, slurs and other lines, articulations, spellings, annotations) and as MuseScore plays it
+        # (its MIDI rendering)
+        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_detail \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
-        JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_detail \
+        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_detail \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        cat jubelle_engine/corpus/reference_differences.txt jubelle_engine/corpus/generated_playback_differences.txt > playback_expected.txt
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_detail ref_detail je_generated_detail.md \
-          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+          --expected playback_expected.txt || rc=1
         { echo; echo "### In detail"; cat je_generated_detail.md; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison

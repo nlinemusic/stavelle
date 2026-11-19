@@ -28,6 +28,8 @@
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/rest.h"
+#include "engraving/compat/midi/compatmidirender.h"
+#include "engraving/compat/midi/event.h"
 #include "engraving/dom/articulation.h"
 #include "engraving/dom/spanner.h"
 #include "engraving/dom/tie.h"
@@ -114,6 +116,17 @@ std::string listing(MasterScore* s)
                 }
             }
             ++staffIndex;
+        }
+    }
+    if (std::getenv("JUBELLE_REFERENCE_MIDI")) {
+        // MuseScore's MIDI rendering (what its MIDI export writes), repeats expanded
+        EventsHolder events;
+        CompatMidiRendererInternal::Context ctx;
+        CompatMidiRender::renderScore(s, events, ctx, true);
+        for (size_t ch = 0; ch < events.size(); ++ch) {
+            for (const auto& [tick, ev] : events[ch]) {
+                out << "# midi " << ch << ' ' << tick << ' ' << int(ev.type()) << ' ' << int(ev.dataA()) << ' ' << int(ev.dataB()) << '\n';
+            }
         }
     }
     if (std::getenv("JUBELLE_REFERENCE_DETAIL")) {

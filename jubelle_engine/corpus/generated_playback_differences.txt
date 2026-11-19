@@ -1,0 +1,7 @@
+# je::io (S2): repository scores whose file generated from the Jubelle model MuseScore's engine plays differently
+# (JUBELLE_REFERENCE_MIDI: its MIDI rendering) although it reads the same music, ties, lines and articulations.
+# Reported on every run; CI fails on any other file and when a listed file starts matching. The files whose
+# own reading differs (reference_differences.txt) are expected too. Not yet understood:
+src/engraving/tests/parts_data/voices-ref.mscx	breath-controller (CC2) values from 3360 on: dynamics or velocity carried differently
+src/importexport/midi/tests/midiimport_data/clef_tied-ref.mscx	a note at 9/4 sounds in the generated file and not in the original
+src/importexport/midi/tests/midiimport_data/meter_chord_example-ref.mscx	two note-offs end earlier in the original (581, 701)

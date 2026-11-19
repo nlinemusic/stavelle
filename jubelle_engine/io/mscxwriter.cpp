@@ -5,6 +5,7 @@
 #include "mscxwriter.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <map>
 #include <set>
 
@@ -218,6 +219,9 @@ std::vector<zip::Entry> unpackEntries(const std::string& extras)
 //! each linkable element of the music (after its identity); a part's copies lose the main score's identities
 void linkByLocation(Node& n, bool mainScore)
 {
+    if (n.name == "Measure" && n.child("multiMeasureRest")) {
+        return;   // a carried multi-measure rest: as it was
+    }
     static const std::set<std::string> linkable {
         "Chord", "Rest", "Note", "MeasureRepeat", "KeySig", "TimeSig", "Clef", "Lyrics", "Articulation", "Ornament", "Dynamic",
         "StaffText", "SystemText", "RehearsalMark", "Tempo", "Harmony", "Fingering", "Breath", "Fermata", "Expression",
@@ -226,12 +230,15 @@ void linkByLocation(Node& n, bool mainScore)
     };
     for (size_t i = 0; i < n.children.size(); ++i) {
         Node& c = n.children[i];
-        if (c.name == "linkedTo" || c.name == "linked" || c.name == "linkedMain" || (!mainScore && c.name == "eid")) {
+        if (!mainScore && (c.name == "linkedTo" || c.name == "linked" || c.name == "linkedMain" || c.name == "eid")) {
             n.children.erase(n.children.begin() + long(i));
             --i;
             continue;
         }
         linkByLocation(c, mainScore);
+    }
+    if (mainScore && std::any_of(n.children.begin(), n.children.end(), [](const Node& c) { return c.name == "linkedMain" || c.name == "linked"; })) {
+        return;   // linked within the score already (a linked staff): as it is
     }
     if (linkable.count(n.name) && !n.leaf) {
         size_t at = (!n.children.empty() && n.children.front().name == "eid") ? 1 : 0;
@@ -451,6 +458,14 @@ private:
             generatedEids = &ownEids;
         }
         indexEventSpanners();
+        s.forEachObject([this](const Object& o) {
+            if (o.has(F::ORIGIN_EID)) {
+                allEids.insert(o.text(F::ORIGIN_EID));
+            }
+            if (o.has(F::TIE_EID)) {
+                allEids.insert(o.text(F::TIE_EID));
+            }
+        });
         if (needLinks && usedEids.empty()) {
             s.forEachObject([this](const Object& o) {
                 if (o.has(F::ORIGIN_EID)) {
@@ -551,6 +566,34 @@ private:
         const std::string eid = eidOf(o);
         if (!eid.empty()) {
             n.children.push_back(leaf("eid", eid));
+        }
+        addLink(n, o, F::LINK_EID);
+    }
+
+    //! A link to another element of the same score (a linked staff's copy), while that element is there; a staff's
+    //! link before 4.60 is its number
+    void addLink(Node& n, const Object& o, model::Field field)
+    {
+        if (layout) {
+            return;   // a part's links are made by linkToMain / linkByLocation
+        }
+        const std::string to = o.text(field);
+        // written as read (MuseScore warns about a link whose element isn't in the file, as it does for the original)
+        if (!to.empty()) {
+            n.children.push_back(leaf("linkedTo", xml::encode(to)));
+        }
+        if (field == F::LINK_EID) {
+            const std::string mark = o.text(F::LINK_MARK);
+            if (mark == "main") {
+                n.children.push_back(empty("linkedMain"));
+            } else if (mark.rfind("linked:", 0) == 0) {
+                Node l = elem("linked");
+                for (Node& c : parseFragment(mark.substr(7))) {
+                    l.children.push_back(std::move(c));
+                }
+                finishNode(l);
+                n.children.push_back(std::move(l));
+            }
         }
     }
 
@@ -1203,6 +1246,8 @@ private:
             n.children.push_back(leaf("durationType", durationName(ev.fractionOr(F::BASE_DURATION, ev.fractionOr(F::DURATION, Fraction(1, 4))))));
             if (ev.has(F::EXPLICIT_DURATION)) {
                 n.children.push_back(leaf("duration", frac(ev.fractionOr(F::DURATION, Fraction()) / factorOf(ev))));
+            } else if (ev.has(F::GRACE_LENGTH)) {
+                n.children.push_back(leaf("duration", frac(ev.fractionOr(F::GRACE_LENGTH, Fraction()))));
             }
         }
         if (ev.has(F::GRACE)) {
@@ -1460,6 +1505,7 @@ private:
                 } else if (needLinks) {   // a tie made in Jubelle: an identity derived from its note's
                     tie.children.push_back(leaf("eid", partEid(eidOf(note), -77)));
                 }
+                addLink(tie, note, F::TIE_LINK);
                 addDetails(tie, note, F::DETAILS_2);
                 finishNode(tie);
                 sp.children.push_back(std::move(tie));
@@ -1595,8 +1641,15 @@ private:
             n.children.push_back(leaf("sigD", std::to_string(it.intOr(F::TIMESIG_DEN, 4))));
         } else if (tag == "Tempo") {
             const model::Value v = it.get(F::REAL_VALUE);
-            char buf[32];
-            std::snprintf(buf, sizeof(buf), "%.17g", std::holds_alternative<double>(v) ? std::get<double>(v) : 2.0);
+            // the shortest form that reads back as the same number
+            const double value = std::holds_alternative<double>(v) ? std::get<double>(v) : 2.0;
+            char buf[40];
+            for (int precision = 1; precision <= 17; ++precision) {
+                std::snprintf(buf, sizeof(buf), "%.*g", precision, value);
+                if (std::strtod(buf, nullptr) == value) {
+                    break;
+                }
+            }
             n.children.push_back(leaf("tempo", buf));
             n.children.push_back(leaf("text", it.text(F::TEXT)));
         } else if (tag == "Dynamic" || tag == "Fermata" || tag == "Breath") {
@@ -1654,6 +1707,7 @@ private:
     std::map<Id, std::string>* generatedEids = nullptr;   // identities given in this save (shared with the parts)
     std::map<Id, std::string> ownEids;
     std::set<std::string> usedEids;
+    std::set<std::string> allEids;   // every identity in the score (a link is written only to one that exists)
     uint64_t eidCounter = 0;
     bool needLinks = false;
     std::map<Id, std::vector<const Object*> > startsIn, endsIn;   // lines kept inside chords, by chord
