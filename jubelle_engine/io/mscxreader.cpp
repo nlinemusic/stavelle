@@ -1141,6 +1141,10 @@ private:
             f.push_back({ F::TEXT, Text(e.childText("concertClefType").empty() ? e.childText("clefType") : e.childText("concertClefType")) });
         } else if (n == "KeySig") {
             f.push_back({ F::INT_VALUE, toInt(e.childText("concertKey").empty() ? e.childText("accidental") : e.childText("concertKey")) });
+            if (e.childText("concertKey").empty() && !e.childText("accidental").empty()) {
+                // MuseScore's 4.00 reader knows only <accidental> (the key as written on the staff)
+                f.push_back({ F::VALUE_TAG, Text(std::string("accidental")) });
+            }
             if (!e.childText("mode").empty()) {
                 f.push_back({ F::TEXT, Text(e.childText("mode")) });
             }

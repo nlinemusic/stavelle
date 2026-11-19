@@ -245,6 +245,7 @@ std::string_view fieldName(Field field)
     case LINK_MARK: return "linkMark";
     case TIE_LINK: return "tieLink";
     case GRACE_LENGTH: return "graceLength";
+    case VALUE_TAG: return "valueTag";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

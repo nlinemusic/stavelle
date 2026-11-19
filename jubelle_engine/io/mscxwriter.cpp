@@ -1632,7 +1632,8 @@ private:
         if (tag == "Clef") {
             n.children.push_back(leaf("concertClefType", xml::encode(it.text(F::TEXT))));
         } else if (tag == "KeySig") {
-            n.children.push_back(leaf("concertKey", std::to_string(it.intOr(F::INT_VALUE, 0))));
+            n.children.push_back(leaf(it.text(F::VALUE_TAG) == "accidental" ? "accidental" : "concertKey",
+                                      std::to_string(it.intOr(F::INT_VALUE, 0))));
             if (!it.text(F::TEXT).empty()) {
                 n.children.push_back(leaf("mode", xml::encode(it.text(F::TEXT))));
             }
