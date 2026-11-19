@@ -21,6 +21,8 @@ class Object
 public:
     explicit Object(Id id)
         : m_id(id) {}
+    //! With these properties (sorted here; absent values dropped; a repeated field keeps its last value)
+    Object(Id id, std::vector<std::pair<Field, Value> > properties);
 
     Id id() const { return m_id; }
     Kind kind() const;

@@ -78,6 +78,9 @@ public:
     void setScore(Id score) { m_current.m_score = score; }
     Id score() const { return m_current.m_score; }
 
+    //! Replaces the whole content (a file just read; not undoable). Objects must have distinct ids.
+    void replaceAll(std::vector<Object> objects, Id score);
+
     //! Number of set() calls that changed something (each new version)
     uint64_t version() const { return m_current.m_version; }
 

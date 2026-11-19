@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <map>
+#include <stdexcept>
 #include <random>
 #include <vector>
 
@@ -109,4 +110,31 @@ TEST(IdMap, OneChangeSharesAlmostEverything)
     EXPECT_LE(changed.nodesNotSharedWith(m), 13u);
     EXPECT_EQ(*m.find(Id(777)), 777);
     EXPECT_EQ(*changed.find(Id(777)), -1);
+}
+
+// Building at once gives the same content and iteration order as repeated set(), and stays editable
+TEST(IdMap, FromEntriesMatchesRepeatedSet)
+{
+    std::mt19937_64 rng(11);
+    std::vector<std::pair<Id, int> > entries;
+    IdMap<int> bySet;
+    for (int i = 0; i < 20000; ++i) {
+        const uint64_t key = (rng() | 1);
+        if (bySet.contains(Id(key))) {
+            continue;
+        }
+        entries.emplace_back(Id(key), i);
+        bySet = bySet.set(Id(key), i);
+    }
+    const IdMap<int> built = IdMap<int>::fromEntries(entries);
+    EXPECT_EQ(built.size(), bySet.size());
+    std::vector<std::pair<uint64_t, int> > a, b;
+    built.forEach([&a](Id k, const int& v) { a.emplace_back(k.value(), v); });
+    bySet.forEach([&b](Id k, const int& v) { b.emplace_back(k.value(), v); });
+    EXPECT_EQ(a, b);
+    IdMap<int> edited = built.erase(entries[5].first).set(Id(2), 7);
+    EXPECT_EQ(edited.size(), built.size());
+    EXPECT_EQ(edited.find(entries[5].first), nullptr);
+    EXPECT_EQ(*edited.find(Id(2)), 7);
+    EXPECT_THROW(IdMap<int>::fromEntries({ { Id(3), 1 }, { Id(3), 2 } }), std::invalid_argument);
 }

@@ -225,12 +225,13 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 18 Nov 2026 | Roadmap revised for a complete, independent engine (D-E22): ten subsystems with independent tests; no testing release until the gates pass |
 | 18 Nov 2026 | AAC: FFmpeg's own AAC encoder replaces FDK AAC, which is deleted from the source (`docs/08_…` §7); verified locally with FFmpeg 6.1 under sanitizers; Windows and macOS export checks running |
 | 18 Nov 2026 | **S1 first increment:** persistent id map, immutable objects, field vocabulary, model with O(1) snapshots, structural edits, invariant checker, score builder; 35 tests (property tests for the map and for random edit/undo/redo sequences; snapshots read on other threads) clean under AddressSanitizer/UBSan and ThreadSanitizer. Orchestra size (39 × 285, 89,324 objects): one note edit or undo ≈ 1 µs, chord insert or delete ≈ 35 µs, snapshot O(1), model heap 41.6 MB |
+| 18 Nov 2026 | S1: `BulkBuilder` (whole score at once, for file reading; same model as the transaction path, tested) and one-pass `IdMap` construction; orchestra built in 148 ms; 39 tests |
 
 ## 15. Outstanding work
 - **S1** (in progress; foundations done): typed views and remaining kinds' rules (tuplets, grace notes,
   spanners, flow items, layouts, tempo and meter maps); reduce memory per object (41.6 MB for the orchestra: smaller
-  values and interned strings); a bulk builder for loading files (building through transactions takes 0.95 s for the
-  orchestra; loading must not).
+  values and interned strings). The bulk builder for loading files is done: the orchestra builds in 148 ms
+  (0.84–0.98 s through transactions), giving exactly the same model (tested).
 - **S2** next: native MuseScore 4.x reader and writer; engine store; style-setting preservation with the
   Jubelle → MuseScore → Jubelle test; round trips on the corpus.
 - AAC: FFmpeg's own AAC encoder replaces FDK (approved; part of S6's export path); FDK removed from the source.

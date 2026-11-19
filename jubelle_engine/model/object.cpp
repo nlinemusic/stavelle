@@ -28,6 +28,23 @@ auto findField(Props& props, Field field)
 }
 }
 
+Object::Object(Id id, std::vector<std::pair<Field, Value> > properties)
+    : m_id(id)
+{
+    std::stable_sort(properties.begin(), properties.end(),
+                     [](const std::pair<Field, Value>& a, const std::pair<Field, Value>& b) { return a.first < b.first; });
+    for (auto& p : properties) {
+        if (isAbsent(p.second)) {
+            continue;
+        }
+        if (!m_props.empty() && m_props.back().first == p.first) {
+            m_props.back().second = std::move(p.second);
+        } else {
+            m_props.push_back(std::move(p));
+        }
+    }
+}
+
 Kind Object::kind() const
 {
     return Kind(intOr(fields::KIND, int64_t(Kind::None)));

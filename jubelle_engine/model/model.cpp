@@ -66,6 +66,23 @@ std::vector<Field> Model::fieldsOf(Id object) const
     return out;
 }
 
+void Model::replaceAll(std::vector<Object> objects, Id score)
+{
+    std::vector<std::pair<Id, ObjectPtr> > entries;
+    entries.reserve(objects.size());
+    for (Object& o : objects) {
+        const Id id = o.id();
+        entries.emplace_back(id, std::make_shared<const Object>(std::move(o)));
+    }
+    try {
+        m_current.m_objects = IdMap<ObjectPtr>::fromEntries(std::move(entries));
+    } catch (const std::invalid_argument&) {
+        throw std::logic_error("je::model::replaceAll: two objects with the same id");
+    }
+    m_current.m_score = score;
+    ++m_current.m_version;
+}
+
 Value Model::get(Id object, Field field) const
 {
     const Object* o = m_current.find(object);

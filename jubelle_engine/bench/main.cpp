@@ -18,6 +18,7 @@
 #include "edit/structure.h"
 #include "exec/threadpool.h"
 #include "model/cowvector.h"
+#include "model/bulkbuilder.h"
 #include "model/invariants.h"
 #include "model/model.h"
 
@@ -126,6 +127,28 @@ void modelBenchmarks()
         b.addChord(tx, voice, t, Fraction(1, 4), { 72 });
         history.push(tx.commit());
     }, 50));
+    report("model: build the same orchestra at once (BulkBuilder, as a file reader will)", timeMs([&] {
+        model::Model fresh;
+        IdGenerator bulkIds(1);
+        model::BulkBuilder bb(bulkIds);
+        const Id score = bb.add(model::Kind::Score, Id(), { { F::NAME, std::string("Large orchestra") } });
+        const Id flow = bb.add(model::Kind::Flow, score, {});
+        for (int mm = 0; mm < 285; ++mm) {
+            bb.add(model::Kind::Measure, flow, { { F::TIME, Fraction(mm, 1) }, { F::DURATION, Fraction(1, 1) } },
+                   model::BulkBuilder::Order::ByTime);
+        }
+        for (int p = 0; p < 39; ++p) {
+            const Id player = bb.add(model::Kind::Player, score, { { F::NAME, "Player " + std::to_string(p + 1) } });
+            const Id staff = bb.add(model::Kind::Staff, player, {});
+            const Id v = bb.add(model::Kind::Voice, staff, { { F::FLOW, flow } });
+            for (int beat = 0; beat < 285 * 4; ++beat) {
+                const Id c = bb.add(model::Kind::Chord, v, { { F::TIME, Fraction(beat, 4) }, { F::DURATION, Fraction(1, 4) } },
+                                    model::BulkBuilder::Order::ByTime);
+                bb.add(model::Kind::Note, c, { { F::PITCH, int64_t(55 + beat % 24) } });
+            }
+        }
+        bb.finish(fresh);
+    }, 3));
     report("model: check every invariant (whole score)", timeMs([&] {
         auto problems = model::checkInvariants(m.snapshot());
         if (!problems.empty()) {

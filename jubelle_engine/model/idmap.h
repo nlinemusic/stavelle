@@ -15,7 +15,9 @@
  */
 #pragma once
 
+#include <algorithm>
 #include <cassert>
+#include <stdexcept>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -80,6 +82,30 @@ public:
 
     size_t size() const { return m_size; }
     bool empty() const { return m_size == 0; }
+
+    //! A map holding these entries, built in one pass (no path copying). Keys must be distinct
+    //! (std::invalid_argument otherwise). The result is the same map repeated set() calls give.
+    static IdMap fromEntries(std::vector<std::pair<Id, V> > entries)
+    {
+        std::vector<Leaf> leaves;
+        leaves.reserve(entries.size());
+        for (auto& e : entries) {
+            leaves.push_back(Leaf { detail::mix64(e.first.value()), e.first, std::move(e.second) });
+        }
+        // slot order at every level = ascending order of the hash read 5 bits at a time from the low end
+        std::sort(leaves.begin(), leaves.end(), [](const Leaf& a, const Leaf& b) { return reversedSlots(a.hash) < reversedSlots(b.hash); });
+        for (size_t i = 1; i < leaves.size(); ++i) {
+            if (leaves[i].key == leaves[i - 1].key) {
+                throw std::invalid_argument("je::model::IdMap::fromEntries: the same id twice");
+            }
+        }
+        IdMap out;
+        out.m_size = leaves.size();
+        if (!leaves.empty()) {
+            out.m_root = buildNode(leaves, 0, leaves.size(), 0);
+        }
+        return out;
+    }
 
     //! nullptr if absent
     const V* find(Id key) const
@@ -204,6 +230,39 @@ private:
         copy->leafMap |= bit;
         added = true;
         return copy;
+    }
+
+    //! The hash with its 5-bit slot groups in reverse order, so sorting by it sorts by slot at every level
+    static uint64_t reversedSlots(uint64_t hash)
+    {
+        uint64_t out = 0;
+        for (int shift = 0; shift <= MAX_SHIFT; shift += BITS) {
+            const int width = shift == MAX_SHIFT ? 4 : BITS;
+            out = (out << width) | ((hash >> shift) & ((1u << width) - 1));
+        }
+        return out;
+    }
+
+    static NodePtr buildNode(std::vector<Leaf>& leaves, size_t lo, size_t hi, int shift)
+    {
+        auto node = std::make_shared<Node>();
+        size_t i = lo;
+        while (i < hi) {
+            const uint32_t slot = slotOf(leaves[i].hash, shift);
+            size_t j = i + 1;
+            while (j < hi && slotOf(leaves[j].hash, shift) == slot) {
+                ++j;
+            }
+            if (j - i == 1) {
+                node->leafMap |= 1u << slot;
+                node->leaves.push_back(std::move(leaves[i]));
+            } else {
+                node->childMap |= 1u << slot;
+                node->children.push_back(buildNode(leaves, i, j, shift + BITS));
+            }
+            i = j;
+        }
+        return node;
     }
 
     static NodePtr pairNode(Leaf&& a, Leaf&& b, int shift)
