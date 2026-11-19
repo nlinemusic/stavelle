@@ -25,27 +25,44 @@ public:
     Object(Id id, std::vector<std::pair<Field, Value> > properties);
 
     Id id() const { return m_id; }
-    Kind kind() const;
+    Kind kind() const { return m_kind; }
 
     //! The value, or an absent (monostate) value
-    const Value& get(Field field) const;
+    Value get(Field field) const;
     bool has(Field field) const;
 
     //! A copy with `field` set (an absent value removes the field)
     Object with(Field field, const Value& value) const;
 
-    const std::vector<std::pair<Field, Value> >& properties() const { return m_props; }
+    //! Every stored field in field order (KIND and PARENT included), as (Field, Value)
+    template<typename Fn>
+    void forEachField(Fn&& fn) const
+    {
+        if (m_kind != Kind::None) {
+            fn(fields::KIND, Value(int64_t(m_kind)));
+        }
+        if (m_parent.isValid()) {
+            fn(fields::PARENT, Value(m_parent));
+        }
+        for (const auto& p : m_props) {
+            fn(p.first, p.second);
+        }
+    }
+    size_t fieldCount() const { return m_props.size() + (m_kind != Kind::None) + m_parent.isValid(); }
+    std::string text(Field field) const;
 
     // typed helpers (absent → the default given)
     int64_t intOr(Field field, int64_t fallback) const;
     Fraction fractionOr(Field field, const Fraction& fallback) const;
     Id idOr(Field field, Id fallback = Id()) const;
     const IdList& children() const;
-    Id parent() const { return idOr(fields::PARENT); }
+    Id parent() const { return m_parent; }
 
 private:
     Id m_id;
-    std::vector<std::pair<Field, Value> > m_props;   // sorted by field
+    Id m_parent;                                      // fields::PARENT, kept out of the list (every object has one)
+    Kind m_kind = Kind::None;                         // fields::KIND, likewise
+    std::vector<std::pair<Field, Value> > m_props;   // the other fields, sorted, exact size
 };
 
 using ObjectPtr = std::shared_ptr<const Object>;

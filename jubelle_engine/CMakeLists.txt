@@ -84,6 +84,7 @@ add_executable(je_tests
     tests/idmap_tests.cpp
     tests/model_tests.cpp
     tests/bulkbuilder_tests.cpp
+    tests/notation_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core gtest)

@@ -19,7 +19,7 @@ void writeValue(std::ostringstream& out, const Value& v)
         void operator()(bool b) const { out << (b ? "true" : "false"); }
         void operator()(int64_t i) const { out << i; }
         void operator()(double d) const { out.precision(17); out << d; }
-        void operator()(const std::string& s) const { out << '"' << s << '"'; }
+        void operator()(const Text& s) const { out << '"' << s.str() << '"'; }
         void operator()(const Fraction& f) const { out << f.toString(); }
         void operator()(Id id) const { out << '#' << id.toString(); }
         void operator()(const IdList& list) const
@@ -46,10 +46,10 @@ std::string Snapshot::dump() const
     out << "score #" << m_score.toString() << '\n';
     for (const Object* o : all) {
         out << '#' << o->id().toString() << ' ' << kindName(o->kind());
-        for (const auto& [field, value] : o->properties()) {
+        o->forEachField([&out](Field field, const Value& value) {
             out << ' ' << fieldName(field) << '(' << field << ")=";
             writeValue(out, value);
-        }
+        });
         out << '\n';
     }
     return out.str();
@@ -59,9 +59,7 @@ std::vector<Field> Model::fieldsOf(Id object) const
 {
     std::vector<Field> out;
     if (const Object* o = m_current.find(object)) {
-        for (const auto& p : o->properties()) {
-            out.push_back(p.first);
-        }
+        o->forEachField([&out](Field field, const Value&) { out.push_back(field); });
     }
     return out;
 }

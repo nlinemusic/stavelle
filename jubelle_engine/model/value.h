@@ -40,8 +40,25 @@ private:
     std::shared_ptr<const std::vector<Id> > m_ids;
 };
 
-//! A field value. monostate = absent (the object or the property isn't there)
-using Value = std::variant<std::monostate, bool, int64_t, double, std::string, je::Fraction, je::Id, IdList>;
+//! Text, immutable and shared (16 bytes instead of a 32-byte std::string in every value). Compared by content.
+class Text
+{
+public:
+    Text() = default;
+    Text(std::string s)   // NOLINT: implicit, so std::string values convert
+        : m_s(s.empty() ? nullptr : std::make_shared<const std::string>(std::move(s))) {}
+
+    const std::string& str() const { static const std::string none; return m_s ? *m_s : none; }
+    bool empty() const { return !m_s || m_s->empty(); }
+    bool operator==(const Text& o) const { return m_s == o.m_s || str() == o.str(); }
+    bool operator!=(const Text& o) const { return !(*this == o); }
+
+private:
+    std::shared_ptr<const std::string> m_s;
+};
+
+//! A field value. monostate = absent (the object or the property isn't there). 24 bytes.
+using Value = std::variant<std::monostate, bool, int64_t, double, Text, je::Fraction, je::Id, IdList>;
 
 inline bool isAbsent(const Value& v) { return std::holds_alternative<std::monostate>(v); }
 

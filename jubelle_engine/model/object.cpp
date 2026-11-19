@@ -31,6 +31,18 @@ auto findField(Props& props, Field field)
 Object::Object(Id id, std::vector<std::pair<Field, Value> > properties)
     : m_id(id)
 {
+    for (auto it = properties.begin(); it != properties.end();) {
+        if (it->first == fields::KIND || it->first == fields::PARENT) {
+            if (it->first == fields::KIND) {
+                m_kind = std::holds_alternative<int64_t>(it->second) ? Kind(std::get<int64_t>(it->second)) : Kind::None;
+            } else {
+                m_parent = std::holds_alternative<Id>(it->second) ? std::get<Id>(it->second) : Id();
+            }
+            it = properties.erase(it);
+        } else {
+            ++it;
+        }
+    }
     std::stable_sort(properties.begin(), properties.end(),
                      [](const std::pair<Field, Value>& a, const std::pair<Field, Value>& b) { return a.first < b.first; });
     for (auto& p : properties) {
@@ -43,27 +55,50 @@ Object::Object(Id id, std::vector<std::pair<Field, Value> > properties)
             m_props.push_back(std::move(p));
         }
     }
+    m_props.shrink_to_fit();
 }
 
-Kind Object::kind() const
+Value Object::get(Field field) const
 {
-    return Kind(intOr(fields::KIND, int64_t(Kind::None)));
-}
-
-const Value& Object::get(Field field) const
-{
+    if (field == fields::KIND) {
+        return m_kind == Kind::None ? Value() : Value(int64_t(m_kind));
+    }
+    if (field == fields::PARENT) {
+        return m_parent.isValid() ? Value(m_parent) : Value();
+    }
     auto it = findField(m_props, field);
     return (it != m_props.end() && it->first == field) ? it->second : absent();
 }
 
 bool Object::has(Field field) const
 {
-    return !isAbsent(get(field));
+    if (field == fields::KIND) {
+        return m_kind != Kind::None;
+    }
+    if (field == fields::PARENT) {
+        return m_parent.isValid();
+    }
+    auto it = findField(m_props, field);
+    return it != m_props.end() && it->first == field;
+}
+
+std::string Object::text(Field field) const
+{
+    const Value v = get(field);
+    return std::holds_alternative<Text>(v) ? std::get<Text>(v).str() : std::string();
 }
 
 Object Object::with(Field field, const Value& value) const
 {
     Object copy = *this;
+    if (field == fields::KIND) {
+        copy.m_kind = std::holds_alternative<int64_t>(value) ? Kind(std::get<int64_t>(value)) : Kind::None;
+        return copy;
+    }
+    if (field == fields::PARENT) {
+        copy.m_parent = std::holds_alternative<Id>(value) ? std::get<Id>(value) : Id();
+        return copy;
+    }
     auto it = findField(copy.m_props, field);
     const bool present = it != copy.m_props.end() && it->first == field;
     if (isAbsent(value)) {
@@ -75,31 +110,39 @@ Object Object::with(Field field, const Value& value) const
     } else {
         copy.m_props.insert(it, { field, value });
     }
+    copy.m_props.shrink_to_fit();
     return copy;
 }
 
 int64_t Object::intOr(Field field, int64_t fallback) const
 {
-    const Value& v = get(field);
+    const Value v = get(field);
     return std::holds_alternative<int64_t>(v) ? std::get<int64_t>(v) : fallback;
 }
 
 Fraction Object::fractionOr(Field field, const Fraction& fallback) const
 {
-    const Value& v = get(field);
+    auto it = findField(m_props, field);
+    if (it == m_props.end() || it->first != field) {
+        return fallback;
+    }
+    const Value& v = it->second;
     return std::holds_alternative<Fraction>(v) ? std::get<Fraction>(v) : fallback;
 }
 
 Id Object::idOr(Field field, Id fallback) const
 {
-    const Value& v = get(field);
+    const Value v = get(field);
     return std::holds_alternative<Id>(v) ? std::get<Id>(v) : fallback;
 }
 
 const IdList& Object::children() const
 {
-    const Value& v = get(fields::CHILDREN);
-    return std::holds_alternative<IdList>(v) ? std::get<IdList>(v) : noChildren();
+    auto it = findField(m_props, fields::CHILDREN);
+    if (it == m_props.end() || it->first != fields::CHILDREN) {
+        return noChildren();
+    }
+    return std::holds_alternative<IdList>(it->second) ? std::get<IdList>(it->second) : noChildren();
 }
 
 std::string_view kindName(Kind kind)
@@ -158,6 +201,18 @@ std::string_view fieldName(Field field)
     case END_ANCHOR: return "endAnchor";
     case TEXT: return "text";
     case INT_VALUE: return "intValue";
+    case REAL_VALUE: return "realValue";
+    case VERSE: return "verse";
+    case SYLLABIC: return "syllabic";
+    case BASE_DURATION: return "baseDuration";
+    case GRACE_TYPE: return "graceType";
+    case MEASURE_REST: return "measureRest";
+    case REPEAT_START: return "repeatStart";
+    case REPEAT_END: return "repeatEnd";
+    case IRREGULAR: return "irregular";
+    case BREAK: return "break";
+    case PLAYERS: return "players";
+    case ORIGIN_EID: return "originEid";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";
