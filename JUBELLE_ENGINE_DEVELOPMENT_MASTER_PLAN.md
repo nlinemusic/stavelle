@@ -234,10 +234,11 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | AAC: **Windows and macOS export checks passed** (AAC-LC at 44.1/48/96 kHz; MP4 sound) |
 | 19 Nov 2026 | **S2 started** (`docs/15_…`): ZIP with zlib, lossless XML (byte-for-byte for MuseScore's layout), score file, engine store with the 11-setting style mirror and restore, MuseScore 4.x reader into the model. Repository corpus (2,909 scores): **0 XML content changes**, 627/627 archives, **2,118/2,118 4.x scores read**, 2,104 consistent (14 known test-file issues); ASan clean. Large orchestra: open in 235–360 ms against 918 ms with MuseScore's engine (same machine and file). 47 tests. CI: corpus check on Windows/macOS/Linux; MuseScore 4.7.7 both-ways test |
 | 19 Nov 2026 | **S2 compatibility with official MuseScore 4.7.7** (Windows CI): 54 Jubelle-written scores opened by MuseScore with **identical MIDI**; for all 52 4.x originals the engine read the same music back from MuseScore's save; Jubelle's 11 style settings **restored 11 of 11** after a MuseScore save (fixed: the style lives in `score_style.mss`). Corpus check green on Windows, macOS and Linux |
+| 19 Nov 2026 | **S2 against MuseScore's own reading** (the comparison baseline, every 4.x score in the repository): **2,079 of 2,118 identical music listings (98.2%)**, up from 1,983 after fixes found by the comparison (multi-measure rest measures, after-grace order, end-of-measure time signatures, measure rests, tremolos in tuplets); the 39 left are documented kinds of importer and edge-case test files |
 
 ## 15. Outstanding work
-- **S2** (now): compare the reader with MuseScore's own reading of every corpus score (music listing from the
-  existing engine test tool) and settle the 14 known issues; the writer that generates XML from the model, checked
+- **S2** (now): settle the 39 remaining differences from MuseScore's reading (local time signatures, importer
+  tuplets, unfinished last measures) and the 14 consistency known issues; the writer that generates XML from the model, checked
   against the lossless writer; part layouts in full; older formats (1.x–3.x), MusicXML and MIDI later in S2;
   reduce the kept XML's memory (64 MB for the large orchestra).
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run

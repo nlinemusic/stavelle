@@ -45,6 +45,26 @@ the generated XML must equal the kept XML.
 linked-staff test files and one visual test. They will be settled against MuseScore's own reading of the same files
 (next step). CI fails on any failure outside the list, and when a listed file starts passing.
 
+## 2b. Against MuseScore's own reading (the comparison baseline)
+MuseScore's engine (in the test tool only) reads every MuseScore 4.x score of the repository and lists its music in
+the same form as `je_io_tool listing` (staff, voice, time, duration, grace, pitches; MuseScore's invisible gap rests
+left out). `tools/jubelle_checks/je_reference_compare.py` compares the two listings file by file; the CI job
+`je_reference` of "Jubelle: Platform Reliability Tests" (input `engine_reference=yes`) runs it on Linux.
+
+| Run (19 Nov 2026) | Identical music |
+|---|---|
+| first comparison | 1,983 of 2,118 |
+| multi-measure rest measures skipped (MuseScore's layout-only measures), after-graces in MuseScore's order | 2,037 |
+| end-of-measure time signatures; measure rests fill their measure; gap rests left out of MuseScore's listing | 2,078 |
+| two-note tremolos inside tuplets | **2,079 of 2,118 (98.2%)** |
+
+The 39 remaining are test files of these kinds: Capella import references whose last measure is unfinished
+(MuseScore completes it; a general "complete short measures" rule was tried and made 50 other files differ, so it was
+withdrawn), staves with their own time signature ("local time signatures", the `<stretch>` of MusicXML tests),
+tuplet edge cases from the Guitar Pro, Capella and MNX importers, a copy-paste test whose measure length MuseScore
+corrects, and a bend test where MuseScore itself reads negative grace durations. Each is to be resolved or explained
+before S2 is complete.
+
 ## 3. Performance (this machine, the same files; MuseScore's engine measured with the existing baseline tool)
 | Score | MuseScore's engine: read (no layout) | Jubelle engine: open (parse + model) | Jubelle engine: memory |
 |---|---:|---:|---:|

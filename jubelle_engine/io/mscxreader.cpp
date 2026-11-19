@@ -224,22 +224,35 @@ private:
     {
         Fraction t;
         int64_t num = 4, den = 4;
+        int64_t nextNum = 0, nextDen = 0;   // a time signature at the end of a measure: it starts with the next one
         for (const Node& m : firstStaff.children) {
-            if (m.name != "Measure") {
-                continue;
+            if (m.name != "Measure" || m.child("multiMeasureRest")) {
+                continue;   // a <multiMeasureRest> measure is MuseScore's layout-only combined rest, not music
             }
-            // a time signature at the start of the measure (any voice) sets the nominal length
+            if (nextNum > 0) {
+                num = nextNum;
+                den = nextDen;
+                nextNum = 0;
+            }
+            // a time signature at the start of the measure (any voice) sets the nominal length; one after the
+            // measure's music belongs to the next measure
             for (const Node& v : m.children) {
                 if (v.name != "voice") {
                     continue;
                 }
+                bool afterMusic = false;
                 for (const Node& e : v.children) {
                     if (e.name == "TimeSig") {
-                        num = toInt(e.childText("sigN"), num);
-                        den = toInt(e.childText("sigD"), den);
+                        if (afterMusic) {
+                            nextNum = toInt(e.childText("sigN"), num);
+                            nextDen = toInt(e.childText("sigD"), den);
+                        } else {
+                            num = toInt(e.childText("sigN"), num);
+                            den = toInt(e.childText("sigD"), den);
+                        }
                     }
-                    if (e.name == "Chord" || e.name == "Rest") {
-                        break;
+                    if (e.name == "Chord" || e.name == "Rest" || e.name == "MeasureRepeat") {
+                        afterMusic = true;
                     }
                 }
             }
@@ -324,6 +337,10 @@ private:
                 }
                 continue;
             }
+            if (m.child("multiMeasureRest")) {
+                report.keptOnly["Measure (multi-measure rest, layout only)"]++;
+                continue;
+            }
             if (++mi >= int(measureStart.size())) {
                 report.warnings.push_back("a staff has more measures than the first staff");
                 return;
@@ -401,6 +418,8 @@ private:
                 if (isGrace(e)) {
                     continue;   // after-graces wait for their main chord (grace notes before it may come first)
                 }
+                // MuseScore orders a chord's after-graces the other way round from the file
+                std::reverse(pendingAfter.begin(), pendingAfter.end());
                 for (const Node* g : pendingAfter) {
                     Fraction at = lastMainTime;
                     readEvent(*g, vid(), staff, mi, at, Id(), factor(), lastMainTime, lastMainChord);
@@ -454,8 +473,8 @@ private:
         Fields f;
         Fraction duration;
         if (type == "measure" || e.name == "MeasureRepeat") {
-            // a measure rest fills its measure: the measure's actual length (the file's <duration> stays in the XML;
-            // edge-case files can disagree, e.g. a multi-measure rest's stored total)
+            // a measure rest fills the rest of its measure (MuseScore corrects a stored <duration> that disagrees;
+            // the file's value stays in the XML)
             duration = measureLen[size_t(mi)] - (t - measureStart[size_t(mi)]);
             f.push_back({ F::MEASURE_REST, true });
             if (e.name == "MeasureRepeat") {
@@ -473,8 +492,9 @@ private:
             }
             duration = grace.empty() ? dotted(base, dots) * factor : dotted(base, dots);
             Fraction given;
-            if (grace.empty() && !e.childText("duration").empty() && parseFraction(e.childText("duration"), given) && !(given == duration)) {
-                duration = given;   // two-note tremolo: each chord sounds for half its written value
+            if (grace.empty() && !e.childText("duration").empty() && parseFraction(e.childText("duration"), given)
+                && !(given * factor == duration)) {
+                duration = given * factor;   // two-note tremolo: each chord sounds for half its written value (in a tuplet, scaled)
                 f.push_back({ F::EXPLICIT_DURATION, true });
             }
             if (tuplet.isValid() && grace.empty()) {

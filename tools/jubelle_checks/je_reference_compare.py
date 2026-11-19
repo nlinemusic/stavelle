@@ -38,7 +38,7 @@ def main():
           f"{unread} not read by MuseScore's engine.", "", "Differences by kind: " +
           (", ".join(f"{k} {n}" for k, n in kinds.items()) or "none"), ""] + examples
     report.write_text("\n".join(md) + "\n", encoding="utf-8")
-    print("\n".join(md[:4]))
+    print("\n".join(md))
     return 0
 
 
