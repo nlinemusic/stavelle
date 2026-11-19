@@ -79,13 +79,15 @@ def main():
         la = listing(tool, src, work / f"{tag}_la.log")
         lb = listing(tool, ms, work / f"{tag}_lb.log") if ms.exists() else None
         r["musescore_saved"] = ms.exists()
-        r["listing_same"] = la is not None and la == lb
-        ok = r["rewritten"] and r["midi_same"] and r["musescore_saved"] and r["listing_same"]
+        # the native reader reads MuseScore 4.x; for an older original (the 3.x demos) this check doesn't apply
+        r["v4"] = is_v4(src)
+        r["listing_same"] = (la is not None and la == lb) if r["v4"] else None
+        ok = r["rewritten"] and r["midi_same"] and r["musescore_saved"] and r["listing_same"] is not False
         failures += 0 if ok else 1
         rows.append((r, ok))
         detail = ""
         if not ok:
-            detail = " " + ", ".join(k for k in ("rewritten", "midi_same", "musescore_saved", "listing_same") if not r[k])
+            detail = " " + ", ".join(k for k in ("rewritten", "midi_same", "musescore_saved", "listing_same") if r[k] is False)
             if la is not None and lb is not None and la != lb:
                 a, b = la.splitlines(), lb.splitlines()
                 i = next((j for j in range(min(len(a), len(b))) if a[j] != b[j]), min(len(a), len(b)))
@@ -115,7 +117,7 @@ def main():
           "Listing: the Jubelle engine's reading of MuseScore's save of the Jubelle-written file, against the original.", "",
           "| Score | Jubelle wrote it | MuseScore MIDI identical | MuseScore saved it | Jubelle reads the same music |",
           "|---|---|---|---|---|"]
-    yn = lambda b: "yes" if b else "**no**"
+    yn = lambda b: "n/a (not 4.x)" if b is None else ("yes" if b else "**no**")
     for r, ok in rows:
         md.append(f"| {r['score']} | {yn(r['rewritten'])} | {yn(r['midi_same'])} | {yn(r['musescore_saved'])} | {yn(r['listing_same'])} |")
     md += ["", f"Jubelle's 11 style settings: MuseScore's save dropped them ({dropped} of 3 checked were gone); "
