@@ -10,11 +10,14 @@
 
 #include "details.h"
 #include "mscxreader.h"
+#include "model/pitch.h"
 
 namespace F = je::model::fields;
 using je::model::Kind;
 using je::model::Object;
 using je::io::xml::Node;
+using je::model::defaultTpc;
+using je::model::diatonicOf;
 
 namespace je::io {
 namespace {
@@ -170,23 +173,6 @@ std::string articulationSymbol(const std::string& name)
 bool isOrnamentSymbol(const std::string& symbol)
 {
     return symbol.rfind("ornament", 0) == 0;
-}
-
-//! The spelling of a pitch with no spelling of its own (tonal pitch class: C = 14, G = 15, F = 13, …), in the key
-//! given (fifths: -7 … 7): flats in flat keys, sharps otherwise
-int64_t defaultTpc(int64_t pitch, int64_t key)
-{
-    static const int sharp[12] = { 14, 21, 16, 23, 18, 13, 20, 15, 22, 17, 24, 19 };
-    static const int flat[12] = { 14, 9, 16, 11, 18, 13, 8, 15, 10, 17, 12, 19 };
-    const int pc = int(((pitch % 12) + 12) % 12);
-    return key < 0 ? flat[pc] : sharp[pc];
-}
-
-//! The diatonic steps of a transposition given only in semitones (a whole step down: -1; a major sixth down: -5)
-int64_t diatonicOf(int64_t chromatic)
-{
-    const double d = double(chromatic) * 7.0 / 12.0;
-    return int64_t(d < 0 ? d - 0.5 : d + 0.5);
 }
 
 //! Common jumps: where they go, where play stops, where it continues
@@ -1349,13 +1335,12 @@ private:
         n.children.push_back(leaf("tpc", std::to_string(tpc)));
         if (note.has(F::TPC2)) {
             n.children.push_back(leaf("tpc2", std::to_string(note.intOr(F::TPC2, 14))));
-        } else if (!note.has(F::TPC)) {
+        } else {   // no written spelling given: from the concert one and the instrument's transposition
             const Object* player = playerOf(chord);
             const int64_t c = player ? player->intOr(F::TRANSPOSE_CHROMATIC, 0) : 0;
             const int64_t d = player ? player->intOr(F::TRANSPOSE_DIATONIC, diatonicOf(c)) : 0;
-            const int64_t fifths = 7 * c - 12 * d;
-            if (fifths != 0) {
-                n.children.push_back(leaf("tpc2", std::to_string(tpc - fifths)));
+            if (c != 0 || d != 0) {   // written = concert moved back by the instrument's transposition
+                n.children.push_back(leaf("tpc2", std::to_string(model::transposeTpc(tpc, -d, -c))));
             }
         }
         return n;
