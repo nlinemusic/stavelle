@@ -6,13 +6,18 @@ open-source engine of [MuseScore Studio](https://github.com/musescore/MuseScore)
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-blue.svg)](LICENSE.txt)
 
-> **Status:** in active development. **Release candidate 1** (Windows and macOS) is available from
-> [Releases](https://github.com/nlinemusic/stavelle/releases). It is a testing release; features are
-> listed below only as far as they have been built and checked.
+> **Status:** in active development. **Release candidate 2** (Windows and macOS, 18 Nov 2026) is
+> available from [Releases](https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230).
+> New in it: **Report a bug**, **Workflow profiles** (MuseScore, Finale and Noteflight habits) and
+> **better audio export** (piano, guitar and percussion as bright as in MuseScore, no clipping or
+> crackle on loud passages, MuseScore's export defaults). It is a testing release; features are listed
+> below only as far as they have been built and checked.
 
 ## Download
 
-Get the latest version from **[Releases](https://github.com/nlinemusic/stavelle/releases)**:
+Get the latest version from **[Releases](https://github.com/nlinemusic/stavelle/releases)**
+(currently [release candidate 2](https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230):
+`Jubelle-4.7.7.261118230-x86_64.msi` for Windows, `Jubelle-4.7.7.261118230.dmg` for macOS):
 
 - **Windows 10 or 11 (64-bit):** download the `.msi` and run it. The installer isn't code-signed yet,
   so SmartScreen may warn you: choose **More info › Run anyway**.
