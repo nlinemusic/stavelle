@@ -5,12 +5,15 @@
 For each setting (the default, which matches MuseScore Studio 4.7.7: 44.1 kHz,
 WAV 32-bit float, FLAC 16-bit; then 48 kHz / 24-bit, 96 kHz / 24-bit and
 96 kHz / 16-bit) the check writes the setting into Jubelle's own settings file,
-exports the same score as WAV, FLAC, MP3 and OGG from the command line, and
-reads each file's header back:
+exports the same score as WAV, FLAC, MP3, OGG and AAC from the command line,
+and reads each file's header back:
 
 - WAV and FLAC: sample rate and bit depth exactly as chosen;
 - MP3: the chosen rate, but never above 48 kHz (the MP3 format goes no higher);
-- OGG: the chosen rate is recorded as the input rate.
+- OGG: the chosen rate is recorded as the input rate;
+- AAC (FFmpeg's own encoder since FDK AAC was removed, D-E15): every ADTS frame
+  header is read: AAC-LC, the chosen rate, stereo, a duration matching the WAV,
+  and frames that carry sound (not silence).
 
 The settings file is put back exactly as it was afterwards. MuseScore's files are
 never touched. Writes audio_check.md.
@@ -120,6 +123,44 @@ def ogg_rate(p):
     return None
 
 
+ADTS_RATES = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
+
+
+def aac_info(p):
+    """Walks the ADTS frames: (profile, rate, channels, frames, average frame bytes), or Nones if not ADTS."""
+    data = p.read_bytes()
+    i, frames, total, first = 0, 0, 0, None
+    while i + 7 <= len(data):
+        if data[i] != 0xFF or (data[i + 1] & 0xF6) != 0xF0:
+            return None, None, None, frames, 0
+        profile = ((data[i + 2] >> 6) & 3) + 1            # audio object type: 2 = AAC-LC
+        rate_idx = (data[i + 2] >> 2) & 0xF
+        channels = ((data[i + 2] & 1) << 2) | (data[i + 3] >> 6)
+        length = ((data[i + 3] & 3) << 11) | (data[i + 4] << 3) | (data[i + 5] >> 5)
+        if length < 7:
+            return None, None, None, frames, 0
+        if first is None:
+            first = (profile, ADTS_RATES[rate_idx] if rate_idx < len(ADTS_RATES) else None, channels)
+        elif first != (profile, ADTS_RATES[rate_idx] if rate_idx < len(ADTS_RATES) else None, channels):
+            return None, None, None, frames, 0
+        frames += 1
+        total += length
+        i += length
+    if first is None or i != len(data):
+        return None, None, None, frames, 0
+    return first[0], first[1], first[2], frames, total / frames
+
+
+def wav_seconds(p):
+    data = p.read_bytes()
+    k, d = data.find(b"fmt "), data.find(b"data")
+    if k < 0 or d < 0:
+        return None
+    _, channels, rate, _, align, _ = struct.unpack("<HHIIHH", data[k + 8:k + 24])
+    size = struct.unpack("<I", data[d + 4:d + 8])[0]
+    return size / align / rate if rate and align else None
+
+
 def main():
     if len(sys.argv) != 4:
         print(__doc__)
@@ -151,7 +192,7 @@ def main():
                 else:
                     write_settings(ini, rate, wav_fmt, flac_fmt)
             lines.append(f"## {label}")
-            for ext in ("wav", "flac", "mp3", "ogg"):
+            for ext in ("wav", "flac", "mp3", "ogg", "aac"):
                 out = work / f"check_{want_rate}_{want_wav_bits}.{ext}"
                 if out.exists():
                     out.unlink()
@@ -172,10 +213,20 @@ def main():
                     r = mp3_rate(out)
                     good = r == min(want_rate, 48000)
                     detail = f"{r} Hz (MP3 goes no higher than 48 kHz)"
-                else:
+                elif ext == "ogg":
                     r = ogg_rate(out)
                     good = r == want_rate
                     detail = f"input rate {r} Hz"
+                else:
+                    prof, r, chans, nframes, avg = aac_info(out)
+                    secs = nframes * 1024 / r if r else 0
+                    wav_secs = wav_seconds(work / f"check_{want_rate}_{want_wav_bits}.wav")
+                    # the encoder adds 1024 samples of priming and pads the last frame
+                    same_length = wav_secs is not None and -0.01 <= secs - wav_secs <= 2048 / want_rate + 0.01
+                    good = prof == 2 and r == want_rate and chans == 2 and same_length and avg > 60
+                    detail = (f"{'AAC-LC' if prof == 2 else f'profile {prof}'}, {r} Hz, {chans} channels, "
+                              f"{nframes} frames = {secs:.2f} s (WAV {wav_secs:.2f} s), "
+                              f"{avg:.0f} bytes per frame" if r else "not a valid ADTS stream")
                 lines.append(f"- {ext.upper()}: {detail} → {'PASS' if good else 'FAIL'}")
                 ok = ok and good
             lines.append("")

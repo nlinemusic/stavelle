@@ -20,6 +20,9 @@
 
 muse_create_module(iex_audioexport)
 
+# Jubelle: AAC is encoded with FFmpeg's own encoder, through the media module (D-E15)
+target_link_libraries(iex_audioexport PRIVATE muse::media)
+
 target_sources(iex_audioexport PRIVATE
     audioexportmodule.cpp
     audioexportmodule.h

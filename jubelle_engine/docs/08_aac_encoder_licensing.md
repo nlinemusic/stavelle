@@ -66,7 +66,7 @@ Jubelle is distributed as GPL v3 binaries (MuseScore's code, MuseScore Limited a
 | 4. fdk-aac-free (Fedora's stripped fork) | same FDK licence | low | same AAC-LC | B unchanged (same licence text); unmaintained since 2019 |
 | 5. Drop AAC export | n/a | minimal | n/a | breaks MP4 video sound; not acceptable |
 
-## 6. Recommendation (needs the user's decision; affects the released app, not the engine)
+## 6. Recommendation (approved 18 Nov 2026; see §7)
 1. **Now (next release):** add a `THIRD-PARTY-NOTICES` file to both installers and a "Third-party licences" link in
    About, with the FDK licence text and the other components' notices (closes gap A immediately).
 2. **Next audio change:** replace FDK with **option 2** (FFmpeg native AAC through the already-bundled LGPL FFmpeg),
@@ -75,6 +75,32 @@ Jubelle is distributed as GPL v3 binaries (MuseScore's code, MuseScore Limited a
 3. **Verification:** the existing MP4 check (sound in time, loudness, correlation) and an AAC export check must pass
    unchanged. Add a listening comparison at 256 kb/s (the video default) between the old and new encoders.
 4. Until then, R-L1 stays open in the master plan.
+
+## 7. Decision and final choice (18 Nov 2026)
+**Approved by the user:** remove FDK AAC; prefer FFmpeg's own AAC encoder if its licensing is compatible and it
+works reliably on Windows and macOS, otherwise the OS encoders. Notices alone don't resolve the incompatibility.
+
+**Final choice: FFmpeg's native AAC encoder (`aac`, in libavcodec).**
+
+| Question | Finding |
+|---|---|
+| Which code | FFmpeg's own encoder (`libavcodec/aacenc*.c`), selected **by name** (`avcodec_find_encoder_by_name("aac")`), so neither AudioToolbox's nor Media Foundation's encoder is picked by accident. AAC-LC, ADTS (`.aac`) through FFmpeg's `adts` muxer |
+| Its licence | part of FFmpeg's LGPL code: **LGPL 2.1 or later** (macOS: Jubelle's own build with `--disable-gpl --disable-nonfree --disable-version3`; Windows: the BtbN `lgpl-shared` build, rejected by `bundle_ffmpeg.py` if it was configured with `--enable-gpl` or `--enable-nonfree`) |
+| Compatible with Jubelle's GPL v3? | **Yes.** LGPL 2.1+ code may be combined with GPL v3 code (LGPL 2.1 §3 allows conveying it under the GPL, and GPL v3 is "any later version" of GPL 2). Jubelle loads the libraries at run time, unmodified, from their own folder, and ships their source location, licence text and a notice (`NOTICE.txt`, `LICENSE.txt`), as it already does for video export. There is no patent-licence refusal like FDK's clause 3 |
+| Patents | AAC-LC only; the US AAC-LC patents have expired (§3). The remaining exposure is the same as for any AAC-LC encoder, low |
+| Windows and macOS | the same libraries already make every MP4 on both platforms (FFmpeg 8.1 on Windows, 8.0 on macOS). `bundle_ffmpeg.py` now also refuses a Windows FFmpeg without the native AAC encoder |
+| Verified so far | compiles against all six FFmpeg header versions Jubelle supports (4–9). Run with FFmpeg 6.1 under AddressSanitizer/UBSan: AAC-LC streams at 48 kHz stereo and 44.1 kHz mono, odd input block sizes, a 96-sample input; decoded sound correlates 0.99999 with the input, signal-to-noise 46–66 dB; encoder delay 1,024 samples, as reported to the video sound alignment |
+| Verified in CI (Windows and macOS) | the audio export check now exports AAC and reads every ADTS frame (AAC-LC, rate, channels, duration against the WAV, frames carrying sound); the MP4 check (sound in time, loudness, correlation) covers the video soundtrack |
+
+**What changed in Jubelle:** `src/framework/audio/thirdparty/fdk-aac` and the audio engine's FDK-based `AacEncoder`
+are deleted and no longer built. AAC export renders a 32-bit float WAV and encodes it with the FFmpeg encoder
+(`importexport/audioexport/internal/aacwriter.cpp`). The MP4 soundtrack uses the same encoder
+(`media/iaacencoder.h`, `media/internal/ffmpeg/aacencoder.inc`). If the FFmpeg libraries are missing, AAC export
+says so instead of writing a file; they ship with Jubelle on both platforms. In the new engine, AAC export belongs to
+`je::audio` (S6) and uses the same encoder.
+
+**Fallback (not needed so far):** the OS encoders (Media Foundation on Windows, AudioToolbox on macOS) remain the
+alternative if the CI checks show a problem with FFmpeg's encoder on either platform.
 
 ## Sources
 - FSF, [recent licensing updates](https://www.fsf.org/blogs/licensing/recent-licensing-updates): the FDK AAC licence is free, incompatible with every GPL version, no patent licence

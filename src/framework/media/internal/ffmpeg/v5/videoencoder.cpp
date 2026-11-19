@@ -23,6 +23,9 @@
 #include "ffmpeglibhandler.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <string>
+#include <vector>
 
 #include "io/file.h"
 #include "io/path.h"
@@ -30,6 +33,17 @@
 #include "log.h"
 
 namespace muse::media::ffmpeg::v5 {
+// Jubelle: FFmpeg's own AAC encoder (replaces FDK AAC, decision D-E15)
+#include "../aacencoder.inc"
+
+IAacEncoderPtr VideoEncoder::createAacEncoder() const
+{
+    if (!m_ffmpegHandler) {
+        return nullptr;
+    }
+    return std::make_shared<AacEncoder>(m_ffmpegHandler);
+}
+
 struct MemoryReadContext {
     const uint8_t* data = nullptr;
     int64_t size = 0;

@@ -109,7 +109,8 @@ private:
     void paintPage(notation::INotationPtr notation, const engraving::Page* page, muse::draw::Painter& painter, QImage& frame,
                    const Config& config) const;
     //! Jubelle: the video's sound from the WAV rendering: the shown pieces, crossfaded, encoded as AAC
-    bool encodeVideoAudio(const muse::io::path_t& wavPath, const muse::io::path_t& aacPath, const Config& cfg,
+    bool encodeVideoAudio(const muse::media::IVideoEncoderPtr& encoder, const muse::io::path_t& wavPath,
+                          const muse::io::path_t& aacPath, const Config& cfg,
                           notation::INotationPtr notation) const;
 
     struct ScoreRestoreData

@@ -33,7 +33,6 @@
 #include "oggencoder.h"
 #include "flacencoder.h"
 #include "wavencoder.h"
-#include "aacencoder.h"
 
 #include "log.h"
 
@@ -49,7 +48,9 @@ static encode::AbstractAudioEncoderPtr createEncoder(const SoundTrackType type)
     case SoundTrackType::OGG: return std::make_unique<encode::OggEncoder>();
     case SoundTrackType::FLAC: return std::make_unique<encode::FlacEncoder>();
     case SoundTrackType::WAV: return std::make_unique<encode::WavEncoder>();
-    case SoundTrackType::AAC: return std::make_unique<encode::AacEncoder>();
+    // Jubelle (D-E15): AAC is no longer encoded here. The FDK AAC library was removed (GPL-incompatible
+    // licence); AAC export renders WAV and encodes it with FFmpeg's own encoder (importexport/audioexport).
+    case SoundTrackType::AAC: return nullptr;
     case SoundTrackType::Undefined: break;
     }
 

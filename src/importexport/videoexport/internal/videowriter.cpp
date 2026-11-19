@@ -45,7 +45,6 @@
 #include "draw/fontmetrics.h"
 
 #include "jubelle/audiosplice.h"
-#include "audio/engine/internal/export/aacencoder.h"
 
 #include "defer.h"
 #include "log.h"
@@ -193,7 +192,7 @@ muse::Ret VideoWriter::write(INotationPtr notation, muse::io::IODevice& device, 
         if (result && m_audioRet) {
             // Jubelle: the AAC is already cut to the shown pages, so it is added whole
             encoder->setAudioSegments({});
-            if (!encodeVideoAudio(tempWavPath, tempAudioPath, cfg, notation)) {
+            if (!encodeVideoAudio(encoder, tempWavPath, tempAudioPath, cfg, notation)) {
                 result = make_ret(muse::Ret::Code::UnknownError);
             } else if (!encoder->addAudio(tempAudioPath)) {
                 result = make_ret(muse::Ret::Code::UnknownError);
@@ -689,8 +688,8 @@ bool VideoWriter::generateScoreFrames(muse::media::IVideoEncoderPtr encoder, INo
     return true;
 }
 
-bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::io::path_t& aacPath, const Config& cfg,
-                                   INotationPtr notation) const
+bool VideoWriter::encodeVideoAudio(const muse::media::IVideoEncoderPtr& encoder, const muse::io::path_t& wavPath,
+                                   const muse::io::path_t& aacPath, const Config& cfg, INotationPtr notation) const
 {
     jubelle::WavReader wav;
     if (!wav.open(wavPath.toStdString())) {
@@ -713,17 +712,15 @@ bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::
         }
     }
 
-    muse::audio::SoundTrackFormat format;
-    format.type = muse::audio::SoundTrackType::AAC;
-    format.outputSpec.sampleRate = static_cast<muse::audio::sample_rate_t>(wav.sampleRate());
-    format.outputSpec.samplesPerChannel = 1024;
-    format.outputSpec.audioChannelCount = static_cast<muse::audio::audioch_t>(wav.channels());
-    format.bitRate = cfg.audioBitrateKbps;
-
-    muse::audio::encode::AacEncoder aac;
+    // Jubelle: FFmpeg's own AAC encoder, from the same LGPL FFmpeg libraries as the video (D-E15)
+    muse::media::IAacEncoderPtr aac = encoder ? encoder->createAacEncoder() : nullptr;
+    if (!aac) {
+        LOGE() << "video sound: these FFmpeg libraries have no AAC encoder";
+        return false;
+    }
     const int64_t totalFrames = jubelle::splicedFrames(wav, pieces);
-    if (!aac.init(aacPath, format, static_cast<muse::audio::samples_t>(totalFrames))) {
-        LOGE() << "video sound: AAC encoder could not start";
+    if (!aac->open(aacPath, wav.sampleRate(), wav.channels(), int(cfg.audioBitrateKbps))) {
+        LOGE() << "video sound: AAC encoder could not start: " << aac->lastError();
         return false;
     }
     // The AAC encoder starts its output with a few hundredths of a second of priming, and a raw AAC stream
@@ -731,7 +728,7 @@ bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::
     // lead-in absorbs it: that much less lead-in at the start, the same amount of silence at the end, so the
     // music lands exactly on its pages and the length is unchanged.
     const double rate = double(wav.sampleRate());
-    const double skip = rate > 0 ? std::min(double(aac.jubelleEncoderDelay()) / rate, double(cfg.leadingSec)) : 0.0;
+    const double skip = rate > 0 ? std::min(double(aac->encoderDelay()) / rate, double(cfg.leadingSec)) : 0.0;
     int64_t padFrames = 0;
     if (skip > 0.0) {
         if (pieces.empty()) {
@@ -741,14 +738,18 @@ bool VideoWriter::encodeVideoAudio(const muse::io::path_t& wavPath, const muse::
         padFrames = std::max<int64_t>(0, totalFrames - jubelle::splicedFrames(wav, pieces));
     }
     jubelle::SpliceOptions options;
-    jubelle::splice(wav, pieces, options, [&aac](int64_t frames, const float* samples) {
-        aac.encode(static_cast<muse::audio::samples_t>(frames), samples);
+    bool ok = true;
+    jubelle::splice(wav, pieces, options, [&aac, &ok](int64_t frames, const float* samples) {
+        ok = ok && aac->encode(samples, size_t(frames));
     });
-    if (padFrames > 0) {
+    if (ok && padFrames > 0) {
         const std::vector<float> silence(size_t(padFrames) * size_t(std::max(1, wav.channels())), 0.0f);
-        aac.encode(static_cast<muse::audio::samples_t>(padFrames), silence.data());
+        ok = aac->encode(silence.data(), size_t(padFrames));
     }
-    aac.flush();
-    aac.deinit();
-    return true;
+    ok = aac->finish() && ok;
+    if (!ok) {
+        LOGE() << "video sound: " << aac->lastError();
+    }
+    LOGI() << "video sound encoded with " << aac->encoderName();
+    return ok;
 }

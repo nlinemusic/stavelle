@@ -28,6 +28,10 @@ target_sources(muse_media PRIVATE
 
     ivideoencoder.h
     ivideoencoderresolver.h
+    iaacencoder.h
+
+    jubelle/audiosplice.cpp
+    jubelle/audiosplice.h
 
     internal/mediaconfiguration.cpp
     internal/videoencoderresolver.cpp
@@ -36,6 +40,7 @@ target_sources(muse_media PRIVATE
 
     internal/ffmpegutils.cpp
     internal/ffmpegutils.h
+    internal/ffmpeg/aacencoder.inc
 
     internal/ffmpeg/v9/ffmpeglibhandler.cpp
     internal/ffmpeg/v9/ffmpeglibhandler.h

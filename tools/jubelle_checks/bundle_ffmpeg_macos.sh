@@ -62,7 +62,8 @@ build() {
         echo "FFmpeg libraries bundled with Jubelle"
         echo "====================================="
         echo
-        echo "Jubelle uses these libraries for its built-in video export. They are FFmpeg ${FFMPEG_VERSION},"
+        echo "Jubelle uses these libraries for its built-in video export and for AAC audio (FFmpeg's own"
+        echo "AAC encoder, part of these LGPL libraries). They are FFmpeg ${FFMPEG_VERSION},"
         echo "built from the unmodified source at https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
         echo "under the GNU Lesser General Public License 2.1 (see LICENSE.txt). No GPL or non-free parts"
         echo "are included; H.264 video is encoded by Apple's VideoToolbox, part of macOS."

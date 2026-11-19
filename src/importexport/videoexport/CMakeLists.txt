@@ -32,15 +32,10 @@ target_sources(iex_videoexport PRIVATE
     internal/videowriter.h
     internal/jubelle/videopages.cpp
     internal/jubelle/videopages.h
-    internal/jubelle/audiosplice.cpp
     internal/jubelle/audiosplice.h
 )
 
 target_link_libraries(iex_videoexport PRIVATE Qt::Concurrent muse::media engraving)
-# Jubelle: the video's sound is encoded directly with the audio engine's AAC encoder
-if (TARGET muse_audio_engine)
-    target_link_libraries(iex_videoexport PRIVATE muse_audio_engine)
-endif()
 
 qt_add_resources(iex_videoexport iex_videoexport_resources
     PREFIX

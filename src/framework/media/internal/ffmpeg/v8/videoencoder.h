@@ -47,6 +47,8 @@ public:
 
     bool addAudio(const muse::io::path_t& audioPath) override;
 
+    IAacEncoderPtr createAacEncoder() const override;
+
 private:
     bool convertImage_sws(const QImage& img);
 

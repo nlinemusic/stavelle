@@ -25,7 +25,7 @@
 #include <utility>
 #include <vector>
 
-namespace mu::iex::videoexport::jubelle {
+namespace muse::media::jubelle {
 //! Reads PCM WAV files (16, 24 or 32-bit integer, or 32-bit float; plain or
 //! WAVE_FORMAT_EXTENSIBLE) as interleaved float frames.
 class WavReader

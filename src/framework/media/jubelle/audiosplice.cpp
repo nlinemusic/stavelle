@@ -13,7 +13,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace mu::iex::videoexport::jubelle {
+namespace muse::media::jubelle {
 namespace {
 uint32_t le32(const unsigned char* p) { return uint32_t(p[0]) | (uint32_t(p[1]) << 8) | (uint32_t(p[2]) << 16) | (uint32_t(p[3]) << 24); }
 uint16_t le16(const unsigned char* p) { return uint16_t(p[0] | (p[1] << 8)); }

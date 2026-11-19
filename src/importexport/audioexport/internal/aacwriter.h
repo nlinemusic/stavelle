@@ -1,8 +1,8 @@
 /*
  * SPDX-License-Identifier: GPL-3.0-only
- * MuseScore-Studio-CLA-applies
+ * MuseScore-CLA-applies
  *
- * MuseScore Studio
+ * MuseScore
  * Music Composition & Notation
  *
  * Copyright (C) 2026 MuseScore Limited and others
@@ -24,9 +24,15 @@
 
 #include "abstractaudiowriter.h"
 
+#include "media/ivideoencoderresolver.h"
+
 namespace mu::iex::audioexport {
+//! Jubelle (D-E15): AAC export renders the sound as a 32-bit float WAV, then encodes it with FFmpeg's own AAC
+//! encoder from the LGPL FFmpeg libraries Jubelle bundles. The Fraunhofer FDK AAC library is no longer used.
 class AacWriter : public AbstractAudioWriter
 {
+    muse::ContextInject<muse::media::IVideoEncoderResolver> ffmpegResolver = { this };
+
 public:
     AacWriter(const muse::modularity::ContextPtr& iocCtx)
         : AbstractAudioWriter(iocCtx) {}

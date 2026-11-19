@@ -84,6 +84,9 @@ def check_library(avcodec: Path):
         fail("this FFmpeg build is not a shared (DLL) build")
     if "--enable-libx264" in flags or "--enable-libx265" in flags:
         fail("this FFmpeg build includes GPL encoders (x264/x265)")
+    # Jubelle's AAC export and MP4 sound use FFmpeg's own AAC encoder (D-E15)
+    if b"AAC encoder" not in data:
+        fail("this FFmpeg build has no native AAC encoder (needed for AAC export and MP4 sound)")
     found = [e.decode() for e in H264_ENCODERS if e in data]
     if not found:
         fail("this FFmpeg build has no H.264 encoder Jubelle can use")
@@ -138,7 +141,8 @@ def fetch(staging: Path):
     (out / "NOTICE.txt").write_text(f"""FFmpeg libraries bundled with Jubelle
 =====================================
 
-Jubelle uses these libraries for its built-in video export. They are part of
+Jubelle uses these libraries for its built-in video export and for AAC audio
+(FFmpeg's own AAC encoder, part of these LGPL libraries). They are part of
 FFmpeg (https://ffmpeg.org), which is free software by the FFmpeg developers,
 licensed here under the GNU Lesser General Public License ({licence}).
 The full licence text is in LICENSE.txt in this folder.

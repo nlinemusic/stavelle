@@ -33,6 +33,8 @@
 
 #include "modularity/imoduleinterface.h"
 
+#include "iaacencoder.h"
+
 namespace muse::media {
 class IVideoEncoder : MODULE_CONTEXT_INTERFACE
 {
@@ -63,6 +65,10 @@ public:
     //! Jubelle: keep only these pieces of the audio file (start and end in seconds), joined in this
     //! order, when addAudio() puts the sound into the video. Empty = the whole sound.
     void setAudioSegments(std::vector<std::pair<double, double> > segments) { m_jubelleAudioSegments = std::move(segments); }
+
+    //! Jubelle: a new AAC encoder using the same loaded FFmpeg libraries (FFmpeg's own AAC encoder), or
+    //! nullptr if they don't provide it. Used by AAC audio export and by the MP4 soundtrack.
+    virtual IAacEncoderPtr createAacEncoder() const { return nullptr; }
 
 protected:
     std::vector<std::pair<double, double> > m_jubelleAudioSegments;

@@ -85,6 +85,7 @@ public:
     // libavcodec
     AVCodecContext*(*avcodec_alloc_context3)(const AVCodec* codec) = nullptr;
     const AVCodec*(*avcodec_find_encoder)(AVCodecID id) = nullptr;
+    const AVCodec*(*avcodec_find_encoder_by_name)(const char* name) = nullptr; // Jubelle: AAC export
     const AVCodec*(*avcodec_find_decoder)(AVCodecID id) = nullptr;
     void (*avcodec_free_context)(AVCodecContext** avctx) = nullptr;
     int (*avcodec_open2)(AVCodecContext* avctx, const AVCodec* codec, AVDictionary** options) = nullptr;
