@@ -224,16 +224,24 @@ std::vector<std::pair<Field, Value> > Operations::noteFields(Id staff, const Fra
 {
     const int64_t tpc = model::defaultTpc(pitch, keyAt(staff, t));
     std::vector<std::pair<Field, Value> > f { { F::PITCH, int64_t(pitch) }, { F::TPC, tpc } };
+    if (const auto written = writtenTpc(staff, tpc)) {
+        f.push_back({ F::TPC2, *written });
+    }
+    return f;
+}
+
+std::optional<int64_t> Operations::writtenTpc(Id staff, int64_t tpc) const
+{
     if (const Object* st = obj(staff); st && obj(st->parent()) && obj(st->parent())->kind() == Kind::Player) {
         const Object* p = obj(st->parent());
         const int64_t c = p->intOr(F::TRANSPOSE_CHROMATIC, 0);
         const int64_t d = p->intOr(F::TRANSPOSE_DIATONIC, model::diatonicOf(c));
         const int64_t written = model::transposeTpc(tpc, -d, -c);
         if (written != tpc) {
-            f.push_back({ F::TPC2, written });
+            return written;
         }
     }
-    return f;
+    return std::nullopt;
 }
 
 // ---- building blocks ----------------------------------------------------------------------------------------
@@ -837,11 +845,14 @@ void Operations::transposeNotes(Transaction& tx, const std::vector<Id>& notes, i
         if (pitch < 0 || pitch > 127) {
             continue;   // out of range: left where it is
         }
-        tx.set(n, F::PITCH, pitch);
+        // (read before changing: a changed object is a new one)
         const int64_t tpc = note->has(F::TPC) ? note->intOr(F::TPC, 14) : model::defaultTpc(pitch - chromatic, 0);
+        const bool hasTpc2 = note->has(F::TPC2);
+        const int64_t tpc2 = note->intOr(F::TPC2, 14);
+        tx.set(n, F::PITCH, pitch);
         tx.set(n, F::TPC, model::transposeTpc(tpc, diatonic, chromatic));
-        if (note->has(F::TPC2)) {
-            tx.set(n, F::TPC2, model::transposeTpc(note->intOr(F::TPC2, 14), diatonic, chromatic));
+        if (hasTpc2) {
+            tx.set(n, F::TPC2, model::transposeTpc(tpc2, diatonic, chromatic));
         }
     }
 }

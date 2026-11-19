@@ -17,6 +17,7 @@
  */
 #pragma once
 
+#include <optional>
 #include <vector>
 
 #include "changeset.h"
@@ -55,6 +56,11 @@ public:
     Id staffOf(Id voice) const;
     int64_t keyAt(Id staff, const Fraction& t) const;
 
+    //! A new note's fields on a staff: pitch, spelling for the key, written spelling on a transposing instrument
+    std::vector<std::pair<Field, Value> > noteFields(Id staff, const Fraction& t, int pitch) const;
+    //! The written spelling on this staff's instrument for a concert spelling (none if it doesn't transpose)
+    std::optional<int64_t> writtenTpc(Id staff, int64_t tpc) const;
+
     // ---- note entry ----
     //! Enters a chord with these pitches (sounding) at t; returns the first chord made (later ones are tied to it)
     Id enterChord(Transaction& tx, Id voice, const Fraction& t, const NoteValue& value, const std::vector<int>& pitches);
@@ -80,6 +86,8 @@ public:
     //! Removes the music of a voice in [t0, t1) (an event cut at the start is shortened, the rest of one cut at the
     //! end becomes rests); voice 1 is refilled with rests; returns nothing
     void clearRange(Transaction& tx, Id voice, const Fraction& t0, const Fraction& t1);
+    //! Rests for [t0, t1) of a voice that is empty there, in MuseScore's values, measure by measure
+    void fillGap(Transaction& tx, Id voice, const Fraction& t0, const Fraction& t1) { fillRests(tx, voice, t0, t1); }
 
     // ---- transposition ----
     //! Moves notes by an interval (diatonic steps and semitones: a major third up is 2, 4); spellings follow the
@@ -101,7 +109,7 @@ private:
     Fraction timeOf(Id id) const;
     Fraction endOf(Id id) const;
     Fraction tupletFactor(Id tuplet) const;
-    std::vector<std::pair<Field, Value> > noteFields(Id staff, const Fraction& t, int pitch) const;
+
     void removeEvent(Transaction& tx, Id event);
     void fillRests(Transaction& tx, Id voice, Fraction t0, const Fraction& t1, Id tuplet = Id());
     //! Writes events for [t, t + length) in measure-sized pieces; returns the ids made, in order
