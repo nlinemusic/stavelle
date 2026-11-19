@@ -1,7 +1,8 @@
 # 04 · Automatic condensing: technical specification for the Jubelle engine
 
-**Status:** specification only. **Do not implement** in the current engine. Implementation in the new engine
-(Phase 6) starts only after the user has tested release candidate 2 and explicitly approved that phase.
+**Status:** **approved for implementation** in the new engine (user, 18 Nov 2026), as part of testing build E1
+(`14_testing_build_e1_plan.md`). Not implemented in the MuseScore-based engine. Approved decisions: configurable
+player groups (D-E12) and abbreviated labels such as "Tpt. 1.2" (D-E18).
 
 ## 1. Goals
 1. In the full score, players of the same instrument (Flutes 1–2, Trumpets 1–4, Horns 1–4, …) share staves wherever
