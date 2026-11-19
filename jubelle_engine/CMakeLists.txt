@@ -84,6 +84,9 @@ add_library(je_io STATIC
     io/zip.h
     io/scorefile.cpp
     io/scorefile.h
+    io/details.cpp
+    io/mscxwriter.cpp
+    io/details.h
     io/mscxreader.cpp
     io/mscxreader.h
 )

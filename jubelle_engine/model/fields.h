@@ -107,7 +107,7 @@ constexpr Field RATIO_DEN = ENGINE_BASE + 71;   // int64
 // attachments, spanners, flow items
 constexpr Field ANCHOR = ENGINE_BASE + 80;       // Id: start object (spanner) or the staff (staff-specific flow item)
 constexpr Field END_ANCHOR = ENGINE_BASE + 81;   // Id
-constexpr Field TEXT = ENGINE_BASE + 82;         // string
+constexpr Field TEXT = ENGINE_BASE + 82;         // string: MuseScore rich text (markup kept, escaped as in the file)
 constexpr Field INT_VALUE = ENGINE_BASE + 83;    // int64: key (fifths), volta ending, ottava size…
 constexpr Field REAL_VALUE = ENGINE_BASE + 84;   // double: tempo (quarter notes per second), velocity change…
 constexpr Field VERSE = ENGINE_BASE + 85;        // int64: lyric verse, from 0
@@ -118,6 +118,29 @@ constexpr Field PLAYERS = ENGINE_BASE + 90;      // IdList: the players a layout
 
 // where an object came from in a file (je::io), kept so files round-trip
 constexpr Field ORIGIN_EID = ENGINE_BASE + 95;   // string: MuseScore's element id (<eid>), as written
+constexpr Field TAG = ENGINE_BASE + 96;          // string: the file element it was read from, where kinds share one
+                                                 // representation (Articulation or Ornament, Chord or MeasureRepeat…)
+constexpr Field VOICE_INDEX = ENGINE_BASE + 97;  // int64: the voice (0–3) a flow item or spanner was written in
+constexpr Field SEQ = ENGINE_BASE + 98;          // int64: order among items at the same time (file order)
+constexpr Field AT_END = ENGINE_BASE + 99;       // bool: after the last chord or rest of its measure's voice
+constexpr Field HOME_STAFF = ENGINE_BASE + 100;  // Id: where a system-wide item is written (MuseScore keeps them in a staff)
+
+// score-wide data
+constexpr Field STYLE = ENGINE_BASE + 110;       // string: style values, "name<TAB>value" lines (values as in the file)
+constexpr Field META = ENGINE_BASE + 111;        // string: score properties (title, composer…), "name<TAB>value" lines
+constexpr Field ARCHIVE_EXTRAS = ENGINE_BASE + 112;   // string: other score data kept in the archive (mixer and view
+                                                      // settings): entries packed as name, size, bytes
+constexpr Field MUSESCORE_INSTRUMENT = ENGINE_BASE + 113;   // string: MuseScore's instrument id ("wind.flutes.flute")
+
+// details the model doesn't represent yet (appearance: stems, beams, offsets, colours, accidental display,
+// instrument channels…), carried on their object as an XML fragment, and written back only while the object's
+// musical fields are unchanged: DETAILS_KEY is their fingerprint when the details were read (decision D-E27)
+constexpr Field DETAILS = ENGINE_BASE + 120;
+constexpr Field DETAILS_KEY = ENGINE_BASE + 121;
+constexpr Field DETAILS_2 = ENGINE_BASE + 122;   // a second fragment (an Instrument's, a tie's, a Part's)
+constexpr Field SCORE_HEAD = ENGINE_BASE + 123;  // string: the file's first elements (programVersion…), on the score
+constexpr Field SCORE_PRE = ENGINE_BASE + 124;   // string: score settings before the parts (showInvisible, Order…)
+constexpr Field SCORE_POST = ENGINE_BASE + 125;  // string: anything after the music
 
 /* Flow items (SUBKIND): clef, keySig, timeSig, tempo, harmony (chord symbol), dynamic, staffText, systemText,
  * rehearsalMark, jump, marker, instrumentChange, breath, fermata, … — ANCHOR = the staff, or absent for the

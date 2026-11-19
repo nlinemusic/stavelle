@@ -215,6 +215,21 @@ std::string_view fieldName(Field field)
     case BREAK: return "break";
     case PLAYERS: return "players";
     case ORIGIN_EID: return "originEid";
+    case TAG: return "tag";
+    case VOICE_INDEX: return "voiceIndex";
+    case SEQ: return "seq";
+    case AT_END: return "atEnd";
+    case HOME_STAFF: return "homeStaff";
+    case STYLE: return "style";
+    case META: return "meta";
+    case ARCHIVE_EXTRAS: return "archiveExtras";
+    case MUSESCORE_INSTRUMENT: return "museScoreInstrument";
+    case DETAILS: return "details";
+    case DETAILS_KEY: return "detailsKey";
+    case DETAILS_2: return "details2";
+    case SCORE_HEAD: return "scoreHead";
+    case SCORE_PRE: return "scorePre";
+    case SCORE_POST: return "scorePost";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

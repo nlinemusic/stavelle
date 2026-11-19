@@ -12,6 +12,7 @@
 
 #include <unordered_map>
 #include <utility>
+#include <functional>
 #include <vector>
 
 #include "model.h"
@@ -34,8 +35,9 @@ public:
     //! Sets a field of an object already added (a tie's target, known once both notes are read)
     void setField(Id id, Field field, Value value);
 
-    //! Puts everything into the model (replacing what it held) and returns the number of objects
-    size_t finish(Model& model);
+    //! Puts everything into the model (replacing what it held) and returns the number of objects. `adjust`, if
+    //! given, sees each finished object (fields, kind, parent and children all set) and may return a changed copy
+    size_t finish(Model& model, const std::function<Object(Object)>& adjust = nullptr);
 
 private:
     struct Pending {

@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "model/bulkbuilder.h"
+#include "details.h"
 
 namespace F = je::model::fields;
 using je::model::Kind;
@@ -148,7 +149,7 @@ public:
             error = "MuseScore format " + file.formatVersion() + " (the native reader handles 4.x)";
             return false;
         }
-        scoreId = bb.add(Kind::Score, Id(), { { F::NAME, Text(metaTag(file, "workTitle")) } });
+        scoreId = bb.add(Kind::Score, Id(), scoreFields(*score));
         flowId = bb.add(Kind::Flow, scoreId, { { F::NAME, Text(std::string("Flow 1")) } });
 
         // players and staves first, then the measure grid from the first staff, then the music
@@ -173,11 +174,99 @@ public:
         }
         resolveTies();
         readLayouts();
-        report.objects = bb.finish(model);
+        // each object's details carry the fingerprint of its finished fields (some are set after it was added:
+        // tie targets, completed durations), so an edit to its music later can be told apart
+        report.objects = bb.finish(model, [](model::Object o) {
+            if (o.kind() != Kind::Score && (o.has(F::DETAILS) || o.has(F::DETAILS_2) || o.has(F::DETAILS_KEY))) {
+                return o.with(F::DETAILS_KEY, detailsKey(o));
+            }
+            return o;
+        });
         return true;
     }
 
 private:
+    // ---- score-wide data: style, properties, settings, other archive entries -----------------------
+    Fields scoreFields(const Node& score)
+    {
+        Fields f { { F::NAME, Text(metaTag(file, "workTitle")) } };
+        if (const Node* style = styleNode(file)) {
+            std::vector<std::pair<std::string, std::string> > values;
+            std::vector<const Node*> structured;
+            for (const Node& c : style->children) {
+                if (c.type != Node::Type::Element) {
+                    continue;
+                }
+                if (c.leaf && c.attrs.empty()) {
+                    values.emplace_back(c.name, c.selfClosing ? std::string("\x01") : c.raw);
+                } else {
+                    structured.push_back(&c);
+                }
+            }
+            if (!values.empty()) {
+                f.push_back({ F::STYLE, Text(packPairs(values)) });
+            }
+            if (!structured.empty()) {
+                f.push_back({ F::DETAILS_2, Text(fragment(structured)) });
+            }
+        }
+        std::vector<std::pair<std::string, std::string> > meta;
+        std::vector<const Node*> pre, post;
+        bool seenPart = false, seenMusic = false;
+        for (const Node& c : score.children) {
+            if (c.type != Node::Type::Element) {
+                continue;
+            }
+            if (c.name == "metaTag") {
+                if (c.attr("name") != "jubelleEngine") {   // the engine store is written afresh on every save
+                    meta.emplace_back(c.attr("name"), c.raw);
+                }
+            } else if (c.name == "Part") {
+                seenPart = true;
+            } else if (c.name == "Staff") {
+                seenMusic = true;
+            } else if (c.name == "Division" || c.name == "Style" || c.name == "eid") {
+                continue;
+            } else if (!seenPart && !seenMusic) {
+                pre.push_back(&c);
+            } else {
+                post.push_back(&c);
+            }
+        }
+        if (!meta.empty()) {
+            f.push_back({ F::META, Text(packPairs(meta)) });
+        }
+        if (!pre.empty()) {
+            f.push_back({ F::SCORE_PRE, Text(fragment(pre)) });
+        }
+        if (!post.empty()) {
+            f.push_back({ F::SCORE_POST, Text(fragment(post)) });
+        }
+        std::vector<const Node*> head;
+        for (const Node& c : file.main.root.children) {
+            if (c.type == Node::Type::Element && c.name != "Score") {
+                head.push_back(&c);
+            }
+        }
+        // the head Jubelle writes for a score without one is left out, so that writing and reading again is stable
+        if (!head.empty() && fragment(head) != defaultScoreHead()) {
+            f.push_back({ F::SCORE_HEAD, Text(fragment(head)) });
+        }
+        // other score data in the archive (mixer, view and automation settings); thumbnails are regenerated
+        std::string extras;
+        for (const zip::Entry& e : file.entries) {
+            if (e.name == file.mainEntry || e.name == "score_style.mss" || e.name == "META-INF/container.xml"
+                || e.name.rfind("Excerpts/", 0) == 0 || e.name.rfind("Thumbnails/", 0) == 0) {
+                continue;
+            }
+            extras += e.name + '\0' + std::to_string(e.data.size()) + '\0' + e.data;
+        }
+        if (!extras.empty()) {
+            f.push_back({ F::ARCHIVE_EXTRAS, Text(extras) });
+        }
+        return f;
+    }
+
     // ---- players and staves --------------------------------------------------------------------
     void readPart(const Node& part)
     {
@@ -200,6 +289,24 @@ private:
             if (const int64_t d = toInt(instr->childText("transposeDiatonic"))) {
                 f.push_back({ F::TRANSPOSE_DIATONIC, d });
             }
+            if (!iid.empty()) {
+                f.push_back({ F::MUSESCORE_INSTRUMENT, Text(iid) });
+            }
+        }
+        {
+            const std::string partDetails = unmodelled(part, { "Staff", "Instrument" });
+            const std::string instrDetails = instr ? unmodelled(*instr, { "longName", "shortName", "instrumentId", "transposeChromatic",
+                                                                          "transposeDiatonic" }) : std::string();
+            if (!partDetails.empty() || !instrDetails.empty()) {
+                f.push_back({ F::DETAILS_KEY, detailsKey(f) });
+                if (!partDetails.empty()) {
+                    f.push_back({ F::DETAILS, Text(partDetails) });
+                }
+                if (!instrDetails.empty()) {
+                    f.push_back({ F::DETAILS_2, Text(instrDetails) });
+                }
+            }
+            f.push_back({ F::ORIGIN_EID, Text("part:" + part.attr("id")) });   // "part:" for a part without an id
         }
         const Id player = bb.add(Kind::Player, scoreId, f);
         players.push_back({ player, name });
@@ -210,6 +317,7 @@ private:
                 if (const Node* st = c.child("StaffType")) {
                     sf.push_back({ F::SUBKIND, Text(st->attr("group")) });
                 }
+                withDetails(sf, c, {});
                 const Id staff = bb.add(Kind::Staff, player, sf);
                 // staves are numbered through the score in order; older 4.x files also write the number
                 ++staffCount;
@@ -226,6 +334,13 @@ private:
         int64_t num = 4, den = 4;
         int64_t nextNum = 0, nextDen = 0;   // a time signature at the end of a measure: it starts with the next one
         for (const Node& m : firstStaff.children) {
+            if (m.name == "VBox" || m.name == "HBox" || m.name == "TBox" || m.name == "FBox") {
+                // a frame (title, text, fret diagrams) between measures, carried whole until S7/S8 model frames
+                bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("frame")) }, { F::TAG, Text(m.name) }, { F::TIME, t },
+                                                 { F::SEQ, int64_t(++seq) }, { F::DETAILS, Text(fragment({ &m })) } }, Order::ByTime);
+                report.modelled["(frame) " + m.name]++;
+                continue;
+            }
             if (m.name != "Measure" || m.child("multiMeasureRest")) {
                 continue;   // a <multiMeasureRest> measure is MuseScore's layout-only combined rest, not music
             }
@@ -348,15 +463,28 @@ private:
             }
             int vi = 0;
             voice0End = Fraction(-1, 1);
+            bool afterVoices = false;
+            std::vector<const Node*> measureDetails;
             for (const Node& v : m.children) {
                 if (v.name == "voice") {
                     readVoice(v, staff, mi, vi++);
+                    afterVoices = true;
                 } else if (flowItemKinds().count(v.name)) {
-                    addFlowItem(v, staff, measureStart[size_t(mi)]);   // a few items sit directly in the measure
-                } else if (v.name != "eid" && v.name != "startRepeat" && v.name != "endRepeat" && v.name != "irregular"
-                           && v.name != "LayoutBreak") {
+                    // a few items sit directly in the measure (no voice index); AT_END: written after the voices
+                    const Id item = addFlowItem(v, staff, measureStart[size_t(mi)], -1);
+                    if (afterVoices) {
+                        bb.setField(item, F::AT_END, true);
+                    }
+                } else if (v.type == Node::Type::Element && v.name != "eid" && v.name != "startRepeat" && v.name != "endRepeat"
+                           && v.name != "irregular" && v.name != "LayoutBreak") {
+                    measureDetails.push_back(&v);
                     report.keptOnly[v.name]++;
                 }
+            }
+            if (!measureDetails.empty()) {
+                bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("measureDetail")) }, { F::ANCHOR, staff },
+                                                 { F::TIME, measureStart[size_t(mi)] }, { F::SEQ, int64_t(++seq) },
+                                                 { F::DETAILS, Text(fragment(measureDetails)) } }, Order::ByTime);
             }
             completeVoice1(staff, mi);
         }
@@ -389,6 +517,7 @@ private:
         Id lastMainChord;
         std::vector<OpenTuplet> tuplets;
         std::vector<const Node*> pendingAfter;
+        std::vector<Id> itemsSinceEvent;
         int closedFull = 0;
         Fraction lastEventEnd = measureStart[size_t(mi)];
         // the tuplets' ratio, and the local time signature's stretch
@@ -423,6 +552,7 @@ private:
                 if (!tuplets.empty() && tuplets.back().id.isValid()) {
                     f.push_back({ F::TUPLET, tuplets.back().id });
                 }
+                withDetails(f, e, { "normalNotes", "actualNotes", "baseNote" });
                 eid(e, f);
                 tuplets.push_back({ bb.add(Kind::Tuplet, vid(), f, Order::ByTime), outer * stretch * Fraction(normal, actual),
                                     t + base * Fraction(normal, 1) * outer });
@@ -452,6 +582,7 @@ private:
                     continue;
                 }
                 readEvent(e, vid(), staff, mi, t, tuplets.empty() ? Id() : tuplets.back().id, factor(), lastMainTime, lastMainChord);
+                itemsSinceEvent.clear();
                 if (lastEventEnd < t) {
                     lastEventEnd = t;
                 }
@@ -466,12 +597,20 @@ private:
                 }
                 pendingAfter.clear();
             } else if (n == "Spanner") {
-                addSpanner(e, staff, mi, t);
+                addSpanner(e, staff, mi, t, index);
             } else if (flowItemKinds().count(n)) {
-                addFlowItem(e, staff, t);
-            } else if (n != "eid") {
+                itemsSinceEvent.push_back(addFlowItem(e, staff, t, index));
+            } else if (n != "eid" && e.type == Node::Type::Element) {
+                // anything else in the voice (beams, bar lines, images…), carried at its place in the stream
+                itemsSinceEvent.push_back(bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("detail")) }, { F::ANCHOR, staff },
+                                                                          { F::VOICE_INDEX, int64_t(index) }, { F::TIME, t },
+                                                                          { F::SEQ, int64_t(++seq) }, { F::TAG, Text(n) },
+                                                                          { F::DETAILS, Text(fragment({ &e })) } }, Order::ByTime));
                 report.keptOnly[n]++;
             }
+        }
+        for (Id item : itemsSinceEvent) {
+            bb.setField(item, F::AT_END, true);   // after the last chord or rest of this voice in this measure
         }
         if (index == 0) {
             voice0End = lastEventEnd;   // where the last chord or rest ends (a <location> may rewind the cursor after it)
@@ -495,7 +634,8 @@ private:
             if (rem < d) {
                 break;
             }
-            bb.add(Kind::Rest, voice, { { F::TIME, at }, { F::DURATION, d }, { F::BASE_DURATION, d } }, Order::ByTime);
+            bb.add(Kind::Rest, voice, { { F::TIME, at }, { F::DURATION, d }, { F::BASE_DURATION, d }, { F::TAG, Text(std::string("Rest")) } },
+                   Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
             at += d;
@@ -512,13 +652,52 @@ private:
         }
         const Id voice = voiceFor(staff, 0);
         if (from == start) {
-            bb.add(Kind::Rest, voice, { { F::TIME, start }, { F::DURATION, measureLen[size_t(mi)] }, { F::MEASURE_REST, true } },
+            bb.add(Kind::Rest, voice, { { F::TIME, start }, { F::DURATION, measureLen[size_t(mi)] }, { F::MEASURE_REST, true },
+                                        { F::TAG, Text(std::string("Rest")) } },
                    Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
             return;
         }
         fillVoice1(voice, from, end, start);
+    }
+
+    //! The element's children the model doesn't hold (eid aside), as a fragment
+    static std::string unmodelled(const Node& e, std::vector<const char*> modelled)
+    {
+        std::vector<const Node*> rest;
+        for (const Node& c : e.children) {
+            // the links between a score and its parts are made again from the model's layouts when it is written
+            if (c.type != Node::Type::Element || c.name == "eid" || c.name == "linked" || c.name == "linkedMain"
+                || c.name == "linkedTo") {
+                continue;
+            }
+            bool known = false;
+            for (const char* m : modelled) {
+                known = known || c.name == m;
+            }
+            if (!known) {
+                rest.push_back(&c);
+            }
+        }
+        return fragment(rest);
+    }
+
+    //! Adds the details of `e` (children outside `modelled`) with the fingerprint of the fields given so far
+    static void withDetails(Fields& f, const Node& e, std::vector<const char*> modelled)
+    {
+        const std::string d = unmodelled(e, modelled);
+        if (!d.empty()) {
+            f.push_back({ F::DETAILS_KEY, detailsKey(f) });
+            f.push_back({ F::DETAILS, Text(d) });
+        }
+    }
+
+    //! A text child as written (MuseScore rich text: markup kept, still escaped)
+    static std::string rawText(const Node& e, const char* tag)
+    {
+        const Node* c = e.child(tag);
+        return c ? c->raw : std::string();
     }
 
     static bool isGrace(const Node& e)
@@ -609,6 +788,12 @@ private:
             f.push_back({ F::GRACE_TYPE, Text(grace) });
             report.graces++;
         }
+        if (e.name != "Chord") {
+            f.push_back({ F::TAG, Text(e.name) });
+        }
+        withDetails(f, e, { "durationType", "dots", "duration", "Note", "Articulation", "Ornament", "Lyrics", "Spanner", "Arpeggio",
+                            "TremoloSingleChord", "ChordLine", "Fermata", "acciaccatura", "appoggiatura", "grace4", "grace16",
+                            "grace32", "grace8after", "grace16after", "grace32after" });
         eid(e, f);
 
         bool hasNotes = false;
@@ -625,11 +810,15 @@ private:
             if (c.name == "Note" && kind == Kind::Chord) {
                 readNote(c, ev, staff, mi, at);
             } else if (c.name == "Articulation" || c.name == "Ornament") {
-                bb.add(Kind::Attachment, ev, { { F::SUBKIND, Text(c.childText("subtype").empty() ? lowerFirst(c.name) : c.childText("subtype")) } });
+                Fields af { { F::SUBKIND, Text(c.childText("subtype").empty() ? lowerFirst(c.name) : c.childText("subtype")) },
+                            { F::TAG, Text(c.name) } };
+                withDetails(af, c, { "subtype" });
+                eid(c, af);
+                bb.add(Kind::Attachment, ev, af);
                 report.modelled[c.name]++;
             } else if (c.name == "Lyrics") {
                 Fields lf { { F::SUBKIND, Text(std::string("lyric")) }, { F::VERSE, toInt(c.childText("no")) },
-                            { F::TEXT, Text(c.childText("text")) } };
+                            { F::TEXT, Text(rawText(c, "text")) } };
                 const std::string syl = c.childText("syllabic");
                 if (!syl.empty()) {
                     lf.push_back({ F::SYLLABIC, Text(syl) });
@@ -638,13 +827,18 @@ private:
                 if (!c.childText("ticks_f").empty() && parseFraction(c.childText("ticks_f"), ticks)) {
                     lf.push_back({ F::DURATION, ticks });
                 }
+                withDetails(lf, c, { "no", "syllabic", "text", "ticks_f" });
+                eid(c, lf);
                 bb.add(Kind::Attachment, ev, lf);
                 report.lyrics++;
                 report.modelled["Lyrics"]++;
             } else if (c.name == "Spanner") {
-                addSpanner(c, staff, mi, at);
+                addSpanner(c, staff, mi, at, voiceIndexOf(voice));
             } else if (c.name == "Arpeggio" || c.name == "TremoloSingleChord" || c.name == "ChordLine" || c.name == "Fermata") {
-                bb.add(Kind::Attachment, ev, { { F::SUBKIND, Text(lowerFirst(c.name)) } });
+                Fields af { { F::SUBKIND, Text(lowerFirst(c.name)) }, { F::TAG, Text(c.name) } };
+                withDetails(af, c, {});
+                eid(c, af);
+                bb.add(Kind::Attachment, ev, af);
                 report.modelled[c.name]++;
             } else if (c.name != "Note" && c.name != "durationType" && c.name != "dots" && c.name != "duration" && c.name != "eid"
                        && !graceTags().count(c.name)) {
@@ -667,6 +861,15 @@ private:
         if (!n.childText("tpc2").empty()) {
             f.push_back({ F::TPC2, toInt(n.childText("tpc2")) });
         }
+        withDetails(f, n, { "pitch", "tpc", "tpc2", "Spanner", "Fingering" });
+        for (const Node& c : n.children) {
+            if (c.name == "Spanner" && c.attr("type") == "Tie" && c.child("next") && c.child("Tie")) {
+                const std::string tie = unmodelled(*c.child("Tie"), {});
+                if (!tie.empty()) {
+                    f.push_back({ F::DETAILS_2, Text(tie) });
+                }
+            }
+        }
         eid(n, f);
         const Id note = bb.add(Kind::Note, chord, f);
         report.notes++;
@@ -678,7 +881,10 @@ private:
                     ties.push_back({ note, staff, toInt(n.childText("pitch"), 60), locate(mi, at, next->child("location")) });
                 }
             } else if (c.name == "Fingering") {
-                bb.add(Kind::Attachment, note, { { F::SUBKIND, Text(std::string("fingering")) }, { F::TEXT, Text(c.childText("text")) } });
+                Fields af { { F::SUBKIND, Text(std::string("fingering")) }, { F::TEXT, Text(rawText(c, "text")) }, { F::TAG, Text(c.name) } };
+                withDetails(af, c, { "text" });
+                eid(c, af);
+                bb.add(Kind::Attachment, note, af);
                 report.modelled["Fingering"]++;
             } else if (c.name != "pitch" && c.name != "tpc" && c.name != "tpc2" && c.name != "eid" && c.name != "Spanner") {
                 report.keptOnly["Note/" + c.name]++;
@@ -686,7 +892,17 @@ private:
         }
     }
 
-    void addSpanner(const Node& s, Id staff, int mi, const Fraction& at)
+    int voiceIndexOf(Id voice) const
+    {
+        for (const auto& [key, v] : voices) {
+            if (v == voice) {
+                return key.second;
+            }
+        }
+        return 0;
+    }
+
+    void addSpanner(const Node& s, Id staff, int mi, const Fraction& at, int voiceIndex)
     {
         const std::string type = s.attr("type");
         const Node* next = s.child("next");
@@ -709,17 +925,28 @@ private:
             } else if (type == "Ottava") {
                 f.push_back({ F::TEXT, Text(body->childText("subtype")) });
             }
+            f.push_back({ F::VOICE_INDEX, int64_t(voiceIndex) });
+            f.push_back({ F::SEQ, int64_t(++seq) });
+            withDetails(f, *body, type == "Volta" ? std::vector<const char*> { "endings" }
+                        : type == "HairPin" || type == "Ottava" ? std::vector<const char*> { "subtype" }
+                        : std::vector<const char*> {});
         }
         bb.add(Kind::Spanner, scoreId, f);
         report.spanners++;
         report.modelled["Spanner/" + type]++;
     }
 
-    void addFlowItem(const Node& e, Id staff, const Fraction& at)
+    Id addFlowItem(const Node& e, Id staff, const Fraction& at, int voiceIndex)
     {
-        Fields f { { F::SUBKIND, Text(flowItemKinds().at(e.name)) }, { F::TIME, at } };
+        Fields f { { F::SUBKIND, Text(flowItemKinds().at(e.name)) }, { F::TIME, at }, { F::TAG, Text(e.name) },
+                   { F::SEQ, int64_t(++seq) } };
+        if (voiceIndex >= 0) {
+            f.push_back({ F::VOICE_INDEX, int64_t(voiceIndex) });
+        }
         if (!systemWide(e.name)) {
             f.push_back({ F::ANCHOR, staff });
+        } else {
+            f.push_back({ F::HOME_STAFF, staff });
         }
         const std::string& n = e.name;
         if (n == "Clef") {
@@ -734,7 +961,7 @@ private:
             f.push_back({ F::TIMESIG_DEN, toInt(e.childText("sigD"), 4) });
         } else if (n == "Tempo") {
             f.push_back({ F::REAL_VALUE, toReal(e.childText("tempo"), 2.0) });
-            f.push_back({ F::TEXT, Text(e.childText("text")) });
+            f.push_back({ F::TEXT, Text(rawText(e, "text")) });
         } else if (n == "Dynamic" || n == "Fermata" || n == "Breath") {
             f.push_back({ F::TEXT, Text(e.childText("subtype")) });
         } else if (n == "Harmony") {
@@ -754,13 +981,26 @@ private:
                     f.push_back({ F::TRANSPOSE_CHROMATIC, c });
                 }
             }
-            f.push_back({ F::TEXT, Text(e.childText("text")) });
+            f.push_back({ F::TEXT, Text(rawText(e, "text")) });
         } else {
-            f.push_back({ F::TEXT, Text(e.childText("text")) });
+            f.push_back({ F::TEXT, Text(rawText(e, "text")) });
+        }
+        static const std::map<std::string, std::vector<const char*> > modelled {
+            { "Clef", { "concertClefType", "clefType" } }, { "KeySig", { "concertKey", "accidental", "mode" } },
+            { "TimeSig", { "sigN", "sigD" } }, { "Tempo", { "tempo", "text" } }, { "Dynamic", { "subtype" } },
+            { "Fermata", { "subtype" } }, { "Breath", { "subtype" } }, { "Harmony", { "name", "root" } },
+            { "InstrumentChange", { "text" } },
+        };
+        auto it = modelled.find(n);
+        if (it != modelled.end()) {
+            withDetails(f, e, it->second);
+        } else {
+            withDetails(f, e, { "text" });
         }
         eid(e, f);
-        bb.add(Kind::FlowItem, flowId, f, Order::ByTime);
+        const Id item = bb.add(Kind::FlowItem, flowId, f, Order::ByTime);
         report.modelled[n]++;
+        return item;
     }
 
     void resolveTies()
@@ -844,6 +1084,7 @@ private:
         auto it = staffStretch.find(staff.value());
         return it == staffStretch.end() ? Fraction(1, 1) : it->second;
     }
+    int64_t seq = 0;
     Fraction voice0End;
     std::map<std::pair<uint64_t, int>, Id> voices;
     std::vector<Id> measureIds;

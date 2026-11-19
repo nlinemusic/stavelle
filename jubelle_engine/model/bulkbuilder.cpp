@@ -57,7 +57,7 @@ void BulkBuilder::setField(Id id, Field field, Value value)
     m_objects[it->second].fields.emplace_back(field, std::move(value));   // a later value wins (Object's constructor)
 }
 
-size_t BulkBuilder::finish(Model& model)
+size_t BulkBuilder::finish(Model& model, const std::function<Object(Object)>& adjust)
 {
     // times first (fields are moved into the objects below)
     std::vector<Fraction> times(m_objects.size());
@@ -93,6 +93,9 @@ size_t BulkBuilder::finish(Model& model)
             fields.emplace_back(F::CHILDREN, IdList(std::move(list)));
         }
         objects.emplace_back(p.id, std::move(fields));
+        if (adjust) {
+            objects.back() = adjust(std::move(objects.back()));
+        }
     }
     const size_t count = objects.size();
     model.replaceAll(std::move(objects), m_score);

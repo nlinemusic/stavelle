@@ -11,6 +11,11 @@
 //   je_io_tool listing <file>         the music as read (staff, voice, time, duration, pitches)
 //   je_io_tool store <file>           the engine store and what it would restore into <Style>
 //   je_io_tool bench <file>           times and memory for reading and writing one score
+//   je_io_tool generate <in> <out>    open a score into the model and save a file generated from the model alone
+//   je_io_tool regenerate <folder> [--known <file>] [--private] [--out <dir>]
+//       every MuseScore 4.x score: read → generate from the model → read again; the music and every model field
+//       must be equal, the model consistent, and generating again must give the same file. --out keeps the files
+//   je_io_tool dump <file>            every model object and field as read (ids shown as tree paths)
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -26,6 +31,7 @@
 #endif
 
 #include "io/mscxreader.h"
+#include "io/mscxwriter.h"
 #include "io/scorefile.h"
 #include "model/invariants.h"
 
@@ -61,6 +67,295 @@ struct Totals {
     std::map<std::string, int> warnings;
     std::vector<std::string> failures;
 };
+
+std::string valueString(const model::Value& v, const std::map<Id, std::string>& paths)
+{
+    auto idText = [&paths](Id id) {
+        auto it = paths.find(id);
+        return it == paths.end() ? std::string("?") : it->second;
+    };
+    if (std::holds_alternative<bool>(v)) {
+        return std::get<bool>(v) ? "true" : "false";
+    }
+    if (std::holds_alternative<int64_t>(v)) {
+        return std::to_string(std::get<int64_t>(v));
+    }
+    if (std::holds_alternative<double>(v)) {
+        char b[40];
+        std::snprintf(b, sizeof(b), "%.17g", std::get<double>(v));
+        return b;
+    }
+    if (std::holds_alternative<model::Text>(v)) {
+        std::string t = std::get<model::Text>(v).str();
+        for (char& c : t) {
+            if (c == '\n') {
+                c = '|';
+            } else if (c == '\0') {
+                c = '~';
+            } else if (c == '\x1E') {
+                c = '|';
+            } else if (c == '\x1F') {
+                c = '=';
+            }
+        }
+        return '"' + t + '"';
+    }
+    if (std::holds_alternative<Fraction>(v)) {
+        const Fraction& f = std::get<Fraction>(v);
+        return std::to_string(f.numerator()) + "/" + std::to_string(f.denominator());
+    }
+    if (std::holds_alternative<Id>(v)) {
+        return "@" + idText(std::get<Id>(v));
+    }
+    if (std::holds_alternative<model::IdList>(v)) {
+        std::string out = "[";
+        for (Id id : std::get<model::IdList>(v)) {
+            out += "@" + idText(id) + " ";
+        }
+        return out + "]";
+    }
+    return "-";
+}
+
+//! Every object below the score in tree order, with its fields; ids are written as tree paths so two readings
+//! of the same music compare equal whatever ids they were given
+std::string modelDump(const model::Snapshot& s)
+{
+    std::map<Id, std::string> paths;
+    std::vector<Id> order;
+    std::vector<std::pair<Id, std::string> > stack { { s.score(), "s" } };
+    while (!stack.empty()) {
+        auto [id, path] = stack.back();
+        stack.pop_back();
+        const model::Object* o = s.find(id);
+        if (!o) {
+            continue;
+        }
+        paths[id] = path;
+        order.push_back(id);
+        const auto& ch = o->children();
+        for (size_t i = ch.size(); i-- > 0;) {
+            stack.emplace_back(ch[i], path + "." + std::to_string(i));
+        }
+    }
+    std::string out;
+    for (Id id : order) {
+        const model::Object* o = s.find(id);
+        out += paths[id];
+        o->forEachField([&](model::Field f, const model::Value& v) {
+            // SEQ is a read-order counter, not music: the order it gives shows as the tree order and the paths.
+            // DETAILS_KEY is a fingerprint that includes object ids, which differ between two readings (whether
+            // it still matches is checked by the writer: no details may be dropped without an edit)
+            if (f == model::fields::CHILDREN || f == model::fields::PARENT || f == model::fields::SEQ
+                || f == model::fields::DETAILS_KEY) {
+                return;
+            }
+            out += " " + std::string(model::fieldName(f)) + "=" + valueString(v, paths);
+        });
+        out += "\n";
+    }
+    return out;
+}
+
+//! The first differing line of two texts, for a report: its start and, for model dumps, only the fields that differ
+std::string firstDifference(const std::string& a, const std::string& b)
+{
+    auto cut = [](const std::string& t) { return t.size() > 160 ? t.substr(0, 160) + "…" : t; };
+    auto tokens = [](const std::string& line) {
+        // "path f=v f=v" with quoted texts that may hold spaces
+        std::vector<std::string> out;
+        std::string cur;
+        bool quoted = false;
+        for (char c : line) {
+            if (c == '"') {
+                quoted = !quoted;
+            }
+            if (c == ' ' && !quoted) {
+                out.push_back(cur);
+                cur.clear();
+            } else {
+                cur += c;
+            }
+        }
+        out.push_back(cur);
+        return out;
+    };
+    size_t la = 0, lb = 0;
+    while (la < a.size() || lb < b.size()) {
+        const size_t ea = std::min(a.find('\n', la), a.size()), eb = std::min(b.find('\n', lb), b.size());
+        const std::string x = a.substr(la, ea - la), y = b.substr(lb, eb - lb);
+        if (x != y) {
+            const auto tx = tokens(x), ty = tokens(y);
+            std::string only;
+            for (const auto& t : tx) {
+                if (std::find(ty.begin(), ty.end(), t) == ty.end()) {
+                    only += " -" + cut(t);
+                }
+            }
+            for (const auto& t : ty) {
+                if (std::find(tx.begin(), tx.end(), t) == tx.end()) {
+                    only += " +" + cut(t);
+                }
+            }
+            return "at " + (tx.empty() ? std::string() : tx[0]) + ":" + only;
+        }
+        la = ea + 1;
+        lb = eb + 1;
+    }
+    return "";
+}
+
+int generate(const std::string& in, const std::string& out)
+{
+    model::Model m;
+    IdGenerator ids(1);
+    std::string error;
+    if (!io::openScore(in, m, ids, error)) {
+        std::cerr << error << "\n";
+        return 1;
+    }
+    io::WriteReport w;
+    if (!io::saveScore(m.snapshot(), out, error, &w)) {
+        std::cerr << error << "\n";
+        return 1;
+    }
+    std::cout << "generated; details written " << w.detailsWritten << ", dropped " << w.detailsDropped << "\n";
+    return 0;
+}
+
+int dump(const std::string& path)
+{
+    model::Model m;
+    IdGenerator ids(1);
+    std::string error;
+    if (!io::openScore(path, m, ids, error)) {
+        std::cerr << error << "\n";
+        return 1;
+    }
+    std::cout << modelDump(m.snapshot());
+    return 0;
+}
+
+int regenerate(const std::string& folder, const std::string& knownPath, bool privateNames, const std::string& outDir)
+{
+    std::map<std::string, bool> known;
+    if (!knownPath.empty()) {
+        std::ifstream k(knownPath);
+        for (std::string l; std::getline(k, l);) {
+            if (!l.empty() && l.back() == '\r') {
+                l.pop_back();
+            }
+            const size_t hash = l.find(" #");
+            if (hash != std::string::npos) {
+                l = l.substr(0, hash);
+            }
+            while (!l.empty() && l.back() == ' ') {
+                l.pop_back();
+            }
+            if (!l.empty() && l[0] != '#') {
+                known[l] = false;
+            }
+        }
+    }
+    std::vector<fs::path> files;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+         it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (!ec && it->is_regular_file() && isScore(it->path())) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    int v4 = 0, same = 0, unexpected = 0, fixedKnown = 0;
+    long written = 0, dropped = 0;
+    std::map<std::string, int> kinds;
+    std::vector<std::string> lines;
+    int index = 0;
+    for (const fs::path& p : files) {
+        ++index;
+        const std::string rel = fs::relative(p, folder).generic_string();
+        const std::string label = privateNames ? "private #" + std::to_string(index) : rel;
+        std::string bytes, error;
+        io::zip::readFile(p.string(), bytes);
+        io::ScoreFile file;
+        if (!io::loadBytes(bytes, p.extension() == ".mscx", file, error) || !file.isVersion4()) {
+            continue;
+        }
+        io::restoreFromEngineStore(file);
+        model::Model a;
+        IdGenerator idsA(1);
+        io::ReadReport ra;
+        if (!io::readScore(file, a, idsA, ra, error)) {
+            continue;
+        }
+        ++v4;
+        std::string problem;
+        io::WriteReport w;
+        io::ScoreFile gen = io::generateScoreFile(a.snapshot(), &w);
+        written += w.detailsWritten;
+        dropped += w.detailsDropped;
+        const std::string genBytes = io::saveBytes(gen);
+        io::ScoreFile back;
+        model::Model b;
+        IdGenerator idsB(1);
+        io::ReadReport rb;
+        if (!io::loadBytes(genBytes, false, back, error)) {
+            problem = "generated file not readable: " + error;
+        } else if (!io::readScore(back, b, idsB, rb, error)) {
+            problem = "generated file not read into the model: " + error;
+        } else if (w.detailsDropped) {
+            problem = std::to_string(w.detailsDropped) + " details dropped without an edit";
+        } else {
+            const std::string la = io::musicListing(a.snapshot()), lb = io::musicListing(b.snapshot());
+            const std::string da = modelDump(a.snapshot()), db = modelDump(b.snapshot());
+            const auto inv = model::checkInvariants(b.snapshot(), 1);
+            if (la != lb) {
+                problem = "music differs: " + firstDifference(la, lb);
+            } else if (da != db) {
+                problem = "model differs: " + firstDifference(da, db);
+            } else if (!inv.empty()) {
+                problem = "regenerated model inconsistent: " + inv.front();
+            } else if (io::saveBytes(io::generateScoreFile(b.snapshot())) != genBytes) {
+                problem = "generating again gives another file";
+            }
+        }
+        if (!outDir.empty()) {
+            fs::create_directories(fs::path(outDir) / fs::path(rel).parent_path());
+            std::ofstream((fs::path(outDir) / rel).replace_extension(".mscz"), std::ios::binary) << genBytes;
+        }
+        auto k = known.find(rel);
+        if (problem.empty()) {
+            ++same;
+            if (k != known.end()) {
+                ++fixedKnown;
+                lines.push_back("- now passes (remove from the known list): " + label);
+            }
+        } else {
+            kinds[problem.substr(0, problem.find(':'))]++;
+            if (k != known.end()) {
+                k->second = true;
+                lines.push_back("- known: " + label + ": " + problem);
+            } else {
+                ++unexpected;
+                lines.push_back("- **" + label + "**: " + problem);
+            }
+        }
+    }
+    std::cout << "## Model-based writing: read → generate → read again\n\n";
+    std::cout << "| | |\n|---|---:|\n";
+    std::cout << "| MuseScore 4.x scores | " << v4 << " |\n";
+    std::cout << "| regenerated with the same music and model | " << same << " |\n";
+    std::cout << "| different | " << (v4 - same) << " (" << unexpected << " not in the known list) |\n";
+    std::cout << "| appearance details written / dropped | " << written << " / " << dropped << " |\n\n";
+    for (const auto& [kind, n] : kinds) {
+        std::cout << "- " << kind << ": " << n << "\n";
+    }
+    std::cout << "\n";
+    for (const std::string& l : lines) {
+        std::cout << l << "\n";
+    }
+    return (unexpected || fixedKnown) ? 1 : 0;
+}
 
 int corpus(const std::string& folder, bool privateNames, const std::string& reportPath, const std::string& knownPath)
 {
@@ -426,6 +721,19 @@ int main(int argc, char** argv)
     }
     if (a.size() == 2 && a[0] == "store") {
         return store(a[1]);
+    }
+    if (a.size() == 3 && a[0] == "generate") {
+        return generate(a[1], a[2]);
+    }
+    if (a.size() == 2 && a[0] == "dump") {
+        return dump(a[1]);
+    }
+    if (a.size() >= 2 && a[0] == "regenerate") {
+        auto k = std::find(a.begin(), a.end(), "--known");
+        auto o = std::find(a.begin(), a.end(), "--out");
+        return regenerate(a[1], k != a.end() && k + 1 != a.end() ? *(k + 1) : std::string(),
+                          std::find(a.begin(), a.end(), "--private") != a.end(),
+                          o != a.end() && o + 1 != a.end() ? *(o + 1) : std::string());
     }
     if (a.size() == 2 && a[0] == "bench") {
         return bench(a[1]);
