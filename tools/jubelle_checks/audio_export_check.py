@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Jubelle build check: exported audio really has the chosen bit depth and sample rate.
 
-For each setting (48 kHz / 24-bit default, 96 kHz / 24-bit, 48 kHz / 16-bit,
+For each setting (the default, which matches MuseScore Studio 4.7.7: 44.1 kHz,
+WAV 32-bit float, FLAC 16-bit; then 48 kHz / 24-bit, 96 kHz / 24-bit and
 96 kHz / 16-bit) the check writes the setting into Jubelle's own settings file,
 exports the same score as WAV, FLAC, MP3 and OGG from the command line, and
 reads each file's header back:
@@ -26,9 +27,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from smoke_test import run_app  # noqa: E402
 
-# AudioSampleFormat in the code: Int16 = 1, Int24 = 2
-SETTINGS = [("default (48 kHz, 24-bit)", None, None), ("96 kHz, 24-bit", 96000, 2),
-            ("48 kHz, 16-bit", 48000, 1), ("96 kHz, 16-bit", 96000, 1)]
+# AudioSampleFormat in the code: Int16 = 1, Int24 = 2, Float32 = 3
+# (label, rate to set, WAV format to set, FLAC format to set, expected rate, expected WAV bits, expected FLAC bits)
+SETTINGS = [("default, as MuseScore (44.1 kHz; WAV 32-bit float, FLAC 16-bit)", None, None, None, 44100, 32, 16),
+            ("48 kHz, 24-bit", 48000, 2, 2, 48000, 24, 24),
+            ("96 kHz, 24-bit", 96000, 2, 2, 96000, 24, 24),
+            ("96 kHz, 16-bit", 96000, 1, 1, 96000, 16, 16)]
 
 
 def settings_file():
@@ -39,10 +43,10 @@ def settings_file():
     return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "Jubelle" / "Jubelle.ini"
 
 
-def write_settings(path, rate, fmt):
+def write_settings(path, rate, wav_fmt, flac_fmt):
     """Sets the three export keys in Qt's INI layout ([export] audio\\sampleRate=...), keeping everything else."""
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines() if path.exists() else []
-    wanted = {"audio\\sampleRate": str(rate), "audio\\wavSampleFormat": str(fmt), "audio\\flacSampleFormat": str(fmt)}
+    wanted = {"audio\\sampleRate": str(rate), "audio\\wavSampleFormat": str(wav_fmt), "audio\\flacSampleFormat": str(flac_fmt)}
     out, in_export, done = [], False, set()
     for line in lines:
         stripped = line.strip()
@@ -69,8 +73,13 @@ def write_settings(path, rate, fmt):
 
 
 def wav_info(p):
-    with wave.open(str(p), "rb") as w:
-        return w.getframerate(), w.getsampwidth() * 8
+    """(rate, bits) from the fmt chunk (also 32-bit float, which the wave module can't read)."""
+    data = p.read_bytes()[:4096]
+    k = data.find(b"fmt ")
+    if data[:4] != b"RIFF" or k < 0:
+        return None, None
+    _, _, rate, _, _, bits = struct.unpack("<HHIIHH", data[k + 8:k + 24])
+    return rate, bits
 
 
 def flac_info(p):
@@ -127,7 +136,7 @@ def main():
              f"- settings file: `{ini}`" if ini else "- settings file: (macOS property list: defaults only)", ""]
     ok = True
     try:
-        for label, rate, fmt in SETTINGS:
+        for label, rate, wav_fmt, flac_fmt, want_rate, want_wav_bits, want_flac_bits in SETTINGS:
             if rate is not None and ini is None:
                 continue
             if ini:
@@ -140,12 +149,10 @@ def main():
                                 if not l.strip().startswith(("audio\\sampleRate", "audio\\wavSampleFormat", "audio\\flacSampleFormat"))]
                         ini.write_text("\n".join(text) + "\n", encoding="utf-8")
                 else:
-                    write_settings(ini, rate, fmt)
-            want_rate = rate or 48000
-            want_bits = 16 if fmt == 1 else 24
+                    write_settings(ini, rate, wav_fmt, flac_fmt)
             lines.append(f"## {label}")
             for ext in ("wav", "flac", "mp3", "ogg"):
-                out = work / f"check_{want_rate}_{want_bits}.{ext}"
+                out = work / f"check_{want_rate}_{want_wav_bits}.{ext}"
                 if out.exists():
                     out.unlink()
                 result, _ = run_app(exe, ["-o", out, score], timeout=600)
@@ -155,11 +162,11 @@ def main():
                     continue
                 if ext == "wav":
                     r, b = wav_info(out)
-                    good = r == want_rate and b == want_bits
+                    good = r == want_rate and b == want_wav_bits
                     detail = f"{r} Hz, {b}-bit"
                 elif ext == "flac":
                     r, b = flac_info(out)
-                    good = r == want_rate and b == want_bits
+                    good = r == want_rate and b == want_flac_bits
                     detail = f"{r} Hz, {b}-bit"
                 elif ext == "mp3":
                     r = mp3_rate(out)

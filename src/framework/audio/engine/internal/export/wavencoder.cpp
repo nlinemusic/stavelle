@@ -193,7 +193,9 @@ size_t WavEncoder::encode(samples_t samplesPerChannel, const float* input)
             for (audioch_t audioChNum = 0; audioChNum < channels; ++audioChNum) {
                 const int idx = static_cast<int>(sampleIdx) * channels + audioChNum;
 
-                const int32_t sampleInt = dsp::convertFloatSamples<int32_t>(input[idx], bitsPerSample);
+                // Jubelle: 16-bit is dithered (jubelledither.h); 24-bit is precise enough without
+                const int32_t sampleInt = bitsPerSample == 16 ? m_jubelleDither.toInt16(input[idx])
+                                          : dsp::convertFloatSamples<int32_t>(input[idx], bitsPerSample);
 
                 m_fileStream.write(reinterpret_cast<const char*>(&sampleInt), bytesToWrite);
             }

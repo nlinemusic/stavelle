@@ -273,7 +273,7 @@ def jubelle_files_in_musescore(ms_exe, st_exe, work, repo):
         check("…with the recorded tempo kept", midi_tempos(work / "features_back.mid") == midi_tempos(work / "features_jubelle.mid"))
 
 
-TEST_LIMIT_SECONDS = 28 * 60
+TEST_LIMIT_SECONDS = 95 * 60   # (the audio comparison exports about 27 files)
 
 
 def benchmark(ms_exe, st_exe, work):
@@ -396,6 +396,16 @@ def main():
             benchmark(ms_exe, st_exe, work)
         except Exception as e:  # never let the benchmark break the coexistence test
             trace(f"benchmark skipped: {e}")
+
+    # Audio export quality against MuseScore: same scores, same machine, measured
+    if st_exe.exists():
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            import audio_quality_compare
+            check("Audio export: no clipping, not duller, in time, repeatable (against MuseScore)",
+                  audio_quality_compare.compare(ms_exe, st_exe, work / "audio"), "see audio/audio_quality.md")
+        except Exception as e:
+            check("Audio export comparison ran", False, repr(e))
 
     s1b = snapshot(ms_install)  # MuseScore may update its own settings when it runs
 

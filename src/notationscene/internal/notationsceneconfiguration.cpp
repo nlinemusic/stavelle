@@ -21,6 +21,7 @@
  */
 
 #include "notationsceneconfiguration.h"
+#include "notationuiactions.h"
 
 #include "settings.h"
 
@@ -257,4 +258,9 @@ void NotationSceneConfiguration::resetStyleDialogPageIndices()
 {
     setStyleDialogLastPageIndex(0);
     setStyleDialogLastSubPageIndex(0);
+}
+
+const muse::ui::ToolConfig& NotationSceneConfiguration::defaultNoteInputBarConfig() const
+{
+    return NotationUiActions::defaultNoteInputBarConfig();
 }

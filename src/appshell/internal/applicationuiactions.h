@@ -30,6 +30,7 @@
 #include "braille/ibrailleconfiguration.h"
 #include "notation/inotationconfiguration.h"
 #include "notationscene/inotationsceneconfiguration.h"
+#include "appshell/iworkflowprofiles.h"
 
 #include "dockwindow/idockwindowprovider.h"
 
@@ -42,6 +43,7 @@ class ApplicationUiActions : public muse::ui::IUiActionsModule, public muse::Con
     muse::GlobalInject<notation::INotationSceneConfiguration> notationSceneConfiguration;
     muse::ContextInject<muse::ui::IMainWindow> mainWindow = { this };
     muse::ContextInject<muse::dock::IDockWindowProvider> dockWindowProvider = { this };
+    muse::ContextInject<IWorkflowProfiles> workflowProfiles = { this };
 
 public:
     ApplicationUiActions(std::shared_ptr<ApplicationActionController> controller, const muse::modularity::ContextPtr& iocCtx);

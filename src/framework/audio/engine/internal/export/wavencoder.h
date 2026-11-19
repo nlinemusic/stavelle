@@ -26,6 +26,7 @@
 #include <fstream>
 
 #include "abstractaudioencoder.h"
+#include "../dsp/jubelledither.h"
 
 namespace muse::audio::encode {
 class WavEncoder : public AbstractAudioEncoder
@@ -47,6 +48,7 @@ private:
 
     std::ofstream m_fileStream;
     bool m_headerWritten = false;
+    dsp::JubelleTpdfDither m_jubelleDither;   // Jubelle: 16-bit exports
     uint64_t m_pcmStartPos = 0;
 };
 }

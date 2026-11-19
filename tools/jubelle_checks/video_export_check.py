@@ -19,6 +19,7 @@ used.
 Usage: video_export_check.py <Jubelle executable> <score> <work dir> [ffmpeg.exe]
 """
 import array
+import struct
 import math
 import subprocess
 import sys
@@ -33,20 +34,36 @@ LEAD_IN_SEC = 3.0   # Jubelle's default silent lead-in on the first page
 
 
 def read_wav(path):
-    with wave.open(str(path), "rb") as w:
-        rate, ch, width, n = w.getframerate(), w.getnchannels(), w.getsampwidth(), w.getnframes()
-        raw = w.readframes(n)
-    if width == 2:
-        a = array.array("h", raw)
+    """PCM 16/24/32-bit or 32-bit float WAV (Jubelle's default, as MuseScore's) -> (rate, channels, bits, mono)."""
+    data = Path(path).read_bytes()
+    pos, fmt, raw = 12, None, b""
+    while pos + 8 <= len(data):
+        cid = data[pos:pos + 4]
+        size = struct.unpack("<I", data[pos + 4:pos + 8])[0]
+        body = data[pos + 8:pos + 8 + size]
+        if cid == b"fmt ":
+            tag, ch, rate, _, _, bits = struct.unpack("<HHIIHH", body[:16])
+            if tag == 0xFFFE and len(body) >= 26:
+                tag = struct.unpack("<H", body[24:26])[0]
+            fmt = (tag, ch, rate, bits)
+        elif cid == b"data":
+            raw = body
+        pos += 8 + size + (size & 1)
+    tag, ch, rate, bits = fmt
+    if tag == 3:
+        a = array.array("f", raw[: len(raw) // 4 * 4])
+        scale = 1.0
+    elif bits == 16:
+        a = array.array("h", raw[: len(raw) // 2 * 2])
         scale = 32768.0
-    elif width == 4:
-        a = array.array("i", raw)
+    elif bits == 32:
+        a = array.array("i", raw[: len(raw) // 4 * 4])
         scale = 2147483648.0
     else:   # 24-bit
-        a = array.array("i", (int.from_bytes(raw[i:i + 3], "little", signed=True) << 8 for i in range(0, len(raw), 3)))
+        a = array.array("i", (int.from_bytes(raw[i:i + 3], "little", signed=True) << 8 for i in range(0, len(raw) - 2, 3)))
         scale = 2147483648.0
     mono = [sum(a[i + c] for c in range(ch)) / (ch * scale) for i in range(0, len(a) - ch + 1, ch)]
-    return rate, ch, width * 8, mono
+    return rate, ch, bits, mono
 
 
 def frame_rgb(ffmpeg, video, at_sec, work, name):

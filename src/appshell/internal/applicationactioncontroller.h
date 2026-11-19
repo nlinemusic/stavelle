@@ -28,6 +28,7 @@
 #include "actions/actionable.h"
 #include "actions/iactionsdispatcher.h"
 #include "ui/iuiactionsregister.h"
+#include "appshell/iworkflowprofiles.h"
 #include "async/asyncable.h"
 #include "ui/imainwindow.h"
 #include "languages/ilanguagesservice.h"
@@ -55,6 +56,7 @@ class ApplicationActionController : public QObject, public muse::Contextable, pu
     muse::GlobalInject<muse::languages::ILanguagesService> languagesService;
     muse::ContextInject<muse::ui::IUiActionsRegister> actionsRegister = { this };
     muse::ContextInject<muse::actions::IActionsDispatcher> dispatcher = { this };
+    muse::ContextInject<IWorkflowProfiles> workflowProfiles = { this };
     muse::ContextInject<muse::ui::IMainWindow> mainWindow = { this };
     muse::ContextInject<muse::IInteractive> interactive = { this };
     muse::ContextInject<project::IProjectFilesController> projectFilesController = { this };

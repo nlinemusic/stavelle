@@ -1,4 +1,4 @@
-# Jubelle 4.7.7: release candidate 1
+# Jubelle 4.7.7: release candidate 2
 
 **What it is:**
 - a testing release, made for one composer and arranger;
@@ -9,13 +9,13 @@
 ## Installing
 
 ### Windows (10 or 11, 64-bit)
-1. Download `Jubelle-4.7.7.261118172-x86_64.msi` from this release.
+1. Download `Jubelle-4.7.7.261118230-x86_64.msi` from this release.
 2. Double-click it. The installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**.
 3. It replaces an earlier Jubelle and leaves MuseScore alone. Your scores, projects, settings and plugins stay where they are.
 4. Start Jubelle from the Start menu.
 
 ### macOS (Apple Silicon and Intel)
-1. Download `Jubelle-4.7.7.261118162.dmg` and open it.
+1. Download `Jubelle-4.7.7.261118230.dmg` and open it.
 2. Drag **Jubelle** into **Applications**.
 3. The app is not notarised by Apple, so the first time:
    - **Control-click** Jubelle in Applications and choose **Open**, then **Open** again;
@@ -30,7 +30,7 @@
 
 Or skip the browser and download it with PowerShell. Press Start, type **PowerShell**, open it, paste this one line and press Enter:
 ```
-$ProgressPreference='SilentlyContinue'; Invoke-WebRequest "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118172-x86_64.msi" -OutFile "$HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi"
+$ProgressPreference='SilentlyContinue'; Invoke-WebRequest "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118230/Jubelle-4.7.7.261118230-x86_64.msi" -OutFile "$HOME\Downloads\Jubelle-4.7.7.261118230-x86_64.msi"
 ```
 The installer (about 180 MB) arrives in your Downloads folder. Double-click it. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**.
 
@@ -38,13 +38,13 @@ The installer (about 180 MB) arrives in your Downloads folder. Double-click it. 
 
 Or download it with Terminal. Open **Terminal** (Applications › Utilities), paste this one line and press Return:
 ```
-curl -L -o ~/Downloads/Jubelle-4.7.7.261118162.dmg "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118162.dmg"
+curl -L -o ~/Downloads/Jubelle-4.7.7.261118230.dmg "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118230/Jubelle-4.7.7.261118230.dmg"
 ```
 Then open the disk image from your Downloads folder and drag **Jubelle** to **Applications**.
 
 **Checking the file (optional):**
-- **Windows (PowerShell):** `Get-FileHash $HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi`
-- **macOS (Terminal):** `shasum -a 256 ~/Downloads/Jubelle-4.7.7.261118162.dmg`
+- **Windows (PowerShell):** `Get-FileHash $HOME\Downloads\Jubelle-4.7.7.261118230-x86_64.msi`
+- **macOS (Terminal):** `shasum -a 256 ~/Downloads/Jubelle-4.7.7.261118230.dmg`
 
 The code it prints should match the file's line in `SHA256SUMS` on this page.
 
@@ -57,72 +57,46 @@ The code it prints should match the file's line in `SHA256SUMS` on this page.
 - `SHA256SUMS` lists each file's SHA-256 checksum.
 - `SHA256SUMS.sig` is the Ed25519 signature of that list, made with Jubelle's release key.
 
-## What's new since Complete Build 1
-### Arranging
-- **Harmonise Melody** (Tools › Arranging): the Big Band Harmony and Orchestration System, built on the Pandemonium Big Band lessons:
-  - closed voicing and full-band soli;
-  - shout-chorus trumpet triads;
-  - all nine saxophone-section voicings;
-  - passing notes (planing, diatonic, diminished);
-  - alterations on a resolving V (♭9♯5 preferred);
-  - an optional half-step slide, off by default.
-- It writes the parts into the trumpets, trombones and saxophones as one undo step, with Preview, Keep, Discard and Compare (up to four versions).
-- Chord symbols are updated so the rhythm section reads what the horns play.
-- Each part is spelled as its player reads it. Ranges come from the instrument data, and notes outside them are listed, never moved silently.
-- **Proofread:**
-  - section voicing: crossings, gaps, the lead doubled in a middle voice;
-  - time to change instrument;
-  - copying: cue and small-staff sizes, melisma extenders, key and clef changes just after a page turn;
-  - lesson 8's check, "looks like a third but sounds like a second".
-- **Prepare Parts** (Format) and **Export for Library** (File):
-  - numbered part files;
-  - an instrumentation list;
-  - a folder index.
+## What's new since release candidate 1
 
-### Playback and sound
-- **VST3:**
-  - audio plugins appear on the Plugins page, where you can switch each one on or off (kept across rescans), see plain load errors, and Rescan;
-  - per-instrument key switches, level trim and pitch-bend range.
-- **Glissando start** for each glissando, in Properties, with a timing bar.
-- **Properties:** a value set on the selection shows the default beside it, with **Use default**.
-- **Audio export:** 48 or 96 kHz, 16 or 24-bit, with 48 kHz / 24-bit as the default.
-- **MuseSounds:** Preferences › Audio & MIDI and the Learning Center explain why an installed MuseSounds engine doesn't play in Jubelle.
+### Better audio export
+Exports from Jubelle sounded duller and, on loud passages, rougher than the same score exported from MuseScore Studio 4.7.7. Three causes were found and fixed:
+- **Piano, keyboards, guitars, harp and percussion sounded duller.** Jubelle played their notes at lower MIDI velocities and made up the level with gain. With a soundfont the velocity also chooses the sample layer and how bright the sound is. Measured on the built-in piano at the same loudness, they had about 6 dB less energy above 4 kHz at p, at mf and with no dynamic marking, and about 3 dB less at ff. These instruments now use MuseScore's own velocities, so they sound and balance exactly as in MuseScore. Winds, brass, strings and voices keep Jubelle's clearer dynamic steps, which change only their level, not their tone.
+- **Loud passages crackled.** The anti-clipping limiter turned the level down within a single sample on loud attacks. It now looks 5 ms ahead and turns the level down smoothly before the peak, only as far as needed. Measured on a loud attack, the noise the limiter itself added fell from -50 dB to -93 dB. Anything quieter than about -1 dBFS still passes through untouched.
+- **Quiet endings in 16-bit files were grainy.** 16-bit WAV and FLAC exports are now dithered (standard TPDF). Exporting the same score twice still gives identical files.
 
-### Video (MP4)
-- White printed pages, with the first page as the lead-in (no title screen).
-- No cursor by default.
-- A page-sequence builder with thumbnails and preview.
-- Crossfaded joins.
-- The video's own audio quality setting (default 256 kb/s).
-- The sound is exactly in time with the pictures (an encoder delay of about 40 ms is now absorbed by the silent lead-in).
+**Export settings now match MuseScore's defaults:** 44.1 kHz, WAV 32-bit float, FLAC 16-bit, MP3 128 kbps. 32, 48 and 96 kHz and 16 or 24-bit remain available. If you changed these settings yourself in an earlier Jubelle, your choice is kept.
 
-### Interface
-- The same nine menus, regrouped (approved 17 Nov), with icons beside menu titles and key commands. Every existing command is still there, checked automatically against 255 commands.
-- Properties gains a Jubelle section that shows the settings for what is selected.
-- Learning Center:
-  - instrument ranges grouped by family, with ensemble presets and your own selection;
-  - new guides.
-- **Performance profiles** (Preferences › General › Performance): Automatic, High performance, Balanced, Low resource.
-- The name "Jubelle" everywhere it is shown.
+### Report a bug (Help › Report a bug…)
+- Fields for a title, what happened, steps to reproduce, the expected and actual result, and comments.
+- Screenshots: add a picture, or capture Jubelle's own window.
+- **Preview report** shows exactly what will be saved. **Create report** makes a ZIP on this computer (**Show in folder** finds it). Nothing is uploaded: you send it yourself.
+- Jubelle adds its version, your system's name and version, the graphics system, screen sizes, processor cores and memory, which notation engine is in use, the workflow profile and, if you leave the box ticked, the end of its log and the last crash.
+- Your user name, folders, file names, score titles, e-mail addresses, passwords, keys and tokens are removed first. Your score is never added unless you tick the box (off every time).
 
-### macOS preparation
-- LGPL FFmpeg (with VideoToolbox) is built and bundled for video export.
-- YouTube sign-in is kept in the macOS Keychain.
-- Export checks run on the packaged Mac app.
+### Workflow profiles (View › Workflow profile)
+- **Jubelle** (default), **MuseScore Studio**, **Finale-style** and **Noteflight-style** menus, shortcuts, note input toolbar order and note input settings.
+- Switch at any time without restarting. Every command stays available in every profile (checked automatically each time the menus are arranged).
+- Your own changes are kept for each profile. **Restore this profile's defaults…** undoes them for the current one.
+- The Finale and Noteflight profiles follow those programs' habits (for example Finale's number keys for intervals, Noteflight's Space for a rest). They are not copies of them. See the Learning Center guide.
+
+### Also
+- Learning Center guides: Workflow profiles, Reporting a bug, Exporting audio.
+- The last crash report is kept on this computer so a bug report can include it.
 
 ## Checks run for this release
 Windows build checks:
 - app check (open, save, reopen, MusicXML, MIDI, identity, own data folder);
-- interface self-test (every Jubelle window and panel, no QML errors);
+- interface self-test (every Jubelle window and panel, the Report a bug window, each workflow profile; no QML errors; every command in the menus in every profile);
 - MP4 export (picture, sound against a WAV export);
-- audio export (bit depth and sample rate of WAV, FLAC, MP3, OGG);
+- audio export (bit depth and sample rate of WAV, FLAC, MP3, OGG at the default and at 48 and 96 kHz);
 - template prints.
 
 Also:
-- the same export checks on the Mac build;
-- platform tests on Windows, macOS and Linux;
+- **audio against MuseScore 4.7.7** on the same Windows machine: the same 9 scores exported by both (big band, jazz, orchestra, a long orchestral export, strings with dynamics, piano, brass band, band with drums, and a test score with piano dynamics, articulations, crescendo, a loud tutti and tempo changes), measured for clipping, brightness, timing and repeatability;
+- the same export checks on the Mac build, and installing the Mac app;
 - the Linux whole-app compile and MuseScore's unit tests;
-- Jubelle's engine tests;
+- Jubelle's engine tests, including bug reports (privacy cleaning, the package, safe saving), workflow profiles (on the real default shortcuts: no clashes; menus never lose a command), the limiter, velocities and dither;
 - coexistence with MuseScore 4.7.7 on Windows.
 
 The results of each run are listed in the release report.
@@ -133,4 +107,7 @@ The results of each run are listed in the release report.
 - No in-app updater on macOS yet.
 - The Mac app has not been tried by hand.
 - On the largest scores, Jubelle's extra layout features add a little to each edit. See the release report for the measurements against MuseScore 4.7.7.
+- Workflow profiles: the Finale and Noteflight profiles are approximations of those programs' habits. On guitar tablature staves, Shift+number in the Finale profile keeps MuseScore's tab durations. Your own custom profiles are planned later.
+- Report a bug saves a ZIP for you to send. A secure online submitter can be added later without changing the report.
+- Audio: winds, brass and strings keep Jubelle's wider dynamic steps, so a score with many dynamics is not sample-for-sample identical to MuseScore. Piano, guitar, harp and percussion match MuseScore. The limiter delays the sound by 5 ms (audio and video stay in step).
 - A hybrid audio cache (pre-rendering playback) is not included. It was judged too risky for playback reliability at this stage.

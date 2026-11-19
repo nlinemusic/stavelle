@@ -355,7 +355,13 @@ void FluidSynth::applyJubellePresetGain(int channel)
         }
     }
     // attenuation is the opposite of gain: +10 cB attenuation = 1 dB quieter
-    fluid_synth_set_gen(m_fluid->synth, channel, GEN_ATTENUATION, float(-correctionCb));
+    double attenuationCb = -correctionCb;
+    // instruments played by velocity use MuseScore's velocity scale, so the
+    // make-up gain (for the expression scale) is taken back off them
+    if (!m_sequencer.usesDynamicEvents()) {
+        attenuationCb += jubelle::velocityInstrumentAttenuationCb();
+    }
+    fluid_synth_set_gen(m_fluid->synth, channel, GEN_ATTENUATION, float(attenuationCb));
 }
 
 void FluidSynth::setPreset(const std::optional<midi::Program>& preset)

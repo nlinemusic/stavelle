@@ -40,6 +40,7 @@
 #include "ui/imainwindow.h"
 #include "ui/inavigationcontroller.h"
 #include "ui/iuiactionsregister.h"
+#include "appshell/iworkflowprofiles.h"
 #include "ui/iuiconfiguration.h"
 #include "update/iupdateconfiguration.h"
 #include "workspace/iworkspacemanager.h"
@@ -76,6 +77,7 @@ public:
     muse::ContextInject<muse::ui::INavigationController> navigationController = { this };
     muse::ContextInject<muse::workspace::IWorkspaceManager> workspacesManager = { this };
     muse::ContextInject<project::IRecentFilesController> recentFilesController = { this };
+    muse::ContextInject<IWorkflowProfiles> workflowProfiles = { this };
 
 public:
     explicit AppMenuModel(QObject* parent = nullptr);
@@ -85,6 +87,11 @@ public:
 
 private:
     void setupConnections();
+
+    //! Jubelle: all the menus, then arranged as the workflow profile says
+    muse::uicomponents::MenuItemList makeItems();
+    muse::uicomponents::MenuItemList arrangeForWorkflowProfile(const muse::uicomponents::MenuItemList& items);
+    muse::uicomponents::MenuItemList makeWorkflowProfileItems();
 
     void onActionsStateChanges(const muse::actions::ActionCodeList& codes) override;
 

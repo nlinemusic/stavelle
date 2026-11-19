@@ -89,6 +89,34 @@ void ApplicationActionController::init()
         // opens the panel (never closes it; View › Proofread is the on/off)
         dispatcher()->dispatch("dock-set-open", ActionData::make_arg2<QString, bool>(JUBELLE_PROOFREAD_PANEL_NAME, true));
     });
+    dispatcher()->reg(this, "jubelle-report-bug", [this]() {
+        interactive()->open("musescore://jubelle/reportbug");
+    });
+    for (const char* id : { "jubelle", "musescore", "finale", "noteflight" }) {
+        const std::string profileId = id;
+        dispatcher()->reg(this, "jubelle-workflow-profile-" + profileId, [this, profileId]() {
+            if (workflowProfiles()) {
+                workflowProfiles()->setCurrentProfile(profileId);
+            }
+        });
+    }
+    dispatcher()->reg(this, "jubelle-workflow-restore-defaults", [this]() {
+        if (!workflowProfiles()) {
+            return;
+        }
+        const std::string name = workflowProfiles()->currentProfile().name;
+        auto promise = interactive()->question(
+            muse::qtrc("appshell", "Restore the %1 profile’s defaults?").arg(QString::fromStdString(name)).toStdString(),
+            muse::trc("appshell", "Your changes to this profile’s shortcuts, note input toolbar and note input settings "
+                                  "are replaced by the profile’s own. Your scores are not affected."),
+            { interactive()->buttonData(IInteractive::Button::Cancel), interactive()->buttonData(IInteractive::Button::Ok) },
+            int(IInteractive::Button::Ok));
+        promise.onResolve(this, [this](const IInteractive::Result& res) {
+            if (res.isButton(IInteractive::Button::Ok)) {
+                workflowProfiles()->restoreProfileDefaults();
+            }
+        });
+    });
     dispatcher()->reg(this, "jubelle-sound-sources", [this]() {
         UriQuery uri("muse://preferences");
         uri.addParam("currentPageId", Val("audio-midi"));

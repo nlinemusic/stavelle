@@ -1,0 +1,12 @@
+{
+  "schema": "jubelle.workflowprofile/1",
+  "id": "jubelle",
+  "name": "Jubelle",
+  "description": "Jubelle's own menus, shortcuts and toolbar (the default).",
+  "behaviour": {
+    "noteInputMethod": "BY_NOTE_NAME",
+    "accidentalsApplyToNextNote": true,
+    "noteInputCursorInInputByDuration": false,
+    "selectionProximity": 2
+  }
+}

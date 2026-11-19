@@ -22,6 +22,8 @@
 
 #include "audioexportconfiguration.h"
 
+#include <algorithm>
+
 #include "settings.h"
 #include "translation.h"
 
@@ -37,11 +39,12 @@ static const Settings::Key EXPORT_FLAC_SAMPLE_FORMAT_KEY("iex_audioexport", "exp
 
 void AudioExportConfiguration::init()
 {
-    // Jubelle (17 Nov 2026, your decision): 48 kHz by default, 48 or 96 kHz; 24-bit by default, 16 or 24-bit
-    settings()->setDefaultValue(EXPORT_SAMPLE_RATE_KEY, Val(48000));
+    // Jubelle (18 Nov 2026, your decision): the same defaults as MuseScore Studio 4.7.7:
+    // 44.1 kHz, MP3 128 kbps, WAV 32-bit float, FLAC 16-bit (96 kHz stays available as an extra choice)
+    settings()->setDefaultValue(EXPORT_SAMPLE_RATE_KEY, Val(44100));
     settings()->setDefaultValue(EXPORT_MP3_BITRATE, Val(128));
-    settings()->setDefaultValue(EXPORT_WAV_SAMPLE_FORMAT_KEY, Val(static_cast<int>(AudioSampleFormat::Int24)));
-    settings()->setDefaultValue(EXPORT_FLAC_SAMPLE_FORMAT_KEY, Val(static_cast<int>(AudioSampleFormat::Int24)));
+    settings()->setDefaultValue(EXPORT_WAV_SAMPLE_FORMAT_KEY, Val(static_cast<int>(AudioSampleFormat::Float32)));
+    settings()->setDefaultValue(EXPORT_FLAC_SAMPLE_FORMAT_KEY, Val(static_cast<int>(AudioSampleFormat::Int16)));
 }
 
 int AudioExportConfiguration::exportMp3Bitrate() const
@@ -67,9 +70,9 @@ const std::vector<int>& AudioExportConfiguration::availableMp3BitRates() const
 
 int AudioExportConfiguration::exportSampleRate() const
 {
-    // a rate saved before (32 or 44.1 kHz) becomes the new default
     const int rate = settings()->value(EXPORT_SAMPLE_RATE_KEY).toInt();
-    return (rate == 48000 || rate == 96000) ? rate : 48000;
+    const auto& rates = availableSampleRates();
+    return std::find(rates.begin(), rates.end(), rate) != rates.end() ? rate : 44100;
 }
 
 void AudioExportConfiguration::setExportSampleRate(int rate)
@@ -79,7 +82,8 @@ void AudioExportConfiguration::setExportSampleRate(int rate)
 
 const std::vector<int>& AudioExportConfiguration::availableSampleRates() const
 {
-    static const std::vector<int> rates { 48000, 96000 };
+    // MuseScore's three, and Jubelle's 96 kHz
+    static const std::vector<int> rates { 32000, 44100, 48000, 96000 };
     return rates;
 }
 
@@ -90,9 +94,7 @@ samples_t AudioExportConfiguration::exportBufferSize() const
 
 AudioSampleFormat AudioExportConfiguration::exportWavSampleFormat() const
 {
-    // a bit depth saved before (32-bit float) becomes the new default
-    const auto f = static_cast<AudioSampleFormat>(settings()->value(EXPORT_WAV_SAMPLE_FORMAT_KEY).toInt());
-    return (f == AudioSampleFormat::Int16 || f == AudioSampleFormat::Int24) ? f : AudioSampleFormat::Int24;
+    return static_cast<AudioSampleFormat>(settings()->value(EXPORT_WAV_SAMPLE_FORMAT_KEY).toInt());
 }
 
 void AudioExportConfiguration::setExportWavSampleFormat(AudioSampleFormat format)
@@ -115,6 +117,7 @@ const std::vector<AudioSampleFormat>& AudioExportConfiguration::availableWavSamp
     static const std::vector<AudioSampleFormat> formats {
         AudioSampleFormat::Int16,
         AudioSampleFormat::Int24,
+        AudioSampleFormat::Float32,
     };
     return formats;
 }
@@ -132,9 +135,9 @@ QString AudioExportConfiguration::sampleFormatToString(AudioSampleFormat format)
 {
     switch (format) {
     case AudioSampleFormat::Int16:
-        return muse::qtrc("project/export", "16-bit");
+        return muse::qtrc("project/export", "16-bit integer");
     case AudioSampleFormat::Int24:
-        return muse::qtrc("project/export", "24-bit");
+        return muse::qtrc("project/export", "24-bit integer");
     case AudioSampleFormat::Float32:
         return muse::qtrc("project/export", "32-bit float");
     default:

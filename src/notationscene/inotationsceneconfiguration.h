@@ -27,6 +27,7 @@
 #include "types/retval.h"
 
 #include "notationscenetypes.h"
+#include "ui/uiaction.h"
 
 namespace mu::notation {
 class INotationSceneConfiguration : MODULE_GLOBAL_INTERFACE
@@ -78,5 +79,8 @@ public:
     virtual void setStyleDialogLastSubPageIndex(int value) = 0;
 
     virtual void resetStyleDialogPageIndices() = 0;
+
+    //! Jubelle (Workflow Profiles): the note input toolbar's default items, for reordering it
+    virtual const muse::ui::ToolConfig& defaultNoteInputBarConfig() const = 0;
 };
 }

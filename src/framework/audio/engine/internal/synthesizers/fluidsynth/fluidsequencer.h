@@ -40,6 +40,8 @@ public:
 
     int currentExpressionLevel() const;
     int naturalExpressionLevel() const;
+    //! Jubelle: false for instruments played by velocity alone (piano, guitar, percussion…)
+    bool usesDynamicEvents() const { return m_useDynamicEvents; }
 
     async::Channel<midi::channel_t, midi::Program> channelAdded() const;
 

@@ -37,6 +37,8 @@
 #include "internal/applicationactioncontroller.h"
 #include "internal/sessionsmanager.h"
 #include "internal/jubelle/crashguard.h"
+#include "internal/jubelle/bugreport/bugreportdiagnostics.h"
+#include "internal/jubelle/workflowprofiles/workflowprofilesservice.h"
 
 #include <QSysInfo>
 
@@ -90,6 +92,7 @@ void AppShellModule::resolveImports()
 
         ir->registerQmlUri(Uri("musescore://about/musescore"), "MuseScore.AppShell", "AboutDialog");
         ir->registerQmlUri(Uri("musescore://about/musicxml"), "MuseScore.AppShell", "AboutMusicXMLDialog");
+        ir->registerQmlUri(Uri("musescore://jubelle/reportbug"), "MuseScore.AppShell", "BugReportDialog");
         ir->registerQmlUri(Uri("musescore://firstLaunchSetup"), "MuseScore.AppShell", "FirstLaunchSetupDialog");
     }
 }
@@ -113,6 +116,9 @@ void AppShellModule::onInit(const IApplication::RunMode& mode)
             const std::string os = (QSysInfo::prettyProductName() + " (" + QSysInfo::kernelVersion() + ", "
                                     + QSysInfo::currentCpuArchitecture() + ")").toStdString();
             jubelle::CrashGuard::start(m_jubelleAppDataDir, version, os);
+            // Report a Bug: what the application says about itself
+            jubelle::bugreport::registerApplicationDiagnostics(app->version().toString().toStdString(),
+                                                               app->build().toStdString(), app->revision().toStdString());
         }
     }
 }
@@ -146,6 +152,9 @@ muse::modularity::IContextSetup* AppShellModule::newContext(const muse::modulari
 
 void AppShellContext::registerExports()
 {
+    m_workflowProfiles = std::make_shared<WorkflowProfilesService>(iocContext());
+    ioc()->registerExport<IWorkflowProfiles>(mname, m_workflowProfiles);
+
     m_applicationActionController = std::make_shared<ApplicationActionController>(iocContext());
     m_applicationUiActions = std::make_shared<ApplicationUiActions>(m_applicationActionController, iocContext());
 }
@@ -160,6 +169,8 @@ void AppShellContext::resolveImports()
 
 void AppShellContext::onPreInit(const muse::IApplication::RunMode&)
 {
+    m_workflowProfiles->init();
+
     m_applicationActionController->preInit();
 }
 

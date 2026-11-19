@@ -333,7 +333,13 @@ void StartupScenario::offerCrashReportIfNeed()
                 jubelle::rememberSentSignature(jubelle::CrashGuard::sentSignaturesFile(dataDir), report.signature());
             }
             std::error_code ec;
-            std::filesystem::remove(std::filesystem::u8path(pending), ec);
+            // kept (replacing the one before) so Help › Report a bug can include it if you choose
+            const std::filesystem::path lastCrash = std::filesystem::u8path(jubelle::CrashGuard::folder(dataDir)) / "last-crash.txt";
+            std::filesystem::remove(lastCrash, ec);
+            std::filesystem::rename(std::filesystem::u8path(pending), lastCrash, ec);
+            if (ec) {
+                std::filesystem::remove(std::filesystem::u8path(pending), ec);
+            }
             std::filesystem::remove(std::filesystem::u8path(reviewFile), ec);
             *ask = nullptr;   // done
         });

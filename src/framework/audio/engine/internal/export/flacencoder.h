@@ -24,6 +24,7 @@
 #define MUSE_AUDIO_FLACENCODER_H
 
 #include "abstractaudioencoder.h"
+#include "../dsp/jubelledither.h"
 
 struct FlacHandler;
 
@@ -44,6 +45,7 @@ protected:
 
 private:
     FlacHandler* m_flac = nullptr;
+    dsp::JubelleTpdfDither m_jubelleDither;   // Jubelle: 16-bit exports
 };
 }
 

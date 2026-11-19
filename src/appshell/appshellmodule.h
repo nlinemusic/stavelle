@@ -33,6 +33,7 @@ class ApplicationActionController;
 class ApplicationUiActions;
 class AppShellConfiguration;
 class SessionsManager;
+class WorkflowProfilesService;
 class AppShellModule : public muse::modularity::IModuleSetup
 {
 public:
@@ -70,5 +71,6 @@ public:
 private:
     std::shared_ptr<ApplicationActionController> m_applicationActionController;
     std::shared_ptr<ApplicationUiActions> m_applicationUiActions;
+    std::shared_ptr<WorkflowProfilesService> m_workflowProfiles;
 };
 }

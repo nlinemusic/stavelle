@@ -40,9 +40,10 @@ void FluidSequencer::init(const PlaybackSetupData& setupData, const std::optiona
 {
     TRACEFUNC;
 
-    m_channels.init(setupData, programOverride);
+    // (set before the channels: adding a channel sets it up with these)
     m_useDynamicEvents = useDynamicEvents;
     m_jubelleDynamicsFamily = jubelle::familyFor(int(setupData.category), setupData.id.toLower().toStdString());
+    m_channels.init(setupData, programOverride);
 }
 
 int FluidSequencer::currentExpressionLevel() const
@@ -56,8 +57,8 @@ int FluidSequencer::currentExpressionLevel() const
 
 int FluidSequencer::naturalExpressionLevel() const
 {
-    static const int NATURAL_EXP_LVL = expressionLevel(dynamicLevelFromType(DynamicType::Natural));
-    return NATURAL_EXP_LVL;
+    // (per instrument: velocity instruments use MuseScore's scale, see expressionLevel)
+    return expressionLevel(dynamicLevelFromType(DynamicType::Natural));
 }
 
 void FluidSequencer::updateOffStreamEvents(const mpe::PlaybackEventsMap& events, const mpe::DynamicLevelLayers& dynamics)
@@ -385,14 +386,22 @@ int FluidSequencer::expressionLevel(const mpe::dynamic_level_t dynamicLevel) con
 {
     static constexpr mpe::dynamic_level_t MIN_SUPPORTED_DYNAMICS_LEVEL = mpe::dynamicLevelFromType(DynamicType::ppp);
 
-    // Jubelle: each marking's loudness is chosen in decibels and by instrument
-    // family, then turned into the MIDI level that gives it (see jubelledynamics.h).
-    // MuseScore's own mapping was 16 + 16 per marking for every instrument.
-    if (dynamicLevel == mpe::dynamicLevelFromType(DynamicType::Natural)) {
-        return jubelle::naturalMidiLevel();
+    const bool natural = dynamicLevel == mpe::dynamicLevelFromType(DynamicType::Natural);
+    const double steps = (dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL) / static_cast<double>(mpe::DYNAMIC_LEVEL_STEP);
+
+    // Jubelle: instruments played by velocity keep MuseScore's own scale: the
+    // velocity also chooses their sample layer and brightness (jubelledynamics.h)
+    if (!m_useDynamicEvents) {
+        return jubelle::museScoreLevel(natural ? steps - 0.5 : steps);
     }
 
-    const double steps = (dynamicLevel - MIN_SUPPORTED_DYNAMICS_LEVEL) / static_cast<double>(mpe::DYNAMIC_LEVEL_STEP);
+    // Jubelle: sustained instruments (dynamics through the expression controller,
+    // which changes only the level): each marking's loudness is chosen in
+    // decibels and by instrument family, then turned into the MIDI level that
+    // gives it. MuseScore's own mapping was 16 + 16 per marking for every instrument.
+    if (natural) {
+        return jubelle::naturalMidiLevel();
+    }
     return jubelle::midiLevel(steps, m_jubelleDynamicsFamily);
 }
 

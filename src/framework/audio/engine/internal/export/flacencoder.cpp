@@ -128,8 +128,10 @@ size_t FlacEncoder::encode(samples_t samplesPerChannel, const float* input)
         for (uint32_t f = 0; f < nFrames; ++f) {
             for (audioch_t c = 0; c < channels; ++c) {
                 const size_t i = (static_cast<size_t>(frameStart) + f) * channels + c;
+                // Jubelle: 16-bit is dithered (jubelledither.h); 24-bit is precise enough without
                 blockBuffer[static_cast<size_t>(f) * channels + c]
-                    = dsp::convertFloatSamples<FLAC__int32>(input[i], bitsPerSample);
+                    = bitsPerSample == 16 ? FLAC__int32(m_jubelleDither.toInt16(input[i]))
+                      : dsp::convertFloatSamples<FLAC__int32>(input[i], bitsPerSample);
             }
         }
 

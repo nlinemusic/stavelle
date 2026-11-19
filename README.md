@@ -70,7 +70,9 @@ Jubelle keeps everything MuseScore Studio 4.7.7 can do, and adds:
 ### Export and sharing
 - **Video (MP4):** printed-looking pages on white, no cursor or title screen, your own page order with
   thumbnails and preview, and sound in time with the pictures.
-- **Audio export** at 48 or 96 kHz, 16 or 24-bit.
+- **Audio export** with the same defaults as MuseScore (44.1 kHz; WAV 32-bit float, FLAC 16-bit,
+  MP3 128 kbps), plus 96 kHz. Piano, guitar, harp and percussion sound as bright as in MuseScore, a
+  look-ahead limiter stops loud tuttis clipping without crackle, and 16-bit files are dithered.
 - **Drum stems:** each drum component as its own audio file.
 - **Publish to YouTube** (sign-in on Google's page, upload permission only).
 
@@ -82,6 +84,12 @@ Jubelle keeps everything MuseScore Studio 4.7.7 can do, and adds:
 - **Learning Center:** guides, tutorials, and instrument ranges by family with transpositions.
 - **Crash-safe saving**, local crash reports that are sent only if you choose, and a signed updater.
 - **Performance profiles** (Preferences › General) and Jubelle's own interface themes.
+- **Report a bug** (Help menu): describe the problem, add screenshots, review everything, and get a
+  ZIP to send yourself. Personal details, passwords and keys are removed; your score is never added
+  unless you tick the box. Nothing is uploaded.
+- **Workflow profiles** (View › Workflow profile): Jubelle, MuseScore Studio, Finale-style or
+  Noteflight-style menus, shortcuts, toolbar order and note input settings. Switch without
+  restarting; every command stays available in every profile.
 
 **Coming next:** live score condensing, after this release has been tried.
 

@@ -21,6 +21,8 @@
  */
 #include "appmenumodel.h"
 
+#include <functional>
+
 #include "types/translatablestring.h"
 
 #include "muse_framework_config.h"
@@ -66,6 +68,17 @@ void AppMenuModel::load()
     m_workspacesMenuModel->load();
 #endif
 
+    setItems(arrangeForWorkflowProfile(makeItems()));
+
+    setupConnections();
+
+    //! NOTE: removes some undesired platform-specific items
+    //! (such as "Start Dictation" and "Special Characters" on macOS)
+    appMenuModelHook()->onAppMenuInited();
+}
+
+MenuItemList AppMenuModel::makeItems()
+{
     MenuItemList items {
         makeFileMenu(),
         makeEditMenu(),
@@ -83,14 +96,101 @@ void AppMenuModel::load()
     } else {
         items << makeHelpMenu(true);
     }
+    return items;
+}
 
-    setItems(items);
+// ---------------------------------------------------------------------------
+// Jubelle: Workflow Profiles. The profile only rearranges the menus built
+// above; every command keeps its own menu item (and so its state, shortcut
+// and checkmark), and anything a profile doesn't place is still added
+// (jubelle::workflow::resolveMenus).
+// ---------------------------------------------------------------------------
 
-    setupConnections();
+namespace {
+using mu::appshell::jubelle::workflow::MenuNode;
 
-    //! NOTE: removes some undesired platform-specific items
-    //! (such as "Start Dictation" and "Special Characters" on macOS)
-    appMenuModelHook()->onAppMenuInited();
+MenuNode toNode(MenuItem* item)
+{
+    MenuNode n;
+    n.source = item;
+    n.id = item->id().toStdString();
+    const UiAction& a = item->action();
+    n.isSeparator = a.code.empty() && item->subitems().isEmpty() && a.title.isEmpty() && item->id().isEmpty();
+    n.isMenu = !n.isSeparator && a.code.empty();
+    for (MenuItem* c : item->subitems()) {
+        if (c) {
+            n.children.push_back(toNode(c));
+        }
+    }
+    return n;
+}
+}
+
+MenuItemList AppMenuModel::arrangeForWorkflowProfile(const MenuItemList& items)
+{
+    if (!workflowProfiles()) {
+        return items;
+    }
+    const jubelle::workflow::Profile& profile = workflowProfiles()->currentProfile();
+    if (!profile.hasMenuLayout()) {
+        return items;
+    }
+
+    std::vector<MenuNode> source;
+    for (MenuItem* item : items) {
+        if (item) {
+            source.push_back(toNode(item));
+        }
+    }
+    const jubelle::workflow::MenuResolution res = jubelle::workflow::resolveMenus(source, profile);
+    for (const std::string& unknown : res.unknownEntries) {
+        LOGW() << "workflow profile " << profile.id << ": nothing called " << unknown << " in the menus";
+    }
+
+    std::function<MenuItem*(const MenuNode&)> build = [this, &build](const MenuNode& n) -> MenuItem* {
+        if (n.isSeparator) {
+            return makeSeparator();
+        }
+        MenuItem* src = static_cast<MenuItem*>(const_cast<void*>(n.source));
+        if (!n.isMenu) {
+            return src;
+        }
+        MenuItemList children;
+        for (const MenuNode& c : n.children) {
+            if (MenuItem* m = build(c)) {
+                children << m;
+            }
+        }
+        const TranslatableString title = !n.title.empty() ? TranslatableString::untranslatable(String::fromStdString(n.title))
+                                         : (src ? src->action().title.raw() : TranslatableString());
+        MenuItem* menu = makeMenu(title, children, QString::fromStdString(n.id), src ? src->state().enabled : true);
+        if (src) {
+            UiAction a = menu->action();
+            a.iconCode = src->action().iconCode;
+            menu->setAction(a);
+        }
+        return menu;
+    };
+
+    jubelle::workflow::recordArrangement(profile.id, source, res.menus);
+
+    MenuItemList out;
+    for (const MenuNode& top : res.menus) {
+        out << build(top);
+    }
+    return out;
+}
+
+MenuItemList AppMenuModel::makeWorkflowProfileItems()
+{
+    MenuItemList items;
+    if (workflowProfiles()) {
+        for (const jubelle::workflow::Profile& p : workflowProfiles()->profiles()) {
+            items << makeMenuItem("jubelle-workflow-profile-" + p.id);
+        }
+    }
+    items << makeSeparator() << makeMenuItem("jubelle-workflow-restore-defaults");
+    return items;
 }
 
 bool AppMenuModel::isGlobalMenuAvailable()
@@ -100,6 +200,14 @@ bool AppMenuModel::isGlobalMenuAvailable()
 
 void AppMenuModel::setupConnections()
 {
+    // Jubelle: a new workflow profile rearranges the menus at once
+    if (workflowProfiles()) {
+        workflowProfiles()->currentProfileChanged().onNotify(this, [this]() {
+            setItems(arrangeForWorkflowProfile(makeItems()));
+            appMenuModelHook()->onAppMenuInited();
+        });
+    }
+
     recentFilesController()->recentFilesListChanged().onReceive(this, [this](const RecentFilesChange&) {
         MenuItem& recentScoreListItem = findMenu("menu-file-open");
 
@@ -239,8 +347,8 @@ MenuItem* AppMenuModel::makeFileMenu()
         makeMenuItem("file-save"),
         makeMenuItem("file-save-as"),
         makeMenuItem("file-save-to-cloud"),
-        makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems()),
-        makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems()),
+        makeMenu(TranslatableString("appshell/menu/file", "Save o&ther"), makeSaveOtherSubItems(), "menu-file-save-other"),
+        makeMenu(TranslatableString("appshell/menu/file", "Pu&blish online"), makePublishOnlineSubItems(), "menu-file-publish"),
         makeSeparator(),
         makeIconItem("jubelle-import-scores", IconCode::Code::IMPORT),
         withIcon(makeMenu(TranslatableString("appshell/menu/file", "E&xport"), exportItems, "menu-jubelle-export"), IconCode::Code::SHARE_FILE),
@@ -355,6 +463,10 @@ MenuItem* AppMenuModel::makeViewMenu()
 #ifdef MUSE_MODULE_WORKSPACE
     viewItems << makeMenu(TranslatableString("appshell/menu/view", "W&orkspaces"), m_workspacesMenuModel->items(), "menu-workspaces"),
 #endif
+
+    // Jubelle: Workflow Profiles
+    viewItems << makeMenu(TranslatableString("appshell/menu/view", "Workflow &profile"), makeWorkflowProfileItems(),
+                          "menu-jubelle-workflow");
 
     viewItems << makeSeparator()
               << makeMenu(TranslatableString("appshell/menu/view", "&Show"), makeShowItems(), "menu-show")
@@ -579,6 +691,7 @@ MenuItem* AppMenuModel::makeHelpMenu(bool addDiagnosticsSubMenu)
 
     helpItems << makeMenuItem("online-handbook");
     helpItems << makeMenuItem("ask-help");
+    helpItems << makeIconItem("jubelle-report-bug", IconCode::Code::FEEDBACK);
     helpItems << makeSeparator();
 
     if (addDiagnosticsSubMenu) {
@@ -839,7 +952,7 @@ MenuItemList AppMenuModel::makeFramesItems()
         makeMenuItem("insert-textframe"),
         makeMenuItem("insert-fretframe"),
         makeSeparator(),
-        makeMenu(TranslatableString("notation", "Insert at end of score"), makeFramesAppendItems())
+        makeMenu(TranslatableString("notation", "Insert at end of score"), makeFramesAppendItems(), "menu-frames-append")
     };
 
     return items;

@@ -9,6 +9,7 @@
  */
 
 #include "uiselftest.h"
+#include "workflowprofiles/workflowprofile.h"
 
 #include <QCoreApplication>
 #include <QFile>
@@ -90,6 +91,12 @@ UiSelfTest::UiSelfTest(const muse::modularity::ContextPtr& ctx, const QString& r
         { "Home: Projects", "musescore://home?section=scores", "", false },
         { "Home: Templates", "musescore://home?section=templates", "", false },
         { "Home: Plugins", "musescore://home?section=plugins", "", false },
+        { "Report a bug", "musescore://jubelle/reportbug", "", true },
+        // Workflow Profiles: each one applied live (menus rebuilt, shortcuts and toolbar set), then back to Jubelle
+        { "Workflow profile: Finale-style", "", "jubelle-workflow-profile-finale", false },
+        { "Workflow profile: Noteflight-style", "", "jubelle-workflow-profile-noteflight", false },
+        { "Workflow profile: MuseScore Studio", "", "jubelle-workflow-profile-musescore", false },
+        { "Workflow profile: Jubelle", "", "jubelle-workflow-profile-jubelle", false },
     };
 }
 
@@ -167,6 +174,15 @@ void UiSelfTest::finishStep()
 
 void UiSelfTest::writeReportAndQuit()
 {
+    // every command stayed in the menus under every workflow profile
+    const auto problems = workflow::arrangementProblems();
+    m_lines << QString() << QStringLiteral("Workflow profile menus: %1")
+        .arg(problems.empty() ? QStringLiteral("every command kept in every profile") : QStringLiteral("**problems**"));
+    for (const std::string& p : problems) {
+        m_lines << QStringLiteral("- ") + QString::fromStdString(p);
+        ++m_failures;
+    }
+
     m_lines << QString() << (m_failures == 0 ? QStringLiteral("**Result: PASS** (every window opened, no QML errors)")
                              : QStringLiteral("**Result: FAIL** (%1 problem(s))").arg(m_failures));
     QFile f(m_reportPath);
