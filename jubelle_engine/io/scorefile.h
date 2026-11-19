@@ -26,6 +26,8 @@ struct ScoreFile {
     std::string mainEntry;             // the main .mscx entry
     xml::Document main;
     std::map<std::string, xml::Document> excerpts;   // entry name → part score
+    xml::Document style;               // score_style.mss: where a 4.x archive keeps the score's style
+    bool hasStyleEntry = false;
     bool plainMscx = false;            // read from an .mscx file, not an archive
 
     std::string formatVersion() const { return main.root.attr("version"); }   // "4.60"
@@ -42,6 +44,10 @@ std::string saveBytes(const ScoreFile& file);
 bool save(const std::string& path, const ScoreFile& file);
 //! Makes a score read from a plain .mscx into an archive (container.xml and the score)
 void makeArchive(ScoreFile& file, const std::string& scoreName = "score.mscx");
+
+//! The score's <Style>: score_style.mss in an archive that has it (what MuseScore reads), else the main score's
+xml::Node* styleNode(ScoreFile& file);
+const xml::Node* styleNode(const ScoreFile& file);
 
 //! Jubelle's style settings: the 11 Style values only Jubelle knows (MuseScore drops them on save)
 const std::vector<std::string>& jubelleStyleNames();

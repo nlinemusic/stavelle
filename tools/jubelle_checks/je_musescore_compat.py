@@ -83,7 +83,14 @@ def main():
         ok = r["rewritten"] and r["midi_same"] and r["musescore_saved"] and r["listing_same"]
         failures += 0 if ok else 1
         rows.append((r, ok))
-        print(("PASS " if ok else "FAIL ") + r["score"], flush=True)
+        detail = ""
+        if not ok:
+            detail = " " + ", ".join(k for k in ("rewritten", "midi_same", "musescore_saved", "listing_same") if not r[k])
+            if la is not None and lb is not None and la != lb:
+                a, b = la.splitlines(), lb.splitlines()
+                i = next((j for j in range(min(len(a), len(b))) if a[j] != b[j]), min(len(a), len(b)))
+                detail += f"; listing line {i + 1}: original `{a[i] if i < len(a) else '(end)'}` · after MuseScore `{b[i] if i < len(b) else '(end)'}`"
+        print(("PASS " if ok else "FAIL ") + r["score"] + detail, flush=True)
 
     # Jubelle's 11 style settings through a MuseScore save
     base = root / "tools/jubelle_checks/data/Jubelle_features.mscz"

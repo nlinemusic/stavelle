@@ -132,6 +132,12 @@ bool loadBytes(const std::string& bytes, bool plainMscx, ScoreFile& file, std::s
                 return false;
             }
             found = true;
+        } else if (e.name == "score_style.mss") {
+            if (!xml::parse(e.data, file.style, error)) {
+                error = e.name + ": " + error;
+                return false;
+            }
+            file.hasStyleEntry = true;
         } else if (e.name.rfind("Excerpts/", 0) == 0 && endsWith(e.name, ".mscx")) {
             xml::Document d;
             if (!xml::parse(e.data, d, error)) {
@@ -167,6 +173,8 @@ std::string saveBytes(const ScoreFile& file)
     for (zip::Entry& e : out) {
         if (e.name == file.mainEntry) {
             e.data = xml::write(file.main);
+        } else if (e.name == "score_style.mss" && file.hasStyleEntry) {
+            e.data = xml::write(file.style);
         } else {
             auto it = file.excerpts.find(e.name);
             if (it != file.excerpts.end()) {
@@ -252,17 +260,28 @@ void setMetaTag(ScoreFile& file, const std::string& name, const std::string& val
     score->children.insert(score->children.begin() + std::ptrdiff_t(at), std::move(tag));
 }
 
+xml::Node* styleNode(ScoreFile& file)
+{
+    if (file.hasStyleEntry) {
+        return file.style.root.name == "Style" ? &file.style.root : file.style.root.child("Style");
+    }
+    return file.score() ? file.score()->child("Style") : nullptr;
+}
+
+const xml::Node* styleNode(const ScoreFile& file)
+{
+    return styleNode(const_cast<ScoreFile&>(file));
+}
+
 std::string updateEngineStore(ScoreFile& file)
 {
     std::string json = "{\"version\":" + std::to_string(STORE_VERSION) + ",\"style\":{";
     bool first = true;
-    if (const xml::Node* score = file.score()) {
-        if (const xml::Node* style = score->child("Style")) {
-            for (const std::string& n : jubelleStyleNames()) {
-                if (const xml::Node* v = style->child(n)) {
-                    json += std::string(first ? "" : ",") + "\"" + n + "\":\"" + jsonEscape(v->raw) + "\"";
-                    first = false;
-                }
+    if (const xml::Node* style = styleNode(file)) {
+        for (const std::string& n : jubelleStyleNames()) {
+            if (const xml::Node* v = style->child(n)) {
+                json += std::string(first ? "" : ",") + "\"" + n + "\":\"" + jsonEscape(v->raw) + "\"";
+                first = false;
             }
         }
     }
@@ -279,8 +298,7 @@ std::vector<std::string> restoreFromEngineStore(ScoreFile& file)
     if (json.empty()) {
         return restored;
     }
-    xml::Node* score = file.score();
-    xml::Node* style = score ? score->child("Style") : nullptr;
+    xml::Node* style = styleNode(file);
     if (!style) {
         return restored;
     }

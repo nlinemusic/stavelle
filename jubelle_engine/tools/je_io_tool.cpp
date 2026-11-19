@@ -293,15 +293,13 @@ int setJubelleStyle(const std::string& in, const std::string& out)
         std::cerr << error << "\n";
         return 1;
     }
-    io::xml::Node* style = f.score()->child("Style");
-    if (!style) {
+    std::vector<io::xml::Node*> styles { io::styleNode(f) };   // what MuseScore reads, and the score's own copy
+    if (f.hasStyleEntry && f.score()->child("Style")) {
+        styles.push_back(f.score()->child("Style"));
+    }
+    if (!styles.front()) {
         std::cerr << "no <Style>\n";
         return 1;
-    }
-    if (style->leaf) {
-        style->leaf = false;
-        style->selfClosing = false;
-        style->raw.clear();
     }
     // non-default values for all 11 (defaults: false, false, 1, false, false, false, true, true, 0.5, false, "")
     const std::vector<std::pair<std::string, std::string> > values {
@@ -311,15 +309,22 @@ int setJubelleStyle(const std::string& in, const std::string& out)
         { "jubelleSidewaysNudge", "0" }, { "jubelleNudgeLimit", "0.75" }, { "jubelleCollisionAvoidance", "1" },
         { "jubelleEngravingRules", "store-test" },
     };
-    for (const auto& [name, value] : values) {
-        if (io::xml::Node* v = style->child(name)) {
-            v->raw = value;
-        } else {
-            io::xml::Node n;
-            n.name = name;
-            n.leaf = true;
-            n.raw = value;
-            style->children.push_back(std::move(n));
+    for (io::xml::Node* style : styles) {
+        if (style->leaf) {
+            style->leaf = false;
+            style->selfClosing = false;
+            style->raw.clear();
+        }
+        for (const auto& [name, value] : values) {
+            if (io::xml::Node* v = style->child(name)) {
+                v->raw = value;
+            } else {
+                io::xml::Node n;
+                n.name = name;
+                n.leaf = true;
+                n.raw = value;
+                style->children.push_back(std::move(n));
+            }
         }
     }
     io::updateEngineStore(f);
@@ -353,7 +358,7 @@ int store(const std::string& path)
     for (const std::string& n : io::restoreFromEngineStore(f)) {
         std::cout << "restored " << n << "\n";
     }
-    const io::xml::Node* style = f.score() ? f.score()->child("Style") : nullptr;
+    const io::xml::Node* style = io::styleNode(f);
     for (const std::string& n : io::jubelleStyleNames()) {
         const io::xml::Node* v = style ? style->child(n) : nullptr;
         std::cout << n << " = " << (v ? v->raw : std::string("(default)")) << "\n";
