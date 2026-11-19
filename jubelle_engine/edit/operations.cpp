@@ -825,6 +825,66 @@ Id Operations::makeTuplet(Transaction& tx, Id voice, const Fraction& t, int actu
     return tuplet;
 }
 
+// ---- transposition ----------------------------------------------------------------------------------------
+void Operations::transposeNotes(Transaction& tx, const std::vector<Id>& notes, int diatonic, int chromatic)
+{
+    for (Id n : notes) {
+        const Object* note = obj(n);
+        if (!note || note->kind() != Kind::Note) {
+            continue;
+        }
+        const int64_t pitch = note->intOr(F::PITCH, 60) + chromatic;
+        if (pitch < 0 || pitch > 127) {
+            continue;   // out of range: left where it is
+        }
+        tx.set(n, F::PITCH, pitch);
+        const int64_t tpc = note->has(F::TPC) ? note->intOr(F::TPC, 14) : model::defaultTpc(pitch - chromatic, 0);
+        tx.set(n, F::TPC, model::transposeTpc(tpc, diatonic, chromatic));
+        if (note->has(F::TPC2)) {
+            tx.set(n, F::TPC2, model::transposeTpc(note->intOr(F::TPC2, 14), diatonic, chromatic));
+        }
+    }
+}
+
+void Operations::transposeRange(Transaction& tx, const std::vector<Id>& staves, const Fraction& t0, const Fraction& t1, int diatonic,
+                                int chromatic)
+{
+    std::vector<Id> notes;
+    for (Id staff : staves) {
+        for (Id v : obj(staff)->children()) {
+            if (obj(v)->kind() != Kind::Voice) {
+                continue;
+            }
+            for (Id e : eventsOf(v)) {
+                const Fraction t = timeOf(e);
+                if (t0 <= t && t < t1) {
+                    for (Id n : obj(e)->children()) {
+                        if (obj(n)->kind() == Kind::Note) {
+                            notes.push_back(n);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    transposeNotes(tx, notes, diatonic, chromatic);
+    // chord symbols on these staves: their roots
+    const std::vector<Id> ms = measures();
+    if (ms.empty()) {
+        return;
+    }
+    for (Id x : obj(obj(ms.front())->parent())->children()) {
+        const Object* it = obj(x);
+        if (it->kind() != Kind::FlowItem || it->text(F::SUBKIND) != "harmony" || !it->has(F::INT_VALUE)) {
+            continue;
+        }
+        const Fraction t = it->fractionOr(F::TIME, Fraction());
+        if (t0 <= t && t < t1 && std::find(staves.begin(), staves.end(), it->idOr(F::ANCHOR)) != staves.end()) {
+            tx.set(x, F::INT_VALUE, model::transposeTpc(it->intOr(F::INT_VALUE, 14), diatonic, chromatic));
+        }
+    }
+}
+
 // ---- measures -----------------------------------------------------------------------------------------------
 void Operations::shiftFrom(Transaction& tx, const Fraction& from, const Fraction& delta)
 {

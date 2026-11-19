@@ -316,3 +316,34 @@ TEST(EditOperations, RandomEditsStayConsistentUndoExactlyAndSurviveSaving)
         EXPECT_EQ(d.model.snapshot().dump(), final) << "seed " << seed;
     }
 }
+
+TEST(EditOperations, TranspositionMovesPitchesAndSpellings)
+{
+    Doc d;
+    Id c;
+    d.edit("Enter", [&](Transaction& tx) {
+        c = d.ops.enterChord(tx, d.flute.voice, Fraction(0, 1), { Fraction(1, 2), 0 }, { 60, 66 });   // C, F sharp
+        d.ops.enterChord(tx, d.flute.voice, Fraction(1, 2), { Fraction(1, 2), 0 }, { 60 });
+        d.ops.tieToNext(tx, d.b.notesOf(c).front());
+        create(tx, d.ids, d.b.flow(), { Kind::FlowItem, { { F::SUBKIND, model::Text("harmony") }, { F::ANCHOR, d.flute.staff },
+                                                          { F::TIME, Fraction(0, 1) }, { F::INT_VALUE, int64_t(14) },
+                                                          { F::TEXT, model::Text("maj7") } } },
+               Placement::ByTime);
+    });
+    // up a major third: C → E, F♯ → A♯; the tie holds; the chord symbol's root C → E
+    d.edit("Transpose", [&](Transaction& tx) { d.ops.transposeRange(tx, { d.flute.staff }, Fraction(0, 1), Fraction(1, 1), 2, 4); });
+    const auto notes = d.b.notesOf(c);
+    EXPECT_EQ(d.model.find(notes[0])->intOr(F::PITCH, 0), 64);
+    EXPECT_EQ(d.model.find(notes[0])->intOr(F::TPC, 0), 18);   // E
+    EXPECT_EQ(d.model.find(notes[1])->intOr(F::PITCH, 0), 70);
+    EXPECT_EQ(d.model.find(notes[1])->intOr(F::TPC, 0), 24);   // A sharp
+    EXPECT_TRUE(d.model.find(notes[0])->has(F::TIE_TO));
+    EXPECT_EQ(problems(d.model.snapshot()), "");
+    bool rootMoved = false;
+    d.model.snapshot().forEachObject([&](const model::Object& o) {
+        rootMoved = rootMoved || (o.text(F::SUBKIND) == "harmony" && o.intOr(F::INT_VALUE, 0) == 18);
+    });
+    EXPECT_TRUE(rootMoved);
+    // the horn (another staff) is untouched
+    EXPECT_EQ(d.listing().find("1 0 0/1 1/1 60"), std::string::npos);
+}

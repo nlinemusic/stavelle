@@ -81,6 +81,14 @@ public:
     //! end becomes rests); voice 1 is refilled with rests; returns nothing
     void clearRange(Transaction& tx, Id voice, const Fraction& t0, const Fraction& t1);
 
+    // ---- transposition ----
+    //! Moves notes by an interval (diatonic steps and semitones: a major third up is 2, 4); spellings follow the
+    //! interval along the line of fifths, so C → E and F♯ → A♯; ties stay (tied notes move together)
+    void transposeNotes(Transaction& tx, const std::vector<Id>& notes, int diatonic, int chromatic);
+    //! Every note of these staves in [t0, t1) (chord symbols' roots too)
+    void transposeRange(Transaction& tx, const std::vector<Id>& staves, const Fraction& t0, const Fraction& t1, int diatonic,
+                        int chromatic);
+
     // ---- measures ----
     //! Inserts `count` measures (num/den) before the measure at index `before` (or at the end): everything later
     //! moves; every staff's voice 1 gets measure rests
