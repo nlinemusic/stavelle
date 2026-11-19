@@ -5,7 +5,7 @@ name: 'Jubelle: Platform Reliability Tests'
 
 on:
   push:
-    branches: [ main, 'stavelle/**', 'jubelle/**' ]
+    branches: [ main, 'stavelle/**', 'jubelle/**', 'engine/**' ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -33,3 +33,40 @@ jobs:
     - name: "Jubelle: every menu command is still in the menus"
       shell: bash
       run: python3 tools/jubelle_checks/menu_commands_check.py || python tools/jubelle_checks/menu_commands_check.py
+
+  # Jubelle engine (engine/next): the standalone engine builds and its tests pass on every
+  # platform, the sanitizers find nothing on Linux, and no private score is tracked (D-E17).
+  jubelle_engine:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(github.event.inputs.platforms || '["windows-2025", "macos-latest", "ubuntu-latest"]') }}
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v6
+    - name: No private scores in the repository
+      shell: bash
+      run: python3 tools/jubelle_checks/private_corpus_guard.py || python tools/jubelle_checks/private_corpus_guard.py
+    - name: Configure, build and test the engine
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/CMakeLists.txt ]; then echo "no engine on this branch"; exit 0; fi
+        cmake -S jubelle_engine -B build-je -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-je --config Release --parallel
+        ctest --test-dir build-je -C Release --output-on-failure
+    - name: Sanitizers (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/CMakeLists.txt ]; then exit 0; fi
+        cmake -S jubelle_engine -B build-je-tsan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DJE_TSAN=ON
+        cmake --build build-je-tsan --parallel && ./build-je-tsan/je_tests
+        cmake -S jubelle_engine -B build-je-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DJE_SANITIZE=ON
+        cmake --build build-je-asan --parallel && ./build-je-asan/je_tests
+    - name: Benchmarks (informational)
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/CMakeLists.txt ]; then exit 0; fi
+        B=build-je/je_bench; [ -f build-je/Release/je_bench.exe ] && B=build-je/Release/je_bench.exe
+        "$B" | tee -a "$GITHUB_STEP_SUMMARY"
