@@ -235,12 +235,14 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | **S2 started** (`docs/15_…`): ZIP with zlib, lossless XML (byte-for-byte for MuseScore's layout), score file, engine store with the 11-setting style mirror and restore, MuseScore 4.x reader into the model. Repository corpus (2,909 scores): **0 XML content changes**, 627/627 archives, **2,118/2,118 4.x scores read**, 2,104 consistent (14 known test-file issues); ASan clean. Large orchestra: open in 235–360 ms against 918 ms with MuseScore's engine (same machine and file). 47 tests. CI: corpus check on Windows/macOS/Linux; MuseScore 4.7.7 both-ways test |
 | 19 Nov 2026 | **S2 compatibility with official MuseScore 4.7.7** (Windows CI): 54 Jubelle-written scores opened by MuseScore with **identical MIDI**; for all 52 4.x originals the engine read the same music back from MuseScore's save; Jubelle's 11 style settings **restored 11 of 11** after a MuseScore save (fixed: the style lives in `score_style.mss`). Corpus check green on Windows, macOS and Linux |
 | 19 Nov 2026 | **S2 against MuseScore's own reading** (the comparison baseline, every 4.x score in the repository): **2,079 of 2,118 identical music listings (98.2%)**, up from 1,983 after fixes found by the comparison (multi-measure rest measures, after-grace order, end-of-measure time signatures, measure rests, tremolos in tuplets); the 39 left are documented kinds of importer and edge-case test files |
+| 19 Nov 2026 | **S2 against MuseScore's own reading: 2,109 of 2,118 (99.6%)** after reader fixes (voice-1 completion, local time signatures, full tuplets, repeated duration types); the 9 left are listed with causes and gated in CI |
+| 19 Nov 2026 | **S2 model-based writer (D-E27, D-E28):** files generated from the model alone, parts generated and linked; **2,118 of 2,118 corpus scores regenerate with identical music and model**; MuseScore 4.7.7's engine reads **2,110 of 2,117** generated files exactly as the originals (7 expected), with no warnings beyond the originals'. Fixed a reader data loss (glissandos and bends inside notes). Save-and-reopen tests (ensemble built in the model, edits after reopening, the 11 style settings); 63 tests clean under ASan/UBSan |
 
 ## 15. Outstanding work
-- **S2** (now): settle the 39 remaining differences from MuseScore's reading (local time signatures, importer
-  tuplets, unfinished last measures) and the 14 consistency known issues; the writer that generates XML from the model, checked
-  against the lossless writer; part layouts in full; older formats (1.x–3.x), MusicXML and MIDI later in S2;
-  reduce the kept XML's memory (64 MB for the large orchestra).
+- **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
+  and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
+- **S3 editing** (now): the operation vocabulary with MuseScore's note-entry semantics, then the note-input state
+  machine, selection, clipboard (MSCX fragments), transposition; scripted comparisons with MuseScore's engine.
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).
@@ -257,7 +259,8 @@ by time and IDs · D-E14 performance goals · D-E15 FFmpeg's own AAC encoder rep
 D-E17 private scores never in Git · D-E18 abbreviated labels · D-E19 style settings in metadata · D-E20 no testing
 release until the complete engine passes its gates · D-E21 (withdrawn) · D-E22 complete, independent engine ·
 D-E23 the interface stays and is rewired to the engine · D-E24 model representation · D-E25 lossless XML kept
-next to the model · D-E26 known-issues list for corpus checks.
+next to the model · D-E26 known-issues list for corpus checks · D-E27 files generated from the model, details by fingerprint ·
+D-E28 part layouts generated and linked.
 Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 
 ## 17. Risks

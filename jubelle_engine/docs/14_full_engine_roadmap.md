@@ -77,8 +77,9 @@ flowchart LR
 | Subsystem | Status (19 Nov 2026) |
 |---|---|
 | S1 model | **foundations complete**: persistent model, O(1) snapshots, structural edits, consistency rules, bulk building, notation coverage (tuplets, graces, ties, lyrics, chord symbols, repeats, voltas, instrument changes, spanners, layouts); orchestra model 23.9 MB. Next: typed views, layout-related fields as S7 needs them |
-| S2 files | **in progress**: archives, lossless XML, engine store with the style mirror, MuseScore 4.x reader; 2,118 of 2,118 repository 4.x scores read, 2,104 fully consistent; **2,079 of 2,118 identical to MuseScore's own reading**; official MuseScore 4.7.7 opens Jubelle-written files with identical MIDI and Jubelle's 11 settings survive its save (`15_file_handling.md`). Next: the 39 remaining differences, the writer that generates XML from the model, older formats, MusicXML and MIDI |
-| S3–S10 | not started |
+| S2 files | **4.x reading and writing complete**: archives, engine store, the MuseScore 4.x reader (**2,109 of 2,118 identical to MuseScore's own reading**) and the model-based writer (D-E27, D-E28): **2,118 of 2,118 regenerate exactly; MuseScore reads 2,110 of 2,117 generated files as the originals**; parts generated and linked; save-and-reopen tests; the 11 style settings through saving and MuseScore (`15_file_handling.md`). Next: part-only content, older formats, MusicXML, MIDI |
+| S3 editing | **started 19 Nov**: the operation vocabulary (note entry semantics) |
+| S4–S10 | not started |
 
 ## 7. Scale and timeline
 MuseScore's engine is about 260,000 lines, built over many years. This is a long programme, realistically many months

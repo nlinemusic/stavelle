@@ -57,14 +57,35 @@ left out). `tools/jubelle_checks/je_reference_compare.py` compares the two listi
 | multi-measure rest measures skipped (MuseScore's layout-only measures), after-graces in MuseScore's order | 2,037 |
 | end-of-measure time signatures; measure rests fill their measure; gap rests left out of MuseScore's listing | 2,078 |
 | two-note tremolos inside tuplets | 2,079 of 2,118 (98.2%) |
-| voice 1 completed with rests as MuseScore does (judged by the last chord or rest, not a rewound cursor); local time signatures (stretch); full tuplets close; a repeated duration type: the last counts | **2,106 of 2,118 (99.4%)** |
+| voice 1 completed with rests as MuseScore does (judged by the last chord or rest, not a rewound cursor); local time signatures (stretch); full tuplets close; a repeated duration type: the last counts | 2,106 of 2,118 (99.4%) |
+| a stretched (local) time signature on the first staff gives the measure its global length; completing rests and measure rests on such a staff carry its stretch | **2,109 of 2,118 (99.6%)** |
 
-**The 12 remaining** are listed with their causes in `corpus/reference_differences.txt`; the CI job fails on any
+**The 9 remaining** are listed with their causes in `corpus/reference_differences.txt`; the CI job fails on any
 other difference and when a listed file starts matching. Five are invalid files (four tuplets whose notes overflow
 them, which MuseScore repairs by its own heuristics while Jubelle keeps them as written and warns; grace chords with no
 duration type, which MuseScore reads as negative durations). One is a supported case not yet handled (a hole inside a
-tuplet in voice 1). Six are not yet understood (two copy-paste test files whose first measure MuseScore reads as 4/4,
-a hidden-staff test, a Guitar Pro line-elements test, a dotted 1/128 rest split, the end of `beams-32`).
+tuplet in voice 1). Three are not yet understood (a hidden-staff test, a Guitar Pro line-elements test, a dotted
+1/128 rest split). The stretch fix also explained the two copy-paste files and `beams-32`.
+
+## 2c. Writing from the model (D-E27, D-E28)
+`io/mscxwriter` generates the score file from the model alone: parts, staves, instruments, measures, every voice's
+chords, rests, notes, tuplets (nested), grace notes, ties, articulations, lyrics, the flow items, spanners, frames,
+style, metadata, part layouts (generated and linked, D-E28) and the archive's other entries. What the model doesn't
+hold yet (an element's appearance) travels with its object as a fragment and a fingerprint of its music, and is
+written only while the music is unchanged. Objects made by editing are translated from the engine's own vocabulary
+(a slur anchored to a chord, "accent", "Cmaj7", notes without a spelling, a transposition in semitones only).
+
+| Check (19 Nov 2026, Linux; CI runs the first on Windows, macOS and Linux) | Result |
+|---|---|
+| `je_io_tool regenerate`: read → generate → read again; music, every model field, consistency, the second generation byte-identical | **2,118 of 2,118** |
+| appearance details written / dropped without an edit | 55,784 / 0 |
+| MuseScore 4.7.7's engine reads the generated file exactly as the original (`je_generated_compare.py`) | **2,110 of 2,117** (7 expected: files Jubelle itself reads differently) |
+| MuseScore warnings reading the generated files | none beyond those it gives for the originals (and none of the originals' 84 broken part links) |
+| save-and-reopen tests (`tests/io_writer_tests.cpp`): an ensemble score built in the model; second save identical; edits after reopening; removed and added music; the 11 Jubelle style settings | 6 of 6 |
+
+Found and fixed on the way: note-to-note lines (glissandos, bends) were dropped by the reader; tie identities;
+details after a chord's notes; multi-measure-rest measures referred to by system locks; spanner ends at a barline.
+Not yet modelled, so not written for an edited score: part-only content (texts or positions only in a part).
 
 Each fixed behaviour has a regression test (`tests/io_reader_regression_tests.cpp`) whose expected listing is what
 MuseScore's engine reads from the same XML.
