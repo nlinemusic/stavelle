@@ -2,4 +2,4 @@
 
 Thread pool, task graph, cache budgets, memory arenas.
 
-Status: **not started** (see `../../JUBELLE_ENGINE_DEVELOPMENT_MASTER_PLAN.md`). Design: `../docs/03_engine_architecture.md`.
+Status: **foundations in place** (Phase 3) (see `../../JUBELLE_ENGINE_DEVELOPMENT_MASTER_PLAN.md`). Design: `../docs/03_engine_architecture.md`.

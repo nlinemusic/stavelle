@@ -19,24 +19,24 @@ flowchart LR
 ## Phase 1 · Architecture investigation and technical audit · **done (18 Nov 2026)**
 - `01_architecture_audit.md`, `02_jubelle_integration_map.md`, `05_licensing.md`.
 
-## Phase 2 · Architecture and design
+## Phase 2 · Architecture and design · **done (18 Nov 2026)**
 | Milestone | Content | Exit criterion |
 |---|---|---|
 | 2.1 | Engine architecture (`03_…`), first version | done (18 Nov) |
 | 2.2 | Condensing specification (`04_…`), first version | done (18 Nov) |
-| 2.3 | Detailed model specification: every element kind mapped from the DOM (property by property), IDs, per-layout overrides, snapshots | mapping table covers 100% of `ElementType` values used by the test corpus |
-| 2.4 | Edit vocabulary: every `INotationInteraction` operation → transaction operations | table complete; open questions listed |
-| 2.5 | Layout pipeline interfaces: stage inputs and outputs, cache keys, dependency rules | reviewed against `01_…` §3 cascade cases |
-| 2.6 | Bridge plan: the list of DOM consumers (317 files) grouped and ordered | ordering agreed in the decisions log |
+| 2.3 ✔ | Detailed model specification (`09_model_mapping.md`): every element kind mapped from the DOM (property by property), IDs, per-layout overrides, snapshots | mapping table covers 100% of `ElementType` values used by the test corpus |
+| 2.4 ✔ | Edit vocabulary (`10_edit_vocabulary.md`): every `INotationInteraction` operation → transaction operations | table complete; open questions listed |
+| 2.5 ✔ | Layout pipeline interfaces (`11_pipeline_interfaces.md`): stage inputs and outputs, cache keys, dependency rules | reviewed against `01_…` §3 cascade cases |
+| 2.6 ✔ | Bridge plan (`12_bridge_migration_plan.md`): the list of DOM consumers (317 files) grouped and ordered | ordering agreed in the decisions log |
 
-## Phase 3 · Isolated environment and foundations
+## Phase 3 · Isolated environment and foundations · **in progress**
 | Milestone | Content | Exit criterion |
 |---|---|---|
-| 3.1 | `jubelle_engine/` builds standalone (CMake, C++17, no Qt) with GoogleTest and a benchmark runner; a CI job on Linux (no app build needed) | `ctest` green in CI |
-| 3.2 | `je::exec` (thread pool, task graph), `je::model` core types, IDs, snapshots | unit tests; snapshot isolation tests under ThreadSanitizer |
+| 3.1 ✔ | `jubelle_engine/` builds standalone (CMake, C++17, no Qt) with GoogleTest and a benchmark runner; a CI job on Linux (no app build needed) | `ctest` green in CI |
+| 3.2 (started) | `je::exec` (thread pool ✔, task graph), `je::model` core types, IDs ✔, Fraction ✔, copy-on-write containers ✔, transactions and history ✔ | unit tests; snapshot isolation tests under ThreadSanitizer |
 | 3.3 | DOM → model converter (in the engine test tool, which already links MuseScore's engine without Qt) | converts every score in the corpus; no element type left unmapped |
 | 3.4 | Model → DOM converter, and the **round trip DOM → model → DOM**, compared by normalised MSCX | identical on the corpus |
-| 3.5 | Corpus: demos, Jubelle templates, test scores, the large orchestra, big band charts, and the user's own scores if provided (kept private, never committed) | documented in `bench/` |
+| 3.5 (started) | Corpus: demos, Jubelle templates, test scores, the large orchestra, big band charts; the user's own scores locally only (D-E17: outside the repository, git-ignored backstop, CI guard) | documented in `corpus/README.md` ✔; benchmarks added with 3.3 |
 
 ## Phase 4 · Incremental implementation of engine components (shadow mode)
 Order, by dependency and by value:

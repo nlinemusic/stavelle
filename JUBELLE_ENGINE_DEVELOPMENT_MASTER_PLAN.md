@@ -6,7 +6,7 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 | | |
 |---|---|
 | Last updated | 18 Nov 2026 |
-| Current phase | **Phase 2: architecture and design** (Phase 1 done) |
+| Current phase | **Phase 3: foundations** (Phases 1 and 2 done; 3.1 done, 3.2 started) |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
 | Stable recovery points | tag `v4.7.7.261118230`; branch `checkpoint/stable-4.7.7.261118230` (commit `207614e5`) |
@@ -45,7 +45,11 @@ repository nlinemusic/stavelle
     ├── JUBELLE_ENGINE_DEVELOPMENT_MASTER_PLAN.md   (this file)
     └── jubelle_engine/
         ├── docs/        01 audit · 02 integration map · 03 architecture · 04 condensing spec
-        │                05 licensing · 06 roadmap and testing · 07 decisions log
+        │                05 licensing · 06 roadmap and testing · 07 decisions log · 08 AAC licensing
+        │                09 model mapping · 10 edit vocabulary · 11 pipeline interfaces
+        │                12 bridge migration · 13 .mscz storage results
+        ├── CMakeLists.txt   standalone build (C++17, no Qt), GoogleTest, sanitizer options
+        ├── corpus/      corpus description (the user's scores are never in Git: D-E17)
         ├── model/ edit/ present/ layout/ render/ perform/ io/ style/ exec/   engine modules (plain C++17)
         ├── bridge/      Qt-side integration (INotation*, DOM ⇄ model converter, plugin API)
         └── tests/ bench/
@@ -106,8 +110,14 @@ phases for each: `docs/02_jubelle_integration_map.md`.
 ## 8. Licensing (detail in `docs/05_licensing.md`)
 - Jubelle and the new engine are **GPL v3** (decision D-E3). MuseScore code may be ported, keeping its notices.
 - "MuseScore" is a trademark: Jubelle says "based on MuseScore Studio"; the engine is "the Jubelle engine".
-- **Risk R-L1:** the Fraunhofer FDK AAC encoder (inherited from MuseScore) isn't GPL-compatible. Low practical risk
-  for personal use; replace it before any wider distribution.
+- **Risk R-L1, investigated** (`docs/08_aac_encoder_licensing.md`): Jubelle statically links **Fraunhofer FDK AAC
+  2.0.3** (inherited from MuseScore) for AAC export and MP4 video sound. (a) Its licence requires its full text with
+  binary distributions; the installers don't include it (a gap, easy to fix). (b) The FSF and Debian regard its
+  licence as incompatible with every GPL version (no patent licence), so distributing the combined GPL binary is a
+  compliance risk for Jubelle, which doesn't hold MuseScore's copyrights. Personal sharing is still distribution.
+  (c) AAC-LC US patents have expired. **Recommended:** add a third-party notices file now; then replace FDK with
+  FFmpeg's native AAC encoder (already bundled as LGPL) or the OS encoders, and remove FDK. **Awaiting the user's
+  decision**, as it changes the released app.
 - Dorico, Sibelius and Finale are studied only through their documentation and behaviour, never their code.
 
 ## 9. Performance goals and benchmarks
@@ -127,16 +137,24 @@ only):
 - Read every format Jubelle reads today; write MuseScore 4.x files that MuseScore Studio 4.7.7 opens with the same
   music.
 - Parts stay as MuseScore `Excerpts/` in files and become layouts in memory.
-- Jubelle-only data: style values and meta tags, or a `Jubelle/` folder inside the `.mscz` (to be verified that
-  MuseScore ignores it).
+- Jubelle-only data, **tested against official MuseScore 4.7.7** (`docs/13_mscz_storage_results.md`): every variant
+  opens with identical music, but when MuseScore *saves* the file only **score meta tags** survive (even 120 kB of
+  JSON, exactly). A `Jubelle/` ZIP folder, unknown style values, and unknown element tags are dropped. The main
+  score's element IDs (`<eid>`) are kept. So the engine stores its data in versioned meta-tag JSON, anchored to the
+  main score's IDs and time positions, and mirrors Jubelle style values there. The ZIP folder is for rebuildable
+  caches only.
+- **Found for the current release:** a Jubelle score saved by MuseScore loses Jubelle's style settings (courtesy
+  rules, magnetic layout, engraving rules). A small fix (mirror them into a meta tag) is proposed for a future
+  release.
 - Templates, plugins, palettes, workspaces and shortcuts keep working.
 - Opening and saving without edits leaves the music identical (normalised comparison on the whole corpus).
 
 ## 11. Condensing (summary; full specification in `docs/04_condensing_specification.md`)
 - **A presentation stage** of `je::present`: players' music is never changed. Condensing produces
   *presentation staves* and *presentation events* that **reference** source notes, so two players can share a stem.
-- **Groups:** adjacent woodwind or brass players of the same instrument and transposition, 2–4 players (custom
-  groups possible).
+- **Groups are the user's choice** (decision D-E12): any 2–4 compatible players, with automatic staff sharing or the
+  user's own staff sets (no hardcoded pairings such as 1+3 / 2+4). Sensible defaults per section come from a data
+  table, and every one can be changed per layout.
 - **Phrases** (split at shared rests, rehearsal marks, structural changes, manual changes and system starts) are
   classified as tacet, solo (1./2.), unison (a2/a3), chords, two voices, or divisi. The classifier is ported from
   Jubelle's tested condensing planner, with smoothing against label noise.
@@ -154,8 +172,8 @@ only):
 | Phase | Content | Depends on | Status |
 |---|---|---|---|
 | 1 | Architecture investigation and technical audit | n/a | **done** (18 Nov) |
-| 2 | Architecture and design: engine (2.1 ✔), condensing spec (2.2 ✔), model mapping (2.3), edit vocabulary (2.4), pipeline interfaces (2.5), bridge plan (2.6) | 1 | **in progress** |
-| 3 | Isolated environment and foundations: standalone build and CI, exec and model core, DOM ⇄ model converter and round trip, corpus | 2.3 | not started |
+| 2 | Architecture and design: engine (2.1), condensing spec (2.2), model mapping (2.3), edit vocabulary (2.4), pipeline interfaces (2.5), bridge plan (2.6) | 1 | **done** (18 Nov) |
+| 3 | Foundations: 3.1 standalone build, tests, benchmarks, CI on Windows/macOS/Linux with sanitizers (**done**); 3.2 exec and model core (**started**: thread pool, Fraction, IDs, copy-on-write vector, transactions, change sets, undo history); 3.3 DOM → model converter; 3.4 round trip; 3.5 corpus (public set and private-score protection in place) | 2 | **in progress** |
 | 4 | Components in shadow mode: 4.1 edit/undo → 4.2 playback events → 4.3 shaping → 4.4 spacing and breaking → 4.5 vertical and pages → 4.6 display list → 4.7 native I/O → 4.8 bridge and experimental switch | 3 | not started |
 | 5 | Jubelle features on the new engine | 4 (per feature) | not started |
 | 6 | Automatic condensing in the new engine | 4.3–4.5 and **user approval** | **waiting for approval** |
@@ -169,8 +187,11 @@ layout stages in pipeline order → display list → native I/O → bridge and s
 ## 13. Testing requirements
 - Every component is compared against MuseScore's engine in **shadow mode**, with documented tolerances, before it
   is used for real.
-- Golden corpus (demos, Jubelle templates, test scores, large orchestra, big band, and the user's scores if allowed,
-  kept private).
+- Golden corpus: demos, Jubelle templates, test scores, the large orchestra, big band. The **user's own scores** are
+  used **locally only** (decision D-E17): kept outside the repository (`~/JubellePrivateScores` or
+  `$JUBELLE_PRIVATE_CORPUS`), with `jubelle_engine/corpus/private/` git-ignored as a backstop. A guard check in CI
+  fails if one is ever tracked. Tests skip when the scores are absent, and reports name them only "private #n".
+  They are never committed, uploaded, published or built into anything.
 - Unit, property (undo inverse, incremental equals full, determinism) and benchmark tests, without Qt.
 - All existing app checks run with the experimental switch off (the release) and on (the new engine).
 - No test is ever disabled, removed or weakened to pass a phase.
@@ -182,20 +203,29 @@ layout stages in pipeline order → display list → native I/O → bridge and s
 | 18 Nov 2026 | Phase 1 audit: MuseScore architecture, coupling (317 direct DOM users), performance causes, keep/adapt/redesign verdicts |
 | 18 Nov 2026 | Jubelle integration map (every feature's hooks, stored data, route and phase) |
 | 18 Nov 2026 | Engine architecture v1, condensing specification v1, licensing review, roadmap and testing plan, decisions D-E1 to D-E15 |
+| 18 Nov 2026 | User's answers recorded (D-E12 configurable grouping, D-E16 hidden developer switch, D-E17 private scores) |
+| 18 Nov 2026 | AAC encoder licensing investigation (`docs/08_…`) |
+| 18 Nov 2026 | `.mscz` storage test against official MuseScore 4.7.7 (`docs/13_…`); D-E10 revised |
+| 18 Nov 2026 | Phase 2.3–2.6 design: model mapping, edit vocabulary, pipeline interfaces and cache keys, bridge migration plan |
+| 18 Nov 2026 | Phase 3.1 done and 3.2 started: standalone engine build; first core code with 24 tests; CI on Windows, macOS and Linux green, ThreadSanitizer and AddressSanitizer/UBSan clean |
 
 ## 15. Outstanding work
-- Phase 2.3–2.6 design tables (model mapping, edit vocabulary, pipeline interfaces, bridge ordering).
-- Verify that MuseScore 4.7.7 ignores a `Jubelle/` folder inside `.mscz` (decision D-E10).
-- Answers to the open questions (`docs/07_decisions_log.md`): experimental switch visibility; use of the user's scores
-  in the corpus; condensing label and horn-pairing defaults.
+- Phase 3.2: model core types (score, flow, player, voice, event, note, attachment, spanner, layout) on the
+  copy-on-write containers, implementing `ChangeTarget`.
+- Phase 3.3–3.4: DOM → model converter and round trip, in the existing engine test tool (which links MuseScore's
+  engine without Qt).
+- **User decisions pending:** the AAC recommendation (`docs/08_…`); the style-mirroring fix for the current release
+  (`docs/13_…`); the condensing label style ("Tpt. 1.2" or "Trumpets 1.2").
 - User approval for Phase 6 (condensing), after testing release candidate 2.
 
 ## 16. Important technical decisions
 D-E1 same repository, `engine/next` · D-E2 stable checkpoint · D-E3 GPL v3 · D-E4 C++17 core without Qt ·
 D-E5 player-centred model, parts as layouts · D-E6 transactions and change sets · D-E7 staged cached pipeline with
 windowed breaking · D-E8 keep audio, draw, readers and importers · D-E9 shadow mode → opt-in switch → default ·
-D-E10 MuseScore 4.x format, Jubelle data alongside · D-E11 condensing only in the new engine, after approval ·
-D-E12 condensing defaults · D-E13 changes anchored by time and IDs · D-E14 performance goals · D-E15 FDK AAC risk.
+D-E10 MuseScore 4.x format; Jubelle data in versioned meta-tag JSON (tested) · D-E11 condensing only in the new
+engine, after approval · D-E12 configurable condensing groups, per-section defaults as data · D-E13 changes anchored
+by time and IDs · D-E14 performance goals · D-E15 AAC recommendation · D-E16 hidden developer switch ·
+D-E17 private scores never in Git.
 Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 
 ## 17. Risks
@@ -208,5 +238,7 @@ Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 | R-T5 | Threading bugs | snapshots are immutable; ThreadSanitizer in CI; deterministic-result tests |
 | R-T6 | Long-running dual maintenance (two engines) | the switch is per score; MuseScore's engine stays the default until Phase 7's gates pass |
 | R-T7 | Condensing readability | ported tested classifier, smoothing rules, user's visual review before release |
-| R-L1 | FDK AAC licence | replace before any wider distribution |
+| R-L1 | FDK AAC licence (missing notice; GPL incompatibility) | notices now; replace with FFmpeg native AAC or OS encoders (awaiting decision) |
+| R-C2 | MuseScore saving a Jubelle score drops Jubelle's style values | engine: meta-tag store with style mirror; current release: proposed small fix |
+| R-P1 | The user's private scores leaking into Git or reports | kept outside the repository; git-ignore backstop; CI guard; anonymous names in reports |
 | R-C1 | MuseScore upstream changes after 4.7.7 | not needed; the fork stays on 4.7.7. Upstream fixes are cherry-picked only when relevant |

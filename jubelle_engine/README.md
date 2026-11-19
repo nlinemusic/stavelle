@@ -21,6 +21,7 @@ at the repository root.
 | `model/` `edit/` `present/` `layout/` `render/` `perform/` `io/` `style/` `exec/` | engine modules (see each README) |
 | `bridge/` | Qt-side integration with the Jubelle application |
 | `tests/` `bench/` | tests and benchmarks |
+| `corpus/` | test-score description; the user's own scores are **never** stored here (see its README) |
 
 ## Documents
 1. [Architecture audit](docs/01_architecture_audit.md): MuseScore 4.7.7 as Jubelle uses it
@@ -30,3 +31,19 @@ at the repository root.
 5. [Licensing](docs/05_licensing.md)
 6. [Roadmap and testing](docs/06_roadmap_and_testing.md)
 7. [Decisions log](docs/07_decisions_log.md)
+8. [AAC encoder licensing](docs/08_aac_encoder_licensing.md)
+9. [Model mapping](docs/09_model_mapping.md)
+10. [Edit vocabulary](docs/10_edit_vocabulary.md)
+11. [Layout pipeline interfaces](docs/11_pipeline_interfaces.md)
+12. [Bridge and consumer migration plan](docs/12_bridge_migration_plan.md)
+13. [`.mscz` storage test results](docs/13_mscz_storage_results.md)
+
+## Building and testing (standalone, no Qt)
+```
+cmake -S jubelle_engine -B build-je -DCMAKE_BUILD_TYPE=Release
+cmake --build build-je --parallel
+ctest --test-dir build-je --output-on-failure
+build-je/je_bench
+```
+Options: `-DJE_TSAN=ON` (ThreadSanitizer), `-DJE_SANITIZE=ON` (AddressSanitizer and UBSan). CI: the `jubelle_engine`
+job of "Jubelle: Platform Reliability Tests" (Windows, macOS, Linux).
