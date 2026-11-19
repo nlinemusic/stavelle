@@ -156,6 +156,27 @@ def probe(mscz):
     return names, found, real
 
 
+def eids_by_type(mscz):
+    """eid -> the element tag that holds it (main score only)."""
+    with zipfile.ZipFile(mscz) as z:
+        text = z.read(main_mscx(z.namelist())).decode("utf-8", errors="replace")
+    out, stack = {}, []
+    for m in re.finditer(r"<eid>([^<]*)</eid>|<(/?)([A-Za-z][A-Za-z0-9_]*)([^>]*?)(/?)>", text):
+        if m.group(1) is not None:
+            if stack:
+                out[m.group(1)] = stack[-1]
+            continue
+        closing, tag, selfclose = m.group(2), m.group(3), m.group(5)
+        if tag == "eid":
+            continue
+        if closing:
+            if stack and stack[-1] == tag:
+                stack.pop()
+        elif not selfclose:
+            stack.append(tag)
+    return out
+
+
 def warnings_in(log):
     try:
         text = Path(log).read_text(encoding="utf-8", errors="replace")
@@ -192,6 +213,14 @@ def main():
             r["real_after_save"] = ({k: v for k, v in real.items() if k != "eids"} if label == "real" else None)
             if label == "real":
                 r["eids_kept"] = f"{len(real_before['eids'] & real['eids'])} of {len(real_before['eids'])}"
+                before_t, after_t = eids_by_type(base), eids_by_type(saved)
+                per = {}
+                for eid, tag in before_t.items():
+                    k = per.setdefault(tag, [0, 0])
+                    k[0] += 1
+                    if after_t.get(eid) == tag:
+                        k[1] += 1
+                r["eids_by_type"] = {t: f"{v[1]}/{v[0]}" for t, v in sorted(per.items(), key=lambda x: -x[1][0])}
             r["saved_entries"] = sorted(n for n in names if not n.startswith("Excerpts/"))
         r["log_lines"] = warnings_in(work / f"{label}_pdf.log")
         if label != "real":
@@ -215,6 +244,10 @@ def main():
                 s = {want[0]: s.get("bigtag")}
             kept = ", ".join(f"{k}: {'yes' if s.get(k) else 'no'}" for k in want) if s else "not saved"
         lines.append(f"| {r['variant']} | {'yes' if r['opens'] else '**no**'} | {'yes' if r['same_music'] else '**no**'} | {kept} |")
+    for r in results:
+        if r.get("eids_by_type"):
+            lines += ["", "Element IDs (`eid`) kept by MuseScore's save, by element (kept/total):", ""]
+            lines += ["| Element | Kept |", "|---|---|"] + [f"| {t} | {v} |" for t, v in r["eids_by_type"].items()]
     lines += ["", "MuseScore's log lines mentioning the file (first variant with any):"]
     for r in results:
         if r["log_lines"]:

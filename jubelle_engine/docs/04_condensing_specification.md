@@ -54,13 +54,14 @@ in which voice, and how.
 ```text
 LayoutCondensingSettings              (per layout; the full score has condensing off by default)
   enabled: bool
-  groups: [CondensingGroup]           (default: computed; user may define custom groups)
+  groups: [CondensingGroup]           (proposed from the section defaults table, §5.2; fully user-editable)
   options: CondensingOptions          (§7)
   changes: [CondensingChange]         (manual overrides, ordered by time)
 
 CondensingGroup
   id
-  players: [PlayerId]                 (2..4, same instrument type and transposition, adjacent in score order)
+  players: [PlayerId]                 (2..4, any compatible players chosen by the user, §5.3)
+  sharing: automatic | staffSets: [[PlayerId]]   (explicit staff sets are kept whenever condensing applies)
   maxStaves: int                      (default: ceil(players/2))
 
 CondensingChange                      (applies from `time` until the next change for that group)
@@ -85,16 +86,45 @@ PresentationEvent      time, duration, voice, source notes [(player, eventId, no
   and copies nothing, so selection, editing and playback always reach the real notes.
 - IDs of presentation objects are derived deterministically, so selection survives re-condensing.
 
-## 5. Condensing groups
-- **Default groups:** maximal runs of **adjacent** players in score order with the same instrument type, the same
-  transposition (written pitch) and the same staff type, each with a single staff. The defaults follow the earlier
-  decision: **woodwind and brass only**. Strings, keyboards, voices and percussion are not condensed; string divisi
-  is a different mechanism, see §12.
-- Group size: 2–4 players (Trumpets 1–4, Horns 1–4). A group of 3–4 draws on up to `maxStaves` staves, for example
-  Horns 1.3 and 2.4 by convention (option §7: `hornPairing = 1+3/2+4 | 1+2/3+4`).
-- **Custom groups:** the user can split or regroup (for example "Trumpet 1 alone, 2–4 together").
-- Groups never mix transpositions. Mixing is allowed only in a layout shown at concert pitch, with the option on
-  (off by default).
+## 5. Condensing groups (configurable; nothing hardcoded)
+**Decision (user, 18 Nov 2026):** which players condense together is **the user's choice**. The engine contains
+no fixed pairings (no hardcoded "1+3 / 2+4"). It provides **sensible defaults per section**, and every default can
+be changed per layout.
+
+### 5.1 How groups are defined
+- A **condensing group** is an ordered list of 2–4 players plus options (§7). Any players may be grouped if they
+  pass the compatibility check (§5.3); the default proposals below are only a starting point.
+- Groups belong to a **layout**: the full score can group Horns 1.2 and 3.4 while a custom "brass reduction" layout
+  groups Horns 1.2.3.4.
+- Within a group, **staff sharing** is also configurable: `sharing = automatic` (the engine chooses which players share
+  a staff per phrase, fewest staves first) or an explicit list of **staff sets**, for example
+  `[[Horn 1, Horn 3], [Horn 2, Horn 4]]` or `[[Horn 1, Horn 2], [Horn 3, Horn 4]]`, which the engine keeps to
+  whenever it condenses.
+- Manual condensing changes (§4.1) can still override any of this from a point in time.
+
+### 5.2 Default proposals (applied when condensing is first turned on; editable afterwards)
+| Section | Default proposal | Default sharing |
+|---|---|---|
+| Flutes, oboes, clarinets, bassoons (incl. 3rd players) | one group per instrument type, adjacent players (e.g. Flutes 1–3) | automatic; pairs in score order |
+| Saxophones (big band) | **no condensing by default** (each saxophone usually has its own line); groups offered: Altos 1–2, Tenors 1–2 | automatic |
+| Horns (2–4) | one group, Horns 1–4 | staff sets **[1+2] [3+4]**, following the staff order 1–4 (the high/low pairing [1+3] [2+4] is one choice away) |
+| Trumpets (2–4) | one group, Trumpets 1–4 (big band: 1–4) | automatic; pairs in score order |
+| Trombones (2–4), bass trombone | Trombones 1–3 as a group; a bass trombone joins only if the user adds it | automatic |
+| Tubas, euphoniums | one group per instrument type | automatic |
+| Strings, keyboards, voices, percussion, guitars, harp | not proposed (string divisi is a separate, later mechanism, §12) | n/a |
+
+The proposals are stored as data (a defaults table in `je::present`, overridable by templates), not as code paths, so
+they can change without touching the engine logic.
+
+### 5.3 Compatibility check (what can share a staff)
+Players can be grouped only if they have the same written transposition (or the layout is at concert pitch and the
+"mix transpositions at concert pitch" option is on), a compatible staff type (standard, not TAB or percussion), and
+single-staff instruments. An incompatible request is refused with a message naming the reason; nothing is silently
+dropped.
+
+### 5.4 Interface (for Phase 6)
+Layout options › Condensing: turn on or off per layout; a list of groups with *Add group*, *Remove*, *Players…*,
+*Sharing: automatic / staff sets*; *Restore section defaults*. All changes are undoable and stored with the layout.
 
 ## 6. The condensing algorithm
 ### 6.1 Phrase segmentation (per group)
@@ -119,7 +149,8 @@ readable texture, in order of preference:
 | **Divisi** (separate staves) | any of: crossing; a player using several voices; more than two independent rhythms; incompatible tuplets; a range too wide for one staff; lyrics; dense independent markings; staff-specific clef changes | separate presentation staves for the players involved |
 
 A group of 3–4 players is assigned by solving for the fewest staves where every staff passes one of the textures
-above (pairs first, by score order; exhaustive search is cheap for ≤ 4 players).
+above (exhaustive search is cheap for ≤ 4 players). With `sharing = staffSets`, only the user's staff sets are
+considered: each set shares a staff when its music allows, otherwise it divides.
 
 ### 6.3 Voice and stem assignment
 - Upper player (by player number) in voice 1, stems up; lower in voice 2, stems down. Both stay where they are for
@@ -168,7 +199,7 @@ Dorico side effect noted in §2. Smoothing rules:
 | `unisonLabel` | "a2"/"a3"; option "unis." |
 | `soloLabels` | "1."/"2." (option: "Solo" text for a single player) |
 | `restsForSilentPlayer` | show in two-voice texture; hide in solo texture |
-| `hornPairing` | 1+3 / 2+4 |
+| `sharing` (per group, §5.1) | automatic, or the user's staff sets |
 | `staffLabelStyle` | "Trumpet 1.2" / "Trumpets 1.2" / stacked numbers |
 | `condenseWhenSystemTacet` | yes (multimeasure rests across the condensed staff) |
 

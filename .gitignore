@@ -83,3 +83,9 @@ __pycache__/
 /mscore/revision.h
 /share/sound/MuseScore_General*
 /VERSION
+
+# Jubelle engine: the user's own scores are private test material (decision D-E17).
+# They live outside the repository by default (~/JubellePrivateScores or $JUBELLE_PRIVATE_CORPUS);
+# this folder is only a backstop and must never be committed.
+/jubelle_engine/corpus/private/
+**/JubellePrivateScores/
