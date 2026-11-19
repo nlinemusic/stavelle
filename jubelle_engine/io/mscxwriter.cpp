@@ -450,6 +450,7 @@ private:
         if (!generatedEids) {
             generatedEids = &ownEids;
         }
+        indexEventSpanners();
         if (needLinks && usedEids.empty()) {
             s.forEachObject([this](const Object& o) {
                 if (o.has(F::ORIGIN_EID)) {
@@ -1013,8 +1014,8 @@ private:
             }
         }
         for (const Object* sp : spanners) {
-            if (spannerPlace(*sp) != std::make_pair(staff.id(), v)) {
-                continue;
+            if (inEvent.count(sp->id()) || spannerPlace(*sp) != std::make_pair(staff.id(), v)) {
+                continue;   // (lines inside chords are written by the chords)
             }
             const Fraction t = sp->fractionOr(F::TIME, Fraction());
             const Fraction e = t + sp->fractionOr(F::DURATION, Fraction());
@@ -1056,8 +1057,10 @@ private:
             while (i + 1 < events.size() && events[i + 1]->has(F::GRACE) && isAfter(*events[i + 1])) {
                 after.push_back(events[++i]);
             }
+            // as MuseScore writes them: the after-graces (in file order, the model's reversed), then the
+            // before-graces, then the main chord
             std::reverse(after.begin(), after.end());
-            pending.insert(pending.end(), after.begin(), after.end());
+            pending.insert(pending.begin(), after.begin(), after.end());
             pending.push_back(ev);
             groups.push_back(std::move(pending));
             pending.clear();
@@ -1205,6 +1208,16 @@ private:
         if (ev.has(F::GRACE)) {
             n.children.push_back(empty(ev.text(F::GRACE_TYPE).empty() ? std::string("acciaccatura") : ev.text(F::GRACE_TYPE)));
         }
+        if (auto it = endsIn.find(ev.id()); it != endsIn.end()) {
+            for (const Object* sp : it->second) {
+                n.children.push_back(spannerEnd(*sp, m, ev.fractionOr(F::TIME, Fraction())));
+            }
+        }
+        if (auto it = startsIn.find(ev.id()); it != startsIn.end()) {
+            for (const Object* sp : it->second) {
+                n.children.push_back(spannerStart(*sp, m));
+            }
+        }
         for (Id c : ev.children()) {   // in the model's order, which is the file's
             const Object* child = s.find(c);
             if (child->kind() == Kind::Attachment && child->text(F::SUBKIND) == "fermata" && !child->has(F::TAG)) {
@@ -1262,6 +1275,130 @@ private:
         return n;
     }
 
+    //! Lines MuseScore keeps inside their chords (slurs, hammer-ons): the chord or rest each starts in and ends in
+    void indexEventSpanners()
+    {
+        auto isEvent = [this](Id id) {
+            const Object* o = s.find(id);
+            return o && (o->kind() == Kind::Chord || o->kind() == Kind::Rest);
+        };
+        for (const Object* sp : spanners) {
+            Id start = sp->idOr(F::START_EVENT);
+            const std::string type = spannerType(sp->text(F::SUBKIND));
+            if (!isEvent(start) && (type == "Slur" || type == "HammerOnPullOff") && isEvent(sp->idOr(F::ANCHOR))) {
+                start = sp->idOr(F::ANCHOR);   // made in Jubelle, anchored to its first chord
+            }
+            if (!isEvent(start)) {
+                continue;
+            }
+            Id end = sp->idOr(F::END_ANCHOR);
+            if (!isEvent(end)) {
+                end = Id();
+                const Fraction at = sp->fractionOr(F::TIME, Fraction()) + sp->fractionOr(F::DURATION, Fraction());
+                const Object* voice = s.find(s.find(start)->parent());
+                std::vector<const Object*> candidates;
+                if (voice) {
+                    // the staff and voice it ends in (as read), else its own voice, then the staff's other voices
+                    const Object* endStaff = s.find(sp->has(F::END_STAFF) ? sp->idOr(F::END_STAFF) : voice->parent());
+                    const int64_t endVoice = sp->intOr(F::END_VOICE, voice->intOr(F::NUMBER, 0));
+                    if (endStaff) {
+                        for (Id v : endStaff->children()) {
+                            if (s.find(v)->kind() == Kind::Voice && s.find(v)->intOr(F::NUMBER, 0) == endVoice) {
+                                candidates.push_back(s.find(v));
+                            }
+                        }
+                        for (Id v : endStaff->children()) {
+                            if (s.find(v)->kind() == Kind::Voice && s.find(v)->intOr(F::NUMBER, 0) != endVoice) {
+                                candidates.push_back(s.find(v));
+                            }
+                        }
+                    }
+                }
+                if (sp->has(F::END_GRACE)) {   // a grace chord, by its index
+                    for (const Object* v : candidates) {
+                        for (Id e : v->children()) {
+                            const Object* o = s.find(e);
+                            if (!end.isValid() && o->has(F::GRACE) && o->fractionOr(F::TIME, Fraction()) == at
+                                && graceIndexOf(*o) == sp->intOr(F::END_GRACE, -1)) {
+                                end = e;
+                            }
+                        }
+                    }
+                }
+                for (int pass = 0; pass < 2 && !end.isValid(); ++pass) {
+                    for (const Object* v : candidates) {
+                        for (Id e : v->children()) {
+                            const Object* o = s.find(e);
+                            // (a partial slur, at a repeat, starts and ends on the same chord)
+                            if (!end.isValid() && (o->kind() == Kind::Chord || o->kind() == Kind::Rest) && (e != start || pass == 1)
+                                && o->fractionOr(F::TIME, Fraction()) == at && (pass == 1 || !o->has(F::GRACE))) {
+                                end = e;
+                            }
+                        }
+                    }
+                }
+            }
+            if (!end.isValid()) {
+                continue;   // no chord at its end: written in the voice
+            }
+            startsIn[start].push_back(sp);
+            endsIn[end].push_back(sp);
+            inEvent.insert(sp->id());
+            spanStart[sp->id()] = start;
+            spanEnd[sp->id()] = end;
+        }
+    }
+
+    //! A location's staff and voice steps, when its target event is on another staff or in another voice
+    void crossTo(Node& loc, const Object& target, const Object& from)
+    {
+        const Object* tv = s.find(target.parent());
+        const Object* fv = s.find(from.parent());
+        if (!tv || !fv) {
+            return;
+        }
+        std::vector<Node> add;
+        if (tv->parent() != fv->parent() && staffNumber.count(tv->parent()) && staffNumber.count(fv->parent())) {
+            add.push_back(leaf("staves", std::to_string(staffNumber.at(tv->parent()) - staffNumber.at(fv->parent()))));
+        }
+        const int64_t dv = tv->intOr(F::NUMBER, 0) - fv->intOr(F::NUMBER, 0);
+        if (dv != 0) {
+            add.push_back(leaf("voices", std::to_string(dv)));
+        }
+        if (!add.empty()) {
+            loc.leaf = false;
+            loc.children.insert(loc.children.begin(), add.begin(), add.end());
+        }
+    }
+
+    //! A grace chord's index as MuseScore's locations count it: its place among its main chord's grace notes in
+    //! the order they are written (after-graces first, in file order, then the before-graces)
+    int64_t graceIndexOf(const Object& ev) const
+    {
+        const Object* voice = s.find(ev.parent());
+        const Fraction t = ev.fractionOr(F::TIME, Fraction());
+        std::vector<Id> before, after;
+        bool afterMain = false;
+        for (Id e : voice->children()) {
+            const Object* o = s.find(e);
+            if (o->fractionOr(F::TIME, Fraction()) != t || (o->kind() != Kind::Chord && o->kind() != Kind::Rest)) {
+                continue;
+            }
+            if (!o->has(F::GRACE)) {
+                afterMain = true;
+            } else if (afterMain && isAfter(*o)) {
+                after.push_back(e);
+            } else {
+                before.push_back(e);
+            }
+        }
+        std::reverse(after.begin(), after.end());
+        std::vector<Id> order = after;
+        order.insert(order.end(), before.begin(), before.end());
+        auto it = std::find(order.begin(), order.end(), ev.id());
+        return it == order.end() ? 0 : int64_t(it - order.begin());
+    }
+
     //! A relative location from `from`, in measure `mf` (the measure being written: MuseScore reads a location from
     //! the measure it is in, even at its end), to `to`
     Node location(int mf, const Fraction& from, const Fraction& to)
@@ -1302,6 +1439,11 @@ private:
                 sp.attrs.emplace_back("type", "Tie");
                 Node prev = elem("prev");
                 prev.children.push_back(location(m, at, fc->fractionOr(F::TIME, Fraction())));
+                crossTo(prev.children.back(), *fc, chord);
+                if (fc->has(F::GRACE)) {   // from a grace note: which one
+                    prev.children.back().leaf = false;
+                    prev.children.back().children.push_back(leaf("grace", std::to_string(graceIndexOf(*fc))));
+                }
                 sp.children.push_back(std::move(prev));
                 n.children.push_back(std::move(sp));
             }
@@ -1323,6 +1465,11 @@ private:
                 sp.children.push_back(std::move(tie));
                 Node next = elem("next");
                 next.children.push_back(location(m, at, tc->fractionOr(F::TIME, Fraction())));
+                crossTo(next.children.back(), *tc, chord);
+                if (tc->has(F::GRACE)) {   // to a grace note: which one
+                    next.children.back().leaf = false;
+                    next.children.back().children.push_back(leaf("grace", std::to_string(graceIndexOf(*tc))));
+                }
                 sp.children.push_back(std::move(next));
                 n.children.push_back(std::move(sp));
             }
@@ -1335,12 +1482,17 @@ private:
         n.children.push_back(leaf("tpc", std::to_string(tpc)));
         if (note.has(F::TPC2)) {
             n.children.push_back(leaf("tpc2", std::to_string(note.intOr(F::TPC2, 14))));
-        } else {   // no written spelling given: from the concert one and the instrument's transposition
+        } else if (!note.has(F::TPC)) {   // a note with no spelling at all: written spelling from the transposition
             const Object* player = playerOf(chord);
             const int64_t c = player ? player->intOr(F::TRANSPOSE_CHROMATIC, 0) : 0;
             const int64_t d = player ? player->intOr(F::TRANSPOSE_DIATONIC, diatonicOf(c)) : 0;
             if (c != 0 || d != 0) {   // written = concert moved back by the instrument's transposition
                 n.children.push_back(leaf("tpc2", std::to_string(model::transposeTpc(tpc, -d, -c))));
+            }
+        }
+        if (note.has(F::DETAILS_AFTER) && (!note.has(F::DETAILS_KEY) || detailsKey(note) == note.intOr(F::DETAILS_KEY, 0))) {
+            for (Node& c : parseFragment(note.text(F::DETAILS_AFTER))) {
+                n.children.push_back(std::move(c));
             }
         }
         return n;
@@ -1373,6 +1525,15 @@ private:
         const Fraction t = sp.fractionOr(F::TIME, Fraction());
         Node next = elem("next");
         next.children.push_back(location(m, t, t + sp.fractionOr(F::DURATION, Fraction())));
+        if (spanEnd.count(sp.id())) {   // inside chords: to the end chord's staff, voice and grace note
+            const Object* from = s.find(spanStart.at(sp.id()));
+            const Object* to = s.find(spanEnd.at(sp.id()));
+            crossTo(next.children.back(), *to, *from);
+            if (to->has(F::GRACE)) {
+                next.children.back().leaf = false;
+                next.children.back().children.push_back(leaf("grace", std::to_string(graceIndexOf(*to))));
+            }
+        }
         n.children.push_back(std::move(next));
         return n;
     }
@@ -1385,6 +1546,15 @@ private:
         Node prev = elem("prev");
         // relative to where the marker is: the end of its measure when the spanner ends at a barline
         prev.children.push_back(location(m, at, sp.fractionOr(F::TIME, Fraction())));
+        if (spanEnd.count(sp.id())) {   // back to the start chord's staff, voice and grace note
+            const Object* from = s.find(spanEnd.at(sp.id()));
+            const Object* to = s.find(spanStart.at(sp.id()));
+            crossTo(prev.children.back(), *to, *from);
+            if (to->has(F::GRACE)) {
+                prev.children.back().leaf = false;
+                prev.children.back().children.push_back(leaf("grace", std::to_string(graceIndexOf(*to))));
+            }
+        }
         n.children.push_back(std::move(prev));
         return n;
     }
@@ -1486,6 +1656,9 @@ private:
     std::set<std::string> usedEids;
     uint64_t eidCounter = 0;
     bool needLinks = false;
+    std::map<Id, std::vector<const Object*> > startsIn, endsIn;   // lines kept inside chords, by chord
+    std::set<Id> inEvent;
+    std::map<Id, Id> spanStart, spanEnd;   // the chords a line inside chords starts and ends in
     bool anyFromFile = false;
     std::string format = "4.70";   // the MuseScore format written
     bool modern = true;            // 4.60 or later

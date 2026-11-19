@@ -524,6 +524,7 @@ private:
 
     void readVoice(const Node& voice, Id staff, int mi, int index)
     {
+        gracesInFile = 0;
         Id voiceId;   // created on the first event, so empty voices don't appear
         auto vid = [&]() {
             if (!voiceId.isValid()) {
@@ -608,6 +609,12 @@ private:
                 while (!tuplets.empty() && tuplets.back().id.isValid() && !isGrace(e) && !(t < tuplets.back().end)) {
                     tuplets.pop_back();
                     ++closedFull;
+                }
+                // MuseScore numbers a chord's grace notes in file order (its locations use the number)
+                if (isGrace(e)) {
+                    graceFileIndex[&e] = gracesInFile++;
+                } else {
+                    gracesInFile = 0;
                 }
                 if (isAfterGrace(e)) {
                     pendingAfter.push_back(&e);   // MuseScore writes it before its main chord; it follows it in the voice
@@ -895,6 +902,12 @@ private:
         const Id ev = bb.add(kind, voice, f, Order::ByTime);
         report.modelled[e.name]++;
         kind == Kind::Chord ? report.chords++ : report.rests++;
+        {
+            // the grace index MuseScore's locations use: before-graces from 0, then the after-graces
+            currentVoice = voiceIndexOf(voice);
+            auto it = graceFileIndex.find(&e);
+            currentGrace = grace.empty() || it == graceFileIndex.end() ? -1 : it->second;
+        }
 
         for (const Node& c : e.children) {
             if (c.name == "Note" && kind == Kind::Chord) {
@@ -923,7 +936,7 @@ private:
                 report.lyrics++;
                 report.modelled["Lyrics"]++;
             } else if (c.name == "Spanner") {
-                addSpanner(c, staff, mi, at, voiceIndexOf(voice));
+                addSpanner(c, staff, mi, at, voiceIndexOf(voice), ev);
             } else if (c.name == "Arpeggio" || c.name == "TremoloSingleChord" || c.name == "ChordLine" || c.name == "Fermata") {
                 Fields af { { F::SUBKIND, Text(lowerFirst(c.name)) }, { F::TAG, Text(c.name) } };
                 withDetails(af, c, {});
@@ -954,17 +967,26 @@ private:
         // a note's ties are modelled; its other lines to another note (glissando, bend, note line) are carried
         // with its details, in place
         {
-            std::vector<const Node*> rest;
+            // those after the pitch are written after it again (MuseScore finds a note's lines by its place in the
+            // chord, which its pitch decides)
+            std::vector<const Node*> rest, after;
+            bool pitchSeen = false;
             for (const Node& c : n.children) {
+                pitchSeen = pitchSeen || c.name == "pitch";
                 if (c.type != Node::Type::Element || c.name == "eid" || c.name == "pitch" || c.name == "tpc" || c.name == "tpc2"
                     || c.name == "Fingering" || c.name == "linked" || c.name == "linkedMain" || c.name == "linkedTo"
                     || (c.name == "Spanner" && c.attr("type") == "Tie")) {
                     continue;
                 }
-                rest.push_back(&c);
+                (pitchSeen ? after : rest).push_back(&c);
             }
             if (!rest.empty()) {
                 f.push_back({ F::DETAILS, Text(wholeFragment(rest)) });
+            }
+            if (!after.empty()) {
+                f.push_back({ F::DETAILS_AFTER, Text(wholeFragment(after)) });
+            }
+            if (!rest.empty() || !after.empty()) {
                 f.push_back({ F::DETAILS_KEY, int64_t(0) });   // set when the object is finished
             }
         }
@@ -983,11 +1005,26 @@ private:
         const Id note = bb.add(Kind::Note, chord, f);
         report.notes++;
         report.modelled["Note"]++;
-        notesAt[{ staff.value(), at }].push_back({ note, toInt(n.childText("pitch"), 60) });
+        notesAt[{ staff.value(), at }].push_back({ note, toInt(n.childText("pitch"), 60), currentGrace, currentVoice });
         for (const Node& c : n.children) {
             if (c.name == "Spanner" && c.attr("type") == "Tie") {
                 if (const Node* next = c.child("next")) {
-                    ties.push_back({ note, staff, toInt(n.childText("pitch"), 60), locate(mi, at, next->child("location")) });
+                    const Node* loc = next->child("location");
+                    const int64_t g = loc && !loc->childText("grace").empty() ? toInt(loc->childText("grace")) : -1;
+                    // to another staff or voice (cross-staff and cross-voice ties)
+                    Id toStaff = staff;
+                    if (loc && !loc->childText("staves").empty()) {
+                        int64_t number = 0;
+                        for (const auto& [k, v] : staffById) {
+                            if (v == staff) {
+                                number = k;
+                            }
+                        }
+                        auto it = staffById.find(number + toInt(loc->childText("staves")));
+                        toStaff = it == staffById.end() ? staff : it->second;
+                    }
+                    const int toVoice = currentVoice + int(loc ? toInt(loc->childText("voices")) : 0);
+                    ties.push_back({ note, toStaff, toInt(n.childText("pitch"), 60), locate(mi, at, loc), g, toVoice });
                 }
             } else if (c.name == "Fingering") {
                 Fields af { { F::SUBKIND, Text(std::string("fingering")) }, { F::TEXT, Text(rawText(c, "text")) }, { F::TAG, Text(c.name) } };
@@ -1011,7 +1048,7 @@ private:
         return 0;
     }
 
-    void addSpanner(const Node& s, Id staff, int mi, const Fraction& at, int voiceIndex)
+    void addSpanner(const Node& s, Id staff, int mi, const Fraction& at, int voiceIndex, Id inEvent = Id())
     {
         const std::string type = s.attr("type");
         const Node* next = s.child("next");
@@ -1036,6 +1073,30 @@ private:
             }
             f.push_back({ F::VOICE_INDEX, int64_t(voiceIndex) });
             f.push_back({ F::SEQ, int64_t(++seq) });
+            if (inEvent.isValid()) {
+                f.push_back({ F::START_EVENT, inEvent });   // written back inside that chord or rest
+                // where it ends, when that isn't its own staff, voice or a main chord
+                if (const Node* loc = next->child("location")) {
+                    if (!loc->childText("staves").empty()) {
+                        int64_t number = 0;
+                        for (const auto& [k, v] : staffById) {
+                            if (v == staff) {
+                                number = k;
+                            }
+                        }
+                        auto it = staffById.find(number + toInt(loc->childText("staves")));
+                        if (it != staffById.end()) {
+                            f.push_back({ F::END_STAFF, it->second });
+                        }
+                    }
+                    if (!loc->childText("voices").empty()) {
+                        f.push_back({ F::END_VOICE, int64_t(voiceIndex + toInt(loc->childText("voices"))) });
+                    }
+                    if (!loc->childText("grace").empty()) {
+                        f.push_back({ F::END_GRACE, toInt(loc->childText("grace")) });
+                    }
+                }
+            }
             withDetails(f, *body, type == "Volta" ? std::vector<const char*> { "endings" }
                         : type == "HairPin" || type == "Ottava" ? std::vector<const char*> { "subtype" }
                         : std::vector<const char*> {});
@@ -1118,10 +1179,17 @@ private:
             auto it = notesAt.find({ t.staff.value(), t.target });
             Id to;
             if (it != notesAt.end()) {
-                for (const auto& [note, pitch] : it->second) {
-                    if (pitch == t.pitch && note != t.from) {
-                        to = note;
-                        break;
+                // to the grace note named by index; otherwise a main chord's note first, then any
+                for (int pass = 0; pass < 3 && !to.isValid(); ++pass) {
+                    for (const NoteAt& n : it->second) {
+                        // the voice named, then any; the grace note named, else a main chord's note first
+                        const bool voiceFits = pass > 0 || n.voice == t.voice;
+                        const bool fits = voiceFits && (t.grace >= 0 ? n.grace == t.grace : (pass == 2 || n.grace < 0));
+                        // (a unison: each tie ends on its own note)
+                        if (n.pitch == t.pitch && n.note != t.from && fits && !tiedInto.count(n.note)) {
+                            to = n.note;
+                            break;
+                        }
                     }
                 }
             }
@@ -1131,6 +1199,7 @@ private:
                 continue;
             }
             bb.setField(t.from, F::TIE_TO, to);
+            tiedInto.insert(to);
             report.ties++;
         }
     }
@@ -1221,7 +1290,20 @@ private:
         Id staff;
         int64_t pitch;
         Fraction target;
+        int64_t grace = -1;   // the target grace chord's index at that time (-1: not a grace)
+        int voice = 0;        // the target voice (index in its staff)
     };
+    struct NoteAt {
+        Id note;
+        int64_t pitch;
+        int64_t grace;
+        int voice;
+    };
+    int currentVoice = 0;   // the voice index of the event being read
+    std::set<Id> tiedInto;  // notes already a tie's end
+    int64_t currentGrace = -1;    // the grace index of the chord being read (-1: a main chord)
+    std::map<const Node*, int64_t> graceFileIndex;   // a grace chord's number among its main chord's, in file order
+    int64_t gracesInFile = 0;
 
     const ScoreFile& file;
     model::Model& model;
@@ -1243,7 +1325,7 @@ private:
     std::vector<Id> measureIds;
     std::vector<Fraction> measureStart, measureLen;
     Fraction flowEnd;
-    std::map<std::pair<uint64_t, Fraction>, std::vector<std::pair<Id, int64_t> > > notesAt;
+    std::map<std::pair<uint64_t, Fraction>, std::vector<NoteAt> > notesAt;
     std::vector<PendingTie> ties;
 };
 }

@@ -237,6 +237,10 @@ std::string_view fieldName(Field field)
     case SOURCE_FORMAT: return "sourceFormat";
     case DETAILS_AFTER: return "detailsAfter";
     case TIE_EID: return "tieEid";
+    case START_EVENT: return "startEvent";
+    case END_STAFF: return "endStaff";
+    case END_VOICE: return "endVoice";
+    case END_GRACE: return "endGrace";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

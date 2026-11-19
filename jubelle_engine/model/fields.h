@@ -142,7 +142,11 @@ constexpr Field SCORE_HEAD = ENGINE_BASE + 123;  // string: the file's first ele
 constexpr Field SCORE_PRE = ENGINE_BASE + 124;   // string: score settings before the parts (showInvisible, Order…)
 constexpr Field SCORE_POST = ENGINE_BASE + 125;  // string: anything after the music
 constexpr Field DETAILS_AFTER = ENGINE_BASE + 128;   // string: details that come after an element's notes (a chord's)
-constexpr Field TIE_EID = ENGINE_BASE + 129;         // string: the identity of the tie that starts at a note
+constexpr Field TIE_EID = ENGINE_BASE + 129;
+constexpr Field START_EVENT = ENGINE_BASE + 130;     // Id: the chord or rest a line starts in (slurs, hammer-ons: MuseScore keeps them in it)
+constexpr Field END_STAFF = ENGINE_BASE + 132;       // Id: the staff a line ends on, when not its own (cross-staff)
+constexpr Field END_VOICE = ENGINE_BASE + 133;       // int: the voice a line ends in, when not its own
+constexpr Field END_GRACE = ENGINE_BASE + 134;       // int: the grace chord a line ends on (MuseScore's grace index)         // string: the identity of the tie that starts at a note
 constexpr Field SOURCE_FORMAT = ENGINE_BASE + 127;   // string: the MuseScore format the score was read from ("4.40"), written back
 constexpr Field LAYOUT_BREAKS = ENGINE_BASE + 126;   // string: a part layout's own line/page/section breaks (measure index, kind)
 

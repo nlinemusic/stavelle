@@ -93,6 +93,7 @@ private:
     Fraction timeOf(Id id) const;
     Fraction endOf(Id id) const;
     Fraction tupletFactor(Id tuplet) const;
+    std::vector<std::pair<Field, Value> > noteFields(Id staff, const Fraction& t, int pitch) const;
     void removeEvent(Transaction& tx, Id event);
     void fillRests(Transaction& tx, Id voice, Fraction t0, const Fraction& t1, Id tuplet = Id());
     //! Writes events for [t, t + length) in measure-sized pieces; returns the ids made, in order

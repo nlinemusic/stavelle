@@ -28,6 +28,9 @@
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/rest.h"
+#include "engraving/dom/articulation.h"
+#include "engraving/dom/spanner.h"
+#include "engraving/dom/tie.h"
 #include "engraving/dom/segment.h"
 #include "engraving/dom/staff.h"
 #include "engraving/infrastructure/localfileinfoprovider.h"
@@ -53,6 +56,22 @@ void line(std::ostringstream& out, size_t staff, int voice, ChordRest* cr, bool 
         std::sort(pitches.begin(), pitches.end());
         for (int p : pitches) {
             out << ' ' << p;
+        }
+        // JUBELLE_REFERENCE_DETAIL=1: what playback depends on too (for comparing two files read by MuseScore)
+        if (std::getenv("JUBELLE_REFERENCE_DETAIL")) {
+            Chord* c = toChord(cr);
+            out << " |";
+            for (Note* n : c->notes()) {
+                out << ' ' << n->pitch() << '/' << n->tpc1() << '/' << n->tpc2() << (n->tieFor() ? "~" : "") << (n->tieBack() ? "<" : "")
+                    << (n->play() ? "" : "m") << "v" << n->userVelocity();
+                for (Spanner* sp : n->spannerFor()) {
+                    out << " " << sp->typeName();
+                }
+            }
+            for (Articulation* a : c->articulations()) {
+                out << " a:" << int(a->symId());
+            }
+            out << " nt:" << int(c->noteType());
         }
     }
     out << '\n';
@@ -95,6 +114,22 @@ std::string listing(MasterScore* s)
                 }
             }
             ++staffIndex;
+        }
+    }
+    if (std::getenv("JUBELLE_REFERENCE_DETAIL")) {
+        std::vector<std::string> spanners;
+        for (const auto& [tick, sp] : s->spanner()) {
+            spanners.push_back(std::string("# spanner ") + sp->typeName() + " " + frac(sp->tick()) + " " + frac(sp->tick2()) + " "
+                               + std::to_string(sp->track()) + "-" + std::to_string(sp->track2()) + "\n");
+        }
+        std::sort(spanners.begin(), spanners.end());
+        for (const std::string& l : spanners) {
+            out << l;
+        }
+        for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
+            for (EngravingItem* a : seg->annotations()) {
+                out << "# annotation " << a->typeName() << " " << frac(seg->tick()) << " " << a->track() << "\n";
+            }
         }
     }
     return out.str();

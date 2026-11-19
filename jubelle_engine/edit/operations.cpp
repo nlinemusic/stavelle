@@ -219,6 +219,23 @@ Fraction Operations::tupletFactor(Id tuplet) const
     return f;
 }
 
+//! A new note's fields: pitch, spelling for the key, and the written spelling on a transposing instrument
+std::vector<std::pair<Field, Value> > Operations::noteFields(Id staff, const Fraction& t, int pitch) const
+{
+    const int64_t tpc = model::defaultTpc(pitch, keyAt(staff, t));
+    std::vector<std::pair<Field, Value> > f { { F::PITCH, int64_t(pitch) }, { F::TPC, tpc } };
+    if (const Object* st = obj(staff); st && obj(st->parent()) && obj(st->parent())->kind() == Kind::Player) {
+        const Object* p = obj(st->parent());
+        const int64_t c = p->intOr(F::TRANSPOSE_CHROMATIC, 0);
+        const int64_t d = p->intOr(F::TRANSPOSE_DIATONIC, model::diatonicOf(c));
+        const int64_t written = model::transposeTpc(tpc, -d, -c);
+        if (written != tpc) {
+            f.push_back({ F::TPC2, written });
+        }
+    }
+    return f;
+}
+
 // ---- building blocks ----------------------------------------------------------------------------------------
 void Operations::removeEvent(Transaction& tx, Id event)
 {
@@ -272,9 +289,8 @@ std::vector<Id> Operations::writeEvents(Transaction& tx, Id voice, const Fractio
         }
         const Id e = create(tx, m_ids, voice, { rest ? Kind::Rest : Kind::Chord, f }, Placement::ByTime);
         if (!rest) {
-            const int64_t key = keyAt(staff, at);
             for (int p : pitches) {
-                create(tx, m_ids, e, { Kind::Note, { { F::PITCH, int64_t(p) }, { F::TPC, model::defaultTpc(p, key) } } });
+                create(tx, m_ids, e, { Kind::Note, noteFields(staff, at, p) });
             }
             if (!made.empty() && obj(made.back())->kind() == Kind::Chord) {   // tied from the piece before
                 const auto prev = obj(made.back())->children();
@@ -513,9 +529,8 @@ Id Operations::enterChord(Transaction& tx, Id voice, const Fraction& t, const No
         }
         if (length == value.length() * factor) {
             const Id e = create(tx, m_ids, voice, { Kind::Chord, f }, Placement::ByTime);
-            const int64_t key = keyAt(staffOf(voice), t);
             for (int p : pitches) {
-                create(tx, m_ids, e, { Kind::Note, { { F::PITCH, int64_t(p) }, { F::TPC, model::defaultTpc(p, key) } } });
+                create(tx, m_ids, e, { Kind::Note, noteFields(staffOf(voice), t, p) });
             }
             return e;
         }
@@ -570,10 +585,9 @@ Id Operations::addNote(Transaction& tx, Id chord, int pitch)
             notes.push_back(n);
         }
     }
-    const int64_t tpc = model::defaultTpc(pitch, keyAt(staffOf(c->parent()), timeOf(chord)));
     // notes are kept low to high
     std::vector<Id> kids = c->children().ids();
-    const Id note = create(tx, m_ids, chord, { Kind::Note, { { F::PITCH, int64_t(pitch) }, { F::TPC, tpc } } });
+    const Id note = create(tx, m_ids, chord, { Kind::Note, noteFields(staffOf(c->parent()), timeOf(chord), pitch) });
     kids = obj(chord)->children().ids();
     kids.erase(std::remove(kids.begin(), kids.end(), note), kids.end());
     auto pos = kids.begin();
@@ -634,9 +648,21 @@ void Operations::setPitch(Transaction& tx, Id note, int pitch, int64_t tpc)
         return;
     }
     const Id chord = n->parent();
-    tx.set(note, F::PITCH, int64_t(pitch));
-    tx.set(note, F::TPC, tpc >= 0 ? tpc : model::defaultTpc(pitch, keyAt(staffOf(obj(chord)->parent()), timeOf(chord))));
-    tx.set(note, F::TPC2, Value());   // the written spelling follows from the new one
+    auto f = noteFields(staffOf(obj(chord)->parent()), timeOf(chord), pitch);
+    if (tpc >= 0) {
+        f = { { F::PITCH, int64_t(pitch) }, { F::TPC, tpc } };
+        const auto spelled = noteFields(staffOf(obj(chord)->parent()), timeOf(chord), pitch);
+        for (const auto& [field, v] : spelled) {
+            if (field == F::TPC2) {   // the same transposition from the spelling given
+                const int64_t shift = std::get<int64_t>(v) - std::get<int64_t>(spelled[1].second);
+                f.push_back({ F::TPC2, tpc + shift });
+            }
+        }
+    }
+    tx.set(note, F::TPC2, Value());
+    for (const auto& [field, v] : f) {
+        tx.set(note, field, v);
+    }
     // a tie holds only between equal pitches
     if (const Object* to = obj(obj(note)->idOr(F::TIE_TO)); to && to->intOr(F::PITCH, -1) != pitch) {
         tx.set(note, F::TIE_TO, Value());

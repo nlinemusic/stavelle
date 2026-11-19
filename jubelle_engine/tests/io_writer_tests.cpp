@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -450,4 +451,180 @@ TEST(ModelWriter, ScoreWithoutPartsHasNoIdentitiesAdded)
     io::ScoreFile f = io::generateScoreFile(e.model.snapshot());
     EXPECT_EQ(io::xml::write(f.main).find("<eid>"), std::string::npos);
     EXPECT_TRUE(f.excerpts.empty());
+}
+
+namespace {
+// ties to another voice, to a grace note and within a unison; a slur kept inside its chords (MuseScore's places)
+const char* LINKS = R"(<?xml version="1.0" encoding="UTF-8"?>
+<museScore version="4.70">
+  <Score>
+    <Division>480</Division>
+    <Part id="1">
+      <Staff id="1">
+        <StaffType group="pitched">
+          <name>stdNormal</name>
+          </StaffType>
+        </Staff>
+      <trackName>Piano</trackName>
+      <Instrument id="piano">
+        <longName>Piano</longName>
+        </Instrument>
+      </Part>
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <Chord>
+            <durationType>eighth</durationType>
+            <acciaccatura/>
+            <Note>
+              <Spanner type="Tie">
+                <Tie>
+                  </Tie>
+                <next>
+                  <location>
+                    <grace>1</grace>
+                    </location>
+                  </next>
+                </Spanner>
+              <pitch>59</pitch>
+              </Note>
+            </Chord>
+          <Chord>
+            <durationType>eighth</durationType>
+            <acciaccatura/>
+            <Note>
+              <Spanner type="Tie">
+                <prev>
+                  <location>
+                    <grace>0</grace>
+                    </location>
+                  </prev>
+                </Spanner>
+              <pitch>59</pitch>
+              </Note>
+            </Chord>
+          <Chord>
+            <durationType>half</durationType>
+            <Spanner type="Slur">
+              <Slur>
+                </Slur>
+              <next>
+                <location>
+                  <fractions>1/2</fractions>
+                  </location>
+                </next>
+              </Spanner>
+            <Note>
+              <Spanner type="Tie">
+                <Tie>
+                  </Tie>
+                <next>
+                  <location>
+                    <fractions>1/2</fractions>
+                    </location>
+                  </next>
+                </Spanner>
+              <pitch>72</pitch>
+              </Note>
+            <Note>
+              <Spanner type="Tie">
+                <Tie>
+                  </Tie>
+                <next>
+                  <location>
+                    <fractions>1/2</fractions>
+                    </location>
+                  </next>
+                </Spanner>
+              <pitch>72</pitch>
+              </Note>
+            <Note>
+              <Spanner type="Tie">
+                <Tie>
+                  </Tie>
+                <next>
+                  <location>
+                    <voices>1</voices>
+                    <fractions>1/2</fractions>
+                    </location>
+                  </next>
+                </Spanner>
+              <pitch>76</pitch>
+              </Note>
+            </Chord>
+          <Chord>
+            <durationType>half</durationType>
+            <Spanner type="Slur">
+              <prev>
+                <location>
+                  <fractions>-1/2</fractions>
+                  </location>
+                </prev>
+              </Spanner>
+            <Note>
+              <pitch>72</pitch>
+              </Note>
+            <Note>
+              <pitch>72</pitch>
+              </Note>
+            </Chord>
+          </voice>
+        <voice>
+          <Rest>
+            <durationType>half</durationType>
+            </Rest>
+          <Chord>
+            <durationType>half</durationType>
+            <Note>
+              <pitch>76</pitch>
+              </Note>
+            </Chord>
+          </voice>
+        </Measure>
+      </Staff>
+    </Score>
+  </museScore>
+)";
+}
+
+TEST(ModelWriter, TiesAndSlursKeepTheirPlaces)
+{
+    io::ScoreFile f;
+    std::string error;
+    ASSERT_TRUE(io::loadBytes(LINKS, true, f, error)) << error;
+    model::Model m;
+    IdGenerator ids(1);
+    io::ReadReport r;
+    ASSERT_TRUE(io::readScore(f, m, ids, r, error)) << error;
+    EXPECT_EQ(r.ties, 4);   // the grace-to-grace tie, both unison notes, and the one to voice 2
+    EXPECT_TRUE(r.warnings.empty()) << r.warnings.front();
+    std::set<Id> targets;
+    for (const model::Object* n : all(m.snapshot(), Kind::Note)) {
+        if (n->has(F::TIE_TO)) {
+            targets.insert(n->idOr(F::TIE_TO));
+        }
+    }
+    EXPECT_EQ(targets.size(), 4u);   // each tie its own end
+    const std::string out = io::xml::write(io::generateScoreFile(m.snapshot()).main);
+    // the slur inside its chords, the locations naming the grace note and the voice
+    const size_t chord = out.find("<durationType>half</durationType>");
+    ASSERT_NE(chord, std::string::npos);
+    EXPECT_LT(out.find("<Spanner type=\"Slur\">", chord), out.find("<Note>", chord));
+    EXPECT_NE(out.find("<grace>1</grace>"), std::string::npos);
+    EXPECT_NE(out.find("<grace>0</grace>"), std::string::npos);
+    EXPECT_NE(out.find("<voices>1</voices>"), std::string::npos);
+    EXPECT_NE(out.find("<voices>-1</voices>"), std::string::npos);
+    // read again: the same ties and slur (the file gained spellings and a time signature, which it had none of);
+    // from then on, saving and reading again changes nothing
+    auto reread = [&error](const std::string& xml, model::Model& into) {
+        io::ScoreFile again;
+        IdGenerator g(1);
+        io::ReadReport rr;
+        return io::loadBytes(xml, true, again, error) && io::readScore(again, into, g, rr, error) && rr.ties == 4;
+    };
+    model::Model m2, m3;
+    ASSERT_TRUE(reread(out, m2)) << error;
+    EXPECT_EQ(io::musicListing(m2.snapshot()), io::musicListing(m.snapshot()));
+    ASSERT_TRUE(reread(io::xml::write(io::generateScoreFile(m2.snapshot()).main), m3)) << error;
+    EXPECT_EQ(io::modelDump(m3.snapshot()), io::modelDump(m2.snapshot()));
 }
