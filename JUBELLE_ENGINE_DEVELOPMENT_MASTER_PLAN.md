@@ -237,12 +237,16 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | **S2 against MuseScore's own reading** (the comparison baseline, every 4.x score in the repository): **2,079 of 2,118 identical music listings (98.2%)**, up from 1,983 after fixes found by the comparison (multi-measure rest measures, after-grace order, end-of-measure time signatures, measure rests, tremolos in tuplets); the 39 left are documented kinds of importer and edge-case test files |
 | 19 Nov 2026 | **S2 against MuseScore's own reading: 2,109 of 2,118 (99.6%)** after reader fixes (voice-1 completion, local time signatures, full tuplets, repeated duration types); the 9 left are listed with causes and gated in CI |
 | 19 Nov 2026 | **S2 model-based writer (D-E27, D-E28):** files generated from the model alone, parts generated and linked; **2,118 of 2,118 corpus scores regenerate with identical music and model**; MuseScore 4.7.7's engine reads **2,110 of 2,117** generated files exactly as the originals (7 expected), with no warnings beyond the originals'. Fixed a reader data loss (glissandos and bends inside notes). Save-and-reopen tests (ensemble built in the model, edits after reopening, the 11 style settings); 63 tests clean under ASan/UBSan |
+| 19 Nov 2026 | **S2 playback fidelity:** MuseScore's detailed reading and its own MIDI rendering of the generated files added to the comparison; fixed slurs inside chords, cross-voice/staff and grace ties, grace order, unison ties, linked staves within a score, grace lengths. MuseScore reads 2,107 of 2,117 generated files identically down to MIDI (3 importer files listed as not yet understood). Official MuseScore 4.7.7 MIDI check: 46 → 50 of 54, fixes for the rest since |
+| 19 Nov 2026 | **S3 started:** editing operations with MuseScore's note-entry rules and the note-input state machine; property tests (random edits stay consistent, undo/redo exactly, save and reopen); 77 tests pass under ASan/UBSan; CI green on Windows, macOS and Linux for the S2 writer |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
   and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
-- **S3 editing** (now): the operation vocabulary with MuseScore's note-entry semantics, then the note-input state
-  machine, selection, clipboard (MSCX fragments), transposition; scripted comparisons with MuseScore's engine.
+- **S3 editing** (now): done: operations and note input. Next: selection model, clipboard (MSCX fragments),
+  transposition, the remaining commands of `docs/10_…`, linked staves and parts while editing, scripted
+  comparisons with MuseScore's engine. Then S4 (autosave journal and crash recovery).
+- **S2** open items: 3 playback differences in importer test files; part-only content.
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).

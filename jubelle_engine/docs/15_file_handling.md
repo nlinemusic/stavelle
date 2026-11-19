@@ -81,10 +81,15 @@ written only while the music is unchanged. Objects made by editing are translate
 | appearance details written / dropped without an edit | 55,784 / 0 |
 | MuseScore 4.7.7's engine reads the generated file exactly as the original (`je_generated_compare.py`) | **2,110 of 2,117** (7 expected: files Jubelle itself reads differently) |
 | MuseScore warnings reading the generated files | none beyond those it gives for the originals (and none of the originals' 84 broken part links) |
-| save-and-reopen tests (`tests/io_writer_tests.cpp`): an ensemble score built in the model; second save identical; edits after reopening; removed and added music; the 11 Jubelle style settings | 6 of 6 |
+| the same in detail: ties, slurs and other lines, articulations, spellings, every line and annotation (`JUBELLE_REFERENCE_DETAIL`), and **MuseScore's own MIDI rendering** (`JUBELLE_REFERENCE_MIDI`) | **2,107 of 2,117** (the 7 above, and 3 importer test files listed in `corpus/generated_playback_differences.txt`, not yet understood) |
+| official MuseScore 4.7.7 (Windows CI): MIDI export of the original and of the generated file identical | 50 of 54 on 19 Nov (4 found: linked tablature staves and bends, fixed since; rerun pending) |
+| save-and-reopen tests (`tests/io_writer_tests.cpp`): an ensemble score built in the model; second save identical; edits after reopening; removed and added music; the 11 Jubelle style settings; ties and slurs in MuseScore's places | 7 of 7 |
 
 Found and fixed on the way: note-to-note lines (glissandos, bends) were dropped by the reader; tie identities;
-details after a chord's notes; multi-measure-rest measures referred to by system locks; spanner ends at a barline.
+details after a chord's notes and after a note's pitch (MuseScore finds a note's lines by its place);
+multi-measure-rest measures referred to by system locks; spanner ends at a barline; slurs and hammer-ons kept
+inside their chords; ties and lines to another voice, staff or grace note; grace notes in MuseScore's order and
+numbering; unison ties; linked staves within a score (a tablature staff played twice); grace notes' own lengths.
 Not yet modelled, so not written for an edited score: part-only content (texts or positions only in a part).
 
 Each fixed behaviour has a regression test (`tests/io_reader_regression_tests.cpp`) whose expected listing is what
