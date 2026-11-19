@@ -21,14 +21,13 @@
 
 #include "model/fraction.h"
 #include "model/id.h"
+#include "model/value.h"
 
 namespace je::edit {
-//! A field value. monostate = absent (object or property not there)
-using Value = std::variant<std::monostate, bool, int64_t, double, std::string, je::Fraction, je::Id>;
-
-//! Field numbers: MuseScore's Pid values where a property exists (so the Properties
-//! panel keeps its meaning), engine fields above FIELD_ENGINE_BASE
-using Field = int32_t;
+using je::model::Value;
+using je::model::Field;
+using je::model::IdList;
+using je::model::ChangeTarget;
 constexpr Field FIELD_ENGINE_BASE = 100000;
 constexpr Field FIELD_EXISTS = FIELD_ENGINE_BASE + 1;   // structural: object created (after=true) or removed
 
@@ -51,13 +50,6 @@ struct ChangeSet {
 };
 
 //! What a transaction changes: the model implements this
-class ChangeTarget
-{
-public:
-    virtual ~ChangeTarget() = default;
-    virtual Value get(je::Id object, Field field) const = 0;
-    virtual void set(je::Id object, Field field, const Value& value) = 0;
-};
 
 //! Applies a change set's "after" values in order
 void apply(ChangeTarget& target, const ChangeSet& changes);
@@ -86,6 +78,9 @@ public:
     void rollback();
 
     bool isOpen() const { return m_open; }
+
+    //! What the transaction changes, for reading the current state while building it
+    const ChangeTarget& target() const { return m_target; }
 
 private:
     ChangeTarget& m_target;

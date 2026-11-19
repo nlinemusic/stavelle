@@ -66,8 +66,10 @@ round-trip.
 | SELECTION, LASSO, SHADOW_NOTE, ACTION_ICON, STAFF_VISIBILITY_INDICATOR, STAFF_LINES, ROOT_ITEM, DUMMY | UI-only / derived | |
 
 ## 3. Properties
-- Every stored object carries properties by **`Pid`** (MuseScore's property IDs), so the Properties panel, style
-  defaults ("use default") and the file format keep their meaning.
+- Every stored object carries properties in **the engine's own field vocabulary** (`model/fields.h`; decision
+  D-E24, revised from "by `Pid`" so the engine doesn't depend on MuseScore's numbering). `je::io` maps MuseScore's
+  property names to fields when reading and writing, and properties without an engine field yet are kept by name
+  (numbered from `NAMED_BASE`), so the Properties panel, style defaults and the file format keep their meaning.
 - **Per-layout values** (offsets, placement, visibility, size, autoplace) are stored as overrides
   `Layout.overrides[objectId][Pid]`. The score layout's overrides correspond to the master score; part layouts' to
   the excerpts' unlinked values.

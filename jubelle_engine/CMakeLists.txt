@@ -43,10 +43,23 @@ add_library(je_core STATIC
     model/id.cpp
     model/id.h
     model/cowvector.h
+    model/value.h
+    model/idmap.h
+    model/fields.h
+    model/object.cpp
+    model/object.h
+    model/model.cpp
+    model/model.h
+    model/invariants.cpp
+    model/invariants.h
     edit/changeset.cpp
     edit/changeset.h
     edit/history.cpp
     edit/history.h
+    edit/structure.cpp
+    edit/structure.h
+    edit/scorebuilder.cpp
+    edit/scorebuilder.h
 )
 target_include_directories(je_core PUBLIC ${JE_ROOT})
 target_link_libraries(je_core PUBLIC Threads::Threads)
@@ -66,6 +79,8 @@ add_executable(je_tests
     tests/cowvector_tests.cpp
     tests/changeset_tests.cpp
     tests/corpus_tests.cpp
+    tests/idmap_tests.cpp
+    tests/model_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core gtest)
