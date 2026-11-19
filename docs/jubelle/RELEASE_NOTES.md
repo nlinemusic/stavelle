@@ -9,13 +9,13 @@
 ## Installing
 
 ### Windows (10 or 11, 64-bit)
-1. Download `Jubelle-4.7.7.261118172-x86_64.msi` from this release.
+1. Download `Jubelle-4.7.7.261118230-x86_64.msi` from this release.
 2. Double-click it. The installer isn't code-signed, so SmartScreen may say "Windows protected your PC". Choose **More info › Run anyway**.
 3. It replaces an earlier Jubelle and leaves MuseScore alone. Your scores, projects, settings and plugins stay where they are.
 4. Start Jubelle from the Start menu.
 
 ### macOS (Apple Silicon and Intel)
-1. Download `Jubelle-4.7.7.261118162.dmg` and open it.
+1. Download `Jubelle-4.7.7.261118230.dmg` and open it.
 2. Drag **Jubelle** into **Applications**.
 3. The app is not notarised by Apple, so the first time:
    - **Control-click** Jubelle in Applications and choose **Open**, then **Open** again;
@@ -30,7 +30,7 @@
 
 Or skip the browser and download it with PowerShell. Press Start, type **PowerShell**, open it, paste this one line and press Enter:
 ```
-$ProgressPreference='SilentlyContinue'; Invoke-WebRequest "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118172-x86_64.msi" -OutFile "$HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi"
+$ProgressPreference='SilentlyContinue'; Invoke-WebRequest "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118230/Jubelle-4.7.7.261118230-x86_64.msi" -OutFile "$HOME\Downloads\Jubelle-4.7.7.261118230-x86_64.msi"
 ```
 The installer (about 180 MB) arrives in your Downloads folder. Double-click it. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**.
 
@@ -38,13 +38,13 @@ The installer (about 180 MB) arrives in your Downloads folder. Double-click it. 
 
 Or download it with Terminal. Open **Terminal** (Applications › Utilities), paste this one line and press Return:
 ```
-curl -L -o ~/Downloads/Jubelle-4.7.7.261118162.dmg "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118172/Jubelle-4.7.7.261118162.dmg"
+curl -L -o ~/Downloads/Jubelle-4.7.7.261118230.dmg "https://github.com/nlinemusic/stavelle/releases/download/v4.7.7.261118230/Jubelle-4.7.7.261118230.dmg"
 ```
 Then open the disk image from your Downloads folder and drag **Jubelle** to **Applications**.
 
 **Checking the file (optional):**
-- **Windows (PowerShell):** `Get-FileHash $HOME\Downloads\Jubelle-4.7.7.261118172-x86_64.msi`
-- **macOS (Terminal):** `shasum -a 256 ~/Downloads/Jubelle-4.7.7.261118162.dmg`
+- **Windows (PowerShell):** `Get-FileHash $HOME\Downloads\Jubelle-4.7.7.261118230-x86_64.msi`
+- **macOS (Terminal):** `shasum -a 256 ~/Downloads/Jubelle-4.7.7.261118230.dmg`
 
 The code it prints should match the file's line in `SHA256SUMS` on this page.
 
