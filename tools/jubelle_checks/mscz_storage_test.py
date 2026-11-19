@@ -25,13 +25,19 @@ reads different music from it.
 
 Usage: mscz_storage_test.py <MuseScore exe> <Jubelle-saved 4.x .mscz> <work dir>
 """
+import html
 import json
+import re
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 MARK = "jubelleStorageProbe"
+# about 120 kB of JSON with every character XML must escape, and non-ASCII text
+BIG_VALUE = json.dumps({"schema": "jubelle.store/1", "note": "quotes \" & <tags> ’ é ♭ ♯ 𝄞",
+                        "items": [{"eid": f"E{i}", "t": [i, 480], "v": "x" * 40} for i in range(1500)]},
+                       ensure_ascii=False)
 
 
 def run(exe, args, log, timeout=240):
@@ -98,6 +104,15 @@ def variants(base, work):
             i = s.find("<Style>") + len("<Style>")
             return (s[:i] + f"\n    <{MARK}>part</{MARK}>" + s[i:]).encode("utf-8")
 
+    def add_bigtag(name, data, extra):
+        if name == mscx:
+            s = data.decode("utf-8")
+            i = s.find("<metaTag ")
+            if i < 0:
+                i = s.find("<Score>") + len("<Score>")
+            value = BIG_VALUE.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+            return (s[:i] + f'<metaTag name="{MARK}Big">{value}</metaTag>\n    ' + s[i:]).encode("utf-8")
+
     def add_all(name, data, extra):
         for f in (add_folder, add_metatag, add_style, add_element, add_part):
             new = f(name, data, extra)
@@ -106,7 +121,7 @@ def variants(base, work):
         return data
 
     out = {}
-    for label, fn in (("folder", add_folder), ("metatag", add_metatag), ("style", add_style),
+    for label, fn in (("folder", add_folder), ("metatag", add_metatag), ("bigtag", add_bigtag), ("style", add_style),
                       ("element", add_element), ("part", add_part), ("all", add_all)):
         dst = work / f"variant_{label}.mscz"
         rewrite(base, dst, fn)
@@ -117,8 +132,8 @@ def variants(base, work):
 
 def probe(mscz):
     """Where the probe (or Jubelle's real data) is found in a saved .mscz."""
-    found = {"folder": False, "metatag": False, "style": False, "element": False, "part": False}
-    real = {"jubelleStyles": 0, "jubelleMetaTags": 0}
+    found = {"folder": False, "metatag": False, "bigtag": False, "style": False, "element": False, "part": False}
+    real = {"jubelleStyles": 0, "jubelleMetaTags": 0, "eids": set()}
     with zipfile.ZipFile(mscz) as z:
         names = z.namelist()
         found["folder"] = any(n.startswith("Jubelle/") for n in names)
@@ -128,6 +143,11 @@ def probe(mscz):
                 found["metatag"] = f'name="{MARK}"' in text
                 found["element"] = f"<{MARK}>element" in text
                 real["jubelleMetaTags"] = text.count('<metaTag name="jubelle')
+                real["eids"] = set(re.findall(r"<eid>([^<]*)</eid>", text))
+                m = re.search(f'<metaTag name="{MARK}Big">(.*?)</metaTag>', text, re.S)
+                if m:
+                    v = html.unescape(m.group(1))
+                    found["bigtag"] = v == BIG_VALUE
             if n == "score_style.mss":
                 found["style"] = f"<{MARK}>style" in text
                 real["jubelleStyles"] = text.count("<jubelle")
@@ -169,7 +189,9 @@ def main():
         if saved.exists():
             names, found, real = probe(saved)
             r["survives_musescore_save"] = found if label != "real" else None
-            r["real_after_save"] = real if label == "real" else None
+            r["real_after_save"] = ({k: v for k, v in real.items() if k != "eids"} if label == "real" else None)
+            if label == "real":
+                r["eids_kept"] = f"{len(real_before['eids'] & real['eids'])} of {len(real_before['eids'])}"
             r["saved_entries"] = sorted(n for n in names if not n.startswith("Excerpts/"))
         r["log_lines"] = warnings_in(work / f"{label}_pdf.log")
         if label != "real":
@@ -182,11 +204,15 @@ def main():
     for r in results:
         if r["variant"] == "real":
             kept = (f"Jubelle style values {real_before['jubelleStyles']} → {r['real_after_save']['jubelleStyles']}, "
-                    f"meta tags {real_before['jubelleMetaTags']} → {r['real_after_save']['jubelleMetaTags']}"
+                    f"meta tags {real_before['jubelleMetaTags']} → {r['real_after_save']['jubelleMetaTags']}, "
+                    f"element IDs (eid) kept {r.get('eids_kept')}"
                     if r.get("real_after_save") else "not saved")
         else:
             s = r.get("survives_musescore_save") or {}
             want = [r["variant"]] if r["variant"] != "all" else ["folder", "metatag", "style", "element", "part"]
+            if r["variant"] == "bigtag":
+                want = ["bigtag (120 kB JSON, exact value)"]
+                s = {want[0]: s.get("bigtag")}
             kept = ", ".join(f"{k}: {'yes' if s.get(k) else 'no'}" for k in want) if s else "not saved"
         lines.append(f"| {r['variant']} | {'yes' if r['opens'] else '**no**'} | {'yes' if r['same_music'] else '**no**'} | {kept} |")
     lines += ["", "MuseScore's log lines mentioning the file (first variant with any):"]
