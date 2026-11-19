@@ -324,6 +324,14 @@ jobs:
         JUBELLE_RELEASE_PUBLIC_KEY: ${{ vars.JUBELLE_RELEASE_PUBLIC_KEY }}
       run: |
         if [ -z "$JUBELLE_RELEASE_PUBLIC_KEY" ]; then exit 0; fi
+        # devel builds make no installer; every build that makes one is checked
+        if ! ls build.artifacts/*.msi >/dev/null 2>&1; then
+          if [ "${{ inputs.build_mode }}" = "devel" ]; then
+            echo "- release key inside the installer: no installer in a devel build (not checked)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::error::no installer was built"; exit 1
+        fi
         MSI=$(ls build.artifacts/*.msi | head -1)
         mkdir -p msi_unpacked
         # an administrative install only unpacks the files; nothing is installed

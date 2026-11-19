@@ -90,7 +90,7 @@ works reliably on Windows and macOS, otherwise the OS encoders. Notices alone do
 | Patents | AAC-LC only; the US AAC-LC patents have expired (§3). The remaining exposure is the same as for any AAC-LC encoder, low |
 | Windows and macOS | the same libraries already make every MP4 on both platforms (FFmpeg 8.1 on Windows, 8.0 on macOS). `bundle_ffmpeg.py` now also refuses a Windows FFmpeg without the native AAC encoder |
 | Verified so far | compiles against all six FFmpeg header versions Jubelle supports (4–9). Run with FFmpeg 6.1 under AddressSanitizer/UBSan: AAC-LC streams at 48 kHz stereo and 44.1 kHz mono, odd input block sizes, a 96-sample input; decoded sound correlates 0.99999 with the input, signal-to-noise 46–66 dB; encoder delay 1,024 samples, as reported to the video sound alignment |
-| Verified in CI (Windows and macOS) | the audio export check now exports AAC and reads every ADTS frame (AAC-LC, rate, channels, duration against the WAV, frames carrying sound); the MP4 check (sound in time, loudness, correlation) covers the video soundtrack |
+| **Verified in CI, Windows and macOS** (18–19 Nov 2026; runs 44447159173 and 44447162973 on `engine/next`) | **audio export check passed on both**: AAC-LC, 2 channels, at 44.1, 48 and 96 kHz, every ADTS frame valid, length 41.27–41.29 s against the WAV's 41.25 s (priming and padding only), 167–354 bytes per frame (sound, not silence). **MP4 video check passed on both** (soundtrack in time, loudness and correlation within limits). The app check and interface self-test also passed on both. (The Windows run then stopped at the installer-key step because a devel build makes no installer; that step now skips devel builds, unrelated to AAC) |
 
 **What changed in Jubelle:** `src/framework/audio/thirdparty/fdk-aac` and the audio engine's FDK-based `AacEncoder`
 are deleted and no longer built. AAC export renders a 32-bit float WAV and encodes it with the FFmpeg encoder
@@ -99,7 +99,7 @@ are deleted and no longer built. AAC export renders a 32-bit float WAV and encod
 says so instead of writing a file; they ship with Jubelle on both platforms. In the new engine, AAC export belongs to
 `je::audio` (S6) and uses the same encoder.
 
-**Fallback (not needed so far):** the OS encoders (Media Foundation on Windows, AudioToolbox on macOS) remain the
+**Fallback (not needed):** the OS encoders (Media Foundation on Windows, AudioToolbox on macOS) remain the
 alternative if the CI checks show a problem with FFmpeg's encoder on either platform.
 
 ## Sources

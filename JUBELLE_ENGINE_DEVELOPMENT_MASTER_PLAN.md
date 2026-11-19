@@ -129,7 +129,8 @@ phases for each: `docs/02_jubelle_integration_map.md`.
   compliance risk for Jubelle, which doesn't hold MuseScore's copyrights. Personal sharing is still distribution.
   (c) AAC-LC US patents have expired. **Done (18 Nov, approved):** FDK is deleted from the source; AAC export and
   the MP4 soundtrack use **FFmpeg's own AAC encoder** (LGPL 2.1+, compatible with GPL v3; loaded at run time from
-  the bundled LGPL FFmpeg). Final choice and licensing: `docs/08_…` §7. Windows and macOS checks are running.
+  the bundled LGPL FFmpeg). Final choice and licensing: `docs/08_…` §7. **AAC and MP4 export checks passed on
+  Windows and macOS** (18–19 Nov).
 - Dorico, Sibelius and Finale are studied only through their documentation and behaviour, never their code.
 
 ## 9. Performance goals and benchmarks
@@ -225,7 +226,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 18 Nov 2026 | Phase 3.1 done and 3.2 started: standalone engine build; first core code with 24 tests; CI on Windows, macOS and Linux green, ThreadSanitizer and AddressSanitizer/UBSan clean |
 | 18 Nov 2026 | User's decisions: AAC replacement, style preservation, abbreviated labels, condensing approved |
 | 18 Nov 2026 | Roadmap revised for a complete, independent engine (D-E22): ten subsystems with independent tests; no testing release until the gates pass |
-| 18 Nov 2026 | AAC: FFmpeg's own AAC encoder replaces FDK AAC, which is deleted from the source (`docs/08_…` §7); verified locally with FFmpeg 6.1 under sanitizers; Windows and macOS export checks running |
+| 18 Nov 2026 | AAC: FFmpeg's own AAC encoder replaces FDK AAC, which is deleted from the source (`docs/08_…` §7); verified locally with FFmpeg 6.1 under sanitizers; **AAC and MP4 export checks passed on Windows and macOS** |
 | 18 Nov 2026 | **S1 first increment:** persistent id map, immutable objects, field vocabulary, model with O(1) snapshots, structural edits, invariant checker, score builder; 35 tests (property tests for the map and for random edit/undo/redo sequences; snapshots read on other threads) clean under AddressSanitizer/UBSan and ThreadSanitizer. Orchestra size (39 × 285, 89,324 objects): one note edit or undo ≈ 1 µs, chord insert or delete ≈ 35 µs, snapshot O(1), model heap 41.6 MB |
 | 18 Nov 2026 | S1: `BulkBuilder` (whole score at once, for file reading; same model as the transaction path, tested) and one-pass `IdMap` construction; orchestra built in 148 ms; 39 tests |
 
@@ -236,7 +237,6 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   (0.84–0.98 s through transactions), giving exactly the same model (tested).
 - **S2** next: native MuseScore 4.x reader and writer; engine store; style-setting preservation with the
   Jubelle → MuseScore → Jubelle test; round trips on the corpus.
-- AAC: done in code; confirm the Windows (run 44447159173) and macOS (run 44447162973) export checks.
 - Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
 
 ## 16. Important technical decisions
@@ -264,7 +264,7 @@ Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 | R-T8 | Feature parity: dozens of Jubelle features and decades of MuseScore behaviour to reproduce | per-feature checklist from the integration map; comparison tests per subsystem; nothing is released until parity is checked |
 | R-T9 | Audio engine replacement (real-time safety, plug-in hosting) | offline sample-exact render tests, glitch tests under load, VST3 hosting tested on both platforms before integration |
 | R-T7 | Condensing readability | ported tested classifier, smoothing rules, user's visual review before release |
-| R-L1 | FDK AAC licence (GPL incompatibility) | **closed in code** (18 Nov): FDK removed, FFmpeg's own LGPL encoder used; closes when the Windows and macOS export checks pass |
+| R-L1 | FDK AAC licence (GPL incompatibility) | **closed** (18–19 Nov): FDK removed, FFmpeg's own LGPL encoder used; AAC and MP4 checks passed on Windows and macOS |
 | R-C2 | MuseScore saving a Jubelle score drops Jubelle's style values | the engine store mirrors all 11 settings in meta tags (D-E19, S2), with the Jubelle → MuseScore → Jubelle test |
 | R-P1 | The user's private scores leaking into Git or reports | kept outside the repository; git-ignore backstop; CI guard; anonymous names in reports |
 | R-C1 | MuseScore upstream changes after 4.7.7 | not needed; the fork stays on 4.7.7. Upstream fixes are cherry-picked only when relevant |
