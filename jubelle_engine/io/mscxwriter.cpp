@@ -132,6 +132,82 @@ void linkToMain(Node& n, int layoutNo)
     }
 }
 
+//! MuseScore's element type for a spanner kind (the model's names are case-insensitive: "hairpin", "hairPin")
+std::string spannerType(const std::string& kind)
+{
+    static const std::map<std::string, std::string> types {
+        { "slur", "Slur" }, { "hairpin", "HairPin" }, { "volta", "Volta" }, { "ottava", "Ottava" }, { "pedal", "Pedal" },
+        { "trill", "Trill" }, { "textline", "TextLine" }, { "letring", "LetRing" }, { "palmmute", "PalmMute" },
+        { "vibrato", "Vibrato" }, { "whammybar", "WhammyBar" }, { "rasgueado", "Rasgueado" }, { "harmonicmark", "HarmonicMark" },
+        { "pickscrape", "PickScrape" }, { "gradualtempochange", "GradualTempoChange" }, { "glissando", "Glissando" },
+        { "note line", "NoteLine" }, { "noteline", "NoteLine" }, { "tie", "Tie" }, { "laissezvib", "LaissezVib" },
+    };
+    std::string lower;
+    for (char c : kind) {
+        lower += char(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c);
+    }
+    auto it = types.find(lower);
+    return it == types.end() ? upperFirst(kind) : it->second;
+}
+
+//! MuseScore's symbol for an articulation the model names plainly ("accent"); MuseScore's own names pass through
+std::string articulationSymbol(const std::string& name)
+{
+    static const std::map<std::string, std::string> symbols {
+        { "accent", "articAccentAbove" }, { "staccato", "articStaccatoAbove" }, { "staccatissimo", "articStaccatissimoAbove" },
+        { "tenuto", "articTenutoAbove" }, { "marcato", "articMarcatoAbove" }, { "portato", "articTenutoStaccatoAbove" },
+        { "accentStaccato", "articAccentStaccatoAbove" }, { "marcatoStaccato", "articMarcatoStaccatoAbove" },
+        { "tenutoAccent", "articTenutoAccentAbove" }, { "stress", "articStressAbove" }, { "unstress", "articUnstressAbove" },
+        { "upBow", "stringsUpBow" }, { "downBow", "stringsDownBow" }, { "harmonic", "stringsHarmonic" },
+        { "openString", "brassMuteOpen" }, { "stopped", "brassMuteClosed" }, { "snapPizzicato", "pluckedSnapPizzicatoAbove" },
+        { "trill", "ornamentTrill" }, { "mordent", "ornamentMordent" }, { "shortTrill", "ornamentShortTrill" },
+        { "turn", "ornamentTurn" }, { "invertedTurn", "ornamentTurnInverted" },
+    };
+    auto it = symbols.find(name);
+    return it == symbols.end() ? name : it->second;
+}
+
+bool isOrnamentSymbol(const std::string& symbol)
+{
+    return symbol.rfind("ornament", 0) == 0;
+}
+
+//! The spelling of a pitch with no spelling of its own (tonal pitch class: C = 14, G = 15, F = 13, …), in the key
+//! given (fifths: -7 … 7): flats in flat keys, sharps otherwise
+int64_t defaultTpc(int64_t pitch, int64_t key)
+{
+    static const int sharp[12] = { 14, 21, 16, 23, 18, 13, 20, 15, 22, 17, 24, 19 };
+    static const int flat[12] = { 14, 9, 16, 11, 18, 13, 8, 15, 10, 17, 12, 19 };
+    const int pc = int(((pitch % 12) + 12) % 12);
+    return key < 0 ? flat[pc] : sharp[pc];
+}
+
+//! The diatonic steps of a transposition given only in semitones (a whole step down: -1; a major sixth down: -5)
+int64_t diatonicOf(int64_t chromatic)
+{
+    const double d = double(chromatic) * 7.0 / 12.0;
+    return int64_t(d < 0 ? d - 0.5 : d + 0.5);
+}
+
+//! Common jumps: where they go, where play stops, where it continues
+void jumpTargets(const std::string& text, std::string& to, std::string& until, std::string& cont)
+{
+    std::string t;
+    for (char c : text) {
+        t += char(c >= 'a' && c <= 'z' ? c - 'a' + 'A' : c);
+    }
+    const bool ds = t.find("D.S") != std::string::npos || t.find("DAL SEGNO") != std::string::npos;
+    to = ds ? "segno" : "start";
+    until = "end";
+    cont.clear();
+    if (t.find("FINE") != std::string::npos) {
+        until = "fine";
+    } else if (t.find("CODA") != std::string::npos) {
+        until = "coda";
+        cont = "codab";
+    }
+}
+
 //! Archive entries kept as one text: name, NUL, size, NUL, data, ...
 std::vector<zip::Entry> unpackEntries(const std::string& extras)
 {
@@ -150,6 +226,35 @@ std::vector<zip::Entry> unpackEntries(const std::string& extras)
         at = z2 + 1 + size;
     }
     return out;
+}
+
+//! Links by place (formats before 4.60): in the main score <linkedMain/>, in a part <linked></linked>, first in
+//! each linkable element of the music (after its identity); a part's copies lose the main score's identities
+void linkByLocation(Node& n, bool mainScore)
+{
+    static const std::set<std::string> linkable {
+        "Chord", "Rest", "Note", "MeasureRepeat", "KeySig", "TimeSig", "Clef", "Lyrics", "Articulation", "Ornament", "Dynamic",
+        "StaffText", "SystemText", "RehearsalMark", "Tempo", "Harmony", "Fingering", "Breath", "Fermata", "Expression",
+        "InstrumentChange", "BarLine", "Tuplet", "Slur", "HairPin", "Volta", "Ottava", "Pedal", "Trill", "TextLine", "Tie",
+        "Arpeggio", "Jump", "Marker", "ChordLine", "Glissando", "Tremolo", "TremoloSingleChord", "TremoloTwoChord",
+    };
+    for (size_t i = 0; i < n.children.size(); ++i) {
+        Node& c = n.children[i];
+        if (c.name == "linkedTo" || c.name == "linked" || c.name == "linkedMain" || (!mainScore && c.name == "eid")) {
+            n.children.erase(n.children.begin() + long(i));
+            --i;
+            continue;
+        }
+        linkByLocation(c, mainScore);
+    }
+    if (linkable.count(n.name) && !n.leaf) {
+        size_t at = (!n.children.empty() && n.children.front().name == "eid") ? 1 : 0;
+        Node link;
+        link.name = mainScore ? "linkedMain" : "linked";
+        link.leaf = true;
+        link.selfClosing = mainScore;
+        n.children.insert(n.children.begin() + long(at), link);
+    }
 }
 
 std::string folderName(const std::string& name, size_t index)
@@ -186,10 +291,32 @@ public:
         file.main.trailing = "\n";
         Node& root = file.main.root;
         root.name = "museScore";
-        root.attrs.emplace_back("version", "4.70");
+        root.attrs.emplace_back("version", format);
         const std::vector<Node> head = parseFragment(score->has(F::SCORE_HEAD) ? score->text(F::SCORE_HEAD) : defaultScoreHead());
         root.children.insert(root.children.end(), head.begin(), head.end());
         root.children.push_back(scoreNode());
+        if (!modern && !layouts.empty()) {
+            // before 4.60 a part's elements link by place: the main score's say <linkedMain/>, the part's <linked>
+            std::set<int> linkedStaves;
+            for (const Object* l : layouts) {
+                const model::IdList shown = std::get<model::IdList>(l->get(F::PLAYERS));
+                for (Id p : shown) {
+                    if (const Object* po = s.find(p)) {
+                        for (Id st : po->children()) {
+                            if (staffNumber.count(st)) {
+                                linkedStaves.insert(staffNumber.at(st));
+                            }
+                        }
+                    }
+                }
+            }
+            Node* sc = root.child("Score");
+            for (Node& c : sc->children) {
+                if (c.name == "Staff" && linkedStaves.count(std::atoi(c.attr("id").c_str()))) {
+                    linkByLocation(c, true);
+                }
+            }
+        }
 
         // the style also as score_style.mss, which MuseScore reads from an archive
         file.hasStyleEntry = true;
@@ -197,7 +324,7 @@ public:
         file.style.hasRoot = true;
         file.style.trailing = "\n";
         file.style.root.name = "museScore";
-        file.style.root.attrs.emplace_back("version", "4.70");
+        file.style.root.attrs.emplace_back("version", format);
         file.style.root.children.push_back(styleNode());
 
         zip::Entry container;
@@ -221,7 +348,15 @@ public:
             WriteReport partReport;
             Writer pw(s, partReport, *l, *generatedEids);
             xml::Document doc = pw.partDocument();
-            linkToMain(doc.root, int(layoutNo));
+            if (modern) {
+                linkToMain(doc.root, int(layoutNo));
+            } else if (Node* psc = doc.root.child("Score")) {
+                for (Node& c : psc->children) {
+                    if (c.name == "Staff") {   // the music (a part's staves say which main staff they copy)
+                        linkByLocation(c, false);
+                    }
+                }
+            }
             const std::string folder = l->text(F::TAG).empty() ? folderName(l->text(F::NAME), layoutNo) : l->text(F::TAG);
             const std::string base = "Excerpts/" + folder + "/" + folder;
             zip::Entry mscx;
@@ -232,7 +367,7 @@ public:
             mss.hasRoot = true;
             mss.trailing = "\n";
             mss.root.name = "museScore";
-            mss.root.attrs.emplace_back("version", "4.70");
+            mss.root.attrs.emplace_back("version", format);
             mss.root.children.push_back(pw.styleNode());
             zip::Entry styleEntry;
             styleEntry.name = base + ".mss";
@@ -261,7 +396,7 @@ public:
         doc.hasRoot = true;
         doc.trailing = "\n";
         doc.root.name = "museScore";
-        doc.root.attrs.emplace_back("version", "4.70");
+        doc.root.attrs.emplace_back("version", format);
         const std::vector<Node> head = parseFragment(layout->has(F::SCORE_HEAD) ? layout->text(F::SCORE_HEAD) : defaultScoreHead());
         doc.root.children.insert(doc.root.children.end(), head.begin(), head.end());
         doc.root.children.push_back(scoreNode());
@@ -301,7 +436,7 @@ private:
         }
         if (layout) {
             // a part: its players only, staves numbered from 1
-            const model::IdList& keep = std::get<model::IdList>(layout->get(F::PLAYERS));
+            const model::IdList keep = std::get<model::IdList>(layout->get(F::PLAYERS));   // a copy: get() returns a value
             std::vector<const Object*> chosen;
             for (Id p : keep) {
                 for (const Object* o : players) {
@@ -311,6 +446,7 @@ private:
                 }
             }
             players = chosen;
+            mainStaffNumber = staffNumber;
             staves.clear();
             staffNumber.clear();
             for (const Object* o : players) {
@@ -320,8 +456,11 @@ private:
                 }
             }
         }
+        anyFromFile = score->has(F::SCORE_HEAD) || score->has(F::STYLE) || score->has(F::META);
+        format = score->has(F::SOURCE_FORMAT) ? score->text(F::SOURCE_FORMAT) : std::string("4.70");
+        modern = !(format < std::string("4.60"));   // identities and <linkedTo> links from 4.60 on
         // part layouts link to the main score's elements by identity: every element written gets one
-        needLinks = !layouts.empty() || layout;
+        needLinks = (!layouts.empty() || layout) && modern;
         if (!generatedEids) {
             generatedEids = &ownEids;
         }
@@ -497,8 +636,11 @@ private:
             const Object* staff = s.find(st);
             Node sn = elem("Staff");
             sn.attrs.emplace_back("id", std::to_string(staffNumber[st]));
+            if (layout && !modern) {
+                sn.children.push_back(leaf("linkedTo", std::to_string(mainStaffNumber.at(st))));   // by number before 4.60
+            }
+            addEid(sn, *staff);
             if (!detailsFit(*staff)) {
-                addEid(sn, *staff);
                 Node type = elem("StaffType");
                 type.attrs.emplace_back("group", staff->text(F::SUBKIND).empty() ? std::string("pitched") : staff->text(F::SUBKIND));
                 type.children.push_back(leaf("name", "stdNormal"));
@@ -535,8 +677,9 @@ private:
         if (p.has(F::MUSESCORE_INSTRUMENT)) {
             instr.children.push_back(leaf("instrumentId", xml::encode(p.text(F::MUSESCORE_INSTRUMENT))));
         }
-        if (p.has(F::TRANSPOSE_DIATONIC)) {
-            instr.children.push_back(leaf("transposeDiatonic", std::to_string(p.intOr(F::TRANSPOSE_DIATONIC, 0))));
+        if (p.has(F::TRANSPOSE_DIATONIC) || p.intOr(F::TRANSPOSE_CHROMATIC, 0) != 0) {
+            instr.children.push_back(leaf("transposeDiatonic", std::to_string(p.intOr(F::TRANSPOSE_DIATONIC,
+                                                                                      diatonicOf(p.intOr(F::TRANSPOSE_CHROMATIC, 0))))));
         }
         if (p.has(F::TRANSPOSE_CHROMATIC)) {
             instr.children.push_back(leaf("transposeChromatic", std::to_string(p.intOr(F::TRANSPOSE_CHROMATIC, 0))));
@@ -585,7 +728,27 @@ private:
                     }
                 }
             }
+            if (!layout) {   // the main score's multi-measure rests (a part makes its own)
+                for (const Object* it : items) {
+                    if (it->text(F::SUBKIND) == "mmrMeasure" && it->idOr(F::ANCHOR) == staff.id()
+                        && it->fractionOr(F::TIME, Fraction()) == measureStart[m]) {
+                        for (Node& c : parseFragment(it->text(F::DETAILS))) {
+                            st.children.push_back(std::move(c));
+                        }
+                    }
+                }
+            }
             st.children.push_back(measureNode(staff, int(m), first, voicesByNumber, lastVoice));
+        }
+        if (!layout) {   // one after the last measure
+            for (const Object* it : items) {
+                if (it->text(F::SUBKIND) == "mmrMeasure" && it->idOr(F::ANCHOR) == staff.id()
+                    && !(it->fractionOr(F::TIME, Fraction()) < flowEnd)) {
+                    for (Node& c : parseFragment(it->text(F::DETAILS))) {
+                        st.children.push_back(std::move(c));
+                    }
+                }
+            }
         }
         if (first) {
             while (frameAt < frames.size()) {
@@ -643,8 +806,8 @@ private:
             for (const Object* it : items) {
                 const std::string sub = it->text(F::SUBKIND);
                 const Id where = it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it);
-                if (sub != "frame" && sub != "measureDetail" && !it->has(F::VOICE_INDEX) && where == staff.id()
-                    && it->fractionOr(F::TIME, Fraction()) == measureStart[size_t(m)] && it->has(F::AT_END) == atEnd) {
+                if (sub != "frame" && sub != "measureDetail" && sub != "mmrMeasure" && measureLevel(*it) && where == staff.id()
+                    && measureOfItem(*it) == m && it->has(F::AT_END) == atEnd) {
                     me.children.push_back(itemNode(*it));
                 }
             }
@@ -660,11 +823,11 @@ private:
             }
         }
         for (const Object* sp : spanners) {
-            if (sp->idOr(F::ANCHOR) == staff.id()) {
+            if (spannerPlace(*sp).first == staff.id()) {
                 const Fraction t = sp->fractionOr(F::TIME, Fraction());
                 const Fraction e = t + sp->fractionOr(F::DURATION, Fraction());
                 if (measureAt(t) == m || measureEnding(e) == m) {
-                    lastVoice = std::max(lastVoice, int(sp->intOr(F::VOICE_INDEX, 0)));
+                    lastVoice = std::max(lastVoice, spannerPlace(*sp).second);
                 }
             }
         }
@@ -688,6 +851,79 @@ private:
         bool spannerEnd = false;
     };
 
+    const Object* playerOf(const Object& o) const
+    {
+        Id a = o.parent();
+        for (int guard = 0; a.isValid() && guard < 8; ++guard) {
+            const Object* x = s.find(a);
+            if (!x) {
+                return nullptr;
+            }
+            if (x->kind() == Kind::Player) {
+                return x;
+            }
+            a = x->parent();
+        }
+        return nullptr;
+    }
+
+    //! The key (fifths) in effect at an event: the last key signature at or before it on its staff or for all staves
+    int64_t keyAt(const Object& ev) const
+    {
+        Id staff;
+        for (Id a = ev.parent(); a.isValid();) {
+            const Object* x = s.find(a);
+            if (!x) {
+                break;
+            }
+            if (x->kind() == Kind::Staff) {
+                staff = a;
+                break;
+            }
+            a = x->parent();
+        }
+        const Fraction t = ev.fractionOr(F::TIME, Fraction());
+        int64_t key = 0;
+        Fraction best(-1, 1);
+        for (const Object* it : items) {
+            if (it->text(F::SUBKIND) != "keySig") {
+                continue;
+            }
+            const Fraction at = it->fractionOr(F::TIME, Fraction());
+            const bool here = !it->has(F::ANCHOR) || it->idOr(F::ANCHOR) == staff;
+            if (here && !(t < at) && best < at) {
+                best = at;
+                key = it->intOr(F::INT_VALUE, 0);
+            }
+        }
+        return key;
+    }
+
+    //! The staff and voice a spanner is written in: its anchor if that's a staff; for one anchored to an event (or a
+    //! note), that event's staff and voice; for one anchored to a measure (a volta) or nothing, the first staff
+    std::pair<Id, int> spannerPlace(const Object& sp) const
+    {
+        Id a = sp.idOr(F::ANCHOR);
+        int voice = int(sp.intOr(F::VOICE_INDEX, -1));
+        for (int guard = 0; a.isValid() && guard < 8; ++guard) {
+            const Object* o = s.find(a);
+            if (!o) {
+                break;
+            }
+            if (o->kind() == Kind::Staff) {
+                return { a, voice < 0 ? 0 : voice };
+            }
+            if (o->kind() == Kind::Voice && voice < 0) {
+                voice = int(o->intOr(F::NUMBER, 0));
+            }
+            if (o->kind() == Kind::Measure || o->kind() == Kind::Flow || o->kind() == Kind::Score) {
+                break;
+            }
+            a = o->parent();
+        }
+        return { staves.empty() ? Id() : staves.front()->id(), voice < 0 ? 0 : voice };
+    }
+
     //! Where a system item (tempo, rehearsal mark…) is written: the staff it was read from, or the first staff when
     //! that one isn't in the document (a part without it)
     Id homeOf(const Object& it) const
@@ -699,19 +935,81 @@ private:
         return staves.empty() ? Id() : staves.front()->id();
     }
 
+    //! Items written by the measure, not in a voice: those read from there (no voice index), and jumps and markers
+    //! made in Jubelle (MuseScore keeps them in the measure)
+    static bool measureLevel(const Object& it)
+    {
+        if (it.has(F::VOICE_INDEX)) {
+            return false;
+        }
+        if (it.has(F::TAG)) {
+            return true;
+        }
+        const std::string sub = it.text(F::SUBKIND);
+        return sub == "jump" || sub == "marker";
+    }
+
+    //! A key or time signature made for all staves (no staff of its own): written on every staff
+    static bool onEveryStaff(const Object& it)
+    {
+        const std::string sub = it.text(F::SUBKIND);
+        return (sub == "keySig" || sub == "timeSig") && !it.has(F::ANCHOR) && !it.has(F::HOME_STAFF) && !it.has(F::TAG);
+    }
+
+    //! The measure a measure-level item belongs to: the one starting at its time, else the one it ends (a jump at
+    //! the end of the music)
+    int measureOfItem(const Object& it) const
+    {
+        const Fraction t = it.fractionOr(F::TIME, Fraction());
+        const int m = measureAt(t);
+        return measureStart[size_t(m)] == t ? m : measureEnding(t);
+    }
+
     bool itemInVoice(const Object& it, const Object& staff, int v) const
     {
         const std::string sub = it.text(F::SUBKIND);
-        if (sub == "frame" || sub == "measureDetail" || !it.has(F::VOICE_INDEX)) {
+        if (sub == "frame" || sub == "measureDetail" || sub == "mmrMeasure" || measureLevel(it)) {
             return false;   // frames and measure-level items are written by the measure
         }
         const Id anchor = it.idOr(F::ANCHOR);
-        bool here = anchor.isValid() ? anchor == staff.id() : homeOf(it) == staff.id();
+        const bool here = onEveryStaff(it) || (anchor.isValid() ? anchor == staff.id() : homeOf(it) == staff.id());
         return here && int(it.intOr(F::VOICE_INDEX, 0)) == v;
+    }
+
+    //! Whether this staff needs a time signature written at the start of measure m: the measure's signature
+    //! differs from the one before (or it is the first) and no time signature item gives it
+    bool needsTimeSig(const Object& staff, int m) const
+    {
+        const Object& mo = *measures[size_t(m)];
+        const int64_t n = mo.intOr(F::TIMESIG_NUM, 4), d = mo.intOr(F::TIMESIG_DEN, 4);
+        if (m > 0) {
+            const Object& prev = *measures[size_t(m - 1)];
+            if (prev.intOr(F::TIMESIG_NUM, 4) == n && prev.intOr(F::TIMESIG_DEN, 4) == d) {
+                return false;
+            }
+        }
+        for (const Object* it : items) {
+            if (it->text(F::SUBKIND) == "timeSig" && (it->idOr(F::ANCHOR) == staff.id() || onEveryStaff(*it))
+                && it->fractionOr(F::TIME, Fraction()) == measureStart[size_t(m)]) {
+                return false;
+            }
+        }
+        // a file's measures already have theirs (read as items); only measures made in Jubelle need one
+        return !mo.has(F::ORIGIN_EID) && !anyFromFile;
     }
 
     void writeVoice(Node& out, const Object& staff, const Object* voice, int v, int m)
     {
+        if (v == 0 && needsTimeSig(staff, m)) {
+            const Object& mo = *measures[size_t(m)];
+            Node ts = elem("TimeSig");
+            if (needLinks) {   // an identity of its own, derived from its measure's and staff, the same on every save
+                ts.children.push_back(leaf("eid", partEid(eidOf(mo), -1000 - staffNumber.at(staff.id()))));
+            }
+            ts.children.push_back(leaf("sigN", std::to_string(mo.intOr(F::TIMESIG_NUM, 4))));
+            ts.children.push_back(leaf("sigD", std::to_string(mo.intOr(F::TIMESIG_DEN, 4))));
+            out.children.push_back(std::move(ts));
+        }
         const Fraction mStart = measureStart[size_t(m)];
         const Fraction mEnd = mStart + measureLen[size_t(m)];
         std::vector<Entry> entries;
@@ -729,7 +1027,7 @@ private:
             }
         }
         for (const Object* sp : spanners) {
-            if (sp->idOr(F::ANCHOR) != staff.id() || int(sp->intOr(F::VOICE_INDEX, 0)) != v) {
+            if (spannerPlace(*sp) != std::make_pair(staff.id(), v)) {
                 continue;
             }
             const Fraction t = sp->fractionOr(F::TIME, Fraction());
@@ -737,9 +1035,11 @@ private:
             if (measureAt(t) == m) {   // (in the last measure, also anything past its end)
                 entries.push_back({ t, 2, sp->intOr(F::SEQ, 0), sp });
             }
-            const int em = (e == mStart && m == 0) ? 0 : measureEnding(e);
-            if (em == m && (mStart < e || (m == 0 && e == mStart))) {
-                Entry end { e, e == mEnd ? 4 : 0, sp->intOr(F::SEQ, 0), sp, true };
+            // the end marker: in the measure the end falls in (at a barline, the start of the next measure, as
+            // MuseScore writes it); at the very end of the music, after the last measure's events
+            if (measureAt(e) == m) {
+                const int order = (e == mEnd && !(e < flowEnd)) ? 4 : (e == t ? 2 : 0);
+                Entry end { e, order, sp->intOr(F::SEQ, 0), sp, true };
                 entries.push_back(end);
             }
         }
@@ -817,7 +1117,9 @@ private:
                 out.children.push_back(e.spannerEnd ? spannerEnd(*e.object, m, e.time) : spannerStart(*e.object, m));
             } else if (e.object) {
                 moveTo(e.time);
+                copyStaff = staffNumber.at(staff.id());
                 out.children.push_back(itemNode(*e.object));
+                copyStaff = 0;
             } else {
                 const auto& g = groups[size_t(e.seq)];
                 const Object* main = g.back();
@@ -841,6 +1143,16 @@ private:
                     openTuplets.push_back(chain[i]);
                 }
                 moveTo(e.time);
+                for (Id c : main->children()) {
+                    const Object* a = s.find(c);
+                    if (a->kind() == Kind::Attachment && a->text(F::SUBKIND) == "fermata" && !a->has(F::TAG)) {
+                        Node f = elem("Fermata");
+                        addEid(f, *a);
+                        f.children.push_back(leaf("subtype", xml::encode(a->text(F::TEXT).empty() ? std::string("fermataAbove")
+                                                                                            : a->text(F::TEXT))));
+                        out.children.push_back(std::move(f));
+                    }
+                }
                 for (const Object* ev : g) {
                     out.children.push_back(eventNode(*ev, m));
                 }
@@ -909,10 +1221,18 @@ private:
         }
         for (Id c : ev.children()) {   // in the model's order, which is the file's
             const Object* child = s.find(c);
+            if (child->kind() == Kind::Attachment && child->text(F::SUBKIND) == "fermata" && !child->has(F::TAG)) {
+                continue;   // a fermata is MuseScore's segment element: written before the chord
+            }
             if (child->kind() == Kind::Attachment) {
                 n.children.push_back(attachmentNode(*child));
             } else if (child->kind() == Kind::Note) {
                 n.children.push_back(noteNode(*child, ev, m));
+            }
+        }
+        if (ev.has(F::DETAILS_AFTER) && (!ev.has(F::DETAILS_KEY) || detailsKey(ev) == ev.intOr(F::DETAILS_KEY, 0))) {
+            for (Node& c : parseFragment(ev.text(F::DETAILS_AFTER))) {
+                n.children.push_back(std::move(c));
             }
         }
         return n;
@@ -944,21 +1264,23 @@ private:
             n.children.push_back(leaf("text", a.text(F::TEXT)));
             return n;
         }
-        const std::string tag = a.has(F::TAG) ? a.text(F::TAG) : "Articulation";
+        const std::string symbol = a.has(F::TAG) ? sub : articulationSymbol(sub);
+        const std::string tag = a.has(F::TAG) ? a.text(F::TAG) : (isOrnamentSymbol(symbol) ? "Ornament" : "Articulation");
         Node n = elem(tag);
         addEid(n, a);
         if (tag == "Articulation" || tag == "Ornament") {
-            n.children.push_back(leaf("subtype", xml::encode(sub)));
+            n.children.push_back(leaf("subtype", xml::encode(symbol)));
         }
         addDetails(n, a);
         finishNode(n);
         return n;
     }
 
-    //! A relative location from (measure, position) of `from` to `to`
-    Node location(const Fraction& from, const Fraction& to)
+    //! A relative location from `from`, in measure `mf` (the measure being written: MuseScore reads a location from
+    //! the measure it is in, even at its end), to `to`
+    Node location(int mf, const Fraction& from, const Fraction& to)
     {
-        const int mf = measureAt(from), mt = measureAt(to);
+        const int mt = measureAt(to);
         Node loc = elem("location");
         const Fraction pf = from - measureStart[size_t(mf)];
         const Fraction pt = to - measureStart[size_t(mt)];
@@ -993,7 +1315,7 @@ private:
                 Node sp = elem("Spanner");
                 sp.attrs.emplace_back("type", "Tie");
                 Node prev = elem("prev");
-                prev.children.push_back(location(at, fc->fractionOr(F::TIME, Fraction())));
+                prev.children.push_back(location(m, at, fc->fractionOr(F::TIME, Fraction())));
                 sp.children.push_back(std::move(prev));
                 n.children.push_back(std::move(sp));
             }
@@ -1005,21 +1327,36 @@ private:
                 Node sp = elem("Spanner");
                 sp.attrs.emplace_back("type", "Tie");
                 Node tie = elem("Tie");
+                if (note.has(F::TIE_EID)) {
+                    tie.children.push_back(leaf("eid", note.text(F::TIE_EID)));
+                } else if (needLinks) {   // a tie made in Jubelle: an identity derived from its note's
+                    tie.children.push_back(leaf("eid", partEid(eidOf(note), -77)));
+                }
                 addDetails(tie, note, F::DETAILS_2);
                 finishNode(tie);
                 sp.children.push_back(std::move(tie));
                 Node next = elem("next");
-                next.children.push_back(location(at, tc->fractionOr(F::TIME, Fraction())));
+                next.children.push_back(location(m, at, tc->fractionOr(F::TIME, Fraction())));
                 sp.children.push_back(std::move(next));
                 n.children.push_back(std::move(sp));
             }
         }
-        n.children.push_back(leaf("pitch", std::to_string(note.intOr(F::PITCH, 60))));
-        if (note.has(F::TPC)) {
-            n.children.push_back(leaf("tpc", std::to_string(note.intOr(F::TPC, 14))));
-        }
+        const int64_t pitch = note.intOr(F::PITCH, 60);
+        n.children.push_back(leaf("pitch", std::to_string(pitch)));
+        // a note entered without a spelling gets the plain one for the key; on a transposing instrument its
+        // written spelling follows the transposition (fifths = 7 × semitones − 12 × steps)
+        const int64_t tpc = note.has(F::TPC) ? note.intOr(F::TPC, 14) : defaultTpc(pitch, keyAt(chord));
+        n.children.push_back(leaf("tpc", std::to_string(tpc)));
         if (note.has(F::TPC2)) {
             n.children.push_back(leaf("tpc2", std::to_string(note.intOr(F::TPC2, 14))));
+        } else if (!note.has(F::TPC)) {
+            const Object* player = playerOf(chord);
+            const int64_t c = player ? player->intOr(F::TRANSPOSE_CHROMATIC, 0) : 0;
+            const int64_t d = player ? player->intOr(F::TRANSPOSE_DIATONIC, diatonicOf(c)) : 0;
+            const int64_t fifths = 7 * c - 12 * d;
+            if (fifths != 0) {
+                n.children.push_back(leaf("tpc2", std::to_string(tpc - fifths)));
+            }
         }
         return n;
     }
@@ -1027,13 +1364,19 @@ private:
     Node spannerStart(const Object& sp, int m)
     {
         (void)m;
-        const std::string type = upperFirst(sp.text(F::SUBKIND));
+        const std::string type = spannerType(sp.text(F::SUBKIND));
         Node n = elem("Spanner");
         n.attrs.emplace_back("type", type);
         Node body = elem(type);
         addEid(body, sp);
         if (type == "Volta") {
-            body.children.push_back(leaf("endings", xml::encode(sp.text(F::TEXT))));
+            // the endings it applies to ("1", "1, 2"); a text such as "1." is its label, the number its ending
+            const std::string t = sp.text(F::TEXT);
+            const bool list = !t.empty() && t.find_first_not_of("0123456789, ") == std::string::npos;
+            body.children.push_back(leaf("endings", list ? xml::encode(t) : std::to_string(sp.intOr(F::INT_VALUE, 1))));
+            if (!list && !t.empty() && !sp.has(F::DETAILS)) {
+                body.children.push_back(leaf("text", xml::encode(t)));
+            }
         } else if (type == "HairPin") {
             body.children.push_back(leaf("subtype", std::to_string(sp.intOr(F::INT_VALUE, 0))));
         } else if (type == "Ottava") {
@@ -1044,7 +1387,7 @@ private:
         n.children.push_back(std::move(body));
         const Fraction t = sp.fractionOr(F::TIME, Fraction());
         Node next = elem("next");
-        next.children.push_back(location(t, t + sp.fractionOr(F::DURATION, Fraction())));
+        next.children.push_back(location(m, t, t + sp.fractionOr(F::DURATION, Fraction())));
         n.children.push_back(std::move(next));
         return n;
     }
@@ -1053,10 +1396,10 @@ private:
     {
         (void)m;
         Node n = elem("Spanner");
-        n.attrs.emplace_back("type", upperFirst(sp.text(F::SUBKIND)));
+        n.attrs.emplace_back("type", spannerType(sp.text(F::SUBKIND)));
         Node prev = elem("prev");
         // relative to where the marker is: the end of its measure when the spanner ends at a barline
-        prev.children.push_back(location(at, sp.fractionOr(F::TIME, Fraction())));
+        prev.children.push_back(location(m, at, sp.fractionOr(F::TIME, Fraction())));
         n.children.push_back(std::move(prev));
         return n;
     }
@@ -1077,7 +1420,13 @@ private:
         };
         const std::string tag = it.has(F::TAG) ? it.text(F::TAG) : (tags.count(sub) ? tags.at(sub) : upperFirst(sub));
         Node n = elem(tag);
-        addEid(n, it);
+        if (onEveryStaff(it) && copyStaff > 1) {
+            if (needLinks) {   // the copies on other staves: identities of their own
+                n.children.push_back(leaf("eid", partEid(eidOf(it), -copyStaff)));
+            }
+        } else {
+            addEid(n, it);
+        }
         addDetails(n, it);
         if (tag == "Clef") {
             n.children.push_back(leaf("concertClefType", xml::encode(it.text(F::TEXT))));
@@ -1098,12 +1447,45 @@ private:
         } else if (tag == "Dynamic" || tag == "Fermata" || tag == "Breath") {
             n.children.push_back(leaf("subtype", xml::encode(it.text(F::TEXT))));
         } else if (tag == "Harmony") {
-            if (it.has(F::INT_VALUE)) {
-                n.children.push_back(leaf("root", std::to_string(it.intOr(F::INT_VALUE, 14))));
+            std::string name = it.text(F::TEXT);
+            int64_t root = it.intOr(F::INT_VALUE, -1);
+            if (root < 0 && !it.has(F::TAG) && !name.empty() && name[0] >= 'A' && name[0] <= 'G') {
+                // a chord symbol made as text ("Cmaj7", "Bb7"): its root and the rest
+                static const int natural[7] = { 17, 19, 14, 16, 18, 13, 15 };   // A B C D E F G
+                root = natural[name[0] - 'A'];
+                size_t i = 1;
+                for (; i < name.size() && (name[i] == 'b' || name[i] == '#'); ++i) {
+                    root += name[i] == '#' ? 7 : -7;
+                }
+                name = name.substr(i);
             }
-            if (!it.text(F::TEXT).empty()) {
-                n.children.push_back(leaf("name", xml::encode(it.text(F::TEXT))));
+            if (root >= 0) {
+                n.children.push_back(leaf("root", std::to_string(root)));
             }
+            if (!name.empty()) {
+                n.children.push_back(leaf("name", xml::encode(name)));
+            }
+        } else if (tag == "InstrumentChange") {
+            if (!it.has(F::DETAILS) || it.has(F::DETAILS_KEY) && detailsKey(it) != it.intOr(F::DETAILS_KEY, 0)) {
+                Node in = elem("Instrument");
+                if (it.has(F::INSTRUMENT)) {
+                    in.attrs.emplace_back("id", xml::encode(it.text(F::INSTRUMENT)));
+                }
+                in.children.push_back(leaf("longName", xml::encode(it.text(F::NAME))));
+                if (it.intOr(F::TRANSPOSE_CHROMATIC, 0) != 0) {
+                    in.children.push_back(leaf("transposeDiatonic", std::to_string(diatonicOf(it.intOr(F::TRANSPOSE_CHROMATIC, 0)))));
+                    in.children.push_back(leaf("transposeChromatic", std::to_string(it.intOr(F::TRANSPOSE_CHROMATIC, 0))));
+                }
+                n.children.push_back(std::move(in));
+            }
+            n.children.push_back(leaf("text", it.text(F::TEXT).empty() ? xml::encode(it.text(F::NAME)) : it.text(F::TEXT)));
+        } else if (tag == "Jump" && !it.has(F::DETAILS)) {
+            std::string to, until, cont;
+            jumpTargets(it.text(F::TEXT), to, until, cont);
+            n.children.push_back(leaf("jumpTo", to));
+            n.children.push_back(leaf("playUntil", until));
+            n.children.push_back(leaf("continueAt", cont));
+            n.children.push_back(leaf("text", it.text(F::TEXT)));
         } else if (!it.text(F::TEXT).empty() || tag == "StaffText" || tag == "SystemText" || tag == "RehearsalMark") {
             n.children.push_back(leaf("text", it.text(F::TEXT)));
         }
@@ -1119,11 +1501,15 @@ private:
     std::set<std::string> usedEids;
     uint64_t eidCounter = 0;
     bool needLinks = false;
+    bool anyFromFile = false;
+    std::string format = "4.70";   // the MuseScore format written
+    bool modern = true;            // 4.60 or later
+    int copyStaff = 0;          // the staff an item for every staff is being written on   // the score was read from a file (its measures' time signatures are items)
     std::vector<const Object*> layouts;
     const Object* score = nullptr;
     const Object* flow = nullptr;
     std::vector<const Object*> players, staves, spanners, measures, items;
-    std::map<Id, int> staffNumber;
+    std::map<Id, int> staffNumber, mainStaffNumber;
     std::vector<Fraction> measureStart, measureLen;
     Fraction flowEnd;
     std::map<Id, Id> tieFrom;

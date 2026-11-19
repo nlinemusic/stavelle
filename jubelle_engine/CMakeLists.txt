@@ -118,6 +118,7 @@ add_executable(je_tests
     tests/notation_tests.cpp
     tests/io_tests.cpp
     tests/io_reader_regression_tests.cpp
+    tests/io_writer_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core je_io gtest)

@@ -45,4 +45,8 @@ bool readScore(const ScoreFile& file, model::Model& model, IdGenerator& ids, Rea
 
 //! A plain listing of the music (staff, voice, time, duration, pitches, grace) for comparing two readings
 std::string musicListing(const model::Snapshot& snapshot);
+
+//! Every object below the score in tree order with its fields, ids written as tree paths, so that two readings of
+//! the same music compare equal whatever ids they were given (read-order counters and fingerprints left out)
+std::string modelDump(const model::Snapshot& snapshot);
 }

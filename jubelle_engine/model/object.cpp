@@ -47,6 +47,9 @@ Object::Object(Id id, std::vector<std::pair<Field, Value> > properties)
                      [](const std::pair<Field, Value>& a, const std::pair<Field, Value>& b) { return a.first < b.first; });
     for (auto& p : properties) {
         if (isAbsent(p.second)) {
+            if (!m_props.empty() && m_props.back().first == p.first) {
+                m_props.pop_back();   // a later absent value removes the field (the last value given wins)
+            }
             continue;
         }
         if (!m_props.empty() && m_props.back().first == p.first) {
@@ -231,6 +234,9 @@ std::string_view fieldName(Field field)
     case SCORE_PRE: return "scorePre";
     case SCORE_POST: return "scorePost";
     case LAYOUT_BREAKS: return "layoutBreaks";
+    case SOURCE_FORMAT: return "sourceFormat";
+    case DETAILS_AFTER: return "detailsAfter";
+    case TIE_EID: return "tieEid";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

@@ -82,6 +82,14 @@ jobs:
         "$T" corpus . --known jubelle_engine/corpus/known_issues.txt --report je_corpus.md > je_corpus.out; rc=$?
         { echo "### ${{ matrix.os }}"; cat je_corpus.md; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
+    - name: Files (S2) - every 4.x score written from the model alone and read again (D-E27)
+      shell: bash
+      run: |
+        if [ ! -f jubelle_engine/io/mscxwriter.cpp ]; then exit 0; fi
+        T=build-je/je_io_tool; [ -f build-je/Release/je_io_tool.exe ] && T=build-je/Release/je_io_tool.exe
+        "$T" regenerate . > je_regenerate.md; rc=$?
+        { echo "### ${{ matrix.os }}"; cat je_regenerate.md; } >> "$GITHUB_STEP_SUMMARY"
+        exit $rc
     - name: Files (S2) - reading and writing the large orchestra score (informational)
       shell: bash
       run: |
@@ -122,10 +130,20 @@ jobs:
         python3 tools/jubelle_checks/je_reference_compare.py build-je/je_io_tool . v4_scores.txt ref_listings je_reference.md \
           --expected jubelle_engine/corpus/reference_differences.txt; rc=$?
         cat je_reference.md >> "$GITHUB_STEP_SUMMARY"
+        # the same scores written from the Jubelle model, read by MuseScore's engine: as it reads the originals
+        ./build-je/je_io_tool regenerate . --out generated > /dev/null || rc=1
+        (cd generated && find . -name '*.mscz' | sed 's|^\./||' | sort) > generated.txt
+        JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_listings \
+          ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_listings ref_listings je_generated.md \
+          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+        cat je_generated.md >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison
       if: always()
       uses: actions/upload-artifact@v6
       with:
         name: jubelle-engine-reference
-        path: je_reference.md
+        path: |
+          je_reference.md
+          je_generated.md

@@ -141,6 +141,9 @@ constexpr Field DETAILS_2 = ENGINE_BASE + 122;   // a second fragment (an Instru
 constexpr Field SCORE_HEAD = ENGINE_BASE + 123;  // string: the file's first elements (programVersion…), on the score
 constexpr Field SCORE_PRE = ENGINE_BASE + 124;   // string: score settings before the parts (showInvisible, Order…)
 constexpr Field SCORE_POST = ENGINE_BASE + 125;  // string: anything after the music
+constexpr Field DETAILS_AFTER = ENGINE_BASE + 128;   // string: details that come after an element's notes (a chord's)
+constexpr Field TIE_EID = ENGINE_BASE + 129;         // string: the identity of the tie that starts at a note
+constexpr Field SOURCE_FORMAT = ENGINE_BASE + 127;   // string: the MuseScore format the score was read from ("4.40"), written back
 constexpr Field LAYOUT_BREAKS = ENGINE_BASE + 126;   // string: a part layout's own line/page/section breaks (measure index, kind)
 
 /* Flow items (SUBKIND): clef, keySig, timeSig, tempo, harmony (chord symbol), dynamic, staffText, systemText,

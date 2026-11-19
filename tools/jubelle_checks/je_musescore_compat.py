@@ -3,8 +3,9 @@
 """Jubelle engine (S2): file compatibility with the official MuseScore Studio 4.7.7, both ways.
 
 For a fixed sample of MuseScore 4.x scores from the repository:
-1. Jubelle -> MuseScore: the Jubelle engine reads and writes the score (je_io_tool rewrite, adding the
-   engine store). MuseScore opens both files and exports MIDI; the two MIDI files must be identical.
+1. Jubelle -> MuseScore: the Jubelle engine reads the score into its model and writes a file generated from the
+   model alone (je_io_tool generate, decision D-E27; a 3.x original, which the native reader doesn't read, is
+   written by the lossless path, je_io_tool rewrite). MuseScore opens both files and exports MIDI; the two MIDI files must be identical.
 2. MuseScore -> Jubelle: MuseScore saves the Jubelle-written file; the Jubelle engine reads MuseScore's file
    and its music listing must equal the listing of the original.
 3. Jubelle's settings survive MuseScore: a score with all 11 Jubelle style settings set is saved by
@@ -71,7 +72,9 @@ def main():
         ms = work / f"{tag}_musescore.mscz"
         mid_a, mid_b = work / f"{tag}_original.mid", work / f"{tag}_jubelle.mid"
         r = {"score": str(src.relative_to(root)).replace("\\", "/")}
-        r["rewritten"] = subprocess.run([str(tool), "rewrite", str(src), str(je)], capture_output=True).returncode == 0
+        r["writer"] = "model" if is_v4(src) else "lossless"
+        r["rewritten"] = subprocess.run([str(tool), "generate" if is_v4(src) else "rewrite", str(src), str(je)],
+                                        capture_output=True).returncode == 0
         run(exe, ["-o", mid_a, src], work / f"{tag}_a.log")
         run(exe, ["-o", mid_b, je], work / f"{tag}_b.log")
         r["midi_same"] = mid_a.exists() and mid_b.exists() and mid_a.read_bytes() == mid_b.read_bytes()
@@ -97,7 +100,10 @@ def main():
     # Jubelle's 11 style settings through a MuseScore save
     base = root / "tools/jubelle_checks/data/Jubelle_features.mscz"
     styled, saved = work / "styled_jubelle.mscz", work / "styled_musescore.mscz"
-    subprocess.run([str(tool), "set-jubelle-style", str(base), str(styled)], check=False)
+    styled_lossless = work / "styled_lossless.mscz"
+    subprocess.run([str(tool), "set-jubelle-style", str(base), str(styled_lossless)], check=False)
+    # written from the model: the settings go through the model's score style and the engine store
+    subprocess.run([str(tool), "generate", str(styled_lossless), str(styled)], check=False)
     run(exe, ["-o", saved, styled], work / "styled_save.log")
     store = subprocess.run([str(tool), "store", str(saved)], capture_output=True, text=True) if saved.exists() else None
     restored = store.stdout.count("restored ") if store else 0
@@ -115,11 +121,11 @@ def main():
     md = ["## Jubelle engine ⇄ MuseScore 4.7.7 (files, both ways)", "",
           f"{len(sample)} scores. MIDI: MuseScore's export of the original and of the Jubelle-written file. "
           "Listing: the Jubelle engine's reading of MuseScore's save of the Jubelle-written file, against the original.", "",
-          "| Score | Jubelle wrote it | MuseScore MIDI identical | MuseScore saved it | Jubelle reads the same music |",
+          "| Score | Jubelle wrote it (writer) | MuseScore MIDI identical | MuseScore saved it | Jubelle reads the same music |",
           "|---|---|---|---|---|"]
     yn = lambda b: "n/a (not 4.x)" if b is None else ("yes" if b else "**no**")
     for r, ok in rows:
-        md.append(f"| {r['score']} | {yn(r['rewritten'])} | {yn(r['midi_same'])} | {yn(r['musescore_saved'])} | {yn(r['listing_same'])} |")
+        md.append(f"| {r['score']} | {yn(r['rewritten'])} ({r['writer']}) | {yn(r['midi_same'])} | {yn(r['musescore_saved'])} | {yn(r['listing_same'])} |")
     md += ["", f"Jubelle's 11 style settings: MuseScore's save dropped them ({dropped} of 3 checked were gone); "
                f"the Jubelle engine restored **{restored} of 11** from the engine store → {'PASS' if style_ok else 'FAIL'}", "",
            f"**{len(sample) - sum(1 for _, ok in rows if not ok)} of {len(sample)} scores passed**; failures: {failures}"]

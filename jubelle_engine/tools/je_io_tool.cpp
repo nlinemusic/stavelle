@@ -68,95 +68,6 @@ struct Totals {
     std::vector<std::string> failures;
 };
 
-std::string valueString(const model::Value& v, const std::map<Id, std::string>& paths)
-{
-    auto idText = [&paths](Id id) {
-        auto it = paths.find(id);
-        return it == paths.end() ? std::string("?") : it->second;
-    };
-    if (std::holds_alternative<bool>(v)) {
-        return std::get<bool>(v) ? "true" : "false";
-    }
-    if (std::holds_alternative<int64_t>(v)) {
-        return std::to_string(std::get<int64_t>(v));
-    }
-    if (std::holds_alternative<double>(v)) {
-        char b[40];
-        std::snprintf(b, sizeof(b), "%.17g", std::get<double>(v));
-        return b;
-    }
-    if (std::holds_alternative<model::Text>(v)) {
-        std::string t = std::get<model::Text>(v).str();
-        for (char& c : t) {
-            if (c == '\n') {
-                c = '|';
-            } else if (c == '\0') {
-                c = '~';
-            } else if (c == '\x1E') {
-                c = '|';
-            } else if (c == '\x1F') {
-                c = '=';
-            }
-        }
-        return '"' + t + '"';
-    }
-    if (std::holds_alternative<Fraction>(v)) {
-        const Fraction& f = std::get<Fraction>(v);
-        return std::to_string(f.numerator()) + "/" + std::to_string(f.denominator());
-    }
-    if (std::holds_alternative<Id>(v)) {
-        return "@" + idText(std::get<Id>(v));
-    }
-    if (std::holds_alternative<model::IdList>(v)) {
-        std::string out = "[";
-        for (Id id : std::get<model::IdList>(v)) {
-            out += "@" + idText(id) + " ";
-        }
-        return out + "]";
-    }
-    return "-";
-}
-
-//! Every object below the score in tree order, with its fields; ids are written as tree paths so two readings
-//! of the same music compare equal whatever ids they were given
-std::string modelDump(const model::Snapshot& s)
-{
-    std::map<Id, std::string> paths;
-    std::vector<Id> order;
-    std::vector<std::pair<Id, std::string> > stack { { s.score(), "s" } };
-    while (!stack.empty()) {
-        auto [id, path] = stack.back();
-        stack.pop_back();
-        const model::Object* o = s.find(id);
-        if (!o) {
-            continue;
-        }
-        paths[id] = path;
-        order.push_back(id);
-        const auto& ch = o->children();
-        for (size_t i = ch.size(); i-- > 0;) {
-            stack.emplace_back(ch[i], path + "." + std::to_string(i));
-        }
-    }
-    std::string out;
-    for (Id id : order) {
-        const model::Object* o = s.find(id);
-        out += paths[id];
-        o->forEachField([&](model::Field f, const model::Value& v) {
-            // SEQ is a read-order counter, not music: the order it gives shows as the tree order and the paths.
-            // DETAILS_KEY is a fingerprint that includes object ids, which differ between two readings (whether
-            // it still matches is checked by the writer: no details may be dropped without an edit)
-            if (f == model::fields::CHILDREN || f == model::fields::PARENT || f == model::fields::SEQ
-                || f == model::fields::DETAILS_KEY) {
-                return;
-            }
-            out += " " + std::string(model::fieldName(f)) + "=" + valueString(v, paths);
-        });
-        out += "\n";
-    }
-    return out;
-}
-
 //! The first differing line of two texts, for a report: its start and, for model dumps, only the fields that differ
 std::string firstDifference(const std::string& a, const std::string& b)
 {
@@ -255,7 +166,7 @@ int dump(const std::string& path)
         std::cerr << error << "\n";
         return 1;
     }
-    std::cout << modelDump(m.snapshot());
+    std::cout << io::modelDump(m.snapshot());
     return 0;
 }
 
@@ -331,8 +242,8 @@ int regenerate(const std::string& folder, const std::string& knownPath, bool pri
             problem = std::to_string(w.detailsDropped) + " details dropped without an edit";
         } else {
             const std::string la = io::musicListing(a.snapshot()), lb = io::musicListing(b.snapshot());
-            const std::string da = modelDump(a.snapshot());
-            std::string db = modelDump(b.snapshot());
+            const std::string da = io::modelDump(a.snapshot());
+            std::string db = io::modelDump(b.snapshot());
             if (da != db) {
                 int added = 0;
                 db = withoutAddedIdentities(da, db, added);
