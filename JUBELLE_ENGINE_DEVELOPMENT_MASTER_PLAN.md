@@ -6,12 +6,13 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 | | |
 |---|---|
 | Last updated | 18 Nov 2026 |
-| Current phase | **Building testing build E1: the new engine with condensing** (Phases 1–2 done; foundations in progress) |
-| Next testing build | **E1**: new engine and live condensing (`docs/14_testing_build_e1_plan.md`); published only after the Windows and macOS gates pass |
+| Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
+| Current work | **S1 model and data management** (design done; foundations in place) → S2 file handling |
+| Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
 | Stable recovery points | tag `v4.7.7.261118230`; branch `checkpoint/stable-4.7.7.261118230` (commit `207614e5`) |
-| Condensing | **approved 18 Nov 2026** (configurable groups, labels "Tpt. 1.2"); being implemented in the new engine for E1 |
+| Condensing | **approved 18 Nov 2026** (configurable groups, labels "Tpt. 1.2"); subsystem S9 of the new engine |
 
 ---
 
@@ -30,9 +31,16 @@ Give Jubelle its own notation engine, designed around its needs, that:
 **What doesn't change:** the Jubelle interface, menus, workflows, file format and features. Users see a faster
 Jubelle that can condense, not a different program.
 
+**Independence (decision D-E22, 18 Nov 2026):** in the finished application, every core function is the Jubelle
+engine's own: model and data management, editing and note entry, undo and redo, playback and audio processing,
+engraving and layout, page rendering and drawing, live condensing, and file handling. MuseScore's engine is a
+reference and comparison baseline (in the test tools) and is **removed from the app build**. Its GPL code may be
+ported with notices; independent third-party libraries (FluidSynth, FFmpeg, LAME, FLAC, Vorbis, Opus, VST3 SDK,
+Qt) stay. Correctness, stability, performance and Jubelle's features come before speed.
+
 ## 2. Protecting the stable release
-- `main` keeps producing releases exactly as today. Engine code reaches `main` only in milestones that are **inert
-  behind an experimental switch, off by default**, after the full Windows and macOS app checks pass.
+- `main` and the stable release are not changed by engine work. **No new testing release** is published until the
+  complete engine passes the gates of `docs/14_full_engine_roadmap.md` §5 on Windows and macOS.
 - `engine/next` is merged *from* `main` regularly, so the engine always develops against the current Jubelle.
 - The stable release can always be rebuilt from `checkpoint/stable-4.7.7.261118230` / `v4.7.7.261118230`.
 - No experimental engine change is ever made on `main`, the checkpoint, or a release.
@@ -48,7 +56,7 @@ repository nlinemusic/stavelle
         ├── docs/        01 audit · 02 integration map · 03 architecture · 04 condensing spec
         │                05 licensing · 06 roadmap and testing · 07 decisions log · 08 AAC licensing
         │                09 model mapping · 10 edit vocabulary · 11 pipeline interfaces
-        │                12 bridge migration · 13 .mscz storage results · 14 testing build E1 plan
+        │                12 bridge migration · 13 .mscz storage results · 14 full engine roadmap
         ├── CMakeLists.txt   standalone build (C++17, no Qt), GoogleTest, sanitizer options
         ├── corpus/      corpus description (the user's scores are never in Git: D-E17)
         ├── model/ edit/ present/ layout/ render/ perform/ io/ style/ exec/   engine modules (plain C++17)
@@ -90,16 +98,19 @@ so the release tree is never touched.
 - **Parts are layouts**, not copies. Per-layout property overrides replace "unlinked" part elements.
 - **Layout pipeline:** presentation → shaping per measure-staff → spacing → windowed system breaking → vertical →
   pages → display list. Precise dependencies; no range widening; visible pages first; deterministic.
-- **Integration:** shadow mode (both engines run; results compared automatically) → consumers moved to an
-  engine-neutral API one at a time → opt-in per-score switch → default only after Phase 7.
+- **Integration (revised, D-E9):** each subsystem is compared with MuseScore's engine in the test tools; the
+  interface moves to the engine API (S10); then MuseScore's engine is removed from the app build.
+- **Subsystems** (`docs/14_full_engine_roadmap.md`): S1 model and data · S2 files and serialization · S3 editing and
+  note entry · S4 undo and redo · S5 playback · S6 audio processing (`je::audio`) · S7 engraving and layout · S8
+  page rendering and drawing · S9 presentation and live condensing · S10 integration.
 
-## 6. MuseScore dependencies
-| Kept (used by the new engine or alongside it) | Replaced by the new engine |
+## 6. MuseScore dependencies (revised 18 Nov 2026, D-E22)
+| Replaced by the Jubelle engine (not in the finished app) | Stays: the application around the engine, and third-party libraries |
 |---|---|
-| framework/audio, mpe, midi, draw, ui, actions, shortcuts, extensions | engraving/dom (score model) |
-| engraving/rw readers (all versions) and importexport, via the converter | engraving/editing (undo, commands) |
-| style (`Sid`), properties (`Pid`), instruments data, fonts | engraving/rendering/score driver; algorithms ported |
-| notation module, adapted into the bridge | engraving/playback event generation (same MPE output) |
+| engraving: DOM, layout, editing and undo, read/write, playback | the Jubelle interface and its Qt/QML application framework (ui, actions, shortcuts, workspaces), rewired to the engine API (D-E23) |
+| framework/mpe and framework/audio's engine (scheduler, mixer, synth hosting, export) | FluidSynth, FFmpeg, LAME, FLAC, Vorbis, Opus, VST3 SDK, Qt |
+| framework/draw's engine-facing painting; importexport's DOM-based importers | SMuFL fonts and their metadata; instrument definitions (data) |
+| the `notation` module's DOM wrappers | MuseScore's style and property names, kept as the file vocabulary for compatibility |
 
 ## 7. Jubelle-specific systems
 Engine-level: courtesy accidentals, engraving rules, magnetic layout, overlap checker, jazz look, articulation
@@ -117,7 +128,7 @@ phases for each: `docs/02_jubelle_integration_map.md`.
   licence as incompatible with every GPL version (no patent licence), so distributing the combined GPL binary is a
   compliance risk for Jubelle, which doesn't hold MuseScore's copyrights. Personal sharing is still distribution.
   (c) AAC-LC US patents have expired. **Approved (18 Nov):** remove FDK; use FFmpeg's native AAC encoder if its
-  licensing and Windows/macOS reliability are verified, otherwise the OS encoders; ships in E1.
+  licensing and Windows/macOS reliability are verified, otherwise the OS encoders; part of the new engine's audio export (S6).
 - Dorico, Sibelius and Finale are studied only through their documentation and behaviour, never their code.
 
 ## 9. Performance goals and benchmarks
@@ -145,7 +156,7 @@ only):
   caches only.
 - **Found for the current release:** a Jubelle score saved by MuseScore loses Jubelle's style settings (courtesy
   rules, magnetic layout, engraving rules). **Approved (D-E19):** all 11 are stored in score metadata and restored
-  on reopening, with save → MuseScore save → reopen tests; ships in E1.
+  on reopening, with save → MuseScore save → reopen tests; part of the native file handling (S2).
 - Templates, plugins, palettes, workspaces and shortcuts keep working.
 - Opening and saving without edits leaves the music identical (normalised comparison on the whole corpus).
 
@@ -167,7 +178,7 @@ only):
 - **Parts** are never condensed (combined parts such as "Trumpets 1–2" are simply layouts with condensing on).
   Playback and MusicXML use players' music. MuseScore opens the file with every player on their own staff.
 - **Labels** are abbreviated ("Tpt. 1.2", D-E18); full names stay available where the layout uses long names.
-- **Approved 18 Nov 2026**, and part of testing build E1.
+- **Approved 18 Nov 2026**; subsystem S9.
 
 ## 12. Development phases and dependencies (detail in `docs/06_roadmap_and_testing.md`)
 | Phase | Content | Depends on | Status |
@@ -177,16 +188,14 @@ only):
 | 3 | Foundations: 3.1 standalone build, tests, benchmarks, CI on Windows/macOS/Linux with sanitizers (**done**); 3.2 exec and model core (**started**: thread pool, Fraction, IDs, copy-on-write vector, transactions, change sets, undo history); 3.3 DOM → model converter; 3.4 round trip; 3.5 corpus (public set and private-score protection in place) | 2 | **in progress** |
 | 4 | Components in shadow mode: 4.1 edit/undo → 4.2 playback events → 4.3 shaping → 4.4 spacing and breaking → 4.5 vertical and pages → 4.6 display list → 4.7 native I/O → 4.8 bridge and experimental switch | 3 | not started |
 | 5 | Jubelle features on the new engine | 4 (per feature) | not started |
-| 6 | Automatic condensing in the new engine | approved; for E1 it uses MuseScore's layout as its drawing backend (D-E21) | **in progress (E1)** |
+| 6 | Automatic condensing in the new engine (subsystem S9) | S1 for its logic; S7 for drawing | **approved**; logic follows S1 |
 | 7 | Compatibility, performance, reliability, cross-platform; default-engine decision | 5, 6 | not started |
 
-**Order of work, changed 18 Nov 2026 (D-E20):** the next testing build **E1** uses the new engine and includes
-condensing. E1 work comes first (`docs/14_testing_build_e1_plan.md`): model core → DOM → model converter and live
-sync → condensing in `je::present` → display score for MuseScore's layout → interface → engine store and style
-preservation → AAC replacement → full Windows and macOS test pass → E1 pre-release. Then E2 (engine editing, undo,
-playback events), then E3 onward (native layout stages in pipeline order, display list, native I/O), each compared in
-shadow mode before use. E1's scope (D-E21): the new engine owns the model copy, presentation, condensing and its store;
-MuseScore's editing, playback and layout remain the proven backend until replaced.
+**Order of work (revised 18 Nov 2026, D-E22):** the phases above are now milestones within the ten subsystems of
+`docs/14_full_engine_roadmap.md`: S1 model → S2 MuseScore 4.x reader and writer, with the style-setting preservation
+(D-E19) → S3 editing and S4 undo → S7 layout and S8 drawing (the largest part, stage by stage) → S9 condensing (logic
+as soon as S1 is ready; drawing after S7); S5 playback and S6 audio alongside S7 → S10 integration and removal of
+MuseScore's engine from the app → full testing on Windows and macOS → the first testing release of the new engine.
 
 ## 13. Testing requirements
 - Every component is compared against MuseScore's engine in **shadow mode**, with documented tolerances, before it
@@ -212,12 +221,16 @@ MuseScore's editing, playback and layout remain the proven backend until replace
 | 18 Nov 2026 | `.mscz` storage test against official MuseScore 4.7.7 (`docs/13_…`); D-E10 revised |
 | 18 Nov 2026 | Phase 2.3–2.6 design: model mapping, edit vocabulary, pipeline interfaces and cache keys, bridge migration plan |
 | 18 Nov 2026 | Phase 3.1 done and 3.2 started: standalone engine build; first core code with 24 tests; CI on Windows, macOS and Linux green, ThreadSanitizer and AddressSanitizer/UBSan clean |
-| 18 Nov 2026 | User's decisions: AAC replacement, style preservation, abbreviated labels, condensing approved; priority changed to testing build E1 (new engine with condensing) |
+| 18 Nov 2026 | User's decisions: AAC replacement, style preservation, abbreviated labels, condensing approved |
+| 18 Nov 2026 | Roadmap revised for a complete, independent engine (D-E22): ten subsystems with independent tests; no testing release until the gates pass |
 
 ## 15. Outstanding work
-E1 work, in order (`docs/14_…` §3): E1.1 model core · E1.2 converter and live sync · E1.3 condensing in
-`je::present` · E1.4 display score · E1.5 interface · E1.6 engine store and style preservation · E1.7 AAC
-replacement · E1.8 full Windows and macOS test pass, then the E1 pre-release. No user decisions are pending.
+- **S1** (now): model core types (score, flows, players, instruments, voices, events, notes, attachments, spanners,
+  tempo and meter maps, layouts) on the copy-on-write containers, implementing `ChangeTarget`; snapshot tests.
+- **S2** next: native MuseScore 4.x reader and writer; engine store; style-setting preservation with the
+  Jubelle → MuseScore → Jubelle test; round trips on the corpus.
+- AAC: FFmpeg's own AAC encoder replaces FDK (approved; part of S6's export path); FDK removed from the source.
+- Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
 
 ## 16. Important technical decisions
 D-E1 same repository, `engine/next` · D-E2 stable checkpoint · D-E3 GPL v3 · D-E4 C++17 core without Qt ·
@@ -226,8 +239,9 @@ windowed breaking · D-E8 keep audio, draw, readers and importers · D-E9 shadow
 D-E10 MuseScore 4.x format; Jubelle data in versioned meta-tag JSON (tested) · D-E11 condensing only in the new
 engine, after approval · D-E12 configurable condensing groups, per-section defaults as data · D-E13 changes anchored
 by time and IDs · D-E14 performance goals · D-E15 AAC recommendation · D-E16 hidden developer switch ·
-D-E17 private scores never in Git · D-E18 abbreviated labels · D-E19 style settings in metadata · D-E20 next testing
-build uses the new engine with condensing · D-E21 E1 scope.
+D-E17 private scores never in Git · D-E18 abbreviated labels · D-E19 style settings in metadata · D-E20 no testing
+release until the complete engine passes its gates · D-E21 (withdrawn) · D-E22 complete, independent engine ·
+D-E23 the interface stays and is rewired to the engine.
 Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 
 ## 17. Risks
@@ -238,7 +252,9 @@ Full text and reasons: `jubelle_engine/docs/07_decisions_log.md`.
 | R-T3 | Layout differences visible to the user | "MuseScore-compatible" mode for the comparison phase; differences reviewed, never silent |
 | R-T4 | File compatibility regressions | normalised round-trip tests on the corpus; MuseScore 4.7.7 opens every written file (coexistence test) |
 | R-T5 | Threading bugs | snapshots are immutable; ThreadSanitizer in CI; deterministic-result tests |
-| R-T6 | Long-running dual maintenance (two engines) | the switch is per score; MuseScore's engine stays the default until Phase 7's gates pass |
+| R-T6 | Long-running dual maintenance (two engines) | the stable release is frozen on MuseScore's engine; development builds only; MuseScore's engine removed at the end |
+| R-T8 | Feature parity: dozens of Jubelle features and decades of MuseScore behaviour to reproduce | per-feature checklist from the integration map; comparison tests per subsystem; nothing is released until parity is checked |
+| R-T9 | Audio engine replacement (real-time safety, plug-in hosting) | offline sample-exact render tests, glitch tests under load, VST3 hosting tested on both platforms before integration |
 | R-T7 | Condensing readability | ported tested classifier, smoothing rules, user's visual review before release |
 | R-L1 | FDK AAC licence (missing notice; GPL incompatibility) | notices now; replace with FFmpeg native AAC or OS encoders (awaiting decision) |
 | R-C2 | MuseScore saving a Jubelle score drops Jubelle's style values | engine: meta-tag store with style mirror; current release: proposed small fix |

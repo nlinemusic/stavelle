@@ -1,7 +1,7 @@
 # 04 · Automatic condensing: technical specification for the Jubelle engine
 
-**Status:** **approved for implementation** in the new engine (user, 18 Nov 2026), as part of testing build E1
-(`14_testing_build_e1_plan.md`). Not implemented in the MuseScore-based engine. Approved decisions: configurable
+**Status:** **approved for implementation** in the new engine (user, 18 Nov 2026), as subsystem S9 of the complete engine
+(`14_full_engine_roadmap.md`). Not implemented in the MuseScore-based engine. Approved decisions: configurable
 player groups (D-E12) and abbreviated labels such as "Tpt. 1.2" (D-E18).
 
 ## 1. Goals

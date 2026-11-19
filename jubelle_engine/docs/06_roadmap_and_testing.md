@@ -2,10 +2,11 @@
 
 The seven phases set by the user, broken into milestones with entry and exit criteria.
 
-> **Priority changed on 18 Nov 2026 (D-E20):** the next testing build, **E1**, uses the new engine and includes
-> condensing (approved). The work it needs comes first, in the order of `14_testing_build_e1_plan.md`; the phases
-> below remain the full plan for later engine builds (E2: engine editing, undo and playback; E3 onward: native layout
-> stages, then native file I/O).
+> **Revised on 18 Nov 2026 (D-E22):** the goal is a **complete, independent engine**. The work is organised as the
+> ten subsystems of `14_full_engine_roadmap.md` (S1 model … S10 integration), each with independent tests, and no
+> testing release is published until the gates of its §5 pass on Windows and macOS. The phase details below still
+> apply as milestones within those subsystems: Phase 3 = S1 and S2's foundations; Phase 4's items map to S3–S8;
+> Phase 5 = feature parity within each subsystem; Phase 6 = S9 (condensing, approved); Phase 7 = the final gates.
 
 ```mermaid
 flowchart LR
@@ -13,7 +14,7 @@ flowchart LR
     P2 --> P3["Phase 3\nFoundations"]
     P3 --> P4["Phase 4\nComponents"]
     P4 --> P5["Phase 5\nJubelle features"]
-    P4 --> P6["Phase 6\nCondensing\n(approved, E1)"]
+    P4 --> P6["Phase 6\nCondensing\n(approved, S9)"]
     P5 --> P7["Phase 7\nFull testing"]
     P6 --> P7
     P7 --> D["Default engine\n(decision)"]
@@ -54,7 +55,8 @@ Order, by dependency and by value:
 | 4.7 | `je::io`: native 4.x reader and writer | MuseScore's writer | normalised-XML identical round trips; MuseScore 4.7.7 opens every written file |
 | 4.8 | `je::bridge`: `INotation*` over the new engine; score view, Properties and palettes moved to the engine API | the full app check and interface self-test with the experimental switch on | all Windows and macOS app checks pass with the switch on |
 
-Every milestone ships **behind the switch, off by default**. The released Jubelle keeps working unchanged.
+Revised (D-E22): nothing is released until the whole engine passes the final gates; MuseScore's engine is then
+removed from the app build. The stable release keeps working unchanged in the meantime.
 
 ## Phase 5 · Jubelle features on the new engine
 In the order of `02_jubelle_integration_map.md`: playback rules (articulation, swing, falls, repeats) → courtesy
@@ -62,7 +64,7 @@ accidentals and engraving rules → magnetic layout and collision avoidance → 
 system, chord identifier, proofread, find and select → part layout, prepare parts, page turns, title page →
 timeline and tempo. Each feature's existing tests run against both engines.
 
-## Phase 6 · Automatic condensing in the new engine · **approved 18 Nov 2026; in progress for E1**
+## Phase 6 · Automatic condensing in the new engine · **approved 18 Nov 2026** (subsystem S9)
 Per `04_condensing_specification.md`: groups and phrases → classifier (ported) → staff plans → presentation
 events → layout passes → labels → editing and expand commands → storage → tests (§14 of the specification) →
 visual review with the user.

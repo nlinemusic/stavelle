@@ -46,10 +46,10 @@ flowchart TB
         Sched["je::exec\ntask scheduler, caches, memory pools"]
     end
 
-    subgraph Kept["kept from MuseScore / Jubelle"]
-        Audio["framework/audio + mpe"]
-        Draw["framework/draw (Painter, PDF, SVG, PNG)"]
-        RW["engraving/rw readers 1.14–4.60, importexport"]
+    subgraph Libs["third-party libraries (not MuseScore's engine)"]
+        Audio["je::audio over FluidSynth, VST3 SDK,\nFFmpeg, LAME, FLAC, Vorbis, Opus"]
+        Draw["je::render backends: Qt painter (screen),\nPDF, SVG, PNG"]
+        RW["je::io readers: MuseScore 1.x–4.x, MusicXML,\nMIDI and other importers (Jubelle's own)"]
     end
 
     UI --> NotationImpl
@@ -167,9 +167,16 @@ flowchart LR
   per-track MPE event maps. Only changed measures are regenerated and re-sent.
 - Repeats are expanded by a playback-order map (Jubelle's repeat controls included). Swing, articulation profiles
   and jazz gestures are rules applied in generation.
-- The output is the same MPE as today, so the audio engine, synths, VST3, mixer, limiter and exporters don't change.
+- **Revised 18 Nov 2026 (D-E22):** playback events feed Jubelle's own audio engine `je::audio` (scheduler,
+  sequencer, mixer, effects including Jubelle's limiter and dynamics, instrument hosting through FluidSynth, SFZ and
+  VST3, offline rendering and export). MuseScore's audio engine and MPE are the comparison baseline only.
 
 ## 7. Integration strategy: how the new engine enters Jubelle
+
+> **Revised 18 Nov 2026 (D-E9, D-E22):** the end state is the Jubelle engine **alone**: MuseScore's engine is
+> removed from the app build after S10 (`14_full_engine_roadmap.md`). Shadow comparison against MuseScore's engine
+> happens in the test tools. Point 4 below (importers through the DOM) is replaced by Jubelle's own readers in
+> `je::io`, and point 5 by the gates of `14_…` §5.
 The DOM is used directly by 317 files outside the engine (see `01_…`, §1). A big-bang swap is therefore not
 realistic. The route:
 
