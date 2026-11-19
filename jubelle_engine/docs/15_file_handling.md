@@ -64,6 +64,18 @@ Writing is not compared yet: MuseScore generates the whole file (1,279 ms), Jube
   Jubelle engine must read the same music from it; a score with all 11 Jubelle style settings goes through a
   MuseScore save and the engine must restore all 11.
 
+**Results (19 Nov 2026, official MuseScore 4.7.7 on Windows; runs 44462568622, 44463377685):**
+- 54 scores (6 fixed: the demos, Big Score, the Big Band test chart, Jubelle's feature score; 48 from `vtest/scores`):
+  **MuseScore opened every Jubelle-written file and its MIDI was identical to the original's in all 54**;
+  MuseScore saved every one; **for all 52 MuseScore 4.x originals the Jubelle engine read exactly the same music back
+  from MuseScore's save**. (Two demos are MuseScore 3.01 files, which the native reader doesn't read yet; for them
+  that check doesn't apply.)
+- **Jubelle's 11 style settings: MuseScore's save dropped them; the Jubelle engine restored 11 of 11.** The first
+  run restored 0: in a 4.x archive the style lives in `score_style.mss`, not in the score's `<Style>`. The engine
+  store now follows `score_style.mss` (fixed the same night; the second run passed).
+- The corpus check passes on Windows, macOS and Linux (no failure outside the known-issues list); the large orchestra
+  opens in 194–412 ms on the CI machines.
+
 ## 5. Private scores
 `je_io_tool corpus ~/JubellePrivateScores --private` reads the user's own scores locally, names them only
 "private #n" and writes nothing into the repository (D-E17). On 19 Nov the folder wasn't found on the connected

@@ -233,13 +233,13 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | S1: memory per object reduced (24-byte values with shared text; kind and parent stored directly): orchestra model **41.6 → 23.9 MB**, bulk build 103 ms. Notation coverage: written values, dots and nested tuplets with exact duration arithmetic, grace notes (before and after), voices, full-measure rests, ties, articulations, lyrics (verses, syllables), chord symbols, dynamics, tempo, keys, clefs, instrument changes, rehearsal marks, jumps, repeats with play counts, voltas, slurs, hairpins, part layouts; consistency rules for each, with tests that break each rule. 42 tests |
 | 19 Nov 2026 | AAC: **Windows and macOS export checks passed** (AAC-LC at 44.1/48/96 kHz; MP4 sound) |
 | 19 Nov 2026 | **S2 started** (`docs/15_…`): ZIP with zlib, lossless XML (byte-for-byte for MuseScore's layout), score file, engine store with the 11-setting style mirror and restore, MuseScore 4.x reader into the model. Repository corpus (2,909 scores): **0 XML content changes**, 627/627 archives, **2,118/2,118 4.x scores read**, 2,104 consistent (14 known test-file issues); ASan clean. Large orchestra: open in 235–360 ms against 918 ms with MuseScore's engine (same machine and file). 47 tests. CI: corpus check on Windows/macOS/Linux; MuseScore 4.7.7 both-ways test |
+| 19 Nov 2026 | **S2 compatibility with official MuseScore 4.7.7** (Windows CI): 54 Jubelle-written scores opened by MuseScore with **identical MIDI**; for all 52 4.x originals the engine read the same music back from MuseScore's save; Jubelle's 11 style settings **restored 11 of 11** after a MuseScore save (fixed: the style lives in `score_style.mss`). Corpus check green on Windows, macOS and Linux |
 
 ## 15. Outstanding work
 - **S2** (now): compare the reader with MuseScore's own reading of every corpus score (music listing from the
   existing engine test tool) and settle the 14 known issues; the writer that generates XML from the model, checked
   against the lossless writer; part layouts in full; older formats (1.x–3.x), MusicXML and MIDI later in S2;
   reduce the kept XML's memory (64 MB for the large orchestra).
-- Results of the MuseScore 4.7.7 both-ways test (CI, Windows).
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).
