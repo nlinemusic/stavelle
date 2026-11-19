@@ -23,6 +23,10 @@ on:
         description: 'Optional: run ID of a "Build: macOS" run whose disk image to install and run on macOS'
         required: false
         default: ''
+      storage_test:
+        description: 'Jubelle engine: test what official MuseScore does with Jubelle data inside .mscz (yes/no)'
+        required: false
+        default: 'no'
 
 permissions:
   contents: read
@@ -144,3 +148,41 @@ jobs:
           echo "--- last lines of the app's output ---"; tail -30 out/app.log || true
           cat install_check.md >> "$GITHUB_STEP_SUMMARY"
           grep -q "Result: PASS" install_check.md
+
+  # Jubelle engine (decision D-E10): official MuseScore 4.7.7 and Jubelle's extra data in .mscz.
+  # Needs only MuseScore, no Jubelle build.
+  mscz_storage:
+    if: ${{ inputs.storage_test == 'yes' }}
+    runs-on: windows-2025
+    timeout-minutes: 40
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v6
+    - name: Download and install the official MuseScore
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      timeout-minutes: 15
+      run: |
+        mkdir -p musescore_msi
+        gh release download v4.7.7 --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi
+        MSI=$(ls musescore_msi/*.msi | head -1)
+        cmd //c "msiexec /i $(cygpath -w "$MSI") /qn /norestart /l*v musescore_install.log"
+        ls "/c/Program Files/" | grep -i musescore
+    - name: Jubelle data inside .mscz
+      shell: bash
+      timeout-minutes: 20
+      run: |
+        EXE=$(ls "/c/Program Files/"MuseScore*/bin/MuseScore*.exe | head -1)
+        echo "MuseScore: $EXE"
+        python -X utf8 -u tools/jubelle_checks/mscz_storage_test.py "$EXE" tools/jubelle_checks/data/Jubelle_features.mscz mscz_storage_work
+        cat mscz_storage_work/mscz_storage.md >> "$GITHUB_STEP_SUMMARY"
+    - name: Upload the results
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-mscz-storage
+        path: |
+          mscz_storage_work/*.md
+          mscz_storage_work/*.json
+          mscz_storage_work/*.log
