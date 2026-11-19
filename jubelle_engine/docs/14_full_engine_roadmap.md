@@ -77,7 +77,7 @@ flowchart LR
 | Subsystem | Status (19 Nov 2026) |
 |---|---|
 | S1 model | **foundations complete**: persistent model, O(1) snapshots, structural edits, consistency rules, bulk building, notation coverage (tuplets, graces, ties, lyrics, chord symbols, repeats, voltas, instrument changes, spanners, layouts); orchestra model 23.9 MB. Next: typed views, layout-related fields as S7 needs them |
-| S2 files | **started**: archives, lossless XML, engine store with the style mirror, MuseScore 4.x reader; 2,118 of 2,118 repository 4.x scores read, 2,104 fully consistent (`15_file_handling.md`). Next: the reference comparison with MuseScore's reading, the generated writer, MuseScore 4.7.7 tests in CI |
+| S2 files | **in progress**: archives, lossless XML, engine store with the style mirror, MuseScore 4.x reader; 2,118 of 2,118 repository 4.x scores read, 2,104 fully consistent; **2,079 of 2,118 identical to MuseScore's own reading**; official MuseScore 4.7.7 opens Jubelle-written files with identical MIDI and Jubelle's 11 settings survive its save (`15_file_handling.md`). Next: the 39 remaining differences, the writer that generates XML from the model, older formats, MusicXML and MIDI |
 | S3–S10 | not started |
 
 ## 7. Scale and timeline
