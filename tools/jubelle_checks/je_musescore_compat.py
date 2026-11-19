@@ -40,6 +40,61 @@ def run(exe, args, log, timeout=240):
             return -1
 
 
+def midi_events(data):
+    """A standard MIDI file as (track, absolute tick, event bytes as hex), meta events included"""
+    out = []
+    if data[:4] != b"MThd":
+        return out
+    pos = 8 + int.from_bytes(data[4:8], "big")
+    track = 0
+    while pos + 8 <= len(data):
+        length = int.from_bytes(data[pos + 4:pos + 8], "big")
+        chunk = data[pos + 8:pos + 8 + length]
+        pos += 8 + length
+        i, tick, status = 0, 0, 0
+        while i < len(chunk):
+            delta = 0
+            while True:
+                b = chunk[i]; i += 1
+                delta = (delta << 7) | (b & 0x7F)
+                if not b & 0x80:
+                    break
+            tick += delta
+            if chunk[i] & 0x80:
+                status = chunk[i]; i += 1
+            if status == 0xFF:
+                kind = chunk[i]; i += 1
+                n = 0
+                while True:
+                    b = chunk[i]; i += 1
+                    n = (n << 7) | (b & 0x7F)
+                    if not b & 0x80:
+                        break
+                out.append((track, tick, "meta %02x %s" % (kind, chunk[i:i + n].hex())))
+                i += n
+            elif status in (0xF0, 0xF7):
+                n = chunk[i]; i += 1 + n
+            else:
+                size = 1 if status & 0xF0 in (0xC0, 0xD0) else 2
+                out.append((track, tick, "%02x %s" % (status, chunk[i:i + size].hex())))
+                i += size
+        track += 1
+    return out
+
+
+def midi_difference(a, b, limit=8):
+    """The first differing events of two MIDI files, for the log"""
+    ea, eb = midi_events(a), midi_events(b)
+    lines = [f"events: original {len(ea)}, Jubelle-written {len(eb)}"]
+    only_a = [e for e in ea if e not in set(eb)]
+    only_b = [e for e in eb if e not in set(ea)]
+    lines += ["  only in the original: %s" % (e,) for e in only_a[:limit]]
+    lines += ["  only in the Jubelle-written: %s" % (e,) for e in only_b[:limit]]
+    if not only_a and not only_b:
+        lines.append("  the same events in another order")
+    return "\n".join(lines)
+
+
 def is_v4(path):
     try:
         if path.suffix == ".mscx":
@@ -96,6 +151,8 @@ def main():
                 i = next((j for j in range(min(len(a), len(b))) if a[j] != b[j]), min(len(a), len(b)))
                 detail += f"; listing line {i + 1}: original `{a[i] if i < len(a) else '(end)'}` · after MuseScore `{b[i] if i < len(b) else '(end)'}`"
         print(("PASS " if ok else "FAIL ") + r["score"] + detail, flush=True)
+        if not r["midi_same"] and mid_a.exists() and mid_b.exists():
+            print(midi_difference(mid_a.read_bytes(), mid_b.read_bytes()), flush=True)
 
     # Jubelle's 11 style settings through a MuseScore save
     base = root / "tools/jubelle_checks/data/Jubelle_features.mscz"
