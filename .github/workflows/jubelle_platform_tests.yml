@@ -13,6 +13,10 @@ on:
         description: 'Runners to test on (JSON list), e.g. ["windows-2025"] to save macOS minutes'
         default: '["windows-2025", "macos-latest", "ubuntu-latest"]'
         required: true
+      engine_reference:
+        description: 'Jubelle engine (S2): compare the native reader with MuseScore''s reading of every 4.x score (yes/no; ~1 hour)'
+        default: 'no'
+        required: false
 
 jobs:
   platform_tests:
@@ -86,3 +90,40 @@ jobs:
         PY=python3; command -v python3 >/dev/null || PY=python
         $PY tools/jubelle_checks/make_large_score.py demos/Dawn.mscx large_orchestra.mscx
         "$T" bench large_orchestra.mscx | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Jubelle engine (S2): the native reader against MuseScore's own reading (the comparison baseline), every
+  # MuseScore 4.x score in the repository. MuseScore's engine runs only in this test tool.
+  je_reference:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.engine_reference == 'yes' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+    - name: Clone repository
+      uses: actions/checkout@v6
+    - name: Build MuseScore's engine test tool (reference) and the Jubelle engine's file tool
+      run: |
+        sudo apt-get install -y ninja-build > /dev/null
+        cmake -S tools/jubelle_engine_tests -B build-et -G Ninja -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-et --target jubelle_engine_tests
+        cmake -S jubelle_engine -B build-je -DCMAKE_BUILD_TYPE=Release
+        cmake --build build-je --target je_io_tool --parallel
+    - name: Both readings of every 4.x score
+      run: |
+        python3 - <<'PY'
+        import sys; sys.path.insert(0, "tools/jubelle_checks")
+        from pathlib import Path
+        from je_musescore_compat import is_v4
+        files = sorted(str(p) for p in Path(".").rglob("*.msc[zx]") if ".git" not in p.parts and is_v4(p))
+        Path("v4_scores.txt").write_text("\n".join(files) + "\n")
+        print(len(files), "scores")
+        PY
+        JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_listings \
+          ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        python3 tools/jubelle_checks/je_reference_compare.py build-je/je_io_tool . v4_scores.txt ref_listings je_reference.md
+        cat je_reference.md >> "$GITHUB_STEP_SUMMARY"
+    - name: Upload the comparison
+      if: always()
+      uses: actions/upload-artifact@v6
+      with:
+        name: jubelle-engine-reference
+        path: je_reference.md

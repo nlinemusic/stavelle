@@ -131,6 +131,7 @@ add_executable(jubelle_engine_tests
     ${MU_ROOT}/src/framework/update/internal/jubelle/updateverify.cpp
     # Engine baselines (measurements only)
     jubelle_baselines.cpp
+    jubelle_reference_listing.cpp
     # Engraving tests that run here:
     ${MU_ROOT}/src/engraving/tests/jubelle_courtesy_tests.cpp
     ${MU_ROOT}/src/notation/tests/chordidentifierrunner_tests.cpp

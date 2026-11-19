@@ -750,7 +750,11 @@ std::string musicListing(const model::Snapshot& s)
         }
         for (Id st : player->children()) {
             const model::Object* staff = s.find(st);
-            for (Id v : staff->children()) {
+            std::vector<Id> staffVoices = staff->children().ids();
+            std::stable_sort(staffVoices.begin(), staffVoices.end(), [&s](Id a, Id b) {
+                return s.find(a)->intOr(F::NUMBER, 0) < s.find(b)->intOr(F::NUMBER, 0);
+            });
+            for (Id v : staffVoices) {
                 const model::Object* voice = s.find(v);
                 for (Id e : voice->children()) {
                     const model::Object* ev = s.find(e);
