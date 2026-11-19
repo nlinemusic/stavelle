@@ -1,8 +1,11 @@
 # 06 · Roadmap, dependencies and testing
 
-The seven phases set by the user, broken into milestones with entry and exit criteria. A phase starts only when its
-dependencies are met. **Phase 6 (condensing) also needs the user's explicit approval**, after they have tested
-release candidate 2.
+The seven phases set by the user, broken into milestones with entry and exit criteria.
+
+> **Priority changed on 18 Nov 2026 (D-E20):** the next testing build, **E1**, uses the new engine and includes
+> condensing (approved). The work it needs comes first, in the order of `14_testing_build_e1_plan.md`; the phases
+> below remain the full plan for later engine builds (E2: engine editing, undo and playback; E3 onward: native layout
+> stages, then native file I/O).
 
 ```mermaid
 flowchart LR
@@ -10,7 +13,7 @@ flowchart LR
     P2 --> P3["Phase 3\nFoundations"]
     P3 --> P4["Phase 4\nComponents"]
     P4 --> P5["Phase 5\nJubelle features"]
-    P4 --> P6["Phase 6\nCondensing\n(needs approval)"]
+    P4 --> P6["Phase 6\nCondensing\n(approved, E1)"]
     P5 --> P7["Phase 7\nFull testing"]
     P6 --> P7
     P7 --> D["Default engine\n(decision)"]
@@ -59,7 +62,7 @@ accidentals and engraving rules → magnetic layout and collision avoidance → 
 system, chord identifier, proofread, find and select → part layout, prepare parts, page turns, title page →
 timeline and tempo. Each feature's existing tests run against both engines.
 
-## Phase 6 · Automatic condensing in the new engine · **needs the user's explicit approval**
+## Phase 6 · Automatic condensing in the new engine · **approved 18 Nov 2026; in progress for E1**
 Per `04_condensing_specification.md`: groups and phrases → classifier (ported) → staff plans → presentation
 events → layout passes → labels → editing and expand commands → storage → tests (§14 of the specification) →
 visual review with the user.

@@ -37,6 +37,7 @@ at the repository root.
 11. [Layout pipeline interfaces](docs/11_pipeline_interfaces.md)
 12. [Bridge and consumer migration plan](docs/12_bridge_migration_plan.md)
 13. [`.mscz` storage test results](docs/13_mscz_storage_results.md)
+14. [Testing build E1 plan: the new engine with condensing](docs/14_testing_build_e1_plan.md)
 
 ## Building and testing (standalone, no Qt)
 ```

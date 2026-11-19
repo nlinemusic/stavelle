@@ -207,8 +207,9 @@ Dorico side effect noted in §2. Smoothing rules:
 - **Player labels** above the staff at texture changes: "a2", "1.", "2.", "1. 2." (in two-voice texture, only at
   the first entry after a change, and only when it isn't obvious). Their placement goes through skylines like any
   text.
-- **Staff labels** at each system list the players on that staff on that system: "Tpt. 1.2", or "Tpt. 1" and
-  "Tpt. 2" on divisi systems, following the instrument naming style and the layout's long and short names.
+- **Staff labels** at each system list the players on that staff on that system in the **abbreviated** form
+  (decision D-E18): "Tpt. 1.2", or "Tpt. 1" and "Tpt. 2" on divisi systems. Full names ("Trumpet 1.2") stay
+  available where the layout uses long names (the first system, by default), following its naming style.
 
 ## 9. Interaction with layout
 ### 9.1 The circularity, and how it is broken
