@@ -190,7 +190,26 @@ private:
     Fields scoreFields(const Node& score)
     {
         Fields f { { F::NAME, Text(metaTag(file, "workTitle")) } };
-        if (const Node* style = styleNode(file)) {
+        documentFields(f, styleNode(file), score, file.main.root);
+        // other score data in the archive (mixer, view and automation settings); thumbnails are regenerated
+        std::string extras;
+        for (const zip::Entry& e : file.entries) {
+            if (e.name == file.mainEntry || e.name == "score_style.mss" || e.name == "META-INF/container.xml"
+                || e.name.rfind("Excerpts/", 0) == 0 || e.name.rfind("Thumbnails/", 0) == 0) {
+                continue;
+            }
+            extras += e.name + '\0' + std::to_string(e.data.size()) + '\0' + e.data;
+        }
+        if (!extras.empty()) {
+            f.push_back({ F::ARCHIVE_EXTRAS, Text(extras) });
+        }
+        return f;
+    }
+
+    //! A score document's own settings (the main score's or a part's): style, properties, other parts of the head
+    static void documentFields(Fields& f, const Node* style, const Node& score, const Node& root)
+    {
+        if (style) {
             std::vector<std::pair<std::string, std::string> > values;
             std::vector<const Node*> structured;
             for (const Node& c : style->children) {
@@ -243,7 +262,7 @@ private:
             f.push_back({ F::SCORE_POST, Text(fragment(post)) });
         }
         std::vector<const Node*> head;
-        for (const Node& c : file.main.root.children) {
+        for (const Node& c : root.children) {
             if (c.type == Node::Type::Element && c.name != "Score") {
                 head.push_back(&c);
             }
@@ -252,19 +271,6 @@ private:
         if (!head.empty() && fragment(head) != defaultScoreHead()) {
             f.push_back({ F::SCORE_HEAD, Text(fragment(head)) });
         }
-        // other score data in the archive (mixer, view and automation settings); thumbnails are regenerated
-        std::string extras;
-        for (const zip::Entry& e : file.entries) {
-            if (e.name == file.mainEntry || e.name == "score_style.mss" || e.name == "META-INF/container.xml"
-                || e.name.rfind("Excerpts/", 0) == 0 || e.name.rfind("Thumbnails/", 0) == 0) {
-                continue;
-            }
-            extras += e.name + '\0' + std::to_string(e.data.size()) + '\0' + e.data;
-        }
-        if (!extras.empty()) {
-            f.push_back({ F::ARCHIVE_EXTRAS, Text(extras) });
-        }
-        return f;
     }
 
     // ---- players and staves --------------------------------------------------------------------
@@ -358,12 +364,25 @@ private:
                 bool afterMusic = false;
                 for (const Node& e : v.children) {
                     if (e.name == "TimeSig") {
+                        int64_t n = toInt(e.childText("sigN"), num), d = toInt(e.childText("sigD"), den);
+                        // a local time signature (stretched) on the first staff: the measure's own length is the
+                        // local one over the stretch (12/8 stretched 3/2 in a 4/4 score: 4/4)
+                        const int64_t sn = toInt(e.childText("stretchN"), 1), sd = toInt(e.childText("stretchD"), 1);
+                        if (sn > 0 && sd > 0 && sn != sd) {
+                            Fraction g = Fraction(n, d) / Fraction(sn, sd);
+                            n = g.numerator();
+                            d = g.denominator();
+                            while (d < 4) {
+                                n *= 2;
+                                d *= 2;
+                            }
+                        }
                         if (afterMusic) {
-                            nextNum = toInt(e.childText("sigN"), num);
-                            nextDen = toInt(e.childText("sigD"), den);
+                            nextNum = n;
+                            nextDen = d;
                         } else {
-                            num = toInt(e.childText("sigN"), num);
-                            den = toInt(e.childText("sigD"), den);
+                            num = n;
+                            den = d;
                         }
                     }
                     if (e.name == "Chord" || e.name == "Rest" || e.name == "MeasureRepeat") {
@@ -622,23 +641,30 @@ private:
     //! holes become MuseScore's invisible gap rests, which aren't music, so nothing is added for them.
     //! Rests for a hole in voice 1 from `at` to `to` (MuseScore's split: the largest note value that fits and starts
     //! on a multiple of itself, from the measure start)
-    void fillVoice1(Id voice, Fraction at, const Fraction& to, const Fraction& measureStartTime)
+    //! On a staff with a local time signature the rests are split in its own (written) values and carry its stretch.
+    void fillVoice1(Id staff, Id voice, Fraction at, const Fraction& to, const Fraction& measureStartTime)
     {
-        for (int guard = 0; at < to && guard < 64; ++guard) {
-            const Fraction pos = at - measureStartTime;
-            const Fraction rem = to - at;
+        const Fraction st = stretchOf(staff);
+        Fraction written = (at - measureStartTime) * st;
+        const Fraction writtenEnd = (to - measureStartTime) * st;
+        for (int guard = 0; written < writtenEnd && guard < 64; ++guard) {
+            const Fraction rem = writtenEnd - written;
             Fraction d(1, 1);
-            while (Fraction(1, 1024) < d && (rem < d || (pos / d).denominator() != 1)) {
+            while (Fraction(1, 1024) < d && (rem < d || (written / d).denominator() != 1)) {
                 d = d * Fraction(1, 2);
             }
             if (rem < d) {
                 break;
             }
-            bb.add(Kind::Rest, voice, { { F::TIME, at }, { F::DURATION, d }, { F::BASE_DURATION, d }, { F::TAG, Text(std::string("Rest")) } },
-                   Order::ByTime);
+            Fields f { { F::TIME, at }, { F::DURATION, d / st }, { F::BASE_DURATION, d }, { F::TAG, Text(std::string("Rest")) } };
+            if (!(st == Fraction(1, 1))) {
+                f.push_back({ F::STRETCH, st });
+            }
+            bb.add(Kind::Rest, voice, f, Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
-            at += d;
+            at += d / st;
+            written += d;
         }
     }
 
@@ -652,14 +678,17 @@ private:
         }
         const Id voice = voiceFor(staff, 0);
         if (from == start) {
-            bb.add(Kind::Rest, voice, { { F::TIME, start }, { F::DURATION, measureLen[size_t(mi)] }, { F::MEASURE_REST, true },
-                                        { F::TAG, Text(std::string("Rest")) } },
-                   Order::ByTime);
+            Fields f { { F::TIME, start }, { F::DURATION, measureLen[size_t(mi)] }, { F::MEASURE_REST, true },
+                       { F::TAG, Text(std::string("Rest")) } };
+            if (!(stretchOf(staff) == Fraction(1, 1))) {
+                f.push_back({ F::STRETCH, stretchOf(staff) });
+            }
+            bb.add(Kind::Rest, voice, f, Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
             return;
         }
-        fillVoice1(voice, from, end, start);
+        fillVoice1(staff, voice, from, end, start);
     }
 
     //! The element's children the model doesn't hold (eid aside), as a fragment
@@ -752,6 +781,9 @@ private:
             // the file's value stays in the XML)
             duration = measureLen[size_t(mi)] - (t - measureStart[size_t(mi)]);
             f.push_back({ F::MEASURE_REST, true });
+            if (!(stretchOf(staff) == Fraction(1, 1))) {
+                f.push_back({ F::STRETCH, stretchOf(staff) });   // on a local time signature: its written length differs
+            }
             if (e.name == "MeasureRepeat") {
                 f.push_back({ F::SUBKIND, Text(std::string("measureRepeat")) });
             }
@@ -1058,7 +1090,50 @@ private:
                     }
                 }
             }
-            bb.add(Kind::Layout, scoreId, { { F::NAME, Text(name) }, { F::PLAYERS, model::IdList(list) } });
+            // the part's own settings: its style (its .mss, else the one inside), properties and archive entries, and
+            // its own breaks; its music is the main score's (made again from the model when it is written)
+            Fields f { { F::NAME, Text(name) }, { F::PLAYERS, model::IdList(list) } };
+            const size_t slash = entry.rfind('/');
+            const std::string folder = entry.substr(0, slash + 1);   // "Excerpts/0_Piano/"
+            f.push_back({ F::TAG, Text(folder.size() > 10 ? folder.substr(9, folder.size() - 10) : std::string()) });
+            xml::Document mss;
+            std::string ignored;
+            const Node* style = s->child("Style");
+            std::string extras;
+            for (const zip::Entry& z : file.entries) {
+                if (z.name.rfind(folder, 0) != 0 || z.name == entry) {
+                    continue;
+                }
+                if (z.name.size() > 4 && z.name.compare(z.name.size() - 4, 4, ".mss") == 0 && xml::parse(z.data, mss, ignored)
+                    && mss.root.child("Style")) {
+                    style = mss.root.child("Style");
+                } else {
+                    extras += z.name.substr(folder.size()) + '\0' + std::to_string(z.data.size()) + '\0' + z.data;
+                }
+            }
+            documentFields(f, style, *s, doc.root);
+            if (!extras.empty()) {
+                f.push_back({ F::ARCHIVE_EXTRAS, Text(extras) });
+            }
+            std::vector<std::pair<std::string, std::string> > breaks;
+            if (const Node* first = s->child("Staff")) {
+                int index = -1;
+                for (const Node& m : first->children) {
+                    if (m.name != "Measure" || m.child("multiMeasureRest")) {
+                        continue;
+                    }
+                    ++index;
+                    for (const Node& c : m.children) {
+                        if (c.name == "LayoutBreak") {
+                            breaks.emplace_back(std::to_string(index), c.childText("subtype"));
+                        }
+                    }
+                }
+            }
+            if (!breaks.empty()) {
+                f.push_back({ F::LAYOUT_BREAKS, Text(packPairs(breaks)) });
+            }
+            bb.add(Kind::Layout, scoreId, f);
             report.modelled["Excerpt"]++;
         }
     }

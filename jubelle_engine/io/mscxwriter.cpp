@@ -75,11 +75,101 @@ std::string upperFirst(std::string s)
     return s;
 }
 
+//! MuseScore's element identity: two numbers, each in base-64 digits from the least significant, joined by "_"
+std::string eidText(uint64_t a, uint64_t b)
+{
+    static const char digits[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    auto one = [](uint64_t n) {
+        std::string out;
+        do {
+            out += digits[n % 64];
+            n /= 64;
+        } while (n);
+        return out;
+    };
+    return one(a) + "_" + one(b);
+}
+
+uint64_t fnv(const std::string& s, uint64_t seed)
+{
+    uint64_t h = 1469598103934665603ULL ^ seed;
+    for (unsigned char c : s) {
+        h ^= c;
+        h *= 1099511628211ULL;
+    }
+    return h;
+}
+
+//! The identity of a part's copy of a score element: derived from the element's and the part's, so that it is the
+//! same on every save and doesn't meet another
+std::string partEid(const std::string& mainEid, int layoutNo)
+{
+    const std::string key = mainEid + "#" + std::to_string(layoutNo);
+    return eidText(fnv(key, 0x9E3779B97F4A7C15ULL) >> 1, fnv(key, 0x2545F4914F6CDD1DULL) >> 1);
+}
+
+//! Part elements are linked to the main score's (decision D-E28): each copy gets its own identity and a
+//! <linkedTo> naming the main element's. Measures, beams and accidentals carry an identity but no link, as
+//! MuseScore writes them.
+void linkToMain(Node& n, int layoutNo)
+{
+    static const std::set<std::string> unlinked { "Score", "Measure", "Beam", "Accidental" };
+    for (size_t i = 0; i < n.children.size(); ++i) {
+        Node& c = n.children[i];
+        if (c.name == "eid" && c.leaf && !c.raw.empty()) {
+            const std::string main = c.raw;
+            c.raw = partEid(main, layoutNo);
+            if (!unlinked.count(n.name)) {
+                n.children.insert(n.children.begin() + long(i) + 1, leaf("linkedTo", main));
+                ++i;
+            }
+        } else if (c.name == "linkedTo" || c.name == "linked" || c.name == "linkedMain") {
+            n.children.erase(n.children.begin() + long(i));
+            --i;
+        } else {
+            linkToMain(c, layoutNo);
+        }
+    }
+}
+
+//! Archive entries kept as one text: name, NUL, size, NUL, data, ...
+std::vector<zip::Entry> unpackEntries(const std::string& extras)
+{
+    std::vector<zip::Entry> out;
+    for (size_t at = 0; at < extras.size();) {
+        const size_t z1 = extras.find('\0', at);
+        const size_t z2 = z1 == std::string::npos ? z1 : extras.find('\0', z1 + 1);
+        if (z2 == std::string::npos) {
+            break;
+        }
+        zip::Entry e;
+        e.name = extras.substr(at, z1 - at);
+        const size_t size = size_t(std::stoull(extras.substr(z1 + 1, z2 - z1 - 1)));
+        e.data = extras.substr(z2 + 1, size);
+        out.push_back(e);
+        at = z2 + 1 + size;
+    }
+    return out;
+}
+
+std::string folderName(const std::string& name, size_t index)
+{
+    std::string f = std::to_string(index) + "_";
+    for (char c : name) {
+        f += (c == ' ' || c == '/' || c == '\\' || c == ':') ? '_' : c;
+    }
+    return f;
+}
+
 class Writer
 {
 public:
     Writer(const model::Snapshot& snapshot, WriteReport& r)
         : s(snapshot), report(r) {}
+
+    //! A part score: only the layout's players; system items go to its first staff
+    Writer(const model::Snapshot& snapshot, WriteReport& r, const Object& partLayout, std::map<Id, std::string>& sharedEids)
+        : s(snapshot), report(r), layout(&partLayout), generatedEids(&sharedEids) {}
 
     ScoreFile run(const std::string& scoreName)
     {
@@ -120,22 +210,62 @@ public:
         main.name = scoreName;
         file.entries = { styleEntry, main };
         // the other score data kept in the archive (mixer, view, automation settings)
-        const std::string extras = score->text(F::ARCHIVE_EXTRAS);
-        for (size_t at = 0; at < extras.size();) {
-            const size_t z1 = extras.find('\0', at);
-            const size_t z2 = z1 == std::string::npos ? z1 : extras.find('\0', z1 + 1);
-            if (z2 == std::string::npos) {
-                break;
-            }
-            zip::Entry e;
-            e.name = extras.substr(at, z1 - at);
-            const size_t size = size_t(std::stoull(extras.substr(z1 + 1, z2 - z1 - 1)));
-            e.data = extras.substr(z2 + 1, size);
+        for (const zip::Entry& e : unpackEntries(score->text(F::ARCHIVE_EXTRAS))) {
             file.entries.push_back(e);
-            at = z2 + 1 + size;
         }
         file.entries.push_back(container);
+
+        // part layouts: each a part score made from the same model, linked to the main score
+        size_t layoutNo = 0;
+        for (const Object* l : layouts) {
+            WriteReport partReport;
+            Writer pw(s, partReport, *l, *generatedEids);
+            xml::Document doc = pw.partDocument();
+            linkToMain(doc.root, int(layoutNo));
+            const std::string folder = l->text(F::TAG).empty() ? folderName(l->text(F::NAME), layoutNo) : l->text(F::TAG);
+            const std::string base = "Excerpts/" + folder + "/" + folder;
+            zip::Entry mscx;
+            mscx.name = base + ".mscx";
+            // the part's style also as its own .mss, as MuseScore keeps it
+            xml::Document mss;
+            mss.prolog.push_back(declaration());
+            mss.hasRoot = true;
+            mss.trailing = "\n";
+            mss.root.name = "museScore";
+            mss.root.attrs.emplace_back("version", "4.70");
+            mss.root.children.push_back(pw.styleNode());
+            zip::Entry styleEntry;
+            styleEntry.name = base + ".mss";
+            styleEntry.data = xml::write(mss);
+            file.excerpts[mscx.name] = std::move(doc);
+            file.entries.push_back(mscx);
+            file.entries.push_back(styleEntry);
+            const std::string extras = l->text(F::ARCHIVE_EXTRAS);
+            for (const zip::Entry& e : unpackEntries(extras)) {
+                zip::Entry x = e;
+                x.name = "Excerpts/" + folder + "/" + e.name;
+                file.entries.push_back(x);
+            }
+            ++layoutNo;
+        }
         return file;
+    }
+
+    //! The part score of the layout this writer was made for
+    xml::Document partDocument()
+    {
+        score = s.find(s.score());
+        xml::Document doc;
+        index();
+        doc.prolog.push_back(declaration());
+        doc.hasRoot = true;
+        doc.trailing = "\n";
+        doc.root.name = "museScore";
+        doc.root.attrs.emplace_back("version", "4.70");
+        const std::vector<Node> head = parseFragment(layout->has(F::SCORE_HEAD) ? layout->text(F::SCORE_HEAD) : defaultScoreHead());
+        doc.root.children.insert(doc.root.children.end(), head.begin(), head.end());
+        doc.root.children.push_back(scoreNode());
+        return doc;
     }
 
 private:
@@ -165,7 +295,42 @@ private:
                 }
             } else if (o->kind() == Kind::Spanner) {
                 spanners.push_back(o);
+            } else if (o->kind() == Kind::Layout && o->has(F::PLAYERS)) {
+                layouts.push_back(o);
             }
+        }
+        if (layout) {
+            // a part: its players only, staves numbered from 1
+            const model::IdList& keep = std::get<model::IdList>(layout->get(F::PLAYERS));
+            std::vector<const Object*> chosen;
+            for (Id p : keep) {
+                for (const Object* o : players) {
+                    if (o->id() == p) {
+                        chosen.push_back(o);
+                    }
+                }
+            }
+            players = chosen;
+            staves.clear();
+            staffNumber.clear();
+            for (const Object* o : players) {
+                for (Id st : o->children()) {
+                    staffNumber[st] = int(staves.size()) + 1;
+                    staves.push_back(s.find(st));
+                }
+            }
+        }
+        // part layouts link to the main score's elements by identity: every element written gets one
+        needLinks = !layouts.empty() || layout;
+        if (!generatedEids) {
+            generatedEids = &ownEids;
+        }
+        if (needLinks && usedEids.empty()) {
+            s.forEachObject([this](const Object& o) {
+                if (o.has(F::ORIGIN_EID)) {
+                    usedEids.insert(o.text(F::ORIGIN_EID));
+                }
+            });
         }
         if (!flow) {
             return;
@@ -231,22 +396,52 @@ private:
         }
     }
 
-    void addEid(Node& n, const Object& o)
+    //! The element's identity: as read, or (when part layouts need it to link to) a new one, the same in every
+    //! part written in this save
+    std::string eidOf(const Object& o)
     {
         const std::string eid = o.text(F::ORIGIN_EID);
         if (!eid.empty() && eid.rfind("part:", 0) != 0) {
+            return eid;
+        }
+        if (!needLinks) {
+            return std::string();
+        }
+        auto it = generatedEids->find(o.id());
+        if (it != generatedEids->end()) {
+            return it->second;
+        }
+        std::string made;
+        do {
+            made = eidText(0x4A75626CULL, ++eidCounter);   // "Jubl", then a counter
+        } while (usedEids.count(made));
+        usedEids.insert(made);
+        (*generatedEids)[o.id()] = made;
+        return made;
+    }
+
+    void addEid(Node& n, const Object& o)
+    {
+        const std::string eid = eidOf(o);
+        if (!eid.empty()) {
             n.children.push_back(leaf("eid", eid));
         }
     }
 
     // ---- score, style, parts ------------------------------------------------------------------------------------
+    //! The object holding the document's own settings: the score, or the part's layout
+    const Object& settings() const { return layout ? *layout : *score; }
+
     Node styleNode()
     {
+        if (!score) {
+            score = s.find(s.score());
+        }
         Node style = elem("Style");
-        for (const auto& [name, raw] : unpackPairs(score->text(F::STYLE))) {
+        for (const auto& [name, raw] : unpackPairs(settings().text(F::STYLE))) {
             style.children.push_back(raw == "\x01" ? empty(name) : leaf(name, raw));
         }
-        for (Node& c : parseFragment(score->text(F::DETAILS_2))) {
+        for (Node& c : parseFragment(settings().text(F::DETAILS_2))) {
             style.children.push_back(std::move(c));
         }
         finishNode(style);
@@ -258,12 +453,22 @@ private:
         Node sc = elem("Score");
         sc.children.push_back(leaf("Division", "480"));
         sc.children.push_back(styleNode());
-        for (Node& c : parseFragment(score->text(F::SCORE_PRE))) {
+        if (layout && !layout->has(F::SCORE_PRE)) {
+            sc.children.push_back(leaf("name", xml::encode(layout->text(F::NAME))));   // a part made in Jubelle
+        }
+        for (Node& c : parseFragment(settings().text(F::SCORE_PRE))) {
             sc.children.push_back(std::move(c));
         }
-        for (const auto& [name, raw] : unpackPairs(score->text(F::META))) {
+        bool partName = false;
+        for (const auto& [name, raw] : unpackPairs(settings().text(F::META))) {
             Node m = leaf("metaTag", raw);
             m.attrs.emplace_back("name", xml::encode(name));
+            sc.children.push_back(std::move(m));
+            partName = partName || name == "partName";
+        }
+        if (layout && !partName) {
+            Node m = leaf("metaTag", xml::encode(layout->text(F::NAME)));
+            m.attrs.emplace_back("name", "partName");
             sc.children.push_back(std::move(m));
         }
         int partNo = 0;
@@ -273,7 +478,7 @@ private:
         for (size_t i = 0; i < staves.size(); ++i) {
             sc.children.push_back(musicStaff(*staves[i], int(i) + 1));
         }
-        for (Node& c : parseFragment(score->text(F::SCORE_POST))) {
+        for (Node& c : parseFragment(settings().text(F::SCORE_POST))) {
             sc.children.push_back(std::move(c));
         }
         return sc;
@@ -293,6 +498,7 @@ private:
             Node sn = elem("Staff");
             sn.attrs.emplace_back("id", std::to_string(staffNumber[st]));
             if (!detailsFit(*staff)) {
+                addEid(sn, *staff);
                 Node type = elem("StaffType");
                 type.attrs.emplace_back("group", staff->text(F::SUBKIND).empty() ? std::string("pitched") : staff->text(F::SUBKIND));
                 type.children.push_back(leaf("name", "stdNormal"));
@@ -411,10 +617,19 @@ private:
         if (mo.has(F::IRREGULAR)) {
             me.children.push_back(leaf("irregular", "1"));
         }
-        if (first && mo.has(F::BREAK)) {
+        if (first && !layout && mo.has(F::BREAK)) {
             Node lb = elem("LayoutBreak");
             lb.children.push_back(leaf("subtype", xml::encode(mo.text(F::BREAK))));
             me.children.push_back(std::move(lb));
+        }
+        if (first && layout) {   // a part has its own breaks
+            for (const auto& [index, kind] : unpackPairs(layout->text(F::LAYOUT_BREAKS))) {
+                if (index == std::to_string(m)) {
+                    Node lb = elem("LayoutBreak");
+                    lb.children.push_back(leaf("subtype", xml::encode(kind)));
+                    me.children.push_back(std::move(lb));
+                }
+            }
         }
         for (const Object* it : items) {
             if (it->text(F::SUBKIND) == "measureDetail" && it->idOr(F::ANCHOR) == staff.id()
@@ -427,7 +642,7 @@ private:
         auto measureItems = [&](bool atEnd) {
             for (const Object* it : items) {
                 const std::string sub = it->text(F::SUBKIND);
-                const Id where = it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : it->idOr(F::HOME_STAFF);
+                const Id where = it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it);
                 if (sub != "frame" && sub != "measureDetail" && !it->has(F::VOICE_INDEX) && where == staff.id()
                     && it->fractionOr(F::TIME, Fraction()) == measureStart[size_t(m)] && it->has(F::AT_END) == atEnd) {
                     me.children.push_back(itemNode(*it));
@@ -437,7 +652,7 @@ private:
         measureItems(false);
         // the voices written: up to the highest with anything in this measure (an item may sit in an otherwise empty voice)
         for (const Object* it : items) {
-            if (it->has(F::VOICE_INDEX) && (it->idOr(F::ANCHOR) == staff.id() || it->idOr(F::HOME_STAFF) == staff.id())) {
+            if (it->has(F::VOICE_INDEX) && (it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it)) == staff.id()) {
                 const Fraction t = it->fractionOr(F::TIME, Fraction());
                 if (it->has(F::AT_END) ? measureEnding(t) == m : measureAt(t) == m) {
                     lastVoice = std::max(lastVoice, int(it->intOr(F::VOICE_INDEX, 0)));
@@ -473,6 +688,17 @@ private:
         bool spannerEnd = false;
     };
 
+    //! Where a system item (tempo, rehearsal mark…) is written: the staff it was read from, or the first staff when
+    //! that one isn't in the document (a part without it)
+    Id homeOf(const Object& it) const
+    {
+        const Id home = it.idOr(F::HOME_STAFF);
+        if (home.isValid() && staffNumber.count(home)) {
+            return home;
+        }
+        return staves.empty() ? Id() : staves.front()->id();
+    }
+
     bool itemInVoice(const Object& it, const Object& staff, int v) const
     {
         const std::string sub = it.text(F::SUBKIND);
@@ -480,8 +706,7 @@ private:
             return false;   // frames and measure-level items are written by the measure
         }
         const Id anchor = it.idOr(F::ANCHOR);
-        const Id home = it.idOr(F::HOME_STAFF);
-        bool here = anchor.isValid() ? anchor == staff.id() : (home.isValid() ? home == staff.id() : staffNumber.at(staff.id()) == 1);
+        bool here = anchor.isValid() ? anchor == staff.id() : homeOf(it) == staff.id();
         return here && int(it.intOr(F::VOICE_INDEX, 0)) == v;
     }
 
@@ -499,7 +724,7 @@ private:
                 if (measureEnding(t) == m) {
                     entries.push_back({ t, 4, it->intOr(F::SEQ, 0), it });
                 }
-            } else if (!(t < mStart) && t < mEnd) {
+            } else if (measureAt(t) == m) {   // (in the last measure, also anything past its end)
                 entries.push_back({ t, 1, it->intOr(F::SEQ, 0), it });
             }
         }
@@ -509,7 +734,7 @@ private:
             }
             const Fraction t = sp->fractionOr(F::TIME, Fraction());
             const Fraction e = t + sp->fractionOr(F::DURATION, Fraction());
-            if (!(t < mStart) && t < mEnd) {
+            if (measureAt(t) == m) {   // (in the last measure, also anything past its end)
                 entries.push_back({ t, 2, sp->intOr(F::SEQ, 0), sp });
             }
             const int em = (e == mStart && m == 0) ? 0 : measureEnding(e);
@@ -526,7 +751,7 @@ private:
                     continue;
                 }
                 const Fraction t = ev->fractionOr(F::TIME, Fraction());
-                if (!(t < mStart) && t < mEnd) {
+                if (measureAt(t) == m) {   // (in the last measure, also anything past its end)
                     events.push_back(ev);
                 }
             }
@@ -606,11 +831,16 @@ private:
                     ++common;
                 }
                 closeTuplets(common);
-                moveTo(e.time);
                 for (size_t i = common; i < chain.size(); ++i) {
+                    // a tuplet starts where it starts, even if its first event comes later (a hole at its start)
+                    const Fraction tt = s.find(chain[i])->fractionOr(F::TIME, e.time);
+                    if (cursor < tt && !(e.time < tt)) {
+                        moveTo(tt);
+                    }
                     out.children.push_back(tupletNode(*s.find(chain[i])));
                     openTuplets.push_back(chain[i]);
                 }
+                moveTo(e.time);
                 for (const Object* ev : g) {
                     out.children.push_back(eventNode(*ev, m));
                 }
@@ -662,7 +892,9 @@ private:
         addDetails(n, ev);
         if (ev.has(F::MEASURE_REST)) {
             n.children.push_back(leaf("durationType", "measure"));
-            n.children.push_back(leaf("duration", frac(ev.fractionOr(F::DURATION, measureLen[size_t(m)]))));
+            // the written length: on a staff with a local time signature, the actual one times its stretch
+            n.children.push_back(leaf("duration", frac(ev.fractionOr(F::DURATION, measureLen[size_t(m)])
+                                                       * ev.fractionOr(F::STRETCH, Fraction(1, 1)))));
         } else {
             if (ev.intOr(F::DOTS, 0) > 0) {
                 n.children.push_back(leaf("dots", std::to_string(ev.intOr(F::DOTS, 0))));
@@ -881,6 +1113,13 @@ private:
 
     const model::Snapshot& s;
     WriteReport& report;
+    const Object* layout = nullptr;                 // writing this part layout's score
+    std::map<Id, std::string>* generatedEids = nullptr;   // identities given in this save (shared with the parts)
+    std::map<Id, std::string> ownEids;
+    std::set<std::string> usedEids;
+    uint64_t eidCounter = 0;
+    bool needLinks = false;
+    std::vector<const Object*> layouts;
     const Object* score = nullptr;
     const Object* flow = nullptr;
     std::vector<const Object*> players, staves, spanners, measures, items;

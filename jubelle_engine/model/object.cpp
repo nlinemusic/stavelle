@@ -230,6 +230,7 @@ std::string_view fieldName(Field field)
     case SCORE_HEAD: return "scoreHead";
     case SCORE_PRE: return "scorePre";
     case SCORE_POST: return "scorePost";
+    case LAYOUT_BREAKS: return "layoutBreaks";
     default: break;
     }
     return field >= NAMED_BASE ? "named" : "unknown";

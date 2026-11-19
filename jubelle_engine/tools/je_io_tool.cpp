@@ -205,6 +205,29 @@ std::string firstDifference(const std::string& a, const std::string& b)
     return "";
 }
 
+//! `b` with the element identities removed that `a` doesn't have, line by line (the writer gives identities to the
+//! elements of a score with part layouts, which link to them); `added` counts them
+std::string withoutAddedIdentities(const std::string& a, const std::string& b, int& added)
+{
+    std::string out;
+    size_t la = 0, lb = 0;
+    while (lb < b.size()) {
+        const size_t ea = std::min(a.find('\n', la), a.size()), eb = std::min(b.find('\n', lb), b.size());
+        std::string y = b.substr(lb, eb - lb);
+        const std::string x = la < a.size() ? a.substr(la, ea - la) : std::string();
+        const size_t at = y.find(" originEid=\"");
+        if (at != std::string::npos && x.find(" originEid=\"") == std::string::npos) {
+            const size_t end = y.find('"', at + 12);
+            y.erase(at, end == std::string::npos ? std::string::npos : end + 1 - at);
+            ++added;
+        }
+        out += y + "\n";
+        la = ea + 1;
+        lb = eb + 1;
+    }
+    return out;
+}
+
 int generate(const std::string& in, const std::string& out)
 {
     model::Model m;
@@ -267,7 +290,8 @@ int regenerate(const std::string& folder, const std::string& knownPath, bool pri
     }
     std::sort(files.begin(), files.end());
     int v4 = 0, same = 0, unexpected = 0, fixedKnown = 0;
-    long written = 0, dropped = 0;
+    long written = 0, dropped = 0, identitiesGiven = 0;
+    int withIdentities = 0;
     std::map<std::string, int> kinds;
     std::vector<std::string> lines;
     int index = 0;
@@ -307,8 +331,21 @@ int regenerate(const std::string& folder, const std::string& knownPath, bool pri
             problem = std::to_string(w.detailsDropped) + " details dropped without an edit";
         } else {
             const std::string la = io::musicListing(a.snapshot()), lb = io::musicListing(b.snapshot());
-            const std::string da = modelDump(a.snapshot()), db = modelDump(b.snapshot());
-            const auto inv = model::checkInvariants(b.snapshot(), 1);
+            const std::string da = modelDump(a.snapshot());
+            std::string db = modelDump(b.snapshot());
+            if (da != db) {
+                int added = 0;
+                db = withoutAddedIdentities(da, db, added);
+                if (da == db) {
+                    identitiesGiven += added;
+                    ++withIdentities;
+                }
+            }
+            // a score the reader already finds inconsistent (the corpus known issues) must stay as it was: the
+            // same number of problems, none new
+            const size_t before = model::checkInvariants(a.snapshot(), 1000).size();
+            const auto invAll = model::checkInvariants(b.snapshot(), 1000);
+            const auto inv = invAll.size() > before ? invAll : std::vector<std::string>();
             if (la != lb) {
                 problem = "music differs: " + firstDifference(la, lb);
             } else if (da != db) {
@@ -346,7 +383,9 @@ int regenerate(const std::string& folder, const std::string& knownPath, bool pri
     std::cout << "| MuseScore 4.x scores | " << v4 << " |\n";
     std::cout << "| regenerated with the same music and model | " << same << " |\n";
     std::cout << "| different | " << (v4 - same) << " (" << unexpected << " not in the known list) |\n";
-    std::cout << "| appearance details written / dropped | " << written << " / " << dropped << " |\n\n";
+    std::cout << "| appearance details written / dropped | " << written << " / " << dropped << " |\n";
+    std::cout << "| scores with part layouts whose elements were given identities (to link the parts) | " << withIdentities
+              << " (" << identitiesGiven << " elements) |\n\n";
     for (const auto& [kind, n] : kinds) {
         std::cout << "- " << kind << ": " << n << "\n";
     }

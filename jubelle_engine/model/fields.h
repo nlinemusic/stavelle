@@ -141,6 +141,7 @@ constexpr Field DETAILS_2 = ENGINE_BASE + 122;   // a second fragment (an Instru
 constexpr Field SCORE_HEAD = ENGINE_BASE + 123;  // string: the file's first elements (programVersion…), on the score
 constexpr Field SCORE_PRE = ENGINE_BASE + 124;   // string: score settings before the parts (showInvisible, Order…)
 constexpr Field SCORE_POST = ENGINE_BASE + 125;  // string: anything after the music
+constexpr Field LAYOUT_BREAKS = ENGINE_BASE + 126;   // string: a part layout's own line/page/section breaks (measure index, kind)
 
 /* Flow items (SUBKIND): clef, keySig, timeSig, tempo, harmony (chord symbol), dynamic, staffText, systemText,
  * rehearsalMark, jump, marker, instrumentChange, breath, fermata, … — ANCHOR = the staff, or absent for the
