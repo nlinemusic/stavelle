@@ -5,9 +5,9 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 
 | | |
 |---|---|
-| Last updated | 19 Nov 2026 |
+| Last updated | 25 Nov 2026 |
 | Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
-| Current work | **S2 file handling** (S1 model foundations complete) |
+| Current work | **S3 editing and note entry** (S1 model and S2 file handling done; S2 follow-ups listed in §15) |
 | Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
