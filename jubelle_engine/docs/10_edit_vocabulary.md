@@ -41,3 +41,13 @@ explode, transpose, harmonise) are sequences of these.
 2. An operation that fails validation **rolls back** the whole transaction; the model is never half-changed.
 3. Each transaction names the MuseScore action it corresponds to, so the undo history text stays the same.
 4. Comparison test (Phase 4.1): scripted sequences of these methods on both engines must give equal models.
+5. **Linked staves** (S3, `edit/links`): every editing transaction carries `linkedStavesHook`. After the command's own
+   changes, each linked staff is brought in line with its main staff in the same transaction: an edit on a linked
+   staff is first made on the main staff. Measures whose music differs are patched in place when their structure is
+   the same (the objects, their identities and the file's appearance details stay; only a changed object's own
+   details are dropped by their fingerprint), and written again when it isn't. Ties across barlines are reconnected,
+   and lines anchored to replaced copies move to the new copies. A copy made by Jubelle carries its original
+   (`LINKED_TO`), which the writer turns into MuseScore's link: `<linkedTo>` with the original's identity from 4.60,
+   `<linkedMain/>` and `<linked>` with the `<indexDiff>` MuseScore's reader needs before 4.60. Tablature staves then get
+   strings and frets (`edit/tablature`, MuseScore's StringData rules) for new notes and notes whose pitch changed.
+   Not yet: lines and staff texts added on one staff of a pair appearing on the other.

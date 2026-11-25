@@ -239,13 +239,18 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | **S2 model-based writer (D-E27, D-E28):** files generated from the model alone, parts generated and linked; **2,118 of 2,118 corpus scores regenerate with identical music and model**; MuseScore 4.7.7's engine reads **2,110 of 2,117** generated files exactly as the originals (7 expected), with no warnings beyond the originals'. Fixed a reader data loss (glissandos and bends inside notes). Save-and-reopen tests (ensemble built in the model, edits after reopening, the 11 style settings); 63 tests clean under ASan/UBSan |
 | 19 Nov 2026 | **S2 playback fidelity:** MuseScore's detailed reading and its own MIDI rendering of the generated files added to the comparison; fixed slurs inside chords, cross-voice/staff and grace ties, grace order, unison ties, linked staves within a score, grace lengths. MuseScore reads 2,107 of 2,117 generated files identically down to MIDI (3 importer files listed as not yet understood). Official MuseScore 4.7.7 MIDI check: 46 → 50 of 54, fixes for the rest since |
 | 19 Nov 2026 | **S3 started:** editing operations with MuseScore's note-entry rules and the note-input state machine; property tests (random edits stay consistent, undo/redo exactly, save and reopen); 77 tests pass under ASan/UBSan; CI green on Windows, macOS and Linux for the S2 writer |
+| 19 Nov 2026 | **S3:** range copy, paste and delete (`edit/clipboard`) and transposition; 82 tests |
+| 25 Nov 2026 | **S3 linked staves while editing** (`edit/links`) and **tablature strings and frets** (`edit/tablature`, MuseScore's fretting rules ported): an edit on either staff of a linked pair (a guitar's standard and tablature staves) is made on the other in the same undo step; copies are linked as MuseScore links them (by identity from 4.60, by place with MuseScore's index rules before). Fixed: ties from another voice into a deleted note; staves linked both ways in a file. 91 tests pass under ASan/UBSan; corpus unchanged (2,118/2,118 regenerate; MuseScore reads 2,110/2,117 generated files as the originals); new check, also in CI: all **138 corpus scores with a linked staff, edited on both staves, are read by MuseScore with the same music on the linked staves and the links of the original** (formats 4.00–4.70) |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
   and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
-- **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition. Next: linked staves
-  and parts while editing, the remaining commands of `docs/10_…`, scripted comparisons with MuseScore's engine (the
+- **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
+  tablature fretting (parts are layouts of the same music, so they follow every edit by design). Next: lines and staff
+  texts on linked staves, the remaining commands of `docs/10_…`, scripted comparisons with MuseScore's engine (the
   clipboard's text format is part of S10). Then S4 (autosave journal and crash recovery).
+- Carried note bends, glissandi and similar lines between notes are still kept as file details (S2): an edit to
+  one of their notes drops that half. They become modelled objects in S3/S7.
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
   now; these go into the app once the new engine is in place, see §15a).
 - **S2** open items: 3 playback differences in importer test files; part-only content.
