@@ -56,8 +56,30 @@ def measures(x, sr):
         above = np.where(10 * np.log10(spec / ref + 1e-30) > -40)[0]
         bw = float(freqs[above[-1]]) if len(above) else float("nan")
     rms = float(np.sqrt(np.mean(x ** 2))) if x.size else 0.0
+    # balance: each octave band's share of the energy (dB against the whole), the spectrum's tilt
+    bands = {}
+    if frames:
+        total = float(np.sum(spec))
+        for lo in (63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000):
+            sel = (freqs >= lo / np.sqrt(2)) & (freqs < lo * np.sqrt(2))
+            bands[lo] = 10 * np.log10(float(np.sum(spec[sel])) / total + 1e-30)
+    # loudness range (EBU R128 LRA, approximately): 3 s windows every second, 10th to 95th percentile
+    lra = float("nan")
+    try:
+        meter = pyloudnorm.Meter(sr)
+        st = []
+        for i in range(0, max(0, len(x) - 3 * sr), sr):
+            v = meter.integrated_loudness(x[i:i + 3 * sr])
+            if np.isfinite(v) and v > -70:
+                st.append(v)
+        if len(st) > 3:
+            st = np.array(st)
+            st = st[st > np.max(st) - 20 - 0]   # relative gate
+            lra = float(np.percentile(st, 95) - np.percentile(st, 10))
+    except Exception:
+        pass
     return dict(sr=sr, seconds=len(x) / sr, lufs=lufs, peak=db(peak), true_peak=db(tp), near_full=near * 100,
-                clipped=clipped, bandwidth=bw, crest=db(peak) - db(rms))
+                clipped=clipped, bandwidth=bw, crest=db(peak) - db(rms), bands=bands, lra=lra)
 
 
 def align(a, b, sr, seconds=10):
@@ -127,6 +149,12 @@ def main(folder, report):
         else:
             out.append(f"| {s} | {prog} | {ext} | {m['sr']} | {m['seconds']:.2f} | {m['lufs']:.1f} | {m['peak']:.2f} | "
                        f"{m['true_peak']:.2f} | {m['near_full']:.2f} | {m['clipped']} | {m['bandwidth']:.0f} | {m['crest']:.1f} |")
+    out += ["", "### Balance (each octave band's share of the energy, dB) and loudness range (LU)", "",
+            "| Score | Program | File | 63 | 125 | 250 | 500 | 1k | 2k | 4k | 8k | 16k | LRA |",
+            "|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for s, prog, ext, m in rows:
+        if m is not None and m["bands"]:
+            out.append(f"| {s} | {prog} | {ext} | " + " | ".join(f"{m['bands'][b]:.1f}" for b in sorted(m["bands"])) + f" | {m['lra']:.1f} |")
     out += ["", "### Encoding and differences", ""] + lines
     text = "\n".join(out) + "\n"
     Path(report).write_text(text, encoding="utf-8")

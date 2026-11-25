@@ -49,9 +49,9 @@ jobs:
         JU=$(ls "/c/Program Files/"Jubelle*/bin/*.exe | grep -iv crash | head -1)
         echo "MuseScore: $MS"; echo "Jubelle: $JU"
         mkdir -p export/musescore export/jubelle
-        for s in demos/Reunion.mscz demos/Brassed_Up.mscx demos/Dynamic_Strings.mscx demos/Fugue_1.mscx demos/Amazing_grace.mscz; do
+        for s in demos/Reunion.mscz demos/All_Dudes.mscz demos/Brassed_Up.mscx demos/Triumph.mscz demos/Dynamic_Strings.mscx demos/Fugue_1.mscx demos/Amazing_grace.mscz tools/jubelle_templates/testscores/Big_Band_test_music.mscz; do
           n=$(basename "$s"); n="${n%.*}"
-          for ext in wav mp3; do
+          for ext in wav mp3; do   # (default settings in both: 44.1 kHz, 128 kbps)
             timeout 900 "$MS" -o "export/musescore/$n.$ext" "$s" > "export/musescore/$n.$ext.log" 2>&1 || echo "MuseScore $n.$ext failed"
             timeout 900 "$JU" -o "export/jubelle/$n.$ext" "$s" > "export/jubelle/$n.$ext.log" 2>&1 || echo "Jubelle $n.$ext failed"
           done
