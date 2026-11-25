@@ -243,14 +243,27 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
   and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
-- **S3 editing** (now): done: operations and note input. Next: selection model, clipboard (MSCX fragments),
-  transposition, the remaining commands of `docs/10_…`, linked staves and parts while editing, scripted
-  comparisons with MuseScore's engine. Then S4 (autosave journal and crash recovery).
+- **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition. Next: linked staves
+  and parts while editing, the remaining commands of `docs/10_…`, scripted comparisons with MuseScore's engine (the
+  clipboard's text format is part of S10). Then S4 (autosave journal and crash recovery).
+- **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
+  now; these go into the app once the new engine is in place, see §15a).
 - **S2** open items: 3 playback differences in importer test files; part-only content.
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).
 - Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
+
+## 15a. App fixes reported by the user, scheduled after the new engine (25 Nov 2026)
+The user asked (25 Nov, 12:12) not to make Windows builds for these now, and to put them in the plan for after the
+new engine is created. Each is checked again against the new engine when it is connected (S5, S6, S8, S10), because
+part of the cause may be in code that the new engine replaces.
+
+| Id | Report | What is known | Plan |
+|---|---|---|---|
+| F1 | **MP3 exports sound worse than MuseScore 4's** (user, 24 Nov: "duller / muffled", "squashed / less dynamic"; MS Basic in both) | Measured on Windows CI against official MuseScore 4.7.7, 8 scores, 44.1 kHz / 128 kbps (runs 45545719551, 45664264474): the MP3 encoding is identical; on loud ensembles Jubelle's safety limiter turns tuttis down by up to 14 dB (loudness range: big band 12.7 → 9.6 LU, Brassed_Up 9.2 → 5.7 LU); MuseScore's louder files clip heavily (big band MP3: 318,568 clipped samples), and that loudness accounts for most of the "duller" impression; quiet scores have identical spectra; Jubelle's exports start 5 ms late (limiter look-ahead). User's choices: compensate the delay; no preference on the limiter approach | **Code written** on branch `investigate/mp3-export` (commit after `main` `baa6fdb5`): exports render once to a temporary file, measure the peak, turn the whole piece down so the limiter does at most 3 dB of work, and remove the 5 ms delay; quiet music is exported exactly as before; playback unchanged; all export formats. 3 new tests pass (standalone, ASan); unit-test CI passed (run 45665903913). **Not yet built or measured on Windows** (build 45665899214 cancelled at the user's request). After the engine: port to S6, rerun `jubelle_audio_export_compare.yml` and confirm the loudness range, no clipping, 0-sample offset and unchanged quiet scores |
+| F2 | **Ctrl+S (Save) also opens the drums panel/menu**, every time | Checked: Ctrl+S is assigned only to Save (standard key) in all shortcut files and workflow profiles; the menu keyboard handling and the save code are unchanged from MuseScore or contain nothing that opens a drum window. The likely route is the percussion/drum panel auto-show, which reacts to notation and selection change notifications that saving may send; not reproduced yet | Reproduce on Windows with a test that presses Ctrl+S in the UI self-test and records which panels open; fix in S10 when the interface is connected to the new engine's notifications |
+| F3 | **The blue playback cursor falls behind the music** | Not investigated yet. To measure: cursor time against the audio clock over a long score (drift, or a fixed lag such as output latency or the limiter's 5 ms) | Measure and fix with S5 playback (the new engine's timing drives the cursor) |
 
 ## 16. Important technical decisions
 D-E1 same repository, `engine/next` · D-E2 stable checkpoint · D-E3 GPL v3 · D-E4 C++17 core without Qt ·
