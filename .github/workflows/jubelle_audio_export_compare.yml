@@ -3,6 +3,9 @@
 name: 'Jubelle: Audio Export Comparison (Windows)'
 
 on:
+  push:
+    branches: [ 'investigate/mp3-export' ]
+    paths: [ '.github/workflows/jubelle_audio_export_compare.yml', 'tools/jubelle_checks/audio_export_compare.py' ]
   workflow_dispatch:
     inputs:
       jubelle_release:
@@ -24,11 +27,11 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         mkdir -p jubelle_msi musescore_msi
-        if [ "${{ inputs.build_run_id }}" != "0" ]; then
+        if [ -n "${{ inputs.build_run_id }}" ] && [ "${{ inputs.build_run_id }}" != "0" ]; then
           ART=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.build_run_id }}/artifacts" --jq '[.artifacts[] | select(.name | startswith("MU4_"))][0].name')
           gh run download "${{ inputs.build_run_id }}" --repo "${{ github.repository }}" --name "$ART" --dir jubelle_msi
         else
-          gh release download "${{ inputs.jubelle_release }}" --repo "${{ github.repository }}" --pattern "*x86_64.msi" --dir jubelle_msi
+          gh release download "${{ inputs.jubelle_release || 'v4.7.7.261118230' }}" --repo "${{ github.repository }}" --pattern "*x86_64.msi" --dir jubelle_msi
         fi
         gh release download v4.7.7 --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi
         ls -la jubelle_msi musescore_msi
