@@ -13,7 +13,9 @@
  * file said about their appearance); lines (slurs, hammer-ons) anchored to the copy are moved to the new copies,
  * ties into and out of the measure are reconnected, and a tablature staff gets strings and frets.
  *
- * Not yet: lines and staff texts added on one staff appearing on the other (they stay where they were made).
+ * Lines and staff items (slurs, hairpins, dynamics, staff texts, chord symbols…) that an edit adds, changes or removes
+ * on one staff of a pair are added, changed or removed on the others too, as MuseScore does; ones already different
+ * in a file are left as they are.
  */
 #pragma once
 
@@ -28,6 +30,7 @@ namespace je::edit {
 struct LinkSyncReport {
     size_t voicesRebuilt = 0;    // a measure of a voice written again (its structure changed)
     size_t objectsPatched = 0;   // objects that took the music of their counterpart in place
+    size_t itemsMirrored = 0;    // lines and staff items made, changed or removed on the other staves of a pair
     size_t conflicts = 0;      // notes that can't be played on their tablature staff
 };
 

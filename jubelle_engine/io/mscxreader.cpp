@@ -5,6 +5,7 @@
 #include "mscxreader.h"
 
 #include <algorithm>
+#include <functional>
 #include <map>
 #include <set>
 #include <sstream>
@@ -13,6 +14,8 @@
 #include "details.h"
 
 namespace F = je::model::fields;
+// a field only while reading: the element an object was read from
+constexpr je::model::Field TEMP_NODE = je::model::fields::ENGINE_BASE + 999;
 using je::model::Kind;
 using je::model::Text;
 using je::model::Value;
@@ -149,8 +152,8 @@ public:
             error = "MuseScore format " + file.formatVersion() + " (the native reader handles 4.x)";
             return false;
         }
-        scoreId = bb.add(Kind::Score, Id(), scoreFields(*score));
-        flowId = bb.add(Kind::Flow, scoreId, { { F::NAME, Text(std::string("Flow 1")) } });
+        scoreId = add(Kind::Score, Id(), scoreFields(*score));
+        flowId = add(Kind::Flow, scoreId, { { F::NAME, Text(std::string("Flow 1")) } });
 
         // players and staves first, then the measure grid from the first staff, then the music
         for (const Node& c : score->children) {
@@ -170,8 +173,12 @@ public:
             return false;
         }
         readGrid(*musicStaves.front());
+        byPlaceFormat = file.formatVersion() < std::string("4.60");
         for (const Node* s : musicStaves) {
             readStaffMusic(*s);
+        }
+        if (byPlaceFormat) {
+            resolveLinksByPlace(*score);
         }
         resolveTies();
         readLayouts();
@@ -205,6 +212,112 @@ private:
             // ways, is the other half of the same pair)
             if (main.isValid() && main != staff && staffOrder[main] < staffOrder[staff]) {
                 bb.setField(staff, F::LINKED_STAFF, main);
+            }
+        }
+    }
+
+    //! Adds an object; an element with links by place (before 4.60) is remembered with its object, for
+    //! resolveLinksByPlace
+    Id add(Kind kind, Id parent, Fields fields, Order order = Order::Append)
+    {
+        const Node* node = nullptr;
+        for (auto it = fields.begin(); it != fields.end(); ++it) {
+            if (it->first == TEMP_NODE) {
+                node = reinterpret_cast<const Node*>(std::get<int64_t>(it->second));
+                fields.erase(it);
+                break;
+            }
+        }
+        const Id id = bb.add(kind, parent, std::move(fields), order);
+        if (node) {
+            nodeObject[node] = id;
+        }
+        return id;
+    }
+
+    //! Links by place (formats before 4.60): MuseScore's reader (read410 ReadContext::addLink and getLink, with
+    //! its LinksIndexer) finds a <linked> element's original among the <linkedMain/> elements of its staff's main
+    //! staff, at the copy's position. Done here the same way, so each copy that is an object of the model knows its
+    //! original (LINKED_TO), and a save can work out every link again however the music changed
+    void resolveLinksByPlace(const Node& score)
+    {
+        struct Loc {
+            int64_t track = 0;
+            Fraction tick;
+            bool operator==(const Loc& o) const { return track == o.track && tick == o.tick; }
+        };
+        struct Entry {
+            Loc loc;
+            const Node* node;
+        };
+        std::map<int64_t, std::vector<Entry> > lists;   // by staff index
+        Loc last;
+        bool hasLast = false;
+        int lastIndex = -1;
+        auto assign = [&](const Loc& l) {
+            if (hasLast && last == l) {
+                return ++lastIndex;
+            }
+            hasLast = true;
+            last = l;
+            lastIndex = 0;
+            return 0;
+        };
+        std::map<int64_t, int64_t> mainIndex;   // staff index → its main staff's index
+        for (const auto& [staff, to] : staffLinks) {
+            auto it = staffById.find(toInt(to));
+            if (it != staffById.end() && staffOrder[it->second] < staffOrder[staff]) {
+                mainIndex[staffOrder[staff] - 1] = staffOrder[it->second] - 1;
+            }
+        }
+        std::function<void(const Node&, int64_t, Loc)> walk = [&](const Node& n, int64_t staff, Loc loc) {
+            auto pl = placeOf.find(&n);
+            if (pl != placeOf.end()) {
+                loc = { pl->second.first, pl->second.second };
+            }
+            for (const Node& c : n.children) {
+                if (c.type != Node::Type::Element) {
+                    continue;
+                }
+                if (c.name == "linkedMain") {
+                    assign(loc);
+                    lists[staff].push_back({ loc, &n });
+                } else if (c.name == "linked") {
+                    auto mi = mainIndex.find(staff);
+                    Loc ml { (mi == mainIndex.end() ? staff : mi->second) * 4 + loc.track % 4, loc.tick };
+                    if (const Node* rel = c.child("location")) {
+                        ml.track += 4 * toInt(rel->childText("staves")) + toInt(rel->childText("voices"));
+                        Fraction df;
+                        if (!rel->childText("fractions").empty() && parseFraction(rel->childText("fractions"), df)) {
+                            ml.tick += df;
+                        }
+                    }
+                    const int local = assign(ml) + int(toInt(c.childText("indexDiff")));
+                    std::vector<Entry>& list = lists[ml.track / 4];
+                    if (!list.empty() && list.back().loc == ml) {
+                        list.push_back(list.back());   // as getLink does
+                    }
+                    for (size_t i = 0; i < list.size(); ++i) {
+                        if (list[i].loc == ml) {
+                            const size_t at = i + size_t(std::max(local, 0));
+                            if (local >= 0 && at < list.size() && list[at].loc == ml) {
+                                auto copy = nodeObject.find(&n);
+                                auto orig = nodeObject.find(list[at].node);
+                                if (copy != nodeObject.end() && orig != nodeObject.end() && list[at].node->name == n.name) {
+                                    bb.setField(copy->second, F::LINKED_TO, orig->second);
+                                }
+                            }
+                            break;
+                        }
+                    }
+                } else if (!c.leaf) {
+                    walk(c, staff, loc);
+                }
+            }
+        };
+        for (const Node& c : score.children) {
+            if (c.name == "Staff" && c.hasAttr("id")) {
+                walk(c, toInt(c.attr("id")) - 1, Loc());
             }
         }
     }
@@ -355,7 +468,7 @@ private:
             }
             f.push_back({ F::ORIGIN_EID, Text("part:" + part.attr("id")) });   // "part:" for a part without an id
         }
-        const Id player = bb.add(Kind::Player, scoreId, f);
+        const Id player = add(Kind::Player, scoreId, f);
         players.push_back({ player, name });
         report.modelled["Part"]++;
         for (const Node& c : part.children) {
@@ -366,7 +479,7 @@ private:
                 }
                 eid(c, sf);
                 withDetails(sf, c, {});
-                const Id staff = bb.add(Kind::Staff, player, sf);
+                const Id staff = add(Kind::Staff, player, sf);
                 // staves are numbered through the score in order; older 4.x files also write the number
                 ++staffCount;
                 staffById[c.hasAttr("id") ? toInt(c.attr("id")) : staffCount] = staff;
@@ -390,8 +503,9 @@ private:
         int64_t nextNum = 0, nextDen = 0;   // a time signature at the end of a measure: it starts with the next one
         for (const Node& m : firstStaff.children) {
             if (m.name == "VBox" || m.name == "HBox" || m.name == "TBox" || m.name == "FBox") {
+                placeOf[&m] = { 0, t };
                 // a frame (title, text, fret diagrams) between measures, carried whole until S7/S8 model frames
-                bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("frame")) }, { F::TAG, Text(m.name) }, { F::TIME, t },
+                add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("frame")) }, { F::TAG, Text(m.name) }, { F::TIME, t },
                                                  { F::SEQ, int64_t(++seq) }, { F::DETAILS, Text(wholeFragment({ &m })) } }, Order::ByTime);
                 report.modelled["(frame) " + m.name]++;
                 continue;
@@ -457,7 +571,7 @@ private:
                     f.push_back({ F::ORIGIN_EID, Text(c.text()) });
                 }
             }
-            measureIds.push_back(bb.add(Kind::Measure, flowId, f, Order::ByTime));
+            measureIds.push_back(add(Kind::Measure, flowId, f, Order::ByTime));
             measureStart.push_back(t);
             measureLen.push_back(len);
             t += len;
@@ -493,7 +607,7 @@ private:
         if (it != voices.end()) {
             return it->second;
         }
-        const Id v = bb.add(Kind::Voice, staff, { { F::FLOW, flowId }, { F::NUMBER, int64_t(index) } });
+        const Id v = add(Kind::Voice, staff, { { F::FLOW, flowId }, { F::NUMBER, int64_t(index) } });
         voices.emplace(key, v);
         return v;
     }
@@ -525,7 +639,7 @@ private:
                 // MuseScore's combined rest for the measures that follow: layout, not music, but other data (system
                 // locks) may refer to it, so it is carried whole and written back before the measure it starts at
                 const size_t next = size_t(mi + 1);
-                bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("mmrMeasure")) }, { F::ANCHOR, staff },
+                add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("mmrMeasure")) }, { F::ANCHOR, staff },
                                                  { F::TIME, next < measureStart.size() ? measureStart[next] : flowEnd },
                                                  { F::SEQ, int64_t(++seq) }, { F::DETAILS, Text(wholeFragment({ &m })) } },
                        Order::ByTime);
@@ -536,6 +650,7 @@ private:
                 report.warnings.push_back("a staff has more measures than the first staff");
                 return;
             }
+            placeOf[&m] = { (staffOrder[staff] - 1) * 4, measureStart[size_t(mi)] };
             int vi = 0;
             voice0End = Fraction(-1, 1);
             bool afterVoices = false;
@@ -557,7 +672,7 @@ private:
                 }
             }
             if (!measureDetails.empty()) {
-                bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("measureDetail")) }, { F::ANCHOR, staff },
+                add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("measureDetail")) }, { F::ANCHOR, staff },
                                                  { F::TIME, measureStart[size_t(mi)] }, { F::SEQ, int64_t(++seq) },
                                                  { F::DETAILS, Text(wholeFragment(measureDetails)) } }, Order::ByTime);
             }
@@ -599,8 +714,13 @@ private:
         // the tuplets' ratio, and the local time signature's stretch
         auto factor = [&tuplets, &stretch]() { return (tuplets.empty() ? Fraction(1, 1) : tuplets.back().factor) / stretch; };
 
+        const int64_t track = (staffOrder[staff] - 1) * 4 + index;
+        placeOf[&voice] = { track, t };
         for (const Node& e : voice.children) {
             const std::string& n = e.name;
+            if (byPlaceFormat) {
+                placeOf[&e] = { track, t };
+            }
             if (n == "location") {
                 Fraction df;
                 if (parseFraction(e.childText("fractions").empty() ? "0" : e.childText("fractions"), df)) {
@@ -630,7 +750,7 @@ private:
                 }
                 withDetails(f, e, { "normalNotes", "actualNotes", "baseNote" });
                 eid(e, f);
-                tuplets.push_back({ bb.add(Kind::Tuplet, vid(), f, Order::ByTime), outer * stretch * Fraction(normal, actual),
+                tuplets.push_back({ add(Kind::Tuplet, vid(), f, Order::ByTime), outer * stretch * Fraction(normal, actual),
                                     t + base * Fraction(normal, 1) * outer });
                 report.tuplets++;
                 report.modelled["Tuplet"]++;
@@ -684,7 +804,7 @@ private:
                 itemsSinceEvent.push_back(addFlowItem(e, staff, t, index));
             } else if (n != "eid" && e.type == Node::Type::Element) {
                 // anything else in the voice (beams, bar lines, images…), carried at its place in the stream
-                itemsSinceEvent.push_back(bb.add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("detail")) }, { F::ANCHOR, staff },
+                itemsSinceEvent.push_back(add(Kind::FlowItem, flowId, { { F::SUBKIND, Text(std::string("detail")) }, { F::ANCHOR, staff },
                                                                           { F::VOICE_INDEX, int64_t(index) }, { F::TIME, t },
                                                                           { F::SEQ, int64_t(++seq) }, { F::TAG, Text(n) },
                                                                           { F::DETAILS, Text(wholeFragment({ &e })) } }, Order::ByTime));
@@ -723,7 +843,7 @@ private:
             if (!(st == Fraction(1, 1))) {
                 f.push_back({ F::STRETCH, st });
             }
-            bb.add(Kind::Rest, voice, f, Order::ByTime);
+            add(Kind::Rest, voice, f, Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
             at += d / st;
@@ -746,7 +866,7 @@ private:
             if (!(stretchOf(staff) == Fraction(1, 1))) {
                 f.push_back({ F::STRETCH, stretchOf(staff) });
             }
-            bb.add(Kind::Rest, voice, f, Order::ByTime);
+            add(Kind::Rest, voice, f, Order::ByTime);
             report.rests++;
             report.modelled["(rest completing voice 1)"]++;
             return;
@@ -842,6 +962,9 @@ private:
         }
         if (const Node* l = e.child("linkedTo")) {
             f.push_back({ F::LINK_EID, Text(l->text()) });
+        }
+        if (byPlaceFormat && (e.child("linkedMain") || e.child("linked"))) {
+            f.push_back({ TEMP_NODE, int64_t(reinterpret_cast<intptr_t>(&e)) });
         }
         if (e.child("linkedMain")) {
             f.push_back({ F::LINK_MARK, Text(std::string("main")) });
@@ -957,7 +1080,7 @@ private:
         }
         const Kind kind = (isRest || !hasNotes) ? Kind::Rest : Kind::Chord;
         // in file order (BulkBuilder keeps equal times in order: grace notes before, after-graces after their chord)
-        const Id ev = bb.add(kind, voice, f, Order::ByTime);
+        const Id ev = add(kind, voice, f, Order::ByTime);
         report.modelled[e.name]++;
         kind == Kind::Chord ? report.chords++ : report.rests++;
         {
@@ -975,7 +1098,7 @@ private:
                             { F::TAG, Text(c.name) } };
                 withDetails(af, c, { "subtype" });
                 eid(c, af);
-                bb.add(Kind::Attachment, ev, af);
+                add(Kind::Attachment, ev, af);
                 report.modelled[c.name]++;
             } else if (c.name == "Lyrics") {
                 Fields lf { { F::SUBKIND, Text(std::string("lyric")) }, { F::VERSE, toInt(c.childText("no")) },
@@ -990,7 +1113,7 @@ private:
                 }
                 withDetails(lf, c, { "no", "syllabic", "text", "ticks_f" });
                 eid(c, lf);
-                bb.add(Kind::Attachment, ev, lf);
+                add(Kind::Attachment, ev, lf);
                 report.lyrics++;
                 report.modelled["Lyrics"]++;
             } else if (c.name == "Spanner") {
@@ -999,7 +1122,7 @@ private:
                 Fields af { { F::SUBKIND, Text(lowerFirst(c.name)) }, { F::TAG, Text(c.name) } };
                 withDetails(af, c, {});
                 eid(c, af);
-                bb.add(Kind::Attachment, ev, af);
+                add(Kind::Attachment, ev, af);
                 report.modelled[c.name]++;
             } else if (c.name != "Note" && c.name != "durationType" && c.name != "dots" && c.name != "duration" && c.name != "eid"
                        && !graceTags().count(c.name)) {
@@ -1067,10 +1190,19 @@ private:
                 if (!c.child("Tie")->childText("linkedTo").empty()) {
                     f.push_back({ F::TIE_LINK, Text(c.child("Tie")->childText("linkedTo")) });
                 }
+                if (c.child("Tie")->child("linkedMain")) {   // links by place (before 4.60)
+                    f.push_back({ F::TIE_MARK, Text(std::string("main")) });
+                } else if (const Node* l = c.child("Tie")->child("linked")) {
+                    std::vector<const Node*> inner;
+                    for (const Node& x : l->children) {
+                        inner.push_back(&x);
+                    }
+                    f.push_back({ F::TIE_MARK, Text("linked:" + fragment(inner)) });
+                }
             }
         }
         eid(n, f);
-        const Id note = bb.add(Kind::Note, chord, f);
+        const Id note = add(Kind::Note, chord, f);
         report.notes++;
         report.modelled["Note"]++;
         notesAt[{ staff.value(), at }].push_back({ note, toInt(n.childText("pitch"), 60), currentGrace, currentVoice });
@@ -1098,7 +1230,7 @@ private:
                 Fields af { { F::SUBKIND, Text(std::string("fingering")) }, { F::TEXT, Text(rawText(c, "text")) }, { F::TAG, Text(c.name) } };
                 withDetails(af, c, { "text" });
                 eid(c, af);
-                bb.add(Kind::Attachment, note, af);
+                add(Kind::Attachment, note, af);
                 report.modelled["Fingering"]++;
             } else if (c.name != "pitch" && c.name != "tpc" && c.name != "tpc2" && c.name != "eid" && c.name != "Spanner") {
                 report.keptOnly["Note/" + c.name]++;
@@ -1169,7 +1301,7 @@ private:
                         : type == "HairPin" || type == "Ottava" ? std::vector<const char*> { "subtype" }
                         : std::vector<const char*> {});
         }
-        bb.add(Kind::Spanner, scoreId, f);
+        add(Kind::Spanner, scoreId, f);
         report.spanners++;
         report.modelled["Spanner/" + type]++;
     }
@@ -1240,7 +1372,7 @@ private:
             withDetails(f, e, { "text" });
         }
         eid(e, f);
-        const Id item = bb.add(Kind::FlowItem, flowId, f, Order::ByTime);
+        const Id item = add(Kind::FlowItem, flowId, f, Order::ByTime);
         report.modelled[n]++;
         return item;
     }
@@ -1352,7 +1484,7 @@ private:
             if (!breaks.empty()) {
                 f.push_back({ F::LAYOUT_BREAKS, Text(packPairs(breaks)) });
             }
-            bb.add(Kind::Layout, scoreId, f);
+            add(Kind::Layout, scoreId, f);
             report.modelled["Excerpt"]++;
         }
     }
@@ -1386,6 +1518,9 @@ private:
     std::map<int64_t, Id> staffById;
     std::map<std::string, Id> staffByEid;
     std::map<Id, int64_t> staffOrder;   // staves in the order they are read
+    bool byPlaceFormat = false;           // links by place (before 4.60)
+    std::map<const Node*, Id> nodeObject;                          // elements with links by place → their objects
+    std::map<const Node*, std::pair<int64_t, Fraction> > placeOf;  // where MuseScore's reader is at an element
     std::vector<std::pair<Id, std::string> > staffLinks;   // a linked staff and the staff it links to, as written
     int64_t staffCount = 0;
     std::map<uint64_t, Fraction> staffStretch;

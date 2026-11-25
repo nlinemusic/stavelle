@@ -22,7 +22,7 @@ std::vector<std::pair<Field, Value> > musicFields(const Object& o)
     static const std::set<Field> leave { F::KIND, F::TIME, F::CHILDREN, F::PARENT, F::TUPLET, F::TIE_TO, F::ORIGIN_EID, F::DETAILS,
                                          F::DETAILS_2, F::DETAILS_AFTER, F::DETAILS_KEY, F::SEQ, F::ANCHOR, F::HOME_STAFF,
                                          F::START_EVENT, F::END_STAFF, F::END_ANCHOR, F::LINK_EID, F::LINK_MARK, F::TIE_EID,
-                                         F::TIE_LINK, F::TAG, F::AT_END, F::LINKED_TO, F::LINKED_STAFF };
+                                         F::TIE_LINK, F::TAG, F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK };
     std::vector<std::pair<Field, Value> > out;
     o.forEachField([&out](Field f, const Value& v) {
         if (!leave.count(f)) {

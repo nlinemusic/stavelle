@@ -164,6 +164,37 @@ std::string listing(MasterScore* s)
                             }
                         }
                     }
+                    // and the lines and staff items on it (dynamics, staff texts, chord symbols, slurs, hairpins…)
+                    auto linkedInScore = [s](EngravingItem* it) {
+                        if (it->links()) {
+                            for (EngravingObject* o : *it->links()) {
+                                if (o != it && o->isEngravingItem() && toEngravingItem(o)->score() == s) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    };
+                    for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
+                        for (EngravingItem* a : seg->annotations()) {
+                            if (a->staffIdx() == staff->idx() && !a->systemFlag()) {
+                                ++elements;
+                                linked += linkedInScore(a) ? 1 : 0;
+                                if (!linkedInScore(a) && std::string(std::getenv("JUBELLE_REFERENCE_LINKS")) == "2") {
+                                    out << "# unlinked " << a->typeName() << " staff " << si << " at " << frac(seg->tick()) << "\n";
+                                }
+                            }
+                        }
+                    }
+                    for (const auto& [tick, sp] : s->spanner()) {
+                        if (sp->staffIdx() == staff->idx() && !sp->systemFlag() && !sp->isTie()) {
+                            ++elements;
+                            linked += linkedInScore(sp) ? 1 : 0;
+                            if (!linkedInScore(sp) && std::string(std::getenv("JUBELLE_REFERENCE_LINKS")) == "2") {
+                                out << "# unlinked " << sp->typeName() << " staff " << si << " at " << frac(sp->tick()) << "\n";
+                            }
+                        }
+                    }
                     const Staff* first = toStaff(staff->links()->mainElement());
                     out << "# links staff " << si << ": " << elements << " elements, " << linked << " linked, " << wrong << " wrong, with staff "
                         << (first ? first->idx() : staff->idx()) << "\n";

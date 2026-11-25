@@ -250,6 +250,7 @@ std::string_view fieldName(Field field)
     case STRING: return "string";
     case LINKED_STAFF: return "linkedStaff";
     case LINKED_TO: return "linkedTo";
+    case TIE_MARK: return "tieMark";
     case FRETS: return "frets";
     case STRING_TUNING: return "stringTuning";
     default: break;

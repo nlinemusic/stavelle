@@ -32,6 +32,7 @@
 
 #include "edit/links.h"
 #include "edit/operations.h"
+#include "edit/structure.h"
 #include "io/mscxreader.h"
 #include "io/mscxwriter.h"
 #include "io/scorefile.h"
@@ -724,6 +725,28 @@ int linkedit(const std::string& folder, const std::string& outDir)
                         break;
                     }
                 }
+                tx.commit();
+            }
+            {
+                // a dynamic added on the main staff, a hairpin on the linked one: each appears on the other
+                edit::Transaction tx(m, "Add a dynamic and a hairpin", { edit::linkedStavesHook(m, ids) });
+                Id flow;
+                for (Id c : m.find(m.score())->children()) {
+                    if (m.find(c)->kind() == model::Kind::Flow) {
+                        flow = c;
+                        break;
+                    }
+                }
+                edit::create(tx, ids, flow, { model::Kind::FlowItem, { { model::fields::SUBKIND, model::Text("dynamic") },
+                                                                      { model::fields::ANCHOR, main },
+                                                                      { model::fields::TIME, ops.measureStart(ms.back()) },
+                                                                      { model::fields::TEXT, model::Text("mf") } } },
+                             edit::Placement::ByTime);
+                edit::create(tx, ids, m.score(), { model::Kind::Spanner, { { model::fields::SUBKIND, model::Text("hairpin") },
+                                                                          { model::fields::ANCHOR, copy },
+                                                                          { model::fields::TIME, ops.measureStart(ms.back()) },
+                                                                          { model::fields::DURATION, Fraction(1, 4) },
+                                                                          { model::fields::INT_VALUE, int64_t(0) } } });
                 tx.commit();
             }
         } catch (const std::exception& e) {

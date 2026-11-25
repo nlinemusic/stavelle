@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 
@@ -241,12 +242,20 @@ void linkByLocation(Node& n, bool mainScore)
     if (mainScore && std::any_of(n.children.begin(), n.children.end(), [](const Node& c) { return c.name == "linkedMain" || c.name == "linked"; })) {
         return;   // linked within the score already (a linked staff): as it is
     }
-    if (linkable.count(n.name) && !n.leaf) {
+    if (linkable.count(n.name) && (!n.leaf || (n.raw.empty() && !n.selfClosing) || n.name == "Tie")) {
+        if (n.leaf) {   // an empty element (a tie with nothing of its own): it gets the link inside
+            n.leaf = false;
+            n.selfClosing = false;
+            n.raw.clear();
+        }
         size_t at = (!n.children.empty() && n.children.front().name == "eid") ? 1 : 0;
         Node link;
         link.name = mainScore ? "linkedMain" : "linked";
         link.leaf = true;
         link.selfClosing = mainScore;
+        if (n.hasAttr("je-obj")) {   // which element it is (PlaceLinks works out the part's links from it)
+            link.attrs.emplace_back(mainScore ? "je-id" : "je-main", n.attr("je-obj"));
+        }
         n.children.insert(n.children.begin() + long(at), link);
     }
 }
@@ -264,6 +273,28 @@ public:
         : m_mainStaff(mainStaff) {}
 
     void run(Node& score)
+    {
+        // first the places where something changed (an original or a copy made by Jubelle): only there are the
+        // copies' links worked out again; elsewhere they are written as the file had them
+        m_findDirty = true;
+        walkAll(score);
+        m_findDirty = false;
+        m_links.clear();
+        m_hasLast = false;
+        m_lastIndex = -1;
+        walkAll(score);
+    }
+
+    //! A part score, read after the main score (MuseScore's reader carries on with the main score's lists and
+    //! indexer): its <linked> elements find their originals in the main score's staves
+    void runPart(Node& score, const std::map<int, int>& partToMain)
+    {
+        m_partToMain = &partToMain;
+        walkAll(score);
+        m_partToMain = nullptr;
+    }
+
+    void walkAll(Node& score)
     {
         for (Node& c : score.children) {
             if (c.name == "Staff" && c.hasAttr("id")) {
@@ -324,8 +355,15 @@ private:
             }
             if (c.name == "linkedMain") {
                 const Loc loc { track, tick };
+                if (m_findDirty) {
+                    if (c.hasAttr("je-new")) {
+                        m_dirty.insert({ loc.track, loc.tick });
+                    }
+                    continue;
+                }
                 assign(loc);
-                m_links[staff].push_back({ loc, c.attr("je-id") });
+                // a part's own originals are kept apart from the main score's (MuseScore numbers them negatively)
+                m_links[m_partToMain ? -1000 - staff : staff].push_back({ loc, c.attr("je-id") });
             } else if (c.name == "linked") {
                 linked(c, staff, track, tick);
             } else if (!c.leaf) {
@@ -336,9 +374,28 @@ private:
 
     void linked(Node& c, int staff, int track, const Fraction& tick)
     {
+        if (m_partToMain) {
+            auto pm = m_partToMain->find(staff);
+            const int mainStaff = pm == m_partToMain->end() ? staff : pm->second;
+            place(c, Loc { mainStaff * 4 + track % 4, tick }, true);
+            return;
+        }
+        if (m_findDirty) {
+            if (c.hasAttr("je-main") && !c.hasAttr("je-mark")) {
+                auto ms = m_mainStaff.find(staff);
+                const int mainStaff = ms == m_mainStaff.end() ? staff : ms->second;
+                m_dirty.insert({ mainStaff * 4 + track % 4, tick });
+            }
+            return;
+        }
         auto ms = m_mainStaff.find(staff);
         const int mainStaff = ms == m_mainStaff.end() ? staff : ms->second;
         Loc loc { mainStaff * 4 + track % 4, tick };
+        place(c, loc, false);
+    }
+
+    void place(Node& c, Loc loc, bool part)
+    {
         if (const Node* rel = c.child("location")) {   // a link read from the file with a place of its own
             loc.track += 4 * std::atoi(rel->childText("staves").c_str()) + std::atoi(rel->childText("voices").c_str());
             if (!rel->childText("fractions").empty()) {
@@ -352,6 +409,15 @@ private:
         }
         if (!c.hasAttr("je-main")) {
             return;   // as it was read
+        }
+        if (!part && c.hasAttr("je-mark") && !m_dirty.count({ loc.track, loc.tick })) {
+            Node was = elem("linked");   // nothing changed here: as the file had it
+            was.children = parseFragment(c.attr("je-mark"));
+            finishNode(was);
+            c.children = was.children;
+            c.leaf = false;
+            c.raw.clear();
+            return;
         }
         const std::string want = c.attr("je-main");
         int first = -1, at = -1;
@@ -367,10 +433,27 @@ private:
             return;   // the original isn't at the copy's place: written plain (MuseScore leaves it unlinked)
         }
         const int diff = (at - first) - guessed;
-        c.leaf = diff == 0;
         c.raw.clear();
         c.children.clear();
+        if (c.hasAttr("je-mark")) {
+            // read from the file: written as it was when it still says the same
+            const std::vector<Node> was = parseFragment(c.attr("je-mark"));
+            int wasDiff = 0;
+            for (const Node& w : was) {
+                if (w.name == "indexDiff") {
+                    wasDiff = std::atoi(w.text().c_str());
+                }
+            }
+            if (wasDiff == diff) {
+                c.leaf = false;
+                c.children = was;
+                finishNode(c);
+                return;
+            }
+        }
+        c.leaf = diff == 0;
         if (diff != 0) {
+            c.leaf = false;
             c.children.push_back(leaf("indexDiff", std::to_string(diff)));
             finishNode(c);
         }
@@ -378,6 +461,9 @@ private:
 
     const std::map<int, int>& m_mainStaff;
     std::map<int, std::vector<Entry> > m_links;
+    bool m_findDirty = false;
+    const std::map<int, int>* m_partToMain = nullptr;
+    std::set<std::pair<int, Fraction> > m_dirty;   // track and time of the places that changed
     Loc m_last;
     int m_lastIndex = -1;
     bool m_hasLast = false;
@@ -443,14 +529,16 @@ public:
                 }
             }
         }
-        if (byPlace) {
-            std::map<int, int> mainStaff;   // staff index → the index of the staff it is linked to
-            for (const Object* st : staves) {
-                if (st->has(F::LINKED_STAFF) && staffNumber.count(st->idOr(F::LINKED_STAFF))) {
-                    mainStaff[staffNumber.at(st->id()) - 1] = staffNumber.at(st->idOr(F::LINKED_STAFF)) - 1;
-                }
+        std::map<int, int> mainStaff;   // staff index → the index of the staff it is linked to
+        for (const Object* st : staves) {
+            if (st->has(F::LINKED_STAFF) && staffNumber.count(st->idOr(F::LINKED_STAFF))) {
+                mainStaff[staffNumber.at(st->id()) - 1] = staffNumber.at(st->idOr(F::LINKED_STAFF)) - 1;
             }
-            PlaceLinks(mainStaff).run(*root.child("Score"));
+        }
+        std::unique_ptr<PlaceLinks> placeLinks;
+        if (annotate) {
+            placeLinks = std::make_unique<PlaceLinks>(mainStaff);
+            placeLinks->run(*root.child("Score"));
             PlaceLinks::strip(root);
         }
 
@@ -492,6 +580,10 @@ public:
                         linkByLocation(c, false);
                     }
                 }
+                if (placeLinks) {   // each copy led to its original among the main score's at its place
+                    placeLinks->runPart(*psc, pw.partToMainStaves());
+                }
+                PlaceLinks::strip(doc.root);
             }
             const std::string folder = l->text(F::TAG).empty() ? folderName(l->text(F::NAME), layoutNo) : l->text(F::TAG);
             const std::string base = "Excerpts/" + folder + "/" + folder;
@@ -520,6 +612,19 @@ public:
             ++layoutNo;
         }
         return file;
+    }
+
+    //! A part's staves (index) → the main score's staves they show (index)
+    std::map<int, int> partToMainStaves() const
+    {
+        std::map<int, int> out;
+        for (const auto& [st, n] : staffNumber) {
+            auto it = mainStaffNumber.find(st);
+            if (it != mainStaffNumber.end()) {
+                out[n - 1] = it->second - 1;
+            }
+        }
+        return out;
     }
 
     //! The part score of the layout this writer was made for
@@ -608,6 +713,9 @@ private:
         });
         needLinks = (!layouts.empty() || layout || newLinks) && modern;
         byPlace = newLinks && !modern && !layout;
+        // before 4.60, where anything links by place, the reader's position is noted on each element as it is
+        // written, for PlaceLinks
+        annotate = !modern && (byPlace || !layouts.empty() || layout);
         if (!generatedEids) {
             generatedEids = &ownEids;
         }
@@ -717,6 +825,9 @@ private:
 
     void addEid(Node& n, const Object& o)
     {
+        if (annotate) {
+            n.attrs.emplace_back("je-obj", std::to_string(o.id().value()));
+        }
         const std::string eid = eidOf(o);
         if (!eid.empty()) {
             n.children.push_back(leaf("eid", eid));
@@ -749,12 +860,20 @@ private:
         }
         if (field == F::LINK_EID && o.kind() != Kind::Staff) {
             const std::string mark = o.text(F::LINK_MARK);
+            // a copy that knows its original (made by Jubelle, or read by place) is placed again once the score is
+            // written, as its original may have moved among the others at its place; one read with a place of its
+            // own (<location>) is kept as it was
+            const bool placed = byPlace && o.has(F::LINKED_TO) && mark != "main" && mark.find("<location>") == std::string::npos;
             if (byPlace && mark.empty() && linkMains.count(o.id())) {
                 n.children.push_back(empty("linkedMain"));
-            } else if (byPlace && mark.empty() && o.has(F::LINKED_TO)) {
-                Node l = elem("linked");   // its place among the originals is worked out once the score is written
+                n.children.back().attrs.emplace_back("je-new", "1");
+            } else if (placed) {
+                Node l = elem("linked");
                 l.leaf = true;
                 l.attrs.emplace_back("je-main", std::to_string(o.idOr(F::LINKED_TO).value()));
+                if (mark.rfind("linked:", 0) == 0) {
+                    l.attrs.emplace_back("je-mark", mark.substr(7));
+                }
                 n.children.push_back(std::move(l));
             }
             if (byPlace && linkMains.count(o.id()) && !n.children.empty() && n.children.back().name == "linkedMain") {
@@ -762,10 +881,10 @@ private:
             }
             if (mark == "main") {
                 n.children.push_back(empty("linkedMain"));
-                if (byPlace && linkMains.count(o.id())) {
+                if (annotate) {
                     n.children.back().attrs.emplace_back("je-id", std::to_string(o.id().value()));
                 }
-            } else if (mark.rfind("linked:", 0) == 0) {
+            } else if (!placed && mark.rfind("linked:", 0) == 0) {
                 Node l = elem("linked");
                 for (Node& c : parseFragment(mark.substr(7))) {
                     l.children.push_back(std::move(c));
@@ -835,7 +954,7 @@ private:
     //! Where MuseScore's reader is when it reads this element (by-place links before 4.60): its time, and track
     void place(Node& n, const Fraction& t, int track = -1)
     {
-        if (!byPlace) {
+        if (!annotate) {
             return;
         }
         n.attrs.emplace_back("je-tick", frac(t));
@@ -1035,7 +1154,7 @@ private:
     {
         const Object& mo = *measures[size_t(m)];
         Node me = elem("Measure");
-        if (byPlace) {
+        if (annotate) {
             me.attrs.emplace_back("je-track", std::to_string((staffNumber.at(staff.id()) - 1) * 4));
             place(me, measureStart[size_t(m)]);
         }
@@ -1110,7 +1229,7 @@ private:
         lastVoice = std::min(lastVoice, 3);
         for (int v = 0; v <= lastVoice; ++v) {
             Node vo = elem("voice");
-            if (byPlace) {
+            if (annotate) {
                 vo.attrs.emplace_back("je-track", std::to_string((staffNumber.at(staff.id()) - 1) * 4 + v));
             }
             writeVoice(vo, staff, voices[size_t(v)], v, m);
@@ -1760,6 +1879,43 @@ private:
                     tie.children.push_back(leaf("eid", partEid(eidOf(note), -77)));
                 }
                 addLink(tie, note, F::TIE_LINK);
+                if (modern && !layout && note.text(F::TIE_LINK).empty() && note.has(F::LINKED_TO)) {
+                    // a copy's tie: linked to its original's tie
+                    if (const Object* mn = s.find(note.idOr(F::LINKED_TO)); mn && mn->has(F::TIE_TO)) {
+                        const std::string te = mn->has(F::TIE_EID) ? mn->text(F::TIE_EID) : partEid(eidOf(*mn), -77);
+                        if (!te.empty()) {
+                            tie.children.push_back(leaf("linkedTo", xml::encode(te)));
+                        }
+                    }
+                }
+                if (!layout) {   // links by place: as read, or worked out for copies (PlaceLinks)
+                    const std::string mark = note.text(F::TIE_MARK);
+                    const std::string tieId = "t" + std::to_string(note.id().value());
+                    if (byPlace && note.has(F::LINKED_TO) && mark.find("<location>") == std::string::npos) {
+                        Node l = elem("linked");
+                        l.leaf = true;
+                        l.attrs.emplace_back("je-main", "t" + std::to_string(note.idOr(F::LINKED_TO).value()));
+                        if (mark.rfind("linked:", 0) == 0) {
+                            l.attrs.emplace_back("je-mark", mark.substr(7));
+                        }
+                        tie.children.push_back(std::move(l));
+                    } else if (mark == "main" || (byPlace && mark.empty() && linkMains.count(note.id()))) {
+                        tie.children.push_back(empty("linkedMain"));
+                        if (annotate) {
+                            tie.children.back().attrs.emplace_back("je-id", tieId);
+                            if (mark.empty()) {
+                                tie.children.back().attrs.emplace_back("je-new", "1");
+                            }
+                        }
+                    } else if (mark.rfind("linked:", 0) == 0) {
+                        Node l = elem("linked");
+                        for (Node& c : parseFragment(mark.substr(7))) {
+                            l.children.push_back(std::move(c));
+                        }
+                        finishNode(l);
+                        tie.children.push_back(std::move(l));
+                    }
+                }
                 addDetails(tie, note, F::DETAILS_2);
                 finishNode(tie);
                 sp.children.push_back(std::move(tie));
@@ -1977,6 +2133,7 @@ private:
     bool needLinks = false;
     bool newLinks = false;   // copies made by Jubelle on a linked staff
     bool byPlace = false;    // their links written by place (before 4.60): placed after the score is generated
+    bool annotate = false;   // positions noted for links by place (main score with parts, or a part)
     std::set<Id> linkMains;  // elements that copies link to
     std::map<Id, std::vector<const Object*> > startsIn, endsIn;   // lines kept inside chords, by chord
     std::set<Id> inEvent;

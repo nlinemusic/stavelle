@@ -30,7 +30,7 @@ const std::set<Field>& notMusic()
     static const std::set<Field> s { F::KIND, F::TIME, F::CHILDREN, F::PARENT, F::TUPLET, F::TIE_TO, F::ORIGIN_EID, F::DETAILS,
                                      F::DETAILS_2, F::DETAILS_AFTER, F::DETAILS_KEY, F::SEQ, F::ANCHOR, F::HOME_STAFF, F::START_EVENT,
                                      F::END_STAFF, F::END_ANCHOR, F::LINK_EID, F::LINK_MARK, F::TIE_EID, F::TIE_LINK, F::TAG,
-                                     F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::FRET, F::STRING };
+                                     F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::FRET, F::STRING, F::TIE_MARK };
     return s;
 }
 
@@ -530,6 +530,313 @@ je::Id staffOfObject(const model::Model& m, je::Id id)
 }
 }
 
+//! Lines (slurs, hairpins, pedal, …) and staff items (dynamics, staff texts, chord symbols, fretboard diagrams, …)
+//! on linked staves: MuseScore adds, changes and removes them on every staff of a linked pair (undoAddElement with
+//! its staff list). Unlike the notes, linked staves needn't hold the same ones (a file may have a dynamic on one
+//! staff only), so only what this edit touched is mirrored: a counterpart is found by Jubelle's own link, by the
+//! file's identities, or by place; it is changed in step, made, or removed.
+class ItemMirror
+{
+public:
+    ItemMirror(Transaction& tx, model::Model& m, IdGenerator& ids, LinkSyncReport& r,
+               const std::map<je::Id, std::vector<je::Id> >& groups)
+        : tx(tx), m(m), ids(ids), report(r)
+    {
+        for (const auto& [main, linked] : groups) {
+            std::vector<je::Id> all { main };
+            all.insert(all.end(), linked.begin(), linked.end());
+            for (je::Id s : all) {
+                groupOf[s] = all;
+                mainOf[s] = main;
+            }
+        }
+    }
+
+    const Object* obj(je::Id id) const { return m.find(id); }
+
+    static bool mirrored(const Object& o)
+    {
+        if (o.kind() == Kind::Spanner) {
+            return true;
+        }
+        static const std::set<std::string> notOnLinked { "keySig", "timeSig", "mmrMeasure", "measureDetail", "frame",
+                                                         "instrumentChange", "tempo", "rehearsalMark", "systemText", "jump",
+                                                         "marker" };
+        return o.kind() == Kind::FlowItem && o.has(F::ANCHOR) && !notOnLinked.count(o.text(F::SUBKIND));
+    }
+
+    //! The staff an item or line is on: its anchor, or the staff of the event or note it is anchored to
+    je::Id staffOf(je::Id anchor) const
+    {
+        for (const Object* o = obj(anchor); o; o = obj(o->parent())) {
+            if (o->kind() == Kind::Staff) {
+                return o->id();
+            }
+        }
+        return je::Id();
+    }
+
+    je::Id itemStaff(const Object& o) const
+    {
+        je::Id st = staffOf(o.idOr(F::ANCHOR));
+        if (!st.isValid()) {
+            st = staffOf(o.idOr(F::START_EVENT));
+        }
+        return st;
+    }
+
+    std::vector<je::Id> candidates(const Object& like) const
+    {
+        std::vector<je::Id> out;
+        const je::Id parent = like.parent();
+        if (const Object* p = obj(parent)) {
+            for (je::Id c : p->children()) {
+                const Object* o = obj(c);
+                if (o->kind() == like.kind() && o->text(F::SUBKIND) == like.text(F::SUBKIND)) {
+                    out.push_back(c);
+                }
+            }
+        }
+        return out;
+    }
+
+    //! The item on staff `on` that is the same as `x` (on another staff of the pair)
+    je::Id counterpart(const Object& x, je::Id on) const
+    {
+        const std::vector<je::Id> cands = candidates(x);
+        for (je::Id c : cands) {
+            const Object* o = obj(c);
+            if (c == x.id() || itemStaff(*o) != on) {
+                continue;
+            }
+            const bool linked = (x.has(F::LINKED_TO) && (o->id() == x.idOr(F::LINKED_TO) || o->idOr(F::LINKED_TO) == x.idOr(F::LINKED_TO)))
+                                || o->idOr(F::LINKED_TO) == x.id()
+                                || (!x.text(F::ORIGIN_EID).empty() && o->text(F::LINK_EID) == x.text(F::ORIGIN_EID))
+                                || (!x.text(F::LINK_EID).empty() && (o->text(F::ORIGIN_EID) == x.text(F::LINK_EID)
+                                                                     || o->text(F::LINK_EID) == x.text(F::LINK_EID)));
+            if (linked) {
+                return c;
+            }
+        }
+        if (x.has(F::LINK_MARK)) {   // links by place: the same kind at the same time
+            for (je::Id c : cands) {
+                const Object* o = obj(c);
+                if (c != x.id() && itemStaff(*o) == on && o->has(F::LINK_MARK)
+                    && o->fractionOr(F::TIME, Fraction()) == x.fractionOr(F::TIME, Fraction())) {
+                    return c;
+                }
+            }
+        }
+        return je::Id();
+    }
+
+    //! An anchor on staff `from` translated to staff `to`: the staff itself, or the event or note at the same place
+    je::Id mapAnchor(je::Id anchor, je::Id from, je::Id to, Linker& linker) const
+    {
+        if (!anchor.isValid() || anchor == from) {
+            return anchor == from ? to : anchor;
+        }
+        if (staffOf(anchor) != from) {
+            return anchor;   // elsewhere (a line ending on another instrument)
+        }
+        const auto src = linker.places(from);
+        const auto dst = linker.places(to);
+        for (const auto& [p, id] : src) {
+            if (id == anchor) {
+                auto d = dst.find(p);
+                return d == dst.end() ? je::Id() : d->second;
+            }
+        }
+        return je::Id();
+    }
+
+    std::vector<std::pair<Field, model::Value> > itemFields(const Object& o, je::Id from, je::Id to, Linker& linker, bool& lost) const
+    {
+        std::vector<std::pair<Field, model::Value> > f;
+        o.forEachField([&](Field k, const model::Value& v) {
+            if (k == F::ANCHOR || k == F::END_ANCHOR || k == F::START_EVENT) {
+                const je::Id mapped = mapAnchor(std::get<je::Id>(v), from, to, linker);
+                lost = lost || !mapped.isValid();
+                f.emplace_back(k, mapped);
+            } else if (k == F::END_STAFF) {
+                f.emplace_back(k, std::get<je::Id>(v) == from ? model::Value(to) : v);
+            } else if (k == F::HOME_STAFF) {
+                // where a system-wide item is kept: not mirrored
+            } else if (k == F::TIME || k == F::DURATION || k == F::VOICE_INDEX || k == F::SEQ || k == F::AT_END
+                       || !notMusicItem().count(k)) {
+                f.emplace_back(k, v);
+            }
+        });
+        return f;
+    }
+
+    static const std::set<Field>& notMusicItem()
+    {
+        static const std::set<Field> s { F::KIND, F::CHILDREN, F::PARENT, F::ORIGIN_EID, F::DETAILS, F::DETAILS_2, F::DETAILS_AFTER,
+                                         F::DETAILS_KEY, F::LINK_EID, F::LINK_MARK, F::TIE_EID, F::TIE_LINK, F::TAG, F::LINKED_TO,
+                                         F::LINKED_STAFF, F::ANCHOR, F::END_ANCHOR, F::START_EVENT, F::END_STAFF, F::HOME_STAFF };
+        return s;
+    }
+
+    void mirror(const ChangeSet& changes, Linker& linker)
+    {
+        // what the edit made, changed or removed (and, for a removed item, what it was)
+        std::vector<je::Id> order;
+        std::map<je::Id, std::map<Field, model::Value> > before;
+        for (const ChangeRecord& r : changes.records) {
+            if (!before.count(r.object)) {
+                order.push_back(r.object);
+            }
+            before[r.object].emplace(r.field, r.before);
+        }
+        for (je::Id id : order) {
+            const Object* now = obj(id);
+            if (now) {
+                if (mirrored(*now)) {
+                    changed(*now, linker);
+                }
+                continue;
+            }
+            // removed: its counterparts go too
+            const auto& b = before[id];
+            auto kindIt = b.find(F::KIND);
+            if (kindIt == b.end() || !std::holds_alternative<int64_t>(kindIt->second)) {
+                continue;
+            }
+            const Kind kind = Kind(std::get<int64_t>(kindIt->second));
+            if (kind != Kind::FlowItem && kind != Kind::Spanner) {
+                continue;
+            }
+            removed(id, b);
+        }
+    }
+
+    void changed(const Object& x, Linker& linker)
+    {
+        const je::Id st = itemStaff(x);
+        auto g = groupOf.find(st);
+        if (g == groupOf.end() || done.count(x.id())) {
+            return;
+        }
+        done.insert(x.id());
+        const je::Id main = mainOf.at(st);
+        const je::Id xid = x.id();
+        // the original is the main staff's: made first when the edit was on a linked staff
+        je::Id original = st == main ? xid : counterpart(x, main);
+        if (!original.isValid()) {
+            const bool fileLink = x.has(F::LINK_EID) || x.has(F::LINK_MARK);
+            original = make(*obj(xid), st, main, linker, false);
+            if (!original.isValid()) {
+                return;
+            }
+            tx.set(xid, F::LINKED_TO, original);
+            if (fileLink) {   // a link the file gave it, to an item that isn't there any more
+                tx.set(xid, F::LINK_EID, model::Value());
+                tx.set(xid, F::LINK_MARK, model::Value());
+            }
+        } else if (original != xid) {
+            patchItem(xid, original, st, main, linker);
+        }
+        for (je::Id s : g->second) {
+            if (s == st || s == main) {
+                continue;
+            }
+            const je::Id cp = counterpart(*obj(xid), s);
+            if (cp.isValid()) {
+                patchItem(xid, cp, st, s, linker);
+            } else {
+                make(*obj(xid), st, s, linker, true, original);
+            }
+        }
+    }
+
+    je::Id make(const Object& x, je::Id from, je::Id to, Linker& linker, bool link, je::Id original = je::Id())
+    {
+        bool lost = false;
+        NewObject n { x.kind(), itemFields(x, from, to, linker, lost) };
+        if (lost) {
+            return je::Id();   // its note or chord isn't on the other staff
+        }
+        if (link) {
+            n.fields.emplace_back(F::LINKED_TO, original.isValid() ? original : x.id());
+        }
+        const std::vector<je::Id> kids = x.children().ids();
+        const je::Id made = create(tx, ids, x.parent(), n, x.kind() == Kind::FlowItem ? Placement::ByTime : Placement::Append);
+        done.insert(made);
+        ++report.itemsMirrored;
+        (void)kids;
+        return made;
+    }
+
+    void patchItem(je::Id from, je::Id to, je::Id fromStaff, je::Id toStaff, Linker& linker)
+    {
+        done.insert(to);
+        bool lost = false;
+        const std::vector<std::pair<Field, model::Value> > want = itemFields(*obj(from), fromStaff, toStaff, linker, lost);
+        if (lost) {
+            return;
+        }
+        const Object* t = obj(to);
+        std::vector<std::pair<Field, model::Value> > set;
+        for (const auto& [f, v] : want) {
+            if (!(t->get(f) == v)) {
+                set.emplace_back(f, v);
+            }
+        }
+        t->forEachField([&](Field f, const model::Value&) {
+            if (notMusicItem().count(f) || f == F::TIME || f == F::DURATION) {
+                return;
+            }
+            if (std::none_of(want.begin(), want.end(), [f](const auto& w) { return w.first == f; })) {
+                set.emplace_back(f, model::Value());
+            }
+        });
+        for (const auto& [f, v] : set) {
+            tx.set(to, f, v);
+        }
+        if (!set.empty()) {
+            ++report.itemsMirrored;
+        }
+    }
+
+    void removed(je::Id id, const std::map<Field, model::Value>& b)
+    {
+        auto get = [&b](Field f) { auto it = b.find(f); return it == b.end() ? model::Value() : it->second; };
+        const model::Value linkedTo = get(F::LINKED_TO), origin = get(F::ORIGIN_EID), linkEid = get(F::LINK_EID);
+        const je::Id original = std::holds_alternative<je::Id>(linkedTo) ? std::get<je::Id>(linkedTo) : je::Id();
+        const std::string originEid = std::holds_alternative<model::Text>(origin) ? std::get<model::Text>(origin).str() : std::string();
+        const std::string toEid = std::holds_alternative<model::Text>(linkEid) ? std::get<model::Text>(linkEid).str() : std::string();
+        std::vector<je::Id> gone;
+        m.snapshot().forEachObject([&](const Object& o) {
+            if ((o.kind() != Kind::FlowItem && o.kind() != Kind::Spanner) || done.count(o.id())) {
+                return;
+            }
+            if (!groupOf.count(itemStaff(o))) {
+                return;
+            }
+            const bool same = o.idOr(F::LINKED_TO) == id || (original.isValid() && (o.id() == original || o.idOr(F::LINKED_TO) == original))
+                              || (!originEid.empty() && o.text(F::LINK_EID) == originEid)
+                              || (!toEid.empty() && (o.text(F::ORIGIN_EID) == toEid || o.text(F::LINK_EID) == toEid));
+            if (same) {
+                gone.push_back(o.id());
+            }
+        });
+        for (je::Id g : gone) {
+            done.insert(g);
+            removeTree(tx, g);
+            ++report.itemsMirrored;
+        }
+    }
+
+    Transaction& tx;
+    model::Model& m;
+    IdGenerator& ids;
+    LinkSyncReport& report;
+    std::map<je::Id, std::vector<je::Id> > groupOf;
+    std::map<je::Id, je::Id> mainOf;
+    std::set<je::Id> done;
+};
+
 LinkSyncReport syncLinkedStaves(Transaction& tx, model::Model& m, IdGenerator& ids, const ChangeSet* changes)
 {
     LinkSyncReport report;
@@ -601,6 +908,10 @@ LinkSyncReport syncLinkedStaves(Transaction& tx, model::Model& m, IdGenerator& i
             linker.sync(main, s);
             fret.insert(s);
         }
+    }
+    // lines and staff items the edit touched, on every staff of their linked pair
+    if (changes && !groups.empty()) {
+        ItemMirror(tx, m, ids, report, groups).mirror(*changes, linker);
     }
     // tablature staves that were edited, or written again here, get strings and frets
     for (je::Id s : allStaves) {

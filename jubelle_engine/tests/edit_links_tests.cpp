@@ -414,3 +414,74 @@ TEST(LinkedStaves, AFrettingThatIsntThePitchIsLeftAloneUnlessThatNoteChanges)
     g.edit([&](Transaction& tx) { g.ops.setPitch(tx, g.b.notesOf(g.eventAt(g.guitar.voice, Fraction(0, 1))).front(), 59); });
     EXPECT_EQ(g.fretting(g.tabVoice), "59:1/0 64:0/0 ");
 }
+
+TEST(LinkedStaves, DynamicsAndLinesAreAddedChangedAndRemovedOnBothStaves)
+{
+    Guitar g;
+    Id dyn;
+    auto onStaff = [&](Id staff, const std::string& subkind) {
+        std::vector<Id> out;
+        g.model.snapshot().forEachObject([&](const model::Object& o) {
+            if ((o.kind() == Kind::FlowItem || o.kind() == Kind::Spanner) && o.text(F::SUBKIND) == subkind) {
+                Id a = o.idOr(F::ANCHOR);
+                for (const model::Object* x = g.model.find(a); x; x = g.model.find(x->parent())) {
+                    if (x->kind() == Kind::Staff) {
+                        a = x->id();
+                        break;
+                    }
+                }
+                if (a == staff) {
+                    out.push_back(o.id());
+                }
+            }
+        });
+        return out;
+    };
+    g.edit([&](Transaction& tx) {
+        dyn = create(tx, g.ids, g.b.flow(), { Kind::FlowItem, { { F::SUBKIND, Text("dynamic") }, { F::ANCHOR, g.guitar.staff },
+                                                                { F::TIME, Fraction(1, 1) }, { F::TEXT, Text("mf") } } },
+                     Placement::ByTime);
+    });
+    ASSERT_EQ(onStaff(g.tab, "dynamic").size(), 1u);
+    const Id tabDyn = onStaff(g.tab, "dynamic").front();
+    EXPECT_EQ(g.model.find(tabDyn)->idOr(F::LINKED_TO), dyn);
+    EXPECT_EQ(g.model.find(tabDyn)->text(F::TEXT), "mf");
+    // changed on the tablature: the standard staff's follows
+    g.edit([&](Transaction& tx) { tx.set(tabDyn, F::TEXT, Text("ff")); });
+    EXPECT_EQ(g.model.find(dyn)->text(F::TEXT), "ff");
+    // removed on the standard staff: gone from both, and one undo brings both back
+    g.edit([&](Transaction& tx) { removeTree(tx, dyn); });
+    EXPECT_TRUE(onStaff(g.tab, "dynamic").empty());
+    EXPECT_TRUE(onStaff(g.guitar.staff, "dynamic").empty());
+    g.history.undo(g.model);
+    EXPECT_EQ(onStaff(g.tab, "dynamic").size(), 1u);
+    EXPECT_EQ(onStaff(g.guitar.staff, "dynamic").size(), 1u);
+    // a slur made on the tablature between two of its chords: the original is on the standard staff, between the
+    // same chords there
+    Id a, b;
+    g.edit([&](Transaction& tx) {
+        a = g.ops.enterChord(tx, g.tabVoice, Fraction(2, 1), { Fraction(1, 4), 0 }, { 60 });
+        b = g.ops.enterChord(tx, g.tabVoice, Fraction(9, 4), { Fraction(1, 4), 0 }, { 62 });
+    });
+    a = g.eventAt(g.tabVoice, Fraction(2, 1));
+    b = g.eventAt(g.tabVoice, Fraction(9, 4));
+    Id slur;
+    g.edit([&](Transaction& tx) {
+        slur = create(tx, g.ids, g.model.score(), { Kind::Spanner, { { F::SUBKIND, Text("slur") }, { F::ANCHOR, a }, { F::END_ANCHOR, b },
+                                                                     { F::TIME, Fraction(2, 1) }, { F::DURATION, Fraction(1, 4) } } });
+    });
+    ASSERT_EQ(onStaff(g.guitar.staff, "slur").size(), 1u);
+    const model::Object* main = g.model.find(onStaff(g.guitar.staff, "slur").front());
+    EXPECT_EQ(main->idOr(F::ANCHOR), g.eventAt(g.guitar.voice, Fraction(2, 1)));
+    EXPECT_EQ(main->idOr(F::END_ANCHOR), g.eventAt(g.guitar.voice, Fraction(9, 4)));
+    EXPECT_EQ(g.model.find(slur)->idOr(F::LINKED_TO), main->id());
+    EXPECT_FALSE(main->has(F::LINKED_TO));
+    EXPECT_EQ(g.problems(), "");
+    // written and read again: both slurs and both dynamics, linked
+    const std::string xml = io::xml::write(io::generateScoreFile(g.model.snapshot()).main);
+    size_t slurs = 0;
+    for (size_t p = xml.find("<Slur>"); p != std::string::npos; p = xml.find("<Slur>", p + 1)) {
+        ++slurs;
+    }
+    EXPECT_EQ(slurs, 2u);
+}

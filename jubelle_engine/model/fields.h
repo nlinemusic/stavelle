@@ -163,6 +163,7 @@ constexpr Field LINKED_STAFF = ENGINE_BASE + 142;    // Id: on a linked staff (s
 constexpr Field FRETS = ENGINE_BASE + 144;           // int64: a fretted instrument's number of frets (a player's)
 constexpr Field STRING_TUNING = ENGINE_BASE + 145;   // string: its open strings' pitches, lowest first ("40 45 50 55 59 64");
                                                      // "*" marks a string that is never fretted (a banjo's drone)
+constexpr Field TIE_MARK = ENGINE_BASE + 146;        // string: like LINK_MARK, for the tie that starts at a note (before 4.60)
 constexpr Field LINKED_TO = ENGINE_BASE + 143;       // Id: on an element of a linked staff made by Jubelle, its original on
                                                      // the main staff (written as MuseScore's link)
 
