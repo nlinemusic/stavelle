@@ -19,10 +19,13 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <set>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -30,6 +33,7 @@
 #include <malloc.h>
 #endif
 
+#include "edit/commands.h"
 #include "edit/history.h"
 #include "edit/links.h"
 #include "edit/operations.h"
@@ -839,6 +843,143 @@ int linkedit(const std::string& folder, const std::string& outDir)
     return 0;
 }
 
+//! Every corpus score edited with the editing commands on its first pitched staff, saved for MuseScore to read back:
+//! with the edited model's own listing next to it (<name>.mscz.je.txt), MuseScore must read the same music
+int cmdedit(const std::string& folder, const std::string& outDir)
+{
+    namespace F = model::fields;
+    std::vector<fs::path> files;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+         it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (!ec && it->is_regular_file() && isScore(it->path())) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    int edited = 0;
+    for (const fs::path& p : files) {
+        const std::string rel = fs::relative(p, folder).generic_string();
+        std::string bytes, error;
+        io::zip::readFile(p.string(), bytes);
+        io::ScoreFile file;
+        if (!io::loadBytes(bytes, p.extension() == ".mscx", file, error) || !file.isVersion4()) {
+            continue;
+        }
+        model::Model m;
+        IdGenerator ids(1);
+        io::ReadReport r;
+        if (!io::readScore(file, m, ids, r, error)) {
+            continue;
+        }
+        const model::Snapshot before = m.snapshot();
+        edit::Operations ops(m, ids);
+        edit::Commands cmd(ops);
+        // the first staff of a pitched player that is not a copy, and its voice 1
+        Id staff, voice;
+        m.snapshot().forEachObject([&](const model::Object& o) {
+            if (staff.isValid() || o.kind() != model::Kind::Staff || o.has(F::LINKED_STAFF)) {
+                return;
+            }
+            const model::Object* player = m.find(o.parent());
+            if (!player || player->kind() != model::Kind::Player || player->text(F::FAMILY) == "percussion"
+                || o.text(F::SUBKIND) == "tablature") {
+                return;
+            }
+            for (Id v : o.children()) {
+                if (m.find(v)->kind() == model::Kind::Voice && m.find(v)->intOr(F::NUMBER, 0) == 0) {
+                    staff = o.id();
+                    voice = v;
+                }
+            }
+        });
+        const std::vector<Id> ms = ops.measures();
+        if (!voice.isValid() || ms.size() < 2) {
+            continue;
+        }
+        bool ok = true;
+        try {
+            const Fraction t = ops.measureStart(ms[1]);
+            // JE_CMDEDIT_STEPS=n: only the first n edits (to find the one a reading difference comes from)
+            const char* limit = std::getenv("JE_CMDEDIT_STEPS");
+            int steps = 0;
+            auto run = [&](const char* name, auto&& fn) {
+                if (limit && ++steps > std::atoi(limit)) {
+                    return;
+                }
+                edit::Transaction tx(m, name, { edit::linkedStavesHook(m, ids) });
+                fn(tx);
+                tx.commit();
+            };
+            // the chord at a time in voice 1 and its top note (found again after every step: an edit may replace them)
+            auto chordAt = [&](const Fraction& at) {
+                for (Id e : ops.eventsOf(voice)) {
+                    const model::Object* o = m.find(e);
+                    if (o->kind() == model::Kind::Chord && !o->has(F::GRACE) && o->fractionOr(F::TIME, Fraction(-1, 1)) == at) {
+                        return e;
+                    }
+                }
+                throw std::runtime_error("no chord where one was entered");
+            };
+            auto top = [&](Id chord) { return m.find(chord)->children().ids().back(); };
+            const Fraction t2 = t + Fraction(1, 4);
+            if (ms.size() > 2 && ops.measureStart(ms[2]) - t < Fraction(1, 2)) {
+                throw std::runtime_error("measure 2 is shorter than a half note");
+            }
+            run("Enter", [&](edit::Transaction& tx) {
+                ops.enterChord(tx, voice, t, { Fraction(1, 4), 0 }, { 61 });
+                ops.enterChord(tx, voice, t2, { Fraction(1, 4), 0 }, { 67 });
+            });
+            run("Respell", [&](edit::Transaction& tx) { cmd.changeEnharmonicSpelling(tx, { top(chordAt(t)) }, true, true); });
+            run("Third", [&](edit::Transaction& tx) { cmd.addInterval(tx, { top(chordAt(t)) }, 3); });
+            run("Sharp", [&](edit::Transaction& tx) { cmd.changeAccidental(tx, top(chordAt(t2)), 1, true); });
+            run("Staccato", [&](edit::Transaction& tx) { cmd.toggleArticulation(tx, { chordAt(t), chordAt(t2) }, "articStaccatoAbove"); });
+            run("Grace", [&](edit::Transaction& tx) { cmd.addGraceNote(tx, top(chordAt(t2)), "acciaccatura", Fraction(1, 8)); });
+            run("Slur", [&](edit::Transaction& tx) { cmd.addSlur(tx, chordAt(t), chordAt(t2)); });
+            run("Hairpin", [&](edit::Transaction& tx) { cmd.addLine(tx, "hairPin", staff, 0, t, t + Fraction(1, 2), 1); });
+            run("Glissando", [&](edit::Transaction& tx) { cmd.addNoteLine(tx, "glissando", top(chordAt(t)), top(chordAt(t2))); });
+            run("Voice 2", [&](edit::Transaction& tx) { cmd.changeVoice(tx, { chordAt(t2) }, 1); });
+        } catch (const std::exception& e) {
+            std::cout << "not edited: " << rel << ": " << e.what() << "\n";
+            ok = false;
+        }
+        if (!ok) {
+            continue;
+        }
+        // only problems the edits made (some scores come with their own)
+        std::vector<std::string> problems;
+        {
+            auto strip = [](std::string x) { return x.substr(x.find(':') == std::string::npos ? 0 : x.find(':')); };
+            std::multiset<std::string> had;
+            for (const std::string& pr : model::checkInvariants(before, 1000)) {
+                had.insert(strip(pr));
+            }
+            for (const std::string& pr : model::checkInvariants(m.snapshot(), 1000)) {
+                auto it = had.find(strip(pr));
+                if (it != had.end()) {
+                    had.erase(it);
+                } else if (problems.size() < 20) {
+                    problems.push_back(pr);
+                }
+            }
+        }
+        const fs::path out = fs::path(outDir) / (rel.substr(0, rel.size() - p.extension().string().size()) + ".mscz");
+        fs::create_directories(out.parent_path());
+        if (!io::saveScore(m.snapshot(), out.string(), error)) {
+            std::cout << "not saved: " << rel << ": " << error << "\n";
+            continue;
+        }
+        std::ofstream(out.string() + ".je.txt") << io::musicListing(m.snapshot());
+        ++edited;
+        std::cout << "edited: " << rel << (problems.empty() ? "" : " PROBLEMS") << "\n";
+        for (const std::string& pr : problems) {
+            std::cout << "  " << pr << "\n";
+        }
+    }
+    std::cout << edited << " scores edited with the commands\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -889,6 +1030,9 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
+    }
+    if (a.size() == 4 && a[0] == "cmdedit" && a[2] == "--out") {
+        return cmdedit(a[1], a[3]);
     }
     if (a.size() >= 2 && a[0] == "bench-scores") {
         return benchScores(std::vector<std::string>(a.begin() + 1, a.end()));

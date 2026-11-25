@@ -329,6 +329,47 @@ void Operations::removeEvent(Transaction& tx, Id event)
     removeTree(tx, event);
 }
 
+Fraction Operations::stretchAt(Id voice, const Fraction& t) const
+{
+    // MuseScore's stretch: the staff's own time signature against the measure's (3/4 in a 4/4 measure: 3/4)
+    const Id staff = staffOf(voice);
+    const Id ms = measureAt(t);
+    if (!staff.isValid() || !ms.isValid()) {
+        return Fraction(1, 1);
+    }
+    const Object* measure = obj(ms);
+    // the quick answer: any chord or rest of the staff in that measure carries it (voice 1 is full, so there is one
+    // unless the measure is being rewritten)
+    const Fraction m0 = measureStart(ms), m1 = measureEnd(ms);
+    for (Id vv : obj(staff)->children()) {
+        if (obj(vv)->kind() != Kind::Voice) {
+            continue;
+        }
+        const std::vector<Id>& events = obj(vv)->children().ids();
+        auto e = std::lower_bound(events.begin(), events.end(), m0, [this](Id x, const Fraction& time) { return timeOf(x) < time; });
+        for (; e != events.end() && timeOf(*e) < m1; ++e) {
+            const Object* o = obj(*e);
+            if ((o->kind() == Kind::Chord || o->kind() == Kind::Rest) && !o->has(F::GRACE) && !o->has(F::TUPLET)) {
+                return o->fractionOr(F::STRETCH, Fraction(1, 1));
+            }
+        }
+    }
+    // otherwise from the time signatures
+    const Fraction nominal(measure->intOr(F::TIMESIG_NUM, 4), measure->intOr(F::TIMESIG_DEN, 4));
+    const std::vector<Id>& kids = obj(measure->parent())->children().ids();
+    auto it = std::upper_bound(kids.begin(), kids.end(), t, [this](const Fraction& time, Id x) { return time < timeOf(x); });
+    while (it != kids.begin()) {
+        --it;
+        const Object* item = obj(*it);
+        if (item->kind() == Kind::FlowItem && item->text(F::SUBKIND) == "timeSig"
+            && (!item->has(F::ANCHOR) || item->idOr(F::ANCHOR) == staff)) {
+            const Fraction own(item->intOr(F::TIMESIG_NUM, nominal.numerator()), item->intOr(F::TIMESIG_DEN, nominal.denominator()));
+            return own / nominal;
+        }
+    }
+    return Fraction(1, 1);
+}
+
 std::vector<Id> Operations::writeEvents(Transaction& tx, Id voice, const Fraction& t, const Fraction& length, bool rest,
                                         const std::vector<int>& pitches, Id tuplet)
 {
@@ -341,6 +382,9 @@ std::vector<Id> Operations::writeEvents(Transaction& tx, Id voice, const Fractio
         }
         if (tuplet.isValid()) {
             f.push_back({ F::TUPLET, tuplet });
+        }
+        if (!tuplet.isValid() && !(factor == Fraction(1, 1))) {
+            f.push_back({ F::STRETCH, Fraction(1, 1) / factor });
         }
         const Id e = create(tx, m_ids, voice, { rest ? Kind::Rest : Kind::Chord, f }, Placement::ByTime);
         if (!rest) {
@@ -380,14 +424,19 @@ std::vector<Id> Operations::writeEvents(Transaction& tx, Id voice, const Fractio
             break;   // past the last measure
         }
         const Fraction piece = std::min(end, mEnd) - at;
+        // on a staff with a local time signature the values are its own (written), stretched into the measure
+        const Fraction stretch = stretchAt(voice, at);
         if (rest && at == measureStart(ms) && piece == mEnd - at && obj(voice)->intOr(F::NUMBER, 0) == 0) {
             // a whole empty measure: one measure rest
-            made.push_back(create(tx, m_ids, voice, { Kind::Rest, { { F::TIME, at }, { F::DURATION, piece }, { F::MEASURE_REST, true } } },
-                                  Placement::ByTime));
+            std::vector<std::pair<Field, Value> > f { { F::TIME, at }, { F::DURATION, piece }, { F::MEASURE_REST, true } };
+            if (!(stretch == Fraction(1, 1))) {
+                f.push_back({ F::STRETCH, stretch });
+            }
+            made.push_back(create(tx, m_ids, voice, { Kind::Rest, f }, Placement::ByTime));
         } else {
-            for (const NoteValue& v : valuesFor(at - measureStart(ms), piece, rest)) {
-                makeOne(at, v, Fraction(1, 1));
-                at += v.length();
+            for (const NoteValue& v : valuesFor((at - measureStart(ms)) * stretch, piece * stretch, rest)) {
+                makeOne(at, v, Fraction(1, 1) / stretch);
+                at += v.length() / stretch;
             }
         }
         at = std::min(end, mEnd);
@@ -508,7 +557,8 @@ void Operations::clearRange(Transaction& tx, Id voice, const Fraction& t0, const
         const Object* e = obj(cutAtStart);
         const bool rest = e->kind() == Kind::Rest;
         const Id tuplet = e->idOr(F::TUPLET);
-        const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1);
+        // written values on the tuplet's scale, or the staff's local time signature's
+        const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1) / e->fractionOr(F::STRETCH, Fraction(1, 1));
         const Fraction s = timeOf(cutAtStart);
         const Id ms = measureAt(s);
         const Fraction origin = tuplet.isValid() ? timeOf(tuplet) : measureStart(ms);
@@ -565,7 +615,7 @@ Id Operations::enterChord(Transaction& tx, Id voice, const Fraction& t, const No
             tuplet = obj(e)->idOr(F::TUPLET);
         }
     }
-    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1);
+    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1) / stretchAt(voice, t);
     Fraction length = value.length() * factor;
     if (tuplet.isValid() && endOf(tuplet) < t + length) {
         length = endOf(tuplet) - t;   // a value longer than what is left of the tuplet is cut at its end
@@ -581,6 +631,8 @@ Id Operations::enterChord(Transaction& tx, Id voice, const Fraction& t, const No
         }
         if (tuplet.isValid()) {
             f.push_back({ F::TUPLET, tuplet });
+        } else if (!(factor == Fraction(1, 1))) {
+            f.push_back({ F::STRETCH, Fraction(1, 1) / factor });
         }
         if (length == value.length() * factor) {
             const Id e = create(tx, m_ids, voice, { Kind::Chord, f }, Placement::ByTime);
@@ -602,7 +654,7 @@ Id Operations::enterRest(Transaction& tx, Id voice, const Fraction& t, const Not
             tuplet = obj(e)->idOr(F::TUPLET);
         }
     }
-    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1);
+    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1) / stretchAt(voice, t);
     Fraction length = value.length() * factor;
     if (tuplet.isValid() && endOf(tuplet) < t + length) {
         length = endOf(tuplet) - t;
@@ -615,6 +667,8 @@ Id Operations::enterRest(Transaction& tx, Id voice, const Fraction& t, const Not
         }
         if (tuplet.isValid()) {
             f.push_back({ F::TUPLET, tuplet });
+        } else if (!(factor == Fraction(1, 1))) {
+            f.push_back({ F::STRETCH, Fraction(1, 1) / factor });
         }
         return create(tx, m_ids, voice, { Kind::Rest, f }, Placement::ByTime);
     }
@@ -803,7 +857,7 @@ void Operations::setValue(Transaction& tx, Id event, const NoteValue& value)
     const Id voice = e->parent();
     const Fraction t = timeOf(event), oldEnd = endOf(event);
     const Id tuplet = e->idOr(F::TUPLET);
-    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1);
+    const Fraction factor = tuplet.isValid() ? tupletFactor(tuplet) : Fraction(1, 1) / e->fractionOr(F::STRETCH, Fraction(1, 1));
     const Fraction limit = tuplet.isValid() ? endOf(tuplet) : measureEnd(measureAt(t));
     Fraction length = value.length() * factor;
     if (limit < t + length) {

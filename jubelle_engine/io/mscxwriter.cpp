@@ -2267,6 +2267,18 @@ private:
         } else if (tag == "TimeSig") {
             n.children.push_back(leaf("sigN", std::to_string(it.intOr(F::TIMESIG_NUM, 4))));
             n.children.push_back(leaf("sigD", std::to_string(it.intOr(F::TIMESIG_DEN, 4))));
+            // a staff's own (local) time signature: its stretch against the measure's, unless the file's copy is kept
+            const bool kept = std::any_of(n.children.begin(), n.children.end(), [](const Node& c) { return c.name == "stretchN"; });
+            const int m = measureAt(it.fractionOr(F::TIME, Fraction()));
+            if (!kept && it.has(F::ANCHOR) && m >= 0 && size_t(m) < measures.size()) {
+                const Object& mo = *measures[size_t(m)];
+                const Fraction stretch = Fraction(it.intOr(F::TIMESIG_NUM, 4), it.intOr(F::TIMESIG_DEN, 4))
+                                         / Fraction(mo.intOr(F::TIMESIG_NUM, 4), mo.intOr(F::TIMESIG_DEN, 4));
+                if (!(stretch == Fraction(1, 1))) {
+                    n.children.push_back(leaf("stretchN", std::to_string(stretch.numerator())));
+                    n.children.push_back(leaf("stretchD", std::to_string(stretch.denominator())));
+                }
+            }
         } else if (tag == "Tempo") {
             const model::Value v = it.get(F::REAL_VALUE);
             // the shortest form that reads back as the same number

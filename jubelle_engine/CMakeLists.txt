@@ -60,6 +60,8 @@ add_library(je_core STATIC
     edit/history.h
     edit/structure.cpp
     edit/operations.cpp
+    edit/commands.cpp
+    edit/commands.h
     edit/noteinput.cpp
     edit/clipboard.cpp
     edit/tablature.cpp
@@ -125,6 +127,7 @@ add_executable(je_tests
     tests/io_reader_regression_tests.cpp
     tests/io_writer_tests.cpp
     tests/edit_operations_tests.cpp
+    tests/edit_commands_tests.cpp
     tests/edit_noteinput_tests.cpp
     tests/edit_clipboard_tests.cpp
     tests/edit_links_tests.cpp

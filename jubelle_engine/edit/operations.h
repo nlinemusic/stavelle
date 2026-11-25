@@ -55,6 +55,8 @@ public:
     Id voice(Transaction& tx, Id staff, int number);
     Id staffOf(Id voice) const;
     int64_t keyAt(Id staff, const Fraction& t) const;
+    //! The stretch of a staff's local time signature in the measure at t (1 when there is none)
+    Fraction stretchAt(Id voice, const Fraction& t) const;
 
     //! A new note's fields on a staff: pitch, spelling for the key, written spelling on a transposing instrument
     std::vector<std::pair<Field, Value> > noteFields(Id staff, const Fraction& t, int pitch) const;
@@ -105,6 +107,7 @@ public:
     void removeMeasures(Transaction& tx, size_t first, size_t count);
 
 private:
+    friend class Commands;   // the commands built on these operations (commands.h)
     const model::Object* obj(Id id) const { return m.find(id); }
     Fraction timeOf(Id id) const;
     Fraction endOf(Id id) const;

@@ -251,14 +251,19 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **Glissandi, bends and note lines modelled** as lines between two notes (830 of the corpus's 833 pair; the 3 without an end are kept as written): an edit to either note keeps the line whole or removes it whole; copy and paste carries them. 94 tests; corpus and MuseScore checks unchanged or better |
 | 25 Nov 2026 | **S2:** parts written inside a plain .mscx are read as part layouts (they were carried as written, so edits didn't reach them), and a plain .mscx is saved as XML with its parts inside, as MuseScore does (it was written as an archive); a part's instruments are found by its staves' links, not only by name; a part staff linked to a linked staff finds its originals as MuseScore does. 95 tests |
 | 25 Nov 2026 | **Benchmarks against MuseScore's engine** (`docs/16_performance.md`, same scores and machine): large orchestra open **982 → ~300 ms**, save **1,039 → ~450 ms**, model memory **115 → 32 MB**, undo **109 → 0.03 ms** (MuseScore's includes layout; Jubelle's layout comes with S7); saving was quadratic in score size (104 s on the large orchestra) until fixed today |
+| 25 Nov 2026 | **S3 editing commands** (`edit/commands`, MuseScore's rules): enharmonic spelling (concert and written), accidentals, add interval (key, octave rule, along ties), articulations, change and swap voices (grace notes move with their chord), grace notes, lines, slurs, glissandos, key signatures, clefs. Found by the new check and fixed: **note entry on a staff with its own time signature** (a 3/4 staff in a 4/4 score) now uses that staff's values, and such a time signature is saved with its stretch. 108 tests; corpus checks unchanged; new check, also in CI: **every corpus score edited with the commands is read by MuseScore with exactly the edited music** (1,486 of 1,489; the other 3 already differ unedited); edit time on the large orchestra unchanged |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
   and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
 - **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
-  tablature fretting (parts are layouts of the same music, so they follow every edit by design). Next: lines and staff
-  texts on linked staves, the remaining commands of `docs/10_…`, scripted comparisons with MuseScore's engine (the
-  clipboard's text format is part of S10). Then S4 (autosave journal and crash recovery).
+  tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
+  texts on linked staves, the editing commands of `edit/commands`. Next: the remaining commands of `docs/10_…` (time
+  signature changes with rebarring, split and join measures, explode and implode, slashes, chord-symbol realization,
+  moving to another staff, lyrics and text), scripted comparisons with MuseScore's engine (the clipboard's text format
+  is part of S10). Then S4 (autosave journal and crash recovery).
+- Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
+  (C and B♯ in one chord) is not added, MuseScore allows it; changing the voice of notes inside tuplets.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
