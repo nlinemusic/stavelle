@@ -241,6 +241,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 19 Nov 2026 | **S3 started:** editing operations with MuseScore's note-entry rules and the note-input state machine; property tests (random edits stay consistent, undo/redo exactly, save and reopen); 77 tests pass under ASan/UBSan; CI green on Windows, macOS and Linux for the S2 writer |
 | 19 Nov 2026 | **S3:** range copy, paste and delete (`edit/clipboard`) and transposition; 82 tests |
 | 25 Nov 2026 | **S3 linked staves while editing** (`edit/links`) and **tablature strings and frets** (`edit/tablature`, MuseScore's fretting rules ported): an edit on either staff of a linked pair (a guitar's standard and tablature staves) is made on the other in the same undo step; copies are linked as MuseScore links them (by identity from 4.60, by place with MuseScore's index rules before). Fixed: ties from another voice into a deleted note; staves linked both ways in a file. 91 tests pass under ASan/UBSan; corpus unchanged (2,118/2,118 regenerate; MuseScore reads 2,110/2,117 generated files as the originals); new check, also in CI: all **138 corpus scores with a linked staff, edited on both staves, are read by MuseScore with the same music on the linked staves and the links of the original** (formats 4.00–4.70) |
+| 25 Nov 2026 | **S3:** lines and staff items (dynamics, staff texts, slurs, hairpins…) mirrored on linked staves; **links by place (before 4.60) resolved on reading and worked out again on saving, for parts too**: MuseScore reports fewer failed links on Jubelle's regenerated corpus than on the original files (49 → 38, none new); ties keep their links. 92 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -250,7 +251,9 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   texts on linked staves, the remaining commands of `docs/10_…`, scripted comparisons with MuseScore's engine (the
   clipboard's text format is part of S10). Then S4 (autosave journal and crash recovery).
 - Carried note bends, glissandi and similar lines between notes are still kept as file details (S2): an edit to
-  one of their notes drops that half. They become modelled objects in S3/S7.
+  one of their notes drops that half. They become modelled objects (next).
+- Parts embedded in an .mscx file (MuseScore writes a plain .mscx's parts inline) are carried as written: an edit
+  doesn't reach them yet. They are to be read as part layouts like the parts of an .mscz (S2 follow-up).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
   now; these go into the app once the new engine is in place, see §15a).
 - **S2** open items: 3 playback differences in importer test files; part-only content.
