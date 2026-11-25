@@ -28,6 +28,12 @@ Give Jubelle its own notation engine, designed around its needs, that:
 8. makes **live automatic condensing** a native capability;
 9. is modular and maintainable.
 
+**Faster wherever technically possible (user's requirement, 25 Nov 2026):** every subsystem is designed for
+performance from the start and benchmarked against the current MuseScore-based Jubelle on the same scores,
+machine and operations (loading, editing, selection, undo/redo, saving, playback, engraving, layout, rendering,
+memory); bottlenecks are found and fixed, never at the cost of accuracy, notation quality, compatibility or
+reliability. Results and method: `jubelle_engine/docs/16_performance.md`.
+
 **What doesn't change:** the Jubelle interface, menus, workflows, file format and features. Users see a faster
 Jubelle that can condense, not a different program.
 
@@ -244,6 +250,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **S3:** lines and staff items (dynamics, staff texts, slurs, hairpins…) mirrored on linked staves; **links by place (before 4.60) resolved on reading and worked out again on saving, for parts too**: MuseScore reports fewer failed links on Jubelle's regenerated corpus than on the original files (49 → 38, none new); ties keep their links. 92 tests |
 | 25 Nov 2026 | **Glissandi, bends and note lines modelled** as lines between two notes (830 of the corpus's 833 pair; the 3 without an end are kept as written): an edit to either note keeps the line whole or removes it whole; copy and paste carries them. 94 tests; corpus and MuseScore checks unchanged or better |
 | 25 Nov 2026 | **S2:** parts written inside a plain .mscx are read as part layouts (they were carried as written, so edits didn't reach them), and a plain .mscx is saved as XML with its parts inside, as MuseScore does (it was written as an archive); a part's instruments are found by its staves' links, not only by name; a part staff linked to a linked staff finds its originals as MuseScore does. 95 tests |
+| 25 Nov 2026 | **Benchmarks against MuseScore's engine** (`docs/16_performance.md`, same scores and machine): large orchestra open **982 → ~300 ms**, save **1,039 → ~450 ms**, model memory **115 → 32 MB**, undo **109 → 0.03 ms** (MuseScore's includes layout; Jubelle's layout comes with S7); saving was quadratic in score size (104 s on the large orchestra) until fixed today |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences

@@ -49,7 +49,8 @@ public:
         }
     }
     size_t fieldCount() const { return m_props.size() + (m_kind != Kind::None) + m_parent.isValid(); }
-    std::string text(Field field) const;
+    //! The text of a field (empty if absent or not text); valid while the object is
+    const std::string& text(Field field) const;
 
     // typed helpers (absent → the default given)
     int64_t intOr(Field field, int64_t fallback) const;

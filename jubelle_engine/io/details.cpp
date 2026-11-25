@@ -20,80 +20,82 @@ bool excluded(model::Field f)
     return skip.count(f) > 0;
 }
 
-void feed(uint64_t& h, const std::string& s)
+void feedBytes(uint64_t& h, const void* data, size_t n)
 {
-    for (unsigned char c : s) {   // FNV-1a
-        h ^= c;
+    const unsigned char* p = static_cast<const unsigned char*>(data);
+    for (size_t i = 0; i < n; ++i) {   // FNV-1a
+        h ^= p[i];
         h *= 1099511628211ULL;
     }
-    h ^= 0xFF;
-    h *= 1099511628211ULL;
 }
 
-std::string valueText(const model::Value& v)
+template<typename T>
+void feedValue(uint64_t& h, const T& x)
 {
-    std::ostringstream o;
-    std::visit([&o](const auto& x) {
+    feedBytes(h, &x, sizeof(x));
+}
+
+//! One field's contribution: its number, the kind of value and the value itself (hashed directly, without making
+//! text of it: this runs for every object when a file is read and written)
+uint64_t fieldHash(model::Field f, const model::Value& v)
+{
+    uint64_t h = 1469598103934665603ULL;
+    feedValue(h, f);
+    const uint8_t kind = uint8_t(v.index());
+    feedValue(h, kind);
+    std::visit([&h](const auto& x) {
         using T = std::decay_t<decltype(x)>;
         if constexpr (std::is_same_v<T, std::monostate>) {
-            o << "-";
         } else if constexpr (std::is_same_v<T, model::Text>) {
-            o << "s" << x.str();
+            feedBytes(h, x.str().data(), x.str().size());
         } else if constexpr (std::is_same_v<T, Fraction>) {
-            o << "f" << x.toString();
+            feedValue(h, x.numerator());
+            feedValue(h, x.denominator());
         } else if constexpr (std::is_same_v<T, Id>) {
-            o << "i" << x.toString();
+            feedValue(h, x.value());
         } else if constexpr (std::is_same_v<T, model::IdList>) {
-            o << "l" << x.size();
-        } else if constexpr (std::is_same_v<T, double>) {
-            o.precision(17);
-            o << "d" << x;
+            feedValue(h, x.size());
         } else {
-            o << "n" << x;
+            feedValue(h, x);
         }
     }, v);
-    return o.str();
-}
-
-int64_t finish(std::vector<std::pair<model::Field, std::string> >& parts)
-{
-    std::sort(parts.begin(), parts.end());
-    uint64_t h = 1469598103934665603ULL;
-    for (const auto& [f, v] : parts) {
-        feed(h, std::to_string(f));
-        feed(h, v);
-    }
-    return int64_t(h & 0x7FFFFFFFFFFFFFFFULL);
+    // mixed, so that summing the fields' hashes (in any order) still tells sets of fields apart
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33;
+    return h;
 }
 }
 
 int64_t detailsKey(const FieldList& fields)
 {
-    std::vector<std::pair<model::Field, std::string> > parts;
-    for (const auto& [f, v] : fields) {
-        if (!excluded(f) && !model::isAbsent(v)) {
-            parts.emplace_back(f, valueText(v));
-        }
-    }
     // a field given twice keeps its last value (as the object does)
-    std::vector<std::pair<model::Field, std::string> > last;
-    for (auto it = parts.rbegin(); it != parts.rend(); ++it) {
-        if (std::none_of(last.begin(), last.end(), [&it](const auto& p) { return p.first == it->first; })) {
-            last.push_back(*it);
+    uint64_t sum = 0;
+    for (size_t i = 0; i < fields.size(); ++i) {
+        const auto& [f, v] = fields[i];
+        if (excluded(f)) {
+            continue;
+        }
+        bool later = false;
+        for (size_t j = i + 1; j < fields.size() && !later; ++j) {
+            later = fields[j].first == f;
+        }
+        if (!later && !model::isAbsent(v)) {
+            sum += fieldHash(f, v);
         }
     }
-    return finish(last);
+    return int64_t(sum & 0x7FFFFFFFFFFFFFFFULL);
 }
 
 int64_t detailsKey(const model::Object& object)
 {
-    std::vector<std::pair<model::Field, std::string> > parts;
-    object.forEachField([&parts](model::Field f, const model::Value& v) {
+    uint64_t sum = 0;
+    object.forEachField([&sum](model::Field f, const model::Value& v) {
         if (!excluded(f)) {
-            parts.emplace_back(f, valueText(v));
+            sum += fieldHash(f, v);
         }
     });
-    return finish(parts);
+    return int64_t(sum & 0x7FFFFFFFFFFFFFFFULL);
 }
 
 std::string fragment(const std::vector<const xml::Node*>& nodes)

@@ -30,6 +30,7 @@
 #include <malloc.h>
 #endif
 
+#include "edit/history.h"
 #include "edit/links.h"
 #include "edit/operations.h"
 #include "edit/structure.h"
@@ -653,6 +654,71 @@ int bench(const std::string& path)
 }
 }
 
+//! The same operations as MuseScore's engine baseline (tools/jubelle_engine_tests/jubelle_baselines.cpp), on the
+//! same scores: open (file to model), ten notes entered on the first staff from the middle of the score (a quarter,
+//! C5, one command each, with the linked-staff hook), undo and redo of each, save (model to a 4.x archive), and the
+//! model's memory. One line of JSON per score.
+int benchScores(const std::vector<std::string>& paths)
+{
+    for (const std::string& path : paths) {
+        const double h0 = heapMb();
+        auto t0 = std::chrono::steady_clock::now();
+        model::Model m;
+        IdGenerator ids(1);
+        std::string error;
+        if (!io::openScore(path, m, ids, error)) {
+            std::cerr << path << ": " << error << "\n";
+            continue;
+        }
+        const double openMs = ms(t0);
+        const double heap = heapMb() - h0;
+        edit::Operations ops(m, ids);
+        const std::vector<Id> measures = ops.measures();
+        Id staff, voice;
+        m.snapshot().forEachObject([&](const model::Object& o) {
+            if (!staff.isValid() && o.kind() == model::Kind::Staff) {
+                staff = o.id();
+            }
+        });
+        for (Id v : m.find(staff)->children()) {
+            if (m.find(v)->kind() == model::Kind::Voice && m.find(v)->intOr(model::fields::NUMBER, 0) == 0) {
+                voice = v;
+            }
+        }
+        edit::History history;
+        const int edits = 10;
+        double editMs = 0, undoMs = 0, redoMs = 0;
+        int done = 0;
+        for (size_t i = measures.size() / 2; done < edits && i < measures.size(); ++i, ++done) {
+            t0 = std::chrono::steady_clock::now();
+            edit::Transaction tx(m, "baseline edit", { edit::linkedStavesHook(m, ids) });
+            ops.enterChord(tx, voice, ops.measureStart(measures[i]), { Fraction(1, 4), 0 }, { 72 });
+            history.push(tx.commit());
+            editMs += ms(t0);
+        }
+        for (int i = 0; i < done; ++i) {
+            t0 = std::chrono::steady_clock::now();
+            history.undo(m);
+            undoMs += ms(t0);
+        }
+        for (int i = 0; i < done; ++i) {
+            t0 = std::chrono::steady_clock::now();
+            history.redo(m);
+            redoMs += ms(t0);
+        }
+        t0 = std::chrono::steady_clock::now();
+        const std::string bytes = io::saveBytes(io::generateScoreFile(m.snapshot()));
+        const double saveMs = ms(t0);
+        size_t staves = 0;
+        m.snapshot().forEachObject([&](const model::Object& o) { staves += o.kind() == model::Kind::Staff; });
+        std::printf("{\"score\": \"%s\", \"staves\": %zu, \"bars\": %zu, \"objects\": %zu, \"openMs\": %.1f, \"editMs\": %.3f, "
+                    "\"undoMs\": %.3f, \"redoMs\": %.3f, \"saveMs\": %.1f, \"modelMb\": %.1f}\n",
+                    path.c_str(), staves, measures.size(), m.snapshot().objectCount(), openMs, done ? editMs / done : 0,
+                    done ? undoMs / done : 0, done ? redoMs / done : 0, saveMs, heap);
+    }
+    return 0;
+}
+
 //! The linked-staff check (S3): every 4.x score with a linked staff is edited on both staves through the engine
 //! (a chord entered on the main staff, a note changed on the linked one) and saved, for MuseScore's engine to read
 //! back: the two staves must hold the same music and every copy must be linked to its original
@@ -823,6 +889,9 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
+    }
+    if (a.size() >= 2 && a[0] == "bench-scores") {
+        return benchScores(std::vector<std::string>(a.begin() + 1, a.end()));
     }
     if (a.size() == 2 && a[0] == "bench") {
         return bench(a[1]);

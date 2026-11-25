@@ -14,6 +14,7 @@
 
 #include "details.h"
 #include "mscxreader.h"
+#include "model/notation.h"
 #include "model/pitch.h"
 
 namespace F = je::model::fields;
@@ -157,27 +158,8 @@ std::string spannerType(const std::string& kind)
     return it == types.end() ? upperFirst(kind) : it->second;
 }
 
-//! MuseScore's symbol for an articulation the model names plainly ("accent"); MuseScore's own names pass through
-std::string articulationSymbol(const std::string& name)
-{
-    static const std::map<std::string, std::string> symbols {
-        { "accent", "articAccentAbove" }, { "staccato", "articStaccatoAbove" }, { "staccatissimo", "articStaccatissimoAbove" },
-        { "tenuto", "articTenutoAbove" }, { "marcato", "articMarcatoAbove" }, { "portato", "articTenutoStaccatoAbove" },
-        { "accentStaccato", "articAccentStaccatoAbove" }, { "marcatoStaccato", "articMarcatoStaccatoAbove" },
-        { "tenutoAccent", "articTenutoAccentAbove" }, { "stress", "articStressAbove" }, { "unstress", "articUnstressAbove" },
-        { "upBow", "stringsUpBow" }, { "downBow", "stringsDownBow" }, { "harmonic", "stringsHarmonic" },
-        { "openString", "brassMuteOpen" }, { "stopped", "brassMuteClosed" }, { "snapPizzicato", "pluckedSnapPizzicatoAbove" },
-        { "trill", "ornamentTrill" }, { "mordent", "ornamentMordent" }, { "shortTrill", "ornamentShortTrill" },
-        { "turn", "ornamentTurn" }, { "invertedTurn", "ornamentTurnInverted" },
-    };
-    auto it = symbols.find(name);
-    return it == symbols.end() ? name : it->second;
-}
-
-bool isOrnamentSymbol(const std::string& symbol)
-{
-    return symbol.rfind("ornament", 0) == 0;
-}
+using model::articulationSymbol;
+using model::isOrnamentSymbol;
 
 //! Common jumps: where they go, where play stops, where it continues
 void jumpTargets(const std::string& text, std::string& to, std::string& until, std::string& cont)
@@ -1164,7 +1146,7 @@ private:
                 }
             }
             if (!layout) {   // the main score's multi-measure rests (a part makes its own)
-                for (const Object* it : items) {
+                for (const Object* it : itemsNear(staff.id(), int(m))) {
                     if (it->text(F::SUBKIND) == "mmrMeasure" && it->idOr(F::ANCHOR) == staff.id()
                         && it->fractionOr(F::TIME, Fraction()) == measureStart[m]) {
                         for (Node& c : parseFragment(it->text(F::DETAILS))) {
@@ -1233,7 +1215,7 @@ private:
                 }
             }
         }
-        for (const Object* it : items) {
+        for (const Object* it : itemsNear(staff.id(), m)) {
             if (it->text(F::SUBKIND) == "measureDetail" && it->idOr(F::ANCHOR) == staff.id()
                 && it->fractionOr(F::TIME, Fraction()) == measureStart[size_t(m)]) {
                 for (Node& c : parseFragment(it->text(F::DETAILS))) {
@@ -1242,7 +1224,7 @@ private:
             }
         }
         auto measureItems = [&](bool atEnd) {
-            for (const Object* it : items) {
+            for (const Object* it : itemsNear(staff.id(), m)) {
                 const std::string sub = it->text(F::SUBKIND);
                 const Id where = it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it);
                 if (sub != "frame" && sub != "measureDetail" && sub != "mmrMeasure" && measureLevel(*it) && where == staff.id()
@@ -1254,7 +1236,7 @@ private:
         };
         measureItems(false);
         // the voices written: up to the highest with anything in this measure (an item may sit in an otherwise empty voice)
-        for (const Object* it : items) {
+        for (const Object* it : itemsNear(staff.id(), m)) {
             if (it->has(F::VOICE_INDEX) && (it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it)) == staff.id()) {
                 const Fraction t = it->fractionOr(F::TIME, Fraction());
                 if (it->has(F::AT_END) ? measureEnding(t) == m : measureAt(t) == m) {
@@ -1262,7 +1244,7 @@ private:
                 }
             }
         }
-        for (const Object* sp : spanners) {
+        for (const Object* sp : spannersNear(staff.id(), m)) {
             if (spannerPlace(*sp).first == staff.id()) {
                 const Fraction t = sp->fractionOr(F::TIME, Fraction());
                 const Fraction e = t + sp->fractionOr(F::DURATION, Fraction());
@@ -1328,10 +1310,15 @@ private:
         const Fraction t = ev.fractionOr(F::TIME, Fraction());
         int64_t key = 0;
         Fraction best(-1, 1);
-        for (const Object* it : items) {
-            if (it->text(F::SUBKIND) != "keySig") {
-                continue;
+        if (!keySigsFound) {
+            keySigsFound = true;
+            for (const Object* it : items) {
+                if (it->text(F::SUBKIND) == "keySig") {
+                    keySigs.push_back(it);
+                }
             }
+        }
+        for (const Object* it : keySigs) {
             const Fraction at = it->fractionOr(F::TIME, Fraction());
             const bool here = !it->has(F::ANCHOR) || it->idOr(F::ANCHOR) == staff;
             if (here && !(t < at) && best < at) {
@@ -1408,6 +1395,85 @@ private:
         return measureStart[size_t(m)] == t ? m : measureEnding(t);
     }
 
+    // ---- items, lines and events by measure (each measure looks only at its own, not the whole score) --------
+    //! The items a staff writes in a measure, or could (each measure and staff looks only at its own)
+    const std::vector<const Object*>& itemsNear(Id staff, int m)
+    {
+        if (itemBucket.empty()) {
+            for (const Object* st : staves) {
+                itemBucket[st->id()].assign(measures.size() + 1, {});
+            }
+            for (const Object* it : items) {
+                const Fraction t = it->fractionOr(F::TIME, Fraction());
+                std::set<int> ms { measureAt(t), measureEnding(t), measureOfItem(*it) };
+                const Id target = it->has(F::ANCHOR) ? it->idOr(F::ANCHOR) : homeOf(*it);
+                for (auto& [st, byMeasure] : itemBucket) {
+                    if (st != target && !onEveryStaff(*it)) {
+                        continue;
+                    }
+                    for (int x : ms) {
+                        if (x >= 0 && size_t(x) < byMeasure.size()) {
+                            byMeasure[size_t(x)].push_back(it);
+                        }
+                    }
+                }
+            }
+        }
+        static const std::vector<const Object*> none;
+        auto b = itemBucket.find(staff);
+        if (b == itemBucket.end()) {
+            return none;
+        }
+        return size_t(m) < b->second.size() ? b->second[size_t(m)] : b->second.back();
+    }
+
+    const std::vector<const Object*>& spannersNear(Id staff, int m)
+    {
+        if (spannerBucket.empty()) {
+            for (const Object* st : staves) {
+                spannerBucket[st->id()].assign(measures.size() + 1, {});
+            }
+            for (const Object* sp : spanners) {
+                const Fraction t = sp->fractionOr(F::TIME, Fraction());
+                const Fraction e = t + sp->fractionOr(F::DURATION, Fraction());
+                std::set<int> ms { measureAt(t), measureAt(e), measureEnding(e) };
+                auto b = spannerBucket.find(spannerPlace(*sp).first);
+                if (b == spannerBucket.end()) {
+                    continue;
+                }
+                for (int x : ms) {
+                    if (x >= 0 && size_t(x) < b->second.size()) {
+                        b->second[size_t(x)].push_back(sp);
+                    }
+                }
+            }
+        }
+        static const std::vector<const Object*> none;
+        auto b = spannerBucket.find(staff);
+        if (b == spannerBucket.end()) {
+            return none;
+        }
+        return size_t(m) < b->second.size() ? b->second[size_t(m)] : b->second.back();
+    }
+
+    //! A voice's events and tuplets by measure (as measureAt places them)
+    const std::vector<const Object*>& eventsNear(const Object& voice, int m)
+    {
+        auto it = voiceBucket.find(voice.id());
+        if (it == voiceBucket.end()) {
+            std::vector<std::vector<const Object*> > b(measures.size() + 1);
+            for (Id c : voice.children()) {
+                const Object* ev = s.find(c);
+                const int x = measureAt(ev->fractionOr(F::TIME, Fraction()));
+                if (x >= 0 && size_t(x) < b.size()) {
+                    b[size_t(x)].push_back(ev);
+                }
+            }
+            it = voiceBucket.emplace(voice.id(), std::move(b)).first;
+        }
+        return size_t(m) < it->second.size() ? it->second[size_t(m)] : it->second.back();
+    }
+
     bool itemInVoice(const Object& it, const Object& staff, int v) const
     {
         const std::string sub = it.text(F::SUBKIND);
@@ -1456,7 +1522,7 @@ private:
         const Fraction mStart = measureStart[size_t(m)];
         const Fraction mEnd = mStart + measureLen[size_t(m)];
         std::vector<Entry> entries;
-        for (const Object* it : items) {
+        for (const Object* it : itemsNear(staff.id(), m)) {
             if (!itemInVoice(*it, staff, v)) {
                 continue;
             }
@@ -1469,7 +1535,7 @@ private:
                 entries.push_back({ t, 1, it->intOr(F::SEQ, 0), it });
             }
         }
-        for (const Object* sp : spanners) {
+        for (const Object* sp : spannersNear(staff.id(), m)) {
             if (inEvent.count(sp->id()) || spannerPlace(*sp) != std::make_pair(staff.id(), v)) {
                 continue;   // (lines inside chords are written by the chords)
             }
@@ -1488,8 +1554,7 @@ private:
         }
         std::vector<const Object*> events;
         if (voice) {
-            for (Id c : voice->children()) {
-                const Object* ev = s.find(c);
+            for (const Object* ev : eventsNear(*voice, m)) {
                 if (ev->kind() == Kind::Tuplet) {
                     continue;
                 }
@@ -2293,6 +2358,10 @@ private:
     Fraction flowEnd;
     std::map<Id, Id> tieFrom;
     std::map<Id, std::vector<const Object*> > lineStarts, lineEnds;   // lines from note to note, by their notes
+    std::map<Id, std::vector<std::vector<const Object*> > > itemBucket, spannerBucket;   // by staff, then measure
+    std::map<Id, std::vector<std::vector<const Object*> > > voiceBucket;
+    mutable std::vector<const Object*> keySigs;
+    mutable bool keySigsFound = false;
 };
 }
 

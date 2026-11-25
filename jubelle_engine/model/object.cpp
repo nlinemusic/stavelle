@@ -85,10 +85,15 @@ bool Object::has(Field field) const
     return it != m_props.end() && it->first == field;
 }
 
-std::string Object::text(Field field) const
+const std::string& Object::text(Field field) const
 {
-    const Value v = get(field);
-    return std::holds_alternative<Text>(v) ? std::get<Text>(v).str() : std::string();
+    // read in place (no copy of the value or the text): asked for very often when files are written
+    static const std::string none;
+    auto it = findField(m_props, field);
+    if (it == m_props.end() || it->first != field || !std::holds_alternative<Text>(it->second)) {
+        return none;
+    }
+    return std::get<Text>(it->second).str();
 }
 
 Object Object::with(Field field, const Value& value) const
@@ -119,8 +124,14 @@ Object Object::with(Field field, const Value& value) const
 
 int64_t Object::intOr(Field field, int64_t fallback) const
 {
-    const Value v = get(field);
-    return std::holds_alternative<int64_t>(v) ? std::get<int64_t>(v) : fallback;
+    if (field == fields::KIND) {
+        return m_kind == Kind::None ? fallback : int64_t(m_kind);
+    }
+    auto it = findField(m_props, field);
+    if (it == m_props.end() || it->first != field) {
+        return fallback;
+    }
+    return std::holds_alternative<int64_t>(it->second) ? std::get<int64_t>(it->second) : fallback;
 }
 
 Fraction Object::fractionOr(Field field, const Fraction& fallback) const
@@ -135,8 +146,14 @@ Fraction Object::fractionOr(Field field, const Fraction& fallback) const
 
 Id Object::idOr(Field field, Id fallback) const
 {
-    const Value v = get(field);
-    return std::holds_alternative<Id>(v) ? std::get<Id>(v) : fallback;
+    if (field == fields::PARENT) {
+        return m_parent.isValid() ? m_parent : fallback;
+    }
+    auto it = findField(m_props, field);
+    if (it == m_props.end() || it->first != field) {
+        return fallback;
+    }
+    return std::holds_alternative<Id>(it->second) ? std::get<Id>(it->second) : fallback;
 }
 
 const IdList& Object::children() const

@@ -32,6 +32,9 @@ Id create(Transaction& tx, IdGenerator& ids, Id parent, const NewObject& object,
 //! Same, with an id chosen by the caller (ids read from a file)
 void createWithId(Transaction& tx, Id id, Id parent, const NewObject& object, Placement where = Placement::Append);
 
+//! Moves an object (with everything under it) to another parent: a chord to another voice, a note to another chord
+void moveTo(Transaction& tx, Id id, Id newParent, Placement where = Placement::Append);
+
 //! Removes the object and everything under it, and takes it out of its parent's children
 void removeTree(Transaction& tx, Id id);
 

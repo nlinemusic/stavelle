@@ -41,7 +41,8 @@ constexpr uint64_t mix64(uint64_t x)
 
 inline int popcount32(uint32_t v)
 {
-#if defined(__GNUC__) || defined(__clang__)
+    // the instruction where the target has it (x86 builds without it call a slow library routine instead)
+#if (defined(__GNUC__) || defined(__clang__)) && (defined(__POPCNT__) || defined(__aarch64__) || defined(__ARM_NEON))
     return __builtin_popcount(v);
 #else
     v = v - ((v >> 1) & 0x55555555u);

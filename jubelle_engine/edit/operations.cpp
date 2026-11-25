@@ -124,13 +124,34 @@ std::vector<Id> Operations::measures() const
 
 Id Operations::measureAt(const Fraction& t) const
 {
-    Id found;
-    for (Id ms : measures()) {
-        if (timeOf(ms) <= t) {
-            found = ms;
-        }
+    // the flow's children are in time order: the last measure starting at or before t (a binary search, then back
+    // over the items at the same time)
+    const Object* score = obj(m.score());
+    if (!score) {
+        return Id();
     }
-    return found;
+    for (Id c : score->children()) {
+        const Object* f = obj(c);
+        if (!f || f->kind() != Kind::Flow) {
+            continue;
+        }
+        const std::vector<Id>& kids = f->children().ids();
+        auto it = std::upper_bound(kids.begin(), kids.end(), t, [this](const Fraction& time, Id x) { return time < timeOf(x); });
+        while (it != kids.begin()) {
+            --it;
+            if (obj(*it)->kind() == Kind::Measure) {
+                return *it;
+            }
+        }
+        // before the first measure: the first one
+        for (Id x : kids) {
+            if (obj(x)->kind() == Kind::Measure) {
+                return t < timeOf(x) ? Id() : x;
+            }
+        }
+        return Id();
+    }
+    return Id();
 }
 
 Fraction Operations::measureStart(Id measure) const
@@ -182,27 +203,36 @@ Id Operations::voice(Transaction& tx, Id staff, int number)
 
 int64_t Operations::keyAt(Id staff, const Fraction& t) const
 {
-    int64_t key = 0;
-    Fraction best(-1, 1);
+    // back from t through the flow (in time order) to the nearest key signature for this staff or all staves
     const Object* score = obj(m.score());
     for (Id c : score->children()) {
         const Object* f = obj(c);
         if (!f || f->kind() != Kind::Flow) {
             continue;
         }
-        for (Id x : f->children()) {
-            const Object* it = obj(x);
-            if (it->kind() != Kind::FlowItem || it->text(F::SUBKIND) != "keySig") {
-                continue;
-            }
-            const Fraction at = it->fractionOr(F::TIME, Fraction());
-            if ((!it->has(F::ANCHOR) || it->idOr(F::ANCHOR) == staff) && at <= t && best < at) {
-                best = at;
-                key = it->intOr(F::INT_VALUE, 0);
+        const std::vector<Id>& kids = f->children().ids();
+        auto it = std::upper_bound(kids.begin(), kids.end(), t, [this](const Fraction& time, Id x) { return time < timeOf(x); });
+        auto fits = [&](const Object* item) {
+            return item->kind() == Kind::FlowItem && item->text(F::SUBKIND) == "keySig"
+                   && (!item->has(F::ANCHOR) || item->idOr(F::ANCHOR) == staff);
+        };
+        while (it != kids.begin()) {
+            --it;
+            if (fits(obj(*it))) {
+                // of several at that time, the first (as the forward search took it)
+                const Fraction at = timeOf(*it);
+                auto found = it;
+                while (found != kids.begin() && timeOf(*(found - 1)) == at) {
+                    --found;
+                    if (fits(obj(*found))) {
+                        it = found;
+                    }
+                }
+                return obj(*it)->intOr(F::INT_VALUE, 0);
             }
         }
     }
-    return key;
+    return 0;
 }
 
 Fraction Operations::tupletFactor(Id tuplet) const
@@ -256,8 +286,10 @@ void Operations::removeEvent(Transaction& tx, Id event)
             }
         }
     }
-    // ties from any voice of the instrument (a tie can go to another voice, or to the other staff of a piano)
+    // ties from any voice of the instrument (a tie can go to another voice, or to the other staff of a piano); a tie
+    // may come from any earlier note (the model doesn't require tied notes to be next to each other)
     std::vector<Id> tiedHere;
+    const Fraction t = timeOf(event);
     const Object* staff = obj(obj(obj(event)->parent())->parent());
     const Object* player = staff ? obj(staff->parent()) : nullptr;
     for (Id st : player ? player->children() : model::IdList()) {
@@ -265,8 +297,10 @@ void Operations::removeEvent(Transaction& tx, Id event)
             if (obj(v)->kind() != Kind::Voice) {
                 continue;
             }
-            for (Id other : obj(v)->children()) {
-                const Object* o = obj(other);
+            const std::vector<Id>& kids = obj(v)->children().ids();
+            auto end = std::upper_bound(kids.begin(), kids.end(), t, [this](const Fraction& time, Id x) { return time < timeOf(x); });
+            for (auto it = kids.begin(); it != end; ++it) {
+                const Object* o = obj(*it);
                 if (!o || o->kind() != Kind::Chord) {
                     continue;
                 }

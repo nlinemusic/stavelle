@@ -77,6 +77,28 @@ void createWithId(Transaction& tx, Id id, Id parent, const NewObject& object, Pl
     tx.set(parent, F::CHILDREN, IdList(std::move(kids)));
 }
 
+void moveTo(Transaction& tx, Id id, Id newParent, Placement where)
+{
+    const Value parentValue = tx.target().get(id, F::PARENT);
+    if (std::holds_alternative<Id>(parentValue)) {
+        const Id old = std::get<Id>(parentValue);
+        std::vector<Id> kids = childrenOf(tx, old).ids();
+        kids.erase(std::remove(kids.begin(), kids.end(), id), kids.end());
+        tx.set(old, F::CHILDREN, IdList(std::move(kids)));
+    }
+    tx.set(id, F::PARENT, newParent);
+    std::vector<Id> kids = childrenOf(tx, newParent).ids();
+    auto pos = kids.end();
+    if (where == Placement::ByTime) {
+        const Fraction t = timeOf(tx, id, Fraction());
+        pos = std::upper_bound(kids.begin(), kids.end(), t, [&tx](const Fraction& time, Id other) {
+            return time < timeOf(tx, other, Fraction());
+        });
+    }
+    kids.insert(pos, id);
+    tx.set(newParent, F::CHILDREN, IdList(std::move(kids)));
+}
+
 Id create(Transaction& tx, IdGenerator& ids, Id parent, const NewObject& object, Placement where)
 {
     const Id id = ids.next();
