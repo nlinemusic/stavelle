@@ -24,8 +24,9 @@ struct WriteReport {
 };
 
 //! The score as a MuseScore 4.x file, generated from the model: an archive (main score, style, settings)
+//! `plainFile`: a plain .mscx (no archive; the parts written inside the main score, as MuseScore writes them)
 ScoreFile generateScoreFile(const model::Snapshot& snapshot, WriteReport* report = nullptr,
-                            const std::string& scoreName = "score.mscx");
+                            const std::string& scoreName = "score.mscx", bool plainFile = false);
 
 //! Opening and saving through the model (what Jubelle does): read, restoring Jubelle's settings from the engine
 //! store when a MuseScore save dropped them; and generate, with the engine store updated

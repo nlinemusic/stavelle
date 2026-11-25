@@ -489,6 +489,8 @@ public:
     Writer(const model::Snapshot& snapshot, WriteReport& r, const Object& partLayout, std::map<Id, std::string>& sharedEids)
         : s(snapshot), report(r), layout(&partLayout), generatedEids(&sharedEids) {}
 
+    bool plainFile = false;   // a plain .mscx: the parts written inside the main score, no archive
+
     ScoreFile run(const std::string& scoreName)
     {
         score = s.find(s.score());
@@ -532,8 +534,13 @@ public:
         }
         std::map<int, int> mainStaff;   // staff index → the index of the staff it is linked to
         for (const Object* st : staves) {
-            if (st->has(F::LINKED_STAFF) && staffNumber.count(st->idOr(F::LINKED_STAFF))) {
-                mainStaff[staffNumber.at(st->id()) - 1] = staffNumber.at(st->idOr(F::LINKED_STAFF)) - 1;
+            Id root = st->id();
+            std::set<Id> seen;
+            while (s.find(root) && s.find(root)->has(F::LINKED_STAFF) && seen.insert(root).second) {
+                root = s.find(root)->idOr(F::LINKED_STAFF);
+            }
+            if (root != st->id() && staffNumber.count(root)) {
+                mainStaff[staffNumber.at(st->id()) - 1] = staffNumber.at(root) - 1;   // the first staff of its group
             }
         }
         std::unique_ptr<PlaceLinks> placeLinks;
@@ -566,6 +573,9 @@ public:
             file.entries.push_back(e);
         }
         file.entries.push_back(container);
+        if (plainFile) {
+            file.plainMscx = true;
+        }
 
         // part layouts: each a part score made from the same model, linked to the main score
         size_t layoutNo = 0;
@@ -573,6 +583,30 @@ public:
             WriteReport partReport;
             Writer pw(s, partReport, *l, *generatedEids);
             xml::Document doc = pw.partDocument();
+            if (plainFile || l->has(F::INLINE_PART)) {
+                // written inside the main score, as MuseScore writes a plain .mscx's parts (and reads them anywhere)
+                Node* psc = doc.root.child("Score");
+                Node* msc = file.main.root.child("Score");
+                if (psc && msc) {
+                    if (modern) {
+                        linkToMain(*psc, int(layoutNo));
+                    } else {
+                        for (Node& c : psc->children) {
+                            if (c.name == "Staff") {
+                                linkByLocation(c, false);
+                            }
+                        }
+                        if (placeLinks) {
+                            placeLinks->runPart(*psc, pw.partToMainStaves());
+                        }
+                    }
+                    PlaceLinks::strip(*psc);
+                    msc->children.push_back(std::move(*psc));
+                    finishNode(*msc);
+                }
+                ++layoutNo;
+                continue;
+            }
             if (modern) {
                 linkToMain(doc.root, int(layoutNo));
             } else if (Node* psc = doc.root.child("Score")) {
@@ -618,9 +652,16 @@ public:
     //! A part's staves (index) → the main score's staves they show (index)
     std::map<int, int> partToMainStaves() const
     {
+        // MuseScore looks a part's copies up in the first staff of the main score's linked group (a part staff of
+        // a linked staff finds its originals on that staff's main staff)
         std::map<int, int> out;
         for (const auto& [st, n] : staffNumber) {
-            auto it = mainStaffNumber.find(st);
+            Id root = st;
+            std::set<Id> seen;
+            while (s.find(root) && s.find(root)->has(F::LINKED_STAFF) && seen.insert(root).second) {
+                root = s.find(root)->idOr(F::LINKED_STAFF);
+            }
+            auto it = mainStaffNumber.find(root);
             if (it != mainStaffNumber.end()) {
                 out[n - 1] = it->second - 1;
             }
@@ -924,7 +965,7 @@ private:
         Node sc = elem("Score");
         sc.children.push_back(leaf("Division", "480"));
         sc.children.push_back(styleNode());
-        if (layout && !layout->has(F::SCORE_PRE)) {
+        if (layout && !layout->has(F::SCORE_PRE) && !layout->has(F::INLINE_PART)) {
             sc.children.push_back(leaf("name", xml::encode(layout->text(F::NAME))));   // a part made in Jubelle
         }
         for (Node& c : parseFragment(settings().text(F::SCORE_PRE))) {
@@ -937,7 +978,7 @@ private:
             sc.children.push_back(std::move(m));
             partName = partName || name == "partName";
         }
-        if (layout && !partName) {
+        if (layout && !partName && !layout->has(F::INLINE_PART)) {   // (a part read from a file keeps what it had)
             Node m = leaf("metaTag", xml::encode(layout->text(F::NAME)));
             m.attrs.emplace_back("name", "partName");
             sc.children.push_back(std::move(m));
@@ -2255,10 +2296,11 @@ private:
 };
 }
 
-ScoreFile generateScoreFile(const model::Snapshot& snapshot, WriteReport* report, const std::string& scoreName)
+ScoreFile generateScoreFile(const model::Snapshot& snapshot, WriteReport* report, const std::string& scoreName, bool plainFile)
 {
     WriteReport local;
     Writer w(snapshot, report ? *report : local);
+    w.plainFile = plainFile;
     return w.run(scoreName);
 }
 
@@ -2275,7 +2317,8 @@ bool openScore(const std::string& path, model::Model& model, IdGenerator& ids, s
 
 bool saveScore(const model::Snapshot& snapshot, const std::string& path, std::string& error, WriteReport* report)
 {
-    ScoreFile file = generateScoreFile(snapshot, report);
+    const bool plain = path.size() > 5 && path.compare(path.size() - 5, 5, ".mscx") == 0;
+    ScoreFile file = generateScoreFile(snapshot, report, "score.mscx", plain);
     if (file.entries.empty()) {
         error = "nothing to save (no score)";
         return false;

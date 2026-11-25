@@ -19,6 +19,7 @@
 #include "io/mscxwriter.h"
 #include "io/scorefile.h"
 #include "io/xml.h"
+#include "io/zip.h"
 #include "model/invariants.h"
 
 using namespace je;
@@ -686,4 +687,31 @@ TEST(ModelWriter, LinesFromNoteToNoteStayWholeWhenTheirNotesAreEdited)
     }
     EXPECT_EQ(total, 2u);
     EXPECT_TRUE(model::checkInvariants(r.model.snapshot()).empty());
+}
+
+TEST(ModelWriter, APlainMscxKeepsItsPartsInsideTheScore)
+{
+    // a plain .mscx has no archive: MuseScore writes the parts inside the main score, and reads them there
+    Ensemble e;
+    e.build();
+    const fs::path path = tempFile("plain.mscx");
+    std::string error;
+    ASSERT_TRUE(io::saveScore(e.model.snapshot(), path.string(), error)) << error;
+    std::string bytes;
+    ASSERT_TRUE(io::zip::readFile(path.string(), bytes));
+    ASSERT_EQ(bytes.rfind("<?xml", 0), 0u);   // XML, not an archive
+    size_t scores = 0;
+    for (size_t p = bytes.find("<Score>"); p != std::string::npos; p = bytes.find("<Score>", p + 1)) {
+        ++scores;
+    }
+    EXPECT_EQ(scores, 2u);   // the score and its part
+    Reopened r;
+    ASSERT_TRUE(io::openScore(path.string(), r.model, r.ids, error)) << error;
+    const auto layouts = all(r.model.snapshot(), Kind::Layout);
+    ASSERT_EQ(layouts.size(), 1u);
+    EXPECT_TRUE(layouts.front()->has(F::INLINE_PART));
+    EXPECT_EQ(layouts.front()->text(F::NAME), "Horn in F");
+    EXPECT_EQ(std::get<model::IdList>(layouts.front()->get(F::PLAYERS)).size(), 1u);
+    EXPECT_EQ(io::musicListing(r.model.snapshot()), io::musicListing(e.model.snapshot()));
+    EXPECT_EQ(problems(r.model.snapshot()), "");
 }

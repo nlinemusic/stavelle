@@ -265,11 +265,16 @@ private:
             lastIndex = 0;
             return 0;
         };
-        std::map<int64_t, int64_t> mainIndex;   // staff index → its main staff's index
+        std::map<int64_t, int64_t> mainIndex;   // staff index → the first staff of its linked group
         for (const auto& [staff, to] : staffLinks) {
             auto it = staffById.find(toInt(to));
             if (it != staffById.end() && staffOrder[it->second] < staffOrder[staff]) {
                 mainIndex[staffOrder[staff] - 1] = staffOrder[it->second] - 1;
+            }
+        }
+        for (auto& [s, m] : mainIndex) {
+            for (int guard = 0; guard < 8 && mainIndex.count(m); ++guard) {
+                m = mainIndex.at(m);
             }
         }
         std::function<void(const Node&, int64_t, Loc)> walk = [&](const Node& n, int64_t staff, Loc loc) {
@@ -387,8 +392,8 @@ private:
                 seenPart = true;
             } else if (c.name == "Staff") {
                 seenMusic = true;
-            } else if (c.name == "Division" || c.name == "Style" || c.name == "eid") {
-                continue;
+            } else if (c.name == "Division" || c.name == "Style" || c.name == "eid" || c.name == "Score") {
+                continue;   // (a <Score> inside the score is a part, read as a layout)
             } else if (!seenPart && !seenMusic) {
                 pre.push_back(&c);
             } else {
@@ -489,6 +494,7 @@ private:
                     staffByEid[c.childText("eid")] = staff;
                 }
                 staffOrder[staff] = staffCount;
+                playerOfStaff[staff] = player;
                 if (!c.childText("linkedTo").empty()) {
                     staffLinks.push_back({ staff, c.childText("linkedTo") });
                 }
@@ -1503,11 +1509,32 @@ private:
 
     void readLayouts()
     {
+        // the parts: their own files in an archive, and any written inside the main score (as MuseScore writes a
+        // plain .mscx's parts)
+        struct Source {
+            std::string entry;
+            const Node* score;
+            const Node* root;
+            bool inlinePart;
+        };
+        std::vector<Source> sources;
         for (const auto& [entry, doc] : file.excerpts) {
-            const Node* s = doc.root.child("Score");
-            if (!s) {
-                continue;
+            if (const Node* s = doc.root.child("Score")) {
+                sources.push_back({ entry, s, &doc.root, false });
             }
+        }
+        static const Node noHead;
+        if (const Node* main = file.score()) {
+            int n = 0;
+            for (const Node& c : main->children) {
+                if (c.name == "Score") {
+                    sources.push_back({ "part " + std::to_string(++n), &c, &noHead, true });
+                }
+            }
+        }
+        for (const Source& src : sources) {
+            const std::string& entry = src.entry;
+            const Node* s = src.score;
             std::string name;
             for (const Node& c : s->children) {
                 if (c.name == "metaTag" && c.attr("name") == "partName") {
@@ -1520,6 +1547,35 @@ private:
             std::vector<Id> list;
             for (const Node& c : s->children) {
                 if (c.name != "Part") {
+                    continue;
+                }
+                // the main score's player whose staff the part's staff is linked to (by number before 4.60, by
+                // identity from 4.60); else the one of the same name
+                Id byLink;
+                for (const Node& st : c.children) {
+                    if (st.name != "Staff" || byLink.isValid()) {
+                        continue;
+                    }
+                    for (const Node& l : st.children) {
+                        if (l.name != "linkedTo") {
+                            continue;
+                        }
+                        Id mainStaff;
+                        if (auto e = staffByEid.find(l.text()); e != staffByEid.end()) {
+                            mainStaff = e->second;
+                        } else if (auto n = staffById.find(toInt(l.text())); file.formatVersion() < std::string("4.60") && n != staffById.end()) {
+                            mainStaff = n->second;
+                        }
+                        if (mainStaff.isValid()) {
+                            byLink = playerOfStaff[mainStaff];
+                            break;
+                        }
+                    }
+                }
+                if (byLink.isValid()) {
+                    if (std::find(list.begin(), list.end(), byLink) == list.end()) {
+                        list.push_back(byLink);
+                    }
                     continue;
                 }
                 const Node* instr = c.child("Instrument");
@@ -1538,8 +1594,12 @@ private:
             // its own breaks; its music is the main score's (made again from the model when it is written)
             Fields f { { F::NAME, Text(name) }, { F::PLAYERS, model::IdList(list) } };
             const size_t slash = entry.rfind('/');
-            const std::string folder = entry.substr(0, slash + 1);   // "Excerpts/0_Piano/"
-            f.push_back({ F::TAG, Text(folder.size() > 10 ? folder.substr(9, folder.size() - 10) : std::string()) });
+            const std::string folder = src.inlinePart ? std::string("\x01") : entry.substr(0, slash + 1);   // "Excerpts/0_Piano/"
+            if (src.inlinePart) {
+                f.push_back({ F::INLINE_PART, true });
+            } else {
+                f.push_back({ F::TAG, Text(folder.size() > 10 ? folder.substr(9, folder.size() - 10) : std::string()) });
+            }
             xml::Document mss;
             std::string ignored;
             const Node* style = s->child("Style");
@@ -1555,7 +1615,7 @@ private:
                     extras += z.name.substr(folder.size()) + '\0' + std::to_string(z.data.size()) + '\0' + z.data;
                 }
             }
-            documentFields(f, style, *s, doc.root);
+            documentFields(f, style, *s, *src.root);
             if (!extras.empty()) {
                 f.push_back({ F::ARCHIVE_EXTRAS, Text(extras) });
             }
@@ -1624,6 +1684,7 @@ private:
     std::map<int64_t, Id> staffById;
     std::map<std::string, Id> staffByEid;
     std::map<Id, int64_t> staffOrder;   // staves in the order they are read
+    std::map<Id, Id> playerOfStaff;
     bool byPlaceFormat = false;           // links by place (before 4.60)
     std::map<const Node*, Id> nodeObject;                          // elements with links by place → their objects
     std::map<const Node*, std::pair<int64_t, Fraction> > placeOf;  // where MuseScore's reader is at an element
