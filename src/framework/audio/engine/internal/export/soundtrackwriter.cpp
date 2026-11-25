@@ -34,6 +34,8 @@
 #include "flacencoder.h"
 #include "wavencoder.h"
 #include "aacencoder.h"
+#include "../mixer.h"
+#include "../dsp/jubelleexportlevel.h"
 
 #include "log.h"
 
@@ -62,6 +64,7 @@ SoundTrackWriter::SoundTrackWriter(const io::path_t& destination, const SoundTra
                                    const modularity::ContextPtr& iocCtx)
     : muse::Contextable(iocCtx), m_source(std::move(source))
 {
+    m_mixer = std::dynamic_pointer_cast<engine::Mixer>(m_source);
     if (!m_source) {
         return;
     }
@@ -114,6 +117,9 @@ Ret SoundTrackWriter::write()
 
     m_source->setOutputSpec(m_encoderPtr->format().outputSpec);
     m_source->setIsActive(true);
+    if (m_mixer) {
+        m_mixer->setJubelleLimiterBypassed(true);   // the export limits the whole piece itself
+    }
 
     DEFER {
         m_encoderPtr->flush();
@@ -125,6 +131,9 @@ Ret SoundTrackWriter::write()
 
             m_source->setOutputSpec(audioEngine()->outputSpec());
             m_source->setIsActive(false);
+            if (m_mixer) {
+                m_mixer->setJubelleLimiterBypassed(false);
+            }
         };
         audioEngine()->execOperation(OperationType::LongOperation, func);
 
@@ -178,8 +187,15 @@ Ret SoundTrackWriter::writeStreaming()
         rpcChannel()->process();
     }
 
-    // Phase 2: actual audio data
+    // Phase 2: actual audio data. Jubelle: measured first, then levelled and limited (jubelleexportlevel.h);
+    // without the mixer (never in practice) as MuseScore writes it
     const samples_t audioEnd = m_leadingSilenceSamples + m_dataSamples;
+    if (m_mixer) {
+        Ret ret = writeMeasured(framesWritten, audioEnd);
+        if (!ret) {
+            return ret;
+        }
+    }
     while (framesWritten < audioEnd && !m_isAborted) {
         const samples_t chunk = static_cast<samples_t>(
             std::min<uint64_t>(m_renderStep, audioEnd - framesWritten));
@@ -217,6 +233,87 @@ Ret SoundTrackWriter::writeStreaming()
         return make_ret(Ret::Code::Cancel);
     }
 
+    return muse::make_ok();
+}
+
+Ret SoundTrackWriter::encodeChunk(samples_t frames, const float* data)
+{
+    if (frames == 0) {
+        return muse::make_ok();
+    }
+    return m_encoderPtr->encode(frames, data) == 0 ? make_ret(Err::ErrorEncode) : muse::make_ok();
+}
+
+Ret SoundTrackWriter::writeMeasured(samples_t& framesWritten, samples_t audioEnd)
+{
+    const OutputSpec& spec = m_encoderPtr->format().outputSpec;
+    const size_t channels = std::max<size_t>(1, spec.audioChannelCount);
+    const samples_t dataFrames = audioEnd - framesWritten;
+    // the progress bar: rendering is most of the work
+    const uint64_t shown = m_totalSamples + dataFrames / 4;
+
+    // 1. render the music to a temporary file, measuring its loudest sample before any limiting
+    FILE* temp = std::tmpfile();
+    if (!temp) {
+        LOGW() << "Jubelle: no temporary file for the export; written without measuring (the playback limiter)";
+        m_mixer->setJubelleLimiterBypassed(false);
+        return muse::make_ok();   // the caller renders it as before
+    }
+    DEFER {
+        std::fclose(temp);
+    };
+    float peak = 0.f;
+    samples_t rendered = 0;
+    while (rendered < dataFrames && !m_isAborted) {
+        const samples_t chunk = static_cast<samples_t>(std::min<uint64_t>(m_renderStep, dataFrames - rendered));
+        m_source->process(m_intermBuffer.data(), chunk);
+        const size_t n = size_t(chunk) * channels;
+        for (size_t i = 0; i < n; ++i) {
+            peak = std::max(peak, std::fabs(m_intermBuffer[i]));
+        }
+        if (std::fwrite(m_intermBuffer.data(), sizeof(float), n, temp) != n) {
+            return make_ret(Err::ErrorEncode);
+        }
+        rendered += chunk;
+        m_progress.progress(int64_t(framesWritten + rendered) * 100 / int64_t(std::max<uint64_t>(1, shown)), 100);
+        rpcChannel()->process();
+    }
+    if (m_isAborted) {
+        return make_ret(Ret::Code::Cancel);
+    }
+
+    // 2. the whole piece's gain, then the limiter with its delay taken out, then the encoder
+    dsp::JubelleExportLevel level(spec.sampleRate, channels, dsp::exportGain(peak));
+    LOGI() << "Jubelle export: loudest sample before limiting " << 20.f * std::log10(std::max(peak, 1e-9f))
+           << " dBFS, whole-piece gain " << 20.f * std::log10(level.gain()) << " dB";
+    std::rewind(temp);
+    samples_t done = 0;
+    while (done < rendered && !m_isAborted) {
+        const samples_t chunk = static_cast<samples_t>(std::min<uint64_t>(m_renderStep, rendered - done));
+        const size_t n = size_t(chunk) * channels;
+        if (std::fread(m_intermBuffer.data(), sizeof(float), n, temp) != n) {
+            return make_ret(Err::ErrorEncode);
+        }
+        const size_t out = level.process(m_intermBuffer.data(), chunk);
+        Ret ret = encodeChunk(samples_t(out), m_intermBuffer.data());
+        if (!ret) {
+            return ret;
+        }
+        done += chunk;
+        m_progress.progress(int64_t(framesWritten + rendered + done / 4) * 100 / int64_t(std::max<uint64_t>(1, shown)), 100);
+        rpcChannel()->process();
+    }
+    while (!level.finished()) {
+        const size_t out = level.flush(m_intermBuffer.data(), m_renderStep);
+        Ret ret = encodeChunk(samples_t(out), m_intermBuffer.data());
+        if (!ret) {
+            return ret;
+        }
+    }
+    if (m_isAborted) {
+        return make_ret(Ret::Code::Cancel);
+    }
+    framesWritten += rendered;
     return muse::make_ok();
 }
 

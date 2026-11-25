@@ -176,6 +176,13 @@ Ret Mixer::removeChannel(const TrackId trackId)
     return removed ? make_ret(Ret::Code::Ok) : make_ret(Err::InvalidTrackId);
 }
 
+void Mixer::setJubelleLimiterBypassed(bool bypassed)
+{
+    ONLY_AUDIO_ENGINE_THREAD;
+    m_jubelleLimiterBypassed = bypassed;
+    m_jubelleLimiter.reset();
+}
+
 void Mixer::setOutputSpec(const OutputSpec& spec)
 {
     ONLY_AUDIO_ENGINE_THREAD;
@@ -593,8 +600,11 @@ void Mixer::completeOutput(float* buffer, samples_t samplesPerChannel)
         }
     }
 
-    // Jubelle: safety limiter. Leaves the samples untouched below about -1 dBFS.
-    m_jubelleLimiter.process(buffer, samplesPerChannel, m_outputSpec.audioChannelCount);
+    // Jubelle: safety limiter. Leaves the samples untouched below about -1 dBFS. (An export limits the whole
+    // piece itself, after measuring it: jubelleexportlevel.h)
+    if (!m_jubelleLimiterBypassed) {
+        m_jubelleLimiter.process(buffer, samplesPerChannel, m_outputSpec.audioChannelCount);
+    }
 
     for (audioch_t audioChNum = 0; audioChNum < m_outputSpec.audioChannelCount; ++audioChNum) {
         float peak = 0.f;

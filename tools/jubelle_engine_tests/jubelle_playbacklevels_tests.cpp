@@ -385,3 +385,82 @@ TEST(Jubelle_Dither, RepeatableAndInRange)
         EXPECT_LE(s, -32766);
     }
 }
+
+// ---- the level of exports (jubelleexportlevel.h) ----------------------------------------------------------------
+#include "audio/engine/internal/dsp/jubelleexportlevel.h"
+
+using muse::audio::dsp::JubelleExportLevel;
+using muse::audio::dsp::exportGain;
+
+namespace {
+//! runs a whole interleaved stereo signal through the export's second step, in blocks as the writer does
+std::vector<float> exportSignal(std::vector<float> in, float gain, std::size_t block = 512)
+{
+    JubelleExportLevel level(44100, 2, gain);
+    std::vector<float> out;
+    std::vector<float> buf(block * 2);
+    const std::size_t frames = in.size() / 2;
+    for (std::size_t f = 0; f < frames; f += block) {
+        const std::size_t n = std::min(block, frames - f);
+        std::copy(in.begin() + long(f * 2), in.begin() + long((f + n) * 2), buf.begin());
+        const std::size_t made = level.process(buf.data(), n);
+        out.insert(out.end(), buf.begin(), buf.begin() + long(made * 2));
+    }
+    while (!level.finished()) {
+        const std::size_t made = level.flush(buf.data(), block);
+        out.insert(out.end(), buf.begin(), buf.begin() + long(made * 2));
+    }
+    return out;
+}
+}
+
+TEST(Jubelle_ExportLevel, QuietMusicIsExportedExactlyAsItIs)
+{
+    // peaks within the limiter's light touch: no gain, and (taking out the delay) the same samples at the same times
+    EXPECT_EQ(exportGain(0.5f), 1.f);
+    EXPECT_EQ(exportGain(1.2f), 1.f);   // up to 3 dB over the limiter's threshold is left to it
+    std::vector<float> in(44100 * 2);
+    for (std::size_t f = 0; f < in.size() / 2; ++f) {
+        in[f * 2] = in[f * 2 + 1] = 0.5f * float(std::sin(2.0 * M_PI * 440.0 * double(f) / 44100.0));
+    }
+    const std::vector<float> out = exportSignal(in, 1.f);
+    ASSERT_EQ(out.size(), in.size());
+    EXPECT_EQ(out, in);
+}
+
+TEST(Jubelle_ExportLevel, TheExportStartsOnTimeNotFiveMillisecondsLate)
+{
+    std::vector<float> in(4096 * 2, 0.f);
+    in[1000 * 2] = in[1000 * 2 + 1] = 0.25f;   // a click at frame 1000
+    const std::vector<float> out = exportSignal(in, 1.f, 300);
+    ASSERT_EQ(out.size(), in.size());
+    EXPECT_EQ(out[1000 * 2], 0.25f);
+    EXPECT_EQ(out[999 * 2], 0.f);
+}
+
+TEST(Jubelle_ExportLevel, LoudTuttisKeepTheirDynamicsAndNeverClip)
+{
+    // a loud passage peaking 12 dB over full scale, then a quiet one: the whole piece is turned down so that the
+    // limiter has at most 3 dB of work; the quiet passage stays as far below the loud one as it was
+    const float loud = std::pow(10.f, 12.f / 20.f);
+    const float g = exportGain(loud);
+    EXPECT_NEAR(20.f * std::log10(g * loud), -1.f + 3.f, 0.01f);   // the threshold (-1 dBFS) + 3 dB
+    std::vector<float> in(44100 * 2 * 2);
+    for (std::size_t f = 0; f < in.size() / 2; ++f) {
+        const float a = f < 44100 ? loud : loud / 10.f;   // then 20 dB quieter
+        in[f * 2] = in[f * 2 + 1] = a * float(std::sin(2.0 * M_PI * 220.0 * double(f) / 44100.0));
+    }
+    const std::vector<float> out = exportSignal(in, g);
+    float peak = 0.f, quietPeak = 0.f;
+    for (std::size_t i = 0; i < out.size(); ++i) {
+        peak = std::max(peak, std::fabs(out[i]));
+        if (i / 2 > 44100 + 44100 / 2) {
+            quietPeak = std::max(quietPeak, std::fabs(out[i]));
+        }
+    }
+    EXPECT_LE(peak, muse::audio::dsp::JubelleSafetyLimiter::THRESHOLD + 1e-6f);   // never past -1 dBFS
+    // the quiet passage: exactly the whole-piece gain, no limiting (within the limiter's release)
+    EXPECT_NEAR(quietPeak, g * loud / 10.f, 0.002f);
+    // and the loud passage was limited by no more than 3 dB
+    EXPECT_GE(20.f * std::log10(peak / (g * loud)), -3.01f);
+}

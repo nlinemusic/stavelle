@@ -36,6 +36,10 @@
 
 #include "abstractaudioencoder.h"
 
+namespace muse::audio::engine {
+class Mixer;
+}
+
 namespace muse::audio::soundtrack {
 class SoundTrackWriter : public muse::Contextable, public async::Asyncable
 {
@@ -54,10 +58,14 @@ public:
 
 private:
     Ret writeStreaming();
+    //! Jubelle: the music rendered to a temporary file and measured, then levelled and limited (jubelleexportlevel.h)
+    Ret writeMeasured(samples_t& framesWritten, samples_t audioEnd);
+    Ret encodeChunk(samples_t frames, const float* data);
 
     void sendStreamingProgress(uint64_t framesWritten, uint64_t totalFrames);
 
     engine::IAudioSourcePtr m_source = nullptr;
+    std::shared_ptr<engine::Mixer> m_mixer = nullptr;   // Jubelle: the source when it is the mixer (exports)
 
     std::vector<float> m_intermBuffer;
 

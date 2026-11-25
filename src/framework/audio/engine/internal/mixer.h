@@ -76,6 +76,9 @@ public:
 
     // IAudioSource
     void setOutputSpec(const OutputSpec& spec) override;
+
+    //! Jubelle: an export measures and limits the whole piece itself (jubelleexportlevel.h); playback never bypasses
+    void setJubelleLimiterBypassed(bool bypassed);
     unsigned int audioChannelsCount() const override;
 
     void setIsActive(bool arg) override;
@@ -127,6 +130,7 @@ private:
 
     mutable AudioSignalsNotifier m_audioSignalNotifier;
     dsp::JubelleSafetyLimiter m_jubelleLimiter; // Jubelle: stops clipping near 0 dBFS
+    bool m_jubelleLimiterBypassed = false;      // Jubelle: an export limits the whole piece itself (jubelleexportlevel.h)
 
     bool m_isSilence = false;
     bool m_shouldProcessMasterFxDuringSilence = false;
