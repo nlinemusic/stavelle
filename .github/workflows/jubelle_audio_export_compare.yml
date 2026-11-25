@@ -1,0 +1,69 @@
+# Jubelle: compare audio exports (WAV and MP3) of the same scores by Jubelle and by official MuseScore Studio
+# 4.7.7 on Windows, measured by tools/jubelle_checks/audio_export_compare.py. Run by hand.
+name: 'Jubelle: Audio Export Comparison (Windows)'
+
+on:
+  workflow_dispatch:
+    inputs:
+      jubelle_release:
+        description: 'Jubelle release tag whose installer to test (ignored when build_run_id is set)'
+        default: 'v4.7.7.261118230'
+      build_run_id:
+        description: 'Run ID of a "Build: Windows" run whose installer to test instead (0: use the release)'
+        default: '0'
+
+jobs:
+  compare:
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+    - uses: actions/checkout@v6
+    - name: Get the installers
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        mkdir -p jubelle_msi musescore_msi
+        if [ "${{ inputs.build_run_id }}" != "0" ]; then
+          ART=$(gh api "repos/${{ github.repository }}/actions/runs/${{ inputs.build_run_id }}/artifacts" --jq '[.artifacts[] | select(.name | startswith("MU4_"))][0].name')
+          gh run download "${{ inputs.build_run_id }}" --repo "${{ github.repository }}" --name "$ART" --dir jubelle_msi
+        else
+          gh release download "${{ inputs.jubelle_release }}" --repo "${{ github.repository }}" --pattern "*x86_64.msi" --dir jubelle_msi
+        fi
+        gh release download v4.7.7 --repo musescore/MuseScore --pattern "*x86_64.msi" --dir musescore_msi
+        ls -la jubelle_msi musescore_msi
+    - name: Install both
+      shell: bash
+      run: |
+        J=$(ls jubelle_msi/*.msi | head -1); M=$(ls musescore_msi/*.msi | head -1)
+        cmd //c "msiexec /i $(cygpath -w "$M") /qn /norestart /l*v musescore_install.log"
+        cmd //c "msiexec /i $(cygpath -w "$J") /qn /norestart /l*v jubelle_install.log"
+        ls "/c/Program Files/"
+    - name: Export
+      shell: bash
+      run: |
+        MS=$(ls "/c/Program Files/"MuseScore*/bin/MuseScore*.exe | head -1)
+        JU=$(ls "/c/Program Files/"Jubelle*/bin/*.exe | grep -iv crash | head -1)
+        echo "MuseScore: $MS"; echo "Jubelle: $JU"
+        mkdir -p export/musescore export/jubelle
+        for s in demos/Reunion.mscz demos/Brassed_Up.mscx demos/Dynamic_Strings.mscx demos/Fugue_1.mscx demos/Amazing_grace.mscz; do
+          n=$(basename "$s"); n="${n%.*}"
+          for ext in wav mp3; do
+            timeout 900 "$MS" -o "export/musescore/$n.$ext" "$s" > "export/musescore/$n.$ext.log" 2>&1 || echo "MuseScore $n.$ext failed"
+            timeout 900 "$JU" -o "export/jubelle/$n.$ext" "$s" > "export/jubelle/$n.$ext.log" 2>&1 || echo "Jubelle $n.$ext failed"
+          done
+        done
+        ls -la export/musescore export/jubelle
+    - name: Measure
+      shell: bash
+      run: |
+        python -m pip install --quiet numpy scipy soundfile miniaudio pyloudnorm
+        python tools/jubelle_checks/audio_export_compare.py export audio_export_report.md
+        cat audio_export_report.md >> "$GITHUB_STEP_SUMMARY"
+    - uses: actions/upload-artifact@v6
+      if: always()
+      with:
+        name: audio-export-comparison
+        path: |
+          audio_export_report.md
+          export/**/*.log
