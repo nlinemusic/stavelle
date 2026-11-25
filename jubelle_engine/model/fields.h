@@ -148,12 +148,23 @@ constexpr Field END_STAFF = ENGINE_BASE + 132;       // Id: the staff a line end
 constexpr Field END_VOICE = ENGINE_BASE + 133;       // int: the voice a line ends in, when not its own
 constexpr Field LINK_EID = ENGINE_BASE + 135;        // string: the element (or staff) of the same score this one is linked to (a linked staff)
 constexpr Field LINK_MARK = ENGINE_BASE + 136;       // string: before format 4.60, "main" or "linked:<location>" (links by place)
-constexpr Field TIE_LINK = ENGINE_BASE + 137;
-constexpr Field GRACE_LENGTH = ENGINE_BASE + 138;
-constexpr Field VALUE_TAG = ENGINE_BASE + 139;       // string: the tag a value was read from, when a format has several (a 4.00 key's <accidental>)    // Fraction: a grace chord's own played length (<duration>), when given        // string: the tie this note's tie is linked to
-constexpr Field END_GRACE = ENGINE_BASE + 134;       // int: the grace chord a line ends on (MuseScore's grace index)         // string: the identity of the tie that starts at a note
+constexpr Field TIE_LINK = ENGINE_BASE + 137;        // string: the tie this note's tie is linked to
+constexpr Field GRACE_LENGTH = ENGINE_BASE + 138;    // Fraction: a grace chord's own played length (<duration>), when given
+constexpr Field VALUE_TAG = ENGINE_BASE + 139;       // string: the tag a value was read from, when a format has several (a 4.00 key's <accidental>)
+constexpr Field END_GRACE = ENGINE_BASE + 134;       // int: the grace chord a line ends on (MuseScore's grace index)
 constexpr Field SOURCE_FORMAT = ENGINE_BASE + 127;   // string: the MuseScore format the score was read from ("4.40"), written back
 constexpr Field LAYOUT_BREAKS = ENGINE_BASE + 126;   // string: a part layout's own line/page/section breaks (measure index, kind)
+
+// tablature and linked staves (S3)
+constexpr Field FRET = ENGINE_BASE + 140;            // int64: a note's fret on a fretted instrument (0 = open string)
+constexpr Field STRING = ENGINE_BASE + 141;          // int64: its string, from the highest (0), as MuseScore numbers them
+constexpr Field LINKED_STAFF = ENGINE_BASE + 142;    // Id: on a linked staff (standard and tablature of one guitar), the
+                                                     // staff it shows the music of; the two always hold the same music
+constexpr Field FRETS = ENGINE_BASE + 144;           // int64: a fretted instrument's number of frets (a player's)
+constexpr Field STRING_TUNING = ENGINE_BASE + 145;   // string: its open strings' pitches, lowest first ("40 45 50 55 59 64");
+                                                     // "*" marks a string that is never fretted (a banjo's drone)
+constexpr Field LINKED_TO = ENGINE_BASE + 143;       // Id: on an element of a linked staff made by Jubelle, its original on
+                                                     // the main staff (written as MuseScore's link)
 
 /* Flow items (SUBKIND): clef, keySig, timeSig, tempo, harmony (chord symbol), dynamic, staffText, systemText,
  * rehearsalMark, jump, marker, instrumentChange, breath, fermata, … — ANCHOR = the staff, or absent for the

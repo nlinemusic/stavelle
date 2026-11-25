@@ -347,3 +347,20 @@ TEST(EditOperations, TranspositionMovesPitchesAndSpellings)
     // the horn (another staff) is untouched
     EXPECT_EQ(d.listing().find("1 0 0/1 1/1 60"), std::string::npos);
 }
+
+TEST(Operations, OverwritingANoteTiedFromAnotherVoiceRemovesTheTie)
+{
+    Doc d;
+    Id from;
+    d.edit("Enter", [&](Transaction& tx) {
+        const Id v2 = d.ops.voice(tx, d.flute.staff, 1);
+        const Id a = d.ops.enterChord(tx, v2, Fraction(1, 2), { Fraction(1, 2), 0 }, { 67 });
+        const Id b = d.ops.enterChord(tx, d.flute.voice, Fraction(1, 1), { Fraction(1, 4), 0 }, { 67 });
+        from = d.b.notesOf(a).front();
+        tx.set(from, F::TIE_TO, d.b.notesOf(b).front());   // a tie from voice 2 into voice 1 (as files have)
+    });
+    ASSERT_EQ(problems(d.model.snapshot()), "");
+    d.edit("Overwrite", [&](Transaction& tx) { d.ops.enterChord(tx, d.flute.voice, Fraction(1, 1), { Fraction(1, 4), 0 }, { 72 }); });
+    EXPECT_FALSE(d.model.find(from)->has(F::TIE_TO));
+    EXPECT_EQ(problems(d.model.snapshot()), "");
+}

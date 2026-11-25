@@ -256,17 +256,30 @@ void Operations::removeEvent(Transaction& tx, Id event)
             }
         }
     }
-    const Object* v = obj(obj(event)->parent());
-    for (Id other : v->children()) {
-        const Object* o = obj(other);
-        if (!o || o->kind() != Kind::Chord) {
-            continue;
-        }
-        for (Id n : o->children()) {
-            if (notes.count(obj(n)->idOr(F::TIE_TO))) {
-                tx.set(n, F::TIE_TO, Value());
+    // ties from any voice of the instrument (a tie can go to another voice, or to the other staff of a piano)
+    std::vector<Id> tiedHere;
+    const Object* staff = obj(obj(obj(event)->parent())->parent());
+    const Object* player = staff ? obj(staff->parent()) : nullptr;
+    for (Id st : player ? player->children() : model::IdList()) {
+        for (Id v : obj(st)->children()) {
+            if (obj(v)->kind() != Kind::Voice) {
+                continue;
+            }
+            for (Id other : obj(v)->children()) {
+                const Object* o = obj(other);
+                if (!o || o->kind() != Kind::Chord) {
+                    continue;
+                }
+                for (Id n : o->children()) {
+                    if (notes.count(obj(n)->idOr(F::TIE_TO))) {
+                        tiedHere.push_back(n);
+                    }
+                }
             }
         }
+    }
+    for (Id n : tiedHere) {
+        tx.set(n, F::TIE_TO, Value());
     }
     std::vector<Id> lines;
     for (Id c : obj(m.score())->children()) {

@@ -35,6 +35,7 @@
 #include "engraving/dom/tie.h"
 #include "engraving/dom/segment.h"
 #include "engraving/dom/staff.h"
+#include "engraving/dom/linkedobjects.h"
 #include "engraving/infrastructure/localfileinfoprovider.h"
 
 using namespace mu::engraving;
@@ -116,6 +117,59 @@ std::string listing(MasterScore* s)
                 }
             }
             ++staffIndex;
+        }
+    }
+    // JUBELLE_REFERENCE_LINKS=1: for linked staves of the score (a guitar's standard and tablature staves), how
+    // many of their chords, rests and notes MuseScore linked to an element of the other staff at the same time
+    if (std::getenv("JUBELLE_REFERENCE_LINKS")) {
+        size_t si = 0;
+        for (Part* part : s->parts()) {
+            for (Staff* staff : part->staves()) {
+                if (staff->links() && staff->links()->size() > 1) {
+                    int elements = 0, linked = 0, wrong = 0;
+                    for (Segment* seg = s->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+                        for (int v = 0; v < 4; ++v) {
+                            EngravingItem* e = seg->element(staff->idx() * VOICES + size_t(v));
+                            if (!e || !e->isChordRest() || (e->isRest() && toRest(e)->isGap())) {
+                                continue;
+                            }
+                            std::vector<EngravingItem*> items { e };
+                            if (e->isChord()) {
+                                for (Note* n : toChord(e)->notes()) {
+                                    items.push_back(n);
+                                }
+                            }
+                            for (EngravingItem* it : items) {
+                                ++elements;
+                                bool ok = false;
+                                if (it->links()) {
+                                    for (EngravingObject* o : *it->links()) {
+                                        if (o == it || !o->isEngravingItem()) {
+                                            continue;
+                                        }
+                                        EngravingItem* other = toEngravingItem(o);
+                                        if (other->score() != s) {
+                                            continue;   // a part's copy
+                                        }
+                                        ok = true;
+                                        const bool same = other->tick() == it->tick() && other->type() == it->type()
+                                                          && (!it->isNote() || toNote(other)->pitch() == toNote(it)->pitch());
+                                        wrong += same ? 0 : 1;
+                                    }
+                                }
+                                linked += ok ? 1 : 0;
+                                if (!ok && std::string(std::getenv("JUBELLE_REFERENCE_LINKS")) == "2") {
+                                    out << "# unlinked " << it->typeName() << " staff " << si << " at " << frac(it->tick()) << "\n";
+                                }
+                            }
+                        }
+                    }
+                    const Staff* first = toStaff(staff->links()->mainElement());
+                    out << "# links staff " << si << ": " << elements << " elements, " << linked << " linked, " << wrong << " wrong, with staff "
+                        << (first ? first->idx() : staff->idx()) << "\n";
+                }
+                ++si;
+            }
         }
     }
     if (std::getenv("JUBELLE_REFERENCE_MIDI")) {

@@ -158,6 +158,7 @@ public:
                 readPart(c);
             }
         }
+        linkStaves();
         std::vector<const Node*> musicStaves;
         for (const Node& c : score->children) {
             if (c.name == "Staff") {
@@ -186,6 +187,28 @@ public:
     }
 
 private:
+    //! A linked staff (a guitar's tablature under its standard staff) shows the music of another staff: by identity
+    //! from 4.60, by the staff's number before
+    void linkStaves()
+    {
+        const bool byIdentity = !(file.formatVersion() < std::string("4.60"));
+        for (const auto& [staff, to] : staffLinks) {
+            Id main;
+            if (byIdentity) {
+                auto it = staffByEid.find(to);
+                main = it == staffByEid.end() ? Id() : it->second;
+            } else {
+                auto it = staffById.find(toInt(to));
+                main = it == staffById.end() ? Id() : it->second;
+            }
+            // MuseScore links a staff only to one read before it (a link to a later staff, as some files have both
+            // ways, is the other half of the same pair)
+            if (main.isValid() && main != staff && staffOrder[main] < staffOrder[staff]) {
+                bb.setField(staff, F::LINKED_STAFF, main);
+            }
+        }
+    }
+
     // ---- score-wide data: style, properties, settings, other archive entries -----------------------
     Fields scoreFields(const Node& score)
     {
@@ -303,6 +326,19 @@ private:
             if (!iid.empty()) {
                 f.push_back({ F::MUSESCORE_INSTRUMENT, Text(iid) });
             }
+            // a fretted instrument's strings (also kept in the instrument's details, in place)
+            if (const Node* sd = instr->child("StringData")) {
+                std::string tuning;
+                for (const Node& c : sd->children) {
+                    if (c.name == "string") {
+                        tuning += (tuning.empty() ? "" : " ") + c.text() + (toInt(c.attr("open")) ? "*" : "");
+                    }
+                }
+                if (!tuning.empty()) {
+                    f.push_back({ F::STRING_TUNING, Text(tuning) });
+                    f.push_back({ F::FRETS, toInt(sd->childText("frets")) });
+                }
+            }
         }
         {
             const std::string partDetails = unmodelled(part, { "Staff", "Instrument" });
@@ -334,6 +370,13 @@ private:
                 // staves are numbered through the score in order; older 4.x files also write the number
                 ++staffCount;
                 staffById[c.hasAttr("id") ? toInt(c.attr("id")) : staffCount] = staff;
+                if (!c.childText("eid").empty()) {
+                    staffByEid[c.childText("eid")] = staff;
+                }
+                staffOrder[staff] = staffCount;
+                if (!c.childText("linkedTo").empty()) {
+                    staffLinks.push_back({ staff, c.childText("linkedTo") });
+                }
                 report.staves++;
             }
         }
@@ -979,6 +1022,13 @@ private:
         if (!n.childText("tpc2").empty()) {
             f.push_back({ F::TPC2, toInt(n.childText("tpc2")) });
         }
+        // fretted instruments: where the note is played (also kept in the details, in place)
+        if (!n.childText("fret").empty()) {
+            f.push_back({ F::FRET, toInt(n.childText("fret")) });
+        }
+        if (!n.childText("string").empty()) {
+            f.push_back({ F::STRING, toInt(n.childText("string")) });
+        }
         // a note's ties are modelled; its other lines to another note (glissando, bend, note line) are carried
         // with its details, in place
         {
@@ -1334,6 +1384,9 @@ private:
     Id scoreId, flowId;
     std::vector<std::pair<Id, std::string> > players;
     std::map<int64_t, Id> staffById;
+    std::map<std::string, Id> staffByEid;
+    std::map<Id, int64_t> staffOrder;   // staves in the order they are read
+    std::vector<std::pair<Id, std::string> > staffLinks;   // a linked staff and the staff it links to, as written
     int64_t staffCount = 0;
     std::map<uint64_t, Fraction> staffStretch;
     Fraction stretchOf(Id staff) const

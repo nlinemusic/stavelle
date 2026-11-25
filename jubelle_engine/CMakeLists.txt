@@ -62,6 +62,8 @@ add_library(je_core STATIC
     edit/operations.cpp
     edit/noteinput.cpp
     edit/clipboard.cpp
+    edit/tablature.cpp
+    edit/links.cpp
     edit/structure.h
     edit/scorebuilder.cpp
     edit/scorebuilder.h
@@ -125,6 +127,7 @@ add_executable(je_tests
     tests/edit_operations_tests.cpp
     tests/edit_noteinput_tests.cpp
     tests/edit_clipboard_tests.cpp
+    tests/edit_links_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core je_io gtest)

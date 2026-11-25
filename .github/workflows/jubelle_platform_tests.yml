@@ -130,6 +130,9 @@ jobs:
         python3 tools/jubelle_checks/je_reference_compare.py build-je/je_io_tool . v4_scores.txt ref_listings je_reference.md \
           --expected jubelle_engine/corpus/reference_differences.txt; rc=$?
         cat je_reference.md >> "$GITHUB_STEP_SUMMARY"
+        # S3, linked staves while editing: every score with a linked staff is edited on both staves by the engine and
+        # saved (outside the repository, before the regenerated copies are made in it)
+        ./build-je/je_io_tool linkedit . --out "$RUNNER_TEMP/linkedit" > linkedit.log || rc=1
         # the same scores written from the Jubelle model, read by MuseScore's engine: as it reads the originals
         ./build-je/je_io_tool regenerate . --out generated > /dev/null || rc=1
         (cd generated && find . -name '*.mscz' | sed 's|^\./||' | sort) > generated.txt
@@ -148,6 +151,15 @@ jobs:
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_detail ref_detail je_generated_detail.md \
           --expected playback_expected.txt || rc=1
         { echo; echo "### In detail"; cat je_generated_detail.md; } >> "$GITHUB_STEP_SUMMARY"
+        # MuseScore's engine must read the same music on both linked staves and link the copies as in the original
+        grep '^edited:' linkedit.log | sed 's/^edited: //; s/ (format.*//' > linked_originals.txt
+        (cd "$RUNNER_TEMP/linkedit" && find . -name '*.mscz' | sed 's|^\./||' | sort) > linkedit.txt
+        JUBELLE_REFERENCE_LINKS=1 JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/linked_originals.txt JUBELLE_REFERENCE_OUT=$PWD/linked_ref \
+          ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        JUBELLE_REFERENCE_LINKS=1 JUBELLE_REFERENCE_ROOT="$RUNNER_TEMP/linkedit" JUBELLE_REFERENCE_LIST=$PWD/linkedit.txt JUBELLE_REFERENCE_OUT=$PWD/linkedit_ref \
+          ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        python3 tools/jubelle_checks/je_linked_compare.py linkedit.log linked_ref linkedit_ref je_linked.md || rc=1
+        { echo; cat je_linked.md; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison
       if: always()
@@ -158,3 +170,4 @@ jobs:
           je_reference.md
           je_generated.md
           je_generated_detail.md
+          je_linked.md

@@ -30,6 +30,8 @@
 #include <malloc.h>
 #endif
 
+#include "edit/links.h"
+#include "edit/operations.h"
 #include "io/mscxreader.h"
 #include "io/mscxwriter.h"
 #include "io/scorefile.h"
@@ -650,6 +652,104 @@ int bench(const std::string& path)
 }
 }
 
+//! The linked-staff check (S3): every 4.x score with a linked staff is edited on both staves through the engine
+//! (a chord entered on the main staff, a note changed on the linked one) and saved, for MuseScore's engine to read
+//! back: the two staves must hold the same music and every copy must be linked to its original
+int linkedit(const std::string& folder, const std::string& outDir)
+{
+    std::vector<fs::path> files;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+         it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (!ec && it->is_regular_file() && isScore(it->path())) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    int edited = 0;
+    for (const fs::path& p : files) {
+        const std::string rel = fs::relative(p, folder).generic_string();
+        std::string bytes, error;
+        io::zip::readFile(p.string(), bytes);
+        io::ScoreFile file;
+        if (!io::loadBytes(bytes, p.extension() == ".mscx", file, error) || !file.isVersion4()) {
+            continue;
+        }
+        model::Model m;
+        IdGenerator ids(1);
+        io::ReadReport r;
+        if (!io::readScore(file, m, ids, r, error)) {
+            continue;
+        }
+        Id main, copy;
+        m.snapshot().forEachObject([&](const model::Object& o) {
+            if (!copy.isValid() && o.kind() == model::Kind::Staff && o.has(model::fields::LINKED_STAFF)) {
+                copy = o.id();
+                main = o.idOr(model::fields::LINKED_STAFF);
+            }
+        });
+        if (!copy.isValid()) {
+            continue;
+        }
+        edit::Operations ops(m, ids);
+        auto voice1 = [&](Id staff) {
+            for (Id v : m.find(staff)->children()) {
+                if (m.find(v)->kind() == model::Kind::Voice && m.find(v)->intOr(model::fields::NUMBER, 0) == 0) {
+                    return v;
+                }
+            }
+            return Id();
+        };
+        const std::vector<Id> ms = ops.measures();
+        if (ms.empty() || !voice1(main).isValid() || !voice1(copy).isValid()) {
+            continue;
+        }
+        bool ok = true;
+        try {
+            {
+                edit::Transaction tx(m, "Enter a chord", { edit::linkedStavesHook(m, ids) });
+                ops.enterChord(tx, voice1(main), ops.measureStart(ms[ms.size() > 1 ? 1 : 0]), { Fraction(1, 4), 0 }, { 52, 55, 59 });
+                tx.commit();
+            }
+            {
+                edit::Transaction tx(m, "Change a pitch", { edit::linkedStavesHook(m, ids) });
+                for (Id e : ops.eventsOf(voice1(copy))) {
+                    if (m.find(e)->kind() == model::Kind::Chord && !m.find(e)->has(model::fields::GRACE)) {
+                        for (Id n : m.find(e)->children()) {
+                            if (m.find(n)->kind() == model::Kind::Note) {
+                                ops.setPitch(tx, n, int(m.find(n)->intOr(model::fields::PITCH, 60)) + 2);
+                                break;
+                            }
+                        }
+                        break;
+                    }
+                }
+                tx.commit();
+            }
+        } catch (const std::exception& e) {
+            std::cout << "not edited: " << rel << ": " << e.what() << "\n";
+            ok = false;
+        }
+        if (!ok) {
+            continue;
+        }
+        const auto problems = model::checkInvariants(m.snapshot(), 20);
+        const fs::path out = fs::path(outDir) / (rel.substr(0, rel.size() - p.extension().string().size()) + ".mscz");
+        fs::create_directories(out.parent_path());
+        if (!io::saveScore(m.snapshot(), out.string(), error)) {
+            std::cout << "not saved: " << rel << ": " << error << "\n";
+            continue;
+        }
+        ++edited;
+        std::cout << "edited: " << rel << " (format " << file.formatVersion() << ")" << (problems.empty() ? "" : " PROBLEMS") << "\n";
+        for (const std::string& pr : problems) {
+            std::cout << "  " << pr << "\n";
+        }
+    }
+    std::cout << edited << " scores with linked staves edited\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -684,6 +784,22 @@ int main(int argc, char** argv)
         return regenerate(a[1], k != a.end() && k + 1 != a.end() ? *(k + 1) : std::string(),
                           std::find(a.begin(), a.end(), "--private") != a.end(),
                           o != a.end() && o + 1 != a.end() ? *(o + 1) : std::string());
+    }
+    if (a.size() == 2 && a[0] == "linkdiff") {
+        model::Model m;
+        IdGenerator ids(1);
+        std::string error;
+        if (!io::openScore(a[1], m, ids, error)) {
+            std::cerr << error << "\n";
+            return 1;
+        }
+        for (const std::string& d : edit::linkedStaffDifferences(m)) {
+            std::cout << d << "\n";
+        }
+        return 0;
+    }
+    if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
+        return linkedit(a[1], a[3]);
     }
     if (a.size() == 2 && a[0] == "bench") {
         return bench(a[1]);
