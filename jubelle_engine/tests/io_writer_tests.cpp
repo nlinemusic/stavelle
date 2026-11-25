@@ -18,6 +18,7 @@
 #include "io/mscxreader.h"
 #include "io/mscxwriter.h"
 #include "io/scorefile.h"
+#include "io/xml.h"
 #include "model/invariants.h"
 
 using namespace je;
@@ -627,4 +628,62 @@ TEST(ModelWriter, TiesAndSlursKeepTheirPlaces)
     EXPECT_EQ(io::musicListing(m2.snapshot()), io::musicListing(m.snapshot()));
     ASSERT_TRUE(reread(io::xml::write(io::generateScoreFile(m2.snapshot()).main), m3)) << error;
     EXPECT_EQ(io::modelDump(m3.snapshot()), io::modelDump(m2.snapshot()));
+}
+
+TEST(ModelWriter, LinesFromNoteToNoteStayWholeWhenTheirNotesAreEdited)
+{
+    // glissandi between notes (a guitar part with a linked tablature): modelled as lines between two notes
+    const fs::path source = fs::path(JE_REPO_DIR) / "src" / "engraving" / "tests" / "midi" / "midirenderer_data" / "simple_glissando_legato.mscx";
+    ASSERT_TRUE(fs::exists(source));
+    Reopened r;
+    std::string error;
+    ASSERT_TRUE(io::openScore(source.string(), r.model, r.ids, error)) << error;
+    auto glissandi = [](const model::Snapshot& s) {
+        std::vector<const model::Object*> out;
+        for (const model::Object* o : all(s, Kind::Spanner)) {
+            if (o->text(F::TAG) == "Glissando") {
+                out.push_back(o);
+            }
+        }
+        return out;
+    };
+    const model::Snapshot read = r.model.snapshot();
+    ASSERT_EQ(glissandi(read).size(), 2u);   // one on each staff
+    for (const model::Object* g : glissandi(read)) {
+        EXPECT_EQ(read.find(g->idOr(F::ANCHOR))->kind(), Kind::Note);
+        EXPECT_EQ(read.find(g->idOr(F::END_ANCHOR))->kind(), Kind::Note);
+        EXPECT_FALSE(read.find(g->idOr(F::ANCHOR))->has(F::LINE_DETAILS));
+    }
+    // a new pitch for the end note: the line is still there, written in both notes, and read back the same
+    const Id end = glissandi(read).front()->idOr(F::END_ANCHOR);
+    {
+        Transaction tx(r.model, "Repitch");
+        tx.set(end, F::PITCH, int64_t(read.find(end)->intOr(F::PITCH, 60) + 1));
+        tx.commit();
+    }
+    const std::string xml = io::xml::write(io::generateScoreFile(r.model.snapshot()).main);
+    size_t starts = 0, ends = 0;
+    for (size_t p = xml.find("<Spanner type=\"Glissando\">"); p != std::string::npos; p = xml.find("<Spanner type=\"Glissando\">", p + 1)) {
+        (xml.compare(xml.find('<', p + 1), 11, "<Glissando>") == 0 ? starts : ends)++;
+    }
+    EXPECT_EQ(starts, 2u);
+    EXPECT_EQ(ends, 2u);
+    io::ScoreFile again;
+    ASSERT_TRUE(io::loadBytes(xml, true, again, error)) << error;
+    model::Model m2;
+    IdGenerator ids2 { 1 };
+    io::ReadReport rr;
+    ASSERT_TRUE(io::readScore(again, m2, ids2, rr, error)) << error;
+    EXPECT_EQ(glissandi(m2.snapshot()).size(), 2u);
+    // the start note removed: its line goes with it, nothing is left half-written
+    Transaction tx(r.model, "Delete");
+    removeTree(tx, glissandi(r.model.snapshot()).front()->id());
+    tx.commit();
+    const std::string xml2 = io::xml::write(io::generateScoreFile(r.model.snapshot()).main);
+    size_t total = 0;
+    for (size_t p = xml2.find("<Spanner type=\"Glissando\">"); p != std::string::npos; p = xml2.find("<Spanner type=\"Glissando\">", p + 1)) {
+        ++total;
+    }
+    EXPECT_EQ(total, 2u);
+    EXPECT_TRUE(model::checkInvariants(r.model.snapshot()).empty());
 }

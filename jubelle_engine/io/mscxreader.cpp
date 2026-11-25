@@ -177,10 +177,12 @@ public:
         for (const Node* s : musicStaves) {
             readStaffMusic(*s);
         }
-        if (byPlaceFormat) {
-            resolveLinksByPlace(*score);
-        }
+
         resolveTies();
+        pairNoteLines();
+        if (byPlaceFormat) {
+            resolveLinksByPlace(*score);   // after every object is made (the note lines last)
+        }
         readLayouts();
         // each object's details carry the fingerprint of its finished fields (some are set after it was added:
         // tie targets, completed durations), so an edit to its music later can be told apart
@@ -1090,9 +1092,11 @@ private:
             currentGrace = grace.empty() || it == graceFileIndex.end() ? -1 : it->second;
         }
 
+        currentNoteIndex = 0;
         for (const Node& c : e.children) {
             if (c.name == "Note" && kind == Kind::Chord) {
                 readNote(c, ev, staff, mi, at);
+                ++currentNoteIndex;
             } else if (c.name == "Articulation" || c.name == "Ornament") {
                 Fields af { { F::SUBKIND, Text(c.childText("subtype").empty() ? lowerFirst(c.name) : c.childText("subtype")) },
                             { F::TAG, Text(c.name) } };
@@ -1163,7 +1167,7 @@ private:
                 pitchSeen = pitchSeen || c.name == "pitch";
                 if (c.type != Node::Type::Element || c.name == "eid" || c.name == "pitch" || c.name == "tpc" || c.name == "tpc2"
                     || c.name == "Fingering" || c.name == "linked" || c.name == "linkedMain" || c.name == "linkedTo"
-                    || (c.name == "Spanner" && c.attr("type") == "Tie")) {
+                    || (c.name == "Spanner" && (c.attr("type") == "Tie" || noteLineTypes().count(c.attr("type"))))) {
                     continue;
                 }
                 (pitchSeen ? after : rest).push_back(&c);
@@ -1203,6 +1207,22 @@ private:
         }
         eid(n, f);
         const Id note = add(Kind::Note, chord, f);
+        // lines from one note to another (glissandi, bends, note lines): paired once every note is read
+        for (const Node& c : n.children) {
+            if (c.name == "Spanner" && noteLineTypes().count(c.attr("type"))) {
+                const Node* inner = c.child(c.attr("type"));
+                const Node* next = c.child("next");
+                const Node* prev = c.child("prev");
+                PendingLine pl { note, &c, staff, currentVoice, mi, at, currentGrace, currentNoteIndex };
+                if (inner && next) {
+                    lineStarts.push_back(pl);
+                } else if (prev && !inner) {
+                    lineEnds.push_back(pl);
+                } else {
+                    unpairedLines[note].push_back(&c);
+                }
+            }
+        }
         report.notes++;
         report.modelled["Note"]++;
         notesAt[{ staff.value(), at }].push_back({ note, toInt(n.childText("pitch"), 60), currentGrace, currentVoice });
@@ -1377,6 +1397,79 @@ private:
         return item;
     }
 
+    static const std::set<std::string>& noteLineTypes()
+    {
+        static const std::set<std::string> t { "Glissando", "GuitarBend", "NoteLine" };
+        return t;
+    }
+
+    //! A line from note to note becomes a spanner of the model between the two notes (S3: so an edit to either note
+    //! keeps it whole, or removes it whole); one whose other end isn't found is kept with its note as it was
+    void pairNoteLines()
+    {
+        // the ends, by where they are: staff, voice, time, grace chord, note in the chord
+        using Key = std::tuple<uint64_t, int, Fraction, int64_t, int>;
+        std::map<Key, std::vector<size_t> > ends;
+        for (size_t i = 0; i < lineEnds.size(); ++i) {
+            const PendingLine& e = lineEnds[i];
+            ends[{ e.staff.value(), e.voice, e.at, e.grace, e.noteIndex }].push_back(i);
+        }
+        std::set<size_t> usedEnds;
+        for (const PendingLine& st : lineStarts) {
+            const Node& sp = *st.node;
+            const std::string type = sp.attr("type");
+            const Node* loc = sp.child("next")->child("location");
+            Id staff = st.staff;
+            if (loc && !loc->childText("staves").empty()) {
+                const int64_t number = staffOrder[st.staff] + toInt(loc->childText("staves"));
+                auto it = staffById.find(number);
+                staff = it == staffById.end() ? Id() : it->second;
+            }
+            const Key key { staff.value(), st.voice + int(loc ? toInt(loc->childText("voices")) : 0), locate(st.mi, st.at, loc),
+                            loc && !loc->childText("grace").empty() ? toInt(loc->childText("grace")) : -1,
+                            st.noteIndex + int(loc ? toInt(loc->childText("notes")) : 0) };
+            size_t found = SIZE_MAX;
+            auto it = ends.find(key);
+            if (it != ends.end()) {
+                for (size_t i : it->second) {
+                    if (!usedEnds.count(i) && lineEnds[i].node->attr("type") == type) {
+                        found = i;
+                        break;
+                    }
+                }
+            }
+            if (found == SIZE_MAX) {
+                unpairedLines[st.note].push_back(st.node);
+                continue;
+            }
+            usedEnds.insert(found);
+            const PendingLine& en = lineEnds[found];
+            const Node& inner = *sp.child(type);
+            Fields f { { F::SUBKIND, Text(lowerFirst(type)) }, { F::TAG, Text(type) }, { F::ANCHOR, st.note }, { F::END_ANCHOR, en.note },
+                       { F::TIME, st.at }, { F::DURATION, en.at - st.at } };
+            const std::string details = unmodelled(inner, {});
+            if (!details.empty()) {
+                f.push_back({ F::DETAILS, Text(details) });
+                f.push_back({ F::DETAILS_KEY, int64_t(0) });
+            }
+            eid(inner, f);
+            add(Kind::Spanner, scoreId, f);
+            report.modelled[type]++;
+        }
+        for (size_t i = 0; i < lineEnds.size(); ++i) {
+            if (!usedEnds.count(i)) {
+                unpairedLines[lineEnds[i].note].push_back(lineEnds[i].node);
+            }
+        }
+        // the ones not paired: with their note, as written (in file order)
+        for (auto& [note, nodes] : unpairedLines) {
+            std::sort(nodes.begin(), nodes.end());
+            nodes.erase(std::unique(nodes.begin(), nodes.end()), nodes.end());
+            bb.setField(note, F::LINE_DETAILS, Text(wholeFragment(nodes)));
+            report.keptOnly["Note/Spanner (a line whose other end wasn't found)"] += int(nodes.size());
+        }
+    }
+
     void resolveTies()
     {
         for (const PendingTie& t : ties) {
@@ -1506,6 +1599,19 @@ private:
     int currentVoice = 0;   // the voice index of the event being read
     std::set<Id> tiedInto;  // notes already a tie's end
     int64_t currentGrace = -1;    // the grace index of the chord being read (-1: a main chord)
+    int currentNoteIndex = 0;     // the note being read, in its chord
+    struct PendingLine {
+        Id note;
+        const Node* node;   // its <Spanner> in the note
+        Id staff;
+        int voice;
+        int mi;
+        Fraction at;
+        int64_t grace;
+        int noteIndex;
+    };
+    std::vector<PendingLine> lineStarts, lineEnds;
+    std::map<Id, std::vector<const Node*> > unpairedLines;
     std::map<const Node*, int64_t> graceFileIndex;   // a grace chord's number among its main chord's, in file order
     int64_t gracesInFile = 0;
 

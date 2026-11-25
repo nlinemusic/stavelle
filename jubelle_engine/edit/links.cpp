@@ -30,7 +30,7 @@ const std::set<Field>& notMusic()
     static const std::set<Field> s { F::KIND, F::TIME, F::CHILDREN, F::PARENT, F::TUPLET, F::TIE_TO, F::ORIGIN_EID, F::DETAILS,
                                      F::DETAILS_2, F::DETAILS_AFTER, F::DETAILS_KEY, F::SEQ, F::ANCHOR, F::HOME_STAFF, F::START_EVENT,
                                      F::END_STAFF, F::END_ANCHOR, F::LINK_EID, F::LINK_MARK, F::TIE_EID, F::TIE_LINK, F::TAG,
-                                     F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::FRET, F::STRING, F::TIE_MARK };
+                                     F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::FRET, F::STRING, F::TIE_MARK, F::LINE_DETAILS };
     return s;
 }
 
@@ -421,6 +421,12 @@ public:
                 continue;
             }
             bool lost = false;
+            // a line from note to note goes with its notes (the music there was written again)
+            const Object* an = obj(sp->idOr(F::ANCHOR));
+            if (an && an->kind() == Kind::Note && (moved.count(sp->idOr(F::ANCHOR)) || moved.count(sp->idOr(F::END_ANCHOR)))) {
+                gone.push_back(c);
+                continue;
+            }
             const std::map<Field, je::Id> refs { { F::ANCHOR, sp->idOr(F::ANCHOR) }, { F::END_ANCHOR, sp->idOr(F::END_ANCHOR) },
                                                  { F::START_EVENT, sp->idOr(F::START_EVENT) } };   // read before changing it
             for (const auto& [f, ref] : refs) {

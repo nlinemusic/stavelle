@@ -224,3 +224,39 @@ TEST(Clipboard, RandomCopyAndPasteStaysConsistentAndUndoesExactly)
         EXPECT_EQ(d.model.snapshot().dump(), start) << "seed " << seed;
     }
 }
+
+TEST(Clipboard, AGlissandoBetweenTwoCopiedNotesIsPastedBetweenTheirCopies)
+{
+    Doc d;
+    // bar 1's first quarter (72) to the first triplet note (74)
+    Id from, to;
+    for (Id e : d.ops.eventsOf(d.flute.voice)) {
+        const model::Object* o = d.model.find(e);
+        if (o->kind() == Kind::Chord && o->fractionOr(F::TIME, Fraction()) == Fraction(0, 1)) {
+            from = d.b.notesOf(e).front();
+        }
+        if (o->kind() == Kind::Chord && o->fractionOr(F::TIME, Fraction()) == Fraction(1, 4)) {
+            to = d.b.notesOf(e).front();
+        }
+    }
+    ASSERT_TRUE(from.isValid() && to.isValid());
+    d.edit([&](Transaction& tx) {
+        create(tx, d.ids, d.model.score(), { Kind::Spanner, { { F::SUBKIND, Text("glissando") }, { F::TAG, Text("Glissando") },
+                                                              { F::ANCHOR, from }, { F::END_ANCHOR, to }, { F::TIME, Fraction(0, 1) },
+                                                              { F::DURATION, Fraction(1, 4) } } });
+    });
+    const Clip c = d.clip.copy({ { d.flute.staff }, Fraction(0, 1), Fraction(1, 1) });
+    d.edit([&](Transaction& tx) { d.clip.paste(tx, c, d.flute.staff, Fraction(2, 1)); });
+    EXPECT_EQ(d.count(Kind::Spanner, "glissando"), 2);
+    d.model.snapshot().forEachObject([&](const model::Object& o) {
+        if (o.kind() == Kind::Spanner && o.text(F::SUBKIND) == "glissando" && o.idOr(F::ANCHOR) != from) {
+            const model::Object* a = d.model.find(o.idOr(F::ANCHOR));
+            const model::Object* b = d.model.find(o.idOr(F::END_ANCHOR));
+            ASSERT_TRUE(a && b);
+            EXPECT_EQ(d.model.find(a->parent())->fractionOr(F::TIME, Fraction()), Fraction(2, 1));
+            EXPECT_EQ(d.model.find(b->parent())->fractionOr(F::TIME, Fraction()), Fraction(9, 4));
+            EXPECT_EQ(a->intOr(F::PITCH, 0), 72);
+        }
+    });
+    EXPECT_EQ(d.problems(), "");
+}

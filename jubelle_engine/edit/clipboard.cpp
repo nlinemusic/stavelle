@@ -22,7 +22,7 @@ std::vector<std::pair<Field, Value> > musicFields(const Object& o)
     static const std::set<Field> leave { F::KIND, F::TIME, F::CHILDREN, F::PARENT, F::TUPLET, F::TIE_TO, F::ORIGIN_EID, F::DETAILS,
                                          F::DETAILS_2, F::DETAILS_AFTER, F::DETAILS_KEY, F::SEQ, F::ANCHOR, F::HOME_STAFF,
                                          F::START_EVENT, F::END_STAFF, F::END_ANCHOR, F::LINK_EID, F::LINK_MARK, F::TIE_EID,
-                                         F::TIE_LINK, F::TAG, F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK };
+                                         F::TIE_LINK, F::TAG, F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK, F::LINE_DETAILS };
     std::vector<std::pair<Field, Value> > out;
     o.forEachField([&out](Field f, const Value& v) {
         if (!leave.count(f)) {
@@ -199,6 +199,34 @@ Clip Clipboard::copy(const RangeSelection& selection) const
             const Fraction s = sp->fractionOr(F::TIME, Fraction()), e = s + sp->fractionOr(F::DURATION, Fraction());
             Id anchor = sp->idOr(F::ANCHOR);
             int startEvent = -1, startVoice = -1;
+            if (const Object* an = m.find(anchor); an && an->kind() == Kind::Note) {
+                // a line from note to note: copied when both of its notes are
+                auto end = [&](Id note) {
+                    Clip::Item::NoteEnd ne;
+                    const Object* n = m.find(note);
+                    if (!n || !eventIndex.count(n->parent())) {
+                        return ne;
+                    }
+                    ne.voice = voiceOf[n->parent()];
+                    ne.event = eventIndex[n->parent()].second;
+                    int i = 0;
+                    for (Id x : m.find(n->parent())->children()) {
+                        if (x == note) {
+                            ne.note = i;
+                        }
+                        i += m.find(x)->kind() == Kind::Note ? 1 : 0;
+                    }
+                    return ne;
+                };
+                const Clip::Item::NoteEnd a = end(anchor), b = end(sp->idOr(F::END_ANCHOR));
+                if (a.event >= 0 && b.event >= 0 && a.note >= 0 && b.note >= 0) {
+                    Clip::Item item { eventIndex[m.find(anchor)->parent()].first, Kind::Spanner, s - r.start, musicFields(*sp), -1, -1 };
+                    item.fromNote = a;
+                    item.toNote = b;
+                    clip.items.push_back(item);
+                }
+                continue;
+            }
             if (sp->has(F::START_EVENT) && eventIndex.count(sp->idOr(F::START_EVENT))) {
                 startEvent = eventIndex[sp->idOr(F::START_EVENT)].second;
                 startVoice = voiceOf[sp->idOr(F::START_EVENT)];
@@ -452,6 +480,32 @@ RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, con
         const Fraction t = at + item.rel;
         auto f = item.fields;
         f.push_back({ F::TIME, t });
+        if (item.kind == Kind::Spanner && item.fromNote.event >= 0) {
+            // between the pasted notes
+            auto noteOf = [&](const Clip::Item::NoteEnd& ne) {
+                if (size_t(ne.voice) >= madeEvents[size_t(item.staff)].size()) {
+                    return Id();
+                }
+                const auto& evs = madeEvents[size_t(item.staff)][size_t(ne.voice)];
+                if (size_t(ne.event) >= evs.size() || !m.find(evs[size_t(ne.event)])) {
+                    return Id();
+                }
+                int i = 0;
+                for (Id x : m.find(evs[size_t(ne.event)])->children()) {
+                    if (m.find(x)->kind() == Kind::Note && i++ == ne.note) {
+                        return x;
+                    }
+                }
+                return Id();
+            };
+            const Id a = noteOf(item.fromNote), b = noteOf(item.toNote);
+            if (a.isValid() && b.isValid()) {
+                f.push_back({ F::ANCHOR, a });
+                f.push_back({ F::END_ANCHOR, b });
+                create(tx, m_ids, m.score(), { Kind::Spanner, f });
+            }
+            continue;
+        }
         if (item.kind == Kind::Spanner) {
             if (t + fieldFraction(item.fields, F::DURATION) > end) {
                 continue;

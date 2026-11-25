@@ -60,6 +60,11 @@ struct Clip {
         Fraction rel;
         std::vector<std::pair<Field, Value> > fields;
         int startEvent = -1, startVoice = -1;   // a line kept inside its chord
+        // a line from note to note (glissando, bend): each end's voice, event and note in the chord
+        struct NoteEnd {
+            int voice = -1, event = -1, note = -1;
+        };
+        NoteEnd fromNote, toNote;
     };
     Fraction length;
     std::vector<Staff> staves;

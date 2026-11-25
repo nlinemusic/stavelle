@@ -5,6 +5,7 @@
 #include "mscxwriter.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -669,6 +670,9 @@ private:
                     staffNumber[st] = int(staves.size()) + 1;
                     staves.push_back(s.find(st));
                 }
+            } else if (o->kind() == Kind::Spanner && s.find(o->idOr(F::ANCHOR)) && s.find(o->idOr(F::ANCHOR))->kind() == Kind::Note) {
+                lineStarts[o->idOr(F::ANCHOR)].push_back(o);   // a line from note to note: written in the notes
+                lineEnds[o->idOr(F::END_ANCHOR)].push_back(o);
             } else if (o->kind() == Kind::Spanner) {
                 spanners.push_back(o);
             } else if (o->kind() == Kind::Layout && o->has(F::PLAYERS)) {
@@ -1835,6 +1839,102 @@ private:
         return loc;
     }
 
+    static int noteIndexOf(const model::Snapshot& snap, const Object& note)
+    {
+        const Object* c = snap.find(note.parent());
+        int i = 0;
+        for (Id n : c ? c->children() : model::IdList()) {
+            if (n == note.id()) {
+                return i;
+            }
+            if (snap.find(n)->kind() == Kind::Note) {
+                ++i;
+            }
+        }
+        return 0;
+    }
+
+    //! Where a line's other note is, relative to this one (MuseScore's location: staves, voices, measures,
+    //! fractions, the grace chord by its index, and the note's place in its chord)
+    Node lineLocation(const Object& fromNote, const Object& toNote)
+    {
+        const Object* fc = s.find(fromNote.parent());
+        const Object* tc = s.find(toNote.parent());
+        const Fraction from = fc->fractionOr(F::TIME, Fraction()), to = tc->fractionOr(F::TIME, Fraction());
+        Node loc = location(measureAt(from), from, to);
+        crossTo(loc, *tc, *fc);
+        if (tc->has(F::GRACE)) {
+            loc.leaf = false;
+            loc.children.push_back(leaf("grace", std::to_string(graceIndexOf(*tc))));
+        }
+        const int dn = noteIndexOf(s, toNote) - noteIndexOf(s, fromNote);
+        if (dn != 0) {
+            loc.leaf = false;
+            loc.children.push_back(leaf("notes", std::to_string(dn)));
+        }
+        finishNode(loc);
+        return loc;
+    }
+
+    void noteLines(Node& n, const Object& note)
+    {
+        auto typeOf = [](const Object& sp) {
+            std::string t = sp.text(F::TAG);
+            if (t.empty()) {
+                t = sp.text(F::SUBKIND);
+                if (!t.empty()) {
+                    t[0] = char(std::toupper(static_cast<unsigned char>(t[0])));
+                }
+            }
+            return t;
+        };
+        if (auto it = lineStarts.find(note.id()); it != lineStarts.end()) {
+            for (const Object* sp : it->second) {
+                const Object* to = s.find(sp->idOr(F::END_ANCHOR));
+                if (!to || to->kind() != Kind::Note) {
+                    continue;
+                }
+                const std::string type = typeOf(*sp);
+                Node sn = elem("Spanner");
+                sn.attrs.emplace_back("type", type);
+                Node body = elem(type);
+                addEid(body, *sp);
+                if (detailsFit(*sp)) {
+                    for (Node& c : parseFragment(sp->text(F::DETAILS))) {
+                        body.children.push_back(std::move(c));
+                    }
+                }
+                finishNode(body);
+                sn.children.push_back(std::move(body));
+                Node next = elem("next");
+                next.children.push_back(lineLocation(note, *to));
+                finishNode(next);
+                sn.children.push_back(std::move(next));
+                finishNode(sn);
+                n.children.push_back(std::move(sn));
+            }
+        }
+        if (auto it = lineEnds.find(note.id()); it != lineEnds.end()) {
+            for (const Object* sp : it->second) {
+                const Object* from = s.find(sp->idOr(F::ANCHOR));
+                if (!from || from->kind() != Kind::Note) {
+                    continue;
+                }
+                Node sn = elem("Spanner");
+                sn.attrs.emplace_back("type", typeOf(*sp));
+                Node prev = elem("prev");
+                prev.children.push_back(lineLocation(note, *from));
+                finishNode(prev);
+                sn.children.push_back(std::move(prev));
+                finishNode(sn);
+                n.children.push_back(std::move(sn));
+            }
+        }
+        for (Node& c : parseFragment(note.text(F::LINE_DETAILS))) {
+            n.children.push_back(std::move(c));
+        }
+    }
+
     Node noteNode(const Object& note, const Object& chord, int m)
     {
         (void)m;
@@ -1961,6 +2061,7 @@ private:
                 n.children.push_back(std::move(c));
             }
         }
+        noteLines(n, note);
         return n;
     }
 
@@ -2150,6 +2251,7 @@ private:
     std::vector<Fraction> measureStart, measureLen;
     Fraction flowEnd;
     std::map<Id, Id> tieFrom;
+    std::map<Id, std::vector<const Object*> > lineStarts, lineEnds;   // lines from note to note, by their notes
 };
 }
 
