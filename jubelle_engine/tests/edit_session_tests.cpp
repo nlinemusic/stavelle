@@ -145,13 +145,13 @@ struct Editor {
         std::sort(v.begin(), v.end());
         return v;
     }
-    int pick(int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); }
+    int pick(int n) { return int(rng() % uint32_t(n)); }   // the same sequence on every platform
 
     enum Done { NOTHING = 0, UNDID, REDID, EDITED };
-    //! One action: what it did (NOTHING is false)
-    int step()
+    //! One action: what it did (NOTHING is false); only edits if `undoRedo` is false
+    int step(bool undoRedo = true)
     {
-        const int what = pick(10);
+        const int what = undoRedo ? pick(10) : 3 + pick(7);
         if (what < 2 && s.canUndo()) {
             s.undo();
             return UNDID;
@@ -373,7 +373,7 @@ TEST(EditJournal, ARecoveredScoreUndoesPastTheLastSave)
         EXPECT_FALSE(s.isModified());
         saved = State::of(s);
         for (int i = 0; i < 8; ++i) {
-            ed.step();
+            ed.step(false);   // edits only: undoing below the save and editing would make the saved state unreachable
         }
         crashed = State::of(s);
         journal = s.journalPath();
@@ -505,7 +505,8 @@ TEST(EditJournal, ADamagedRecordEndsTheRecovery)
         }
     }
     std::string journal = readBytes(s.journalPath());
-    journal[marks[3].first + 12] ^= 0x5A;   // a byte of the fourth record changed (a disk error)
+    // a byte of the fourth record changed (a disk error): its middle (an undo or redo record is only 9 bytes)
+    journal[(marks[3].first + marks[4].first) / 2] ^= 0x5A;
     writeBytes(dir / "damaged.jej", journal);
     EditSession r;
     RecoveryReport report;

@@ -1493,8 +1493,12 @@ int journalcheck(const std::string& folder, const std::string& workDir, bool jso
                 j.close(true);
             }
             (void)openMs;
-            std::mt19937 rng(uint32_t(std::hash<std::string>()(rel)));
-            auto pick = [&](int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); };
+            uint32_t seed = 2166136261u;   // from the score's name (FNV-1a), the same on every platform
+            for (unsigned char c : rel) {
+                seed = (seed ^ c) * 16777619u;
+            }
+            std::mt19937 rng(seed);
+            auto pick = [&](int n) { return int(rng() % uint32_t(n)); };   // the same edits on every platform
             edit::Operations ops(s.model(), s.ids());
             std::vector<Id> voices = {};
             s.model().snapshot().forEachObject([&](const model::Object& o) {
