@@ -193,6 +193,11 @@ jobs:
           rm -rf "$RUNNER_TEMP/mref_${spec// /_}/jubelle"   # the saved copies (the listings stay)
         done
         { echo; echo '```'; cat je_timesig_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        # the play order (repeats, endings, jumps) against MuseScore's RepeatList: its 72 repeat tests and the corpus
+        echo "play order against MuseScore's ($(date +%T))"
+        timeout 2400 python3 tools/jubelle_checks/je_repeats_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+          "$RUNNER_TEMP/repeats" > je_repeats_reference.txt || rc=1
+        { echo; echo '```'; cat je_repeats_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison
       if: always()

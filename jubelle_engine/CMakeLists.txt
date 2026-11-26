@@ -55,6 +55,8 @@ add_library(je_core STATIC
     model/invariants.cpp
     model/invariants.h
     model/detailskey.cpp
+    model/fragment.cpp
+    perform/repeatlist.cpp
     model/detailskey.h
     edit/changeset.cpp
     edit/changeset.h
@@ -132,6 +134,7 @@ add_executable(je_tests
     tests/io_writer_tests.cpp
     tests/edit_operations_tests.cpp
     tests/edit_commands_tests.cpp
+    tests/perform_repeatlist_tests.cpp
     tests/edit_noteinput_tests.cpp
     tests/edit_clipboard_tests.cpp
     tests/edit_links_tests.cpp

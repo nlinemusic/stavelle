@@ -19,6 +19,7 @@
 #include "links.h"
 #include "tablature.h"
 #include "model/detailskey.h"
+#include "model/fragment.h"
 #include "model/fields.h"
 #include "model/notation.h"
 #include "model/packing.h"
@@ -2243,128 +2244,6 @@ bool Commands::implode(Transaction& tx, size_t first, size_t last, const Fractio
 
 // ---- slashes --------------------------------------------------------------------------------------------------
 namespace {
-//! The elements directly inside a details fragment (<x>…</x>, io/details.h): name and [begin, end) in the text
-struct DetailChild {
-    std::string name;
-    size_t begin, end;
-};
-
-//! Finds the fragment's root content and its children; false if the text isn't a fragment
-bool detailChildren(const std::string& d, size_t& contentBegin, size_t& contentEnd, std::vector<DetailChild>& out)
-{
-    size_t i = d.find('<');
-    while (i != std::string::npos && (d.compare(i, 2, "<?") == 0 || d.compare(i, 4, "<!--") == 0)) {
-        i = d.compare(i, 2, "<?") == 0 ? d.find("?>", i) : d.find("-->", i);
-        i = i == std::string::npos ? i : d.find('<', i);
-    }
-    if (i == std::string::npos) {
-        return false;
-    }
-    const size_t rootEnd = d.find('>', i);
-    if (rootEnd == std::string::npos || d[rootEnd - 1] == '/') {
-        return false;
-    }
-    size_t n = i + 1;
-    while (n < rootEnd && d[n] != ' ' && d[n] != '>' && d[n] != '\t' && d[n] != '\n') {
-        ++n;
-    }
-    const std::string root = d.substr(i + 1, n - i - 1);
-    contentBegin = rootEnd + 1;
-    contentEnd = d.rfind("</" + root);
-    if (contentEnd == std::string::npos || contentEnd < contentBegin) {
-        return false;
-    }
-    int depth = 0;
-    for (size_t pos = d.find('<', contentBegin); pos != std::string::npos && pos < contentEnd; pos = d.find('<', pos)) {
-        if (d.compare(pos, 4, "<!--") == 0) {
-            const size_t e = d.find("-->", pos);
-            pos = e == std::string::npos ? contentEnd : e + 3;
-            continue;
-        }
-        const size_t e = d.find('>', pos);
-        if (e == std::string::npos || e > contentEnd) {
-            return false;
-        }
-        if (d[pos + 1] == '/') {
-            if (--depth == 0 && !out.empty()) {
-                out.back().end = e + 1;
-            }
-        } else {
-            const bool empty = d[e - 1] == '/';
-            if (depth == 0) {
-                size_t k = pos + 1;
-                while (k < e && d[k] != ' ' && d[k] != '/' && d[k] != '\t' && d[k] != '\n') {
-                    ++k;
-                }
-                out.push_back({ d.substr(pos + 1, k - pos - 1), pos, empty ? e + 1 : std::string::npos });
-            }
-            if (!empty) {
-                ++depth;
-            }
-        }
-        pos = e + 1;
-    }
-    return depth == 0;
-}
-
-//! The text of a child element (empty if there is none)
-std::string detailValue(const std::string& d, const std::string& tag)
-{
-    size_t b = 0, e = 0;
-    std::vector<DetailChild> kids;
-    if (!detailChildren(d, b, e, kids)) {
-        return std::string();
-    }
-    for (const DetailChild& k : kids) {
-        if (k.name == tag && k.end != std::string::npos) {
-            const size_t open = d.find('>', k.begin) + 1;
-            const size_t close = d.rfind("</", k.end);
-            return close > open ? d.substr(open, close - open) : std::string();
-        }
-    }
-    return std::string();
-}
-
-//! The fragment with these child elements set (an empty value: removed); empty when no child is left
-std::string withDetailValues(std::string d, const std::vector<std::pair<std::string, std::string> >& values)
-{
-    size_t b = 0, e = 0;
-    std::vector<DetailChild> kids;
-    if (d.empty() || !detailChildren(d, b, e, kids)) {
-        d = "<x>\n</x>\n";
-        kids.clear();
-        detailChildren(d, b, e, kids);
-    }
-    std::set<std::string> names;
-    for (const auto& [name, value] : values) {
-        names.insert(name);
-    }
-    for (auto it = kids.rbegin(); it != kids.rend(); ++it) {
-        if (names.count(it->name) && it->end != std::string::npos) {
-            size_t from = it->begin;
-            while (from > b && (d[from - 1] == ' ' || d[from - 1] == '\t')) {
-                --from;   // with its indentation
-            }
-            size_t to = it->end;
-            if (to < d.size() && d[to] == '\n') {
-                ++to;
-            }
-            d.erase(from, to - from);
-            e -= to - from;
-        }
-    }
-    std::string added;
-    for (const auto& [name, value] : values) {
-        if (!value.empty()) {
-            added += "<" + name + ">" + value + "</" + name + ">\n";
-        }
-    }
-    d.insert(e, added);
-    size_t b2 = 0, e2 = 0;
-    std::vector<DetailChild> left;
-    return detailChildren(d, b2, e2, left) && left.empty() ? std::string() : d;
-}
-
 //! MuseScore's ClefInfo pitch offsets (the diatonic step of the top line) by clef name; G when unknown
 int clefPitchOffset(const std::string& clef)
 {
@@ -2380,17 +2259,6 @@ int clefPitchOffset(const std::string& clef)
     return it == offsets.end() ? 45 : it->second;
 }
 
-//! The first value of a tag anywhere in a fragment (a staff type's <lines>…)
-std::string anyValue(const std::string& d, const std::string& tag)
-{
-    const std::string open = "<" + tag + ">";
-    const size_t a = d.find(open);
-    if (a == std::string::npos) {
-        return std::string();
-    }
-    const size_t b = d.find("</" + tag + ">", a);
-    return b == std::string::npos ? std::string() : d.substr(a + open.size(), b - a - open.size());
-}
 }
 
 void Commands::setDetailValues(Transaction& tx, Id id, const std::vector<std::pair<std::string, std::string> >& values, Field addTo)
@@ -2408,7 +2276,7 @@ void Commands::setDetailValues(Transaction& tx, Id id, const std::vector<std::pa
     for (Field f : { F::DETAILS, F::DETAILS_AFTER }) {
         const std::string before = m_ops.obj(id)->text(f);
         // already out of date: the writer would leave them out
-        const std::string nd = withDetailValues(stale ? std::string() : before, f == addTo ? values : removed);
+        const std::string nd = model::fragment::withValues(stale ? std::string() : before, f == addTo ? values : removed);
         if (nd != before) {
             tx.set(id, f, nd.empty() ? Value() : Value(Text(nd)));
             changed = true;
@@ -2430,8 +2298,8 @@ std::string Commands::detailOf(Id id, const std::string& tag) const
     if (o->has(F::DETAILS_KEY) && o->intOr(F::DETAILS_KEY, 0) != model::detailsKey(*o)) {
         return std::string();
     }
-    const std::string v = detailValue(o->text(F::DETAILS), tag);
-    return v.empty() ? detailValue(o->text(F::DETAILS_AFTER), tag) : v;
+    const std::string v = model::fragment::value(o->text(F::DETAILS), tag);
+    return v.empty() ? model::fragment::value(o->text(F::DETAILS_AFTER), tag) : v;
 }
 
 std::vector<Id> Commands::notesOf(Id chord) const
@@ -2458,14 +2326,14 @@ Commands::StaffLines Commands::staffLines(Id staff) const
 {
     StaffLines l;
     const std::string& d = m_ops.obj(staff)->text(F::DETAILS);
-    const std::string lines = anyValue(d, "lines"), step = anyValue(d, "stepOffset");
+    const std::string lines = model::fragment::anyValue(d, "lines"), step = model::fragment::anyValue(d, "stepOffset");
     if (!lines.empty()) {
         l.lines = std::atoi(lines.c_str());
     }
     if (!step.empty()) {
         l.stepOffset = std::atoi(step.c_str());
     }
-    l.upsideDown = anyValue(d, "upsideDown") == "1";
+    l.upsideDown = model::fragment::anyValue(d, "upsideDown") == "1";
     return l;
 }
 
@@ -2483,12 +2351,12 @@ std::string Commands::clefAt(Id staff, const Fraction& t, bool concertPitch) con
         }
     }
     if (found) {
-        const std::string transposing = concertPitch ? std::string() : detailValue(found->text(F::DETAILS), "transposingClefType");
+        const std::string transposing = concertPitch ? std::string() : model::fragment::value(found->text(F::DETAILS), "transposingClefType");
         return transposing.empty() ? found->text(F::TEXT) : transposing;
     }
     const std::string& d = m_ops.obj(staff)->text(F::DETAILS);
     for (const char* tag : { concertPitch ? "defaultConcertClef" : "defaultTransposingClef", "defaultClef" }) {
-        const std::string v = detailValue(d, tag);
+        const std::string v = model::fragment::value(d, tag);
         if (!v.empty()) {
             return v;
         }
@@ -2608,7 +2476,7 @@ Commands::SlashPitch Commands::slashPitch(Id staff, const Fraction& t, bool conc
         sp.tpc = model::defaultTpc(0, 0);
         return sp;
     }
-    if (anyValue(instrument, "useDrumset") == "1") {
+    if (model::fragment::anyValue(instrument, "useDrumset") == "1") {
         // a drum set on a five-line staff: the lowest drum on the middle line (Drumset::defaultPitchForLine); none
         // there, no slash
         const std::string middle = std::to_string(sl.lines - 1 - sl.stepOffset);
@@ -2617,7 +2485,7 @@ Commands::SlashPitch Commands::slashPitch(Id staff, const Fraction& t, bool conc
         for (size_t at = instrument.find("<Drum pitch=\""); at != std::string::npos; at = instrument.find("<Drum pitch=\"", at + 1)) {
             const size_t end = instrument.find("</Drum>", at);
             const int pitch = std::atoi(instrument.c_str() + at + 13);   // after <Drum pitch="
-            if (anyValue(instrument.substr(at, end == std::string::npos ? std::string::npos : end - at), "line") == middle && pitch < lowest) {
+            if (model::fragment::anyValue(instrument.substr(at, end == std::string::npos ? std::string::npos : end - at), "line") == middle && pitch < lowest) {
                 lowest = pitch;
             }
         }
@@ -2666,7 +2534,7 @@ Commands::SlashPitch Commands::slashPitch(Id staff, const Fraction& t, bool conc
     }
     int acc = model::keyAccidental(letter, key);
     // a custom key signature: its own accidentals, on degrees from the key's tonic (MuseScore's CustDef)
-    if (const Id ks = m_ops.keySigAt(staff, t); ks.isValid() && detailValue(m_ops.obj(ks)->text(F::DETAILS), "custom") == "1") {
+    if (const Id ks = m_ops.keySigAt(staff, t); ks.isValid() && model::fragment::value(m_ops.obj(ks)->text(F::DETAILS), "custom") == "1") {
         const std::string& d = m_ops.obj(ks)->text(F::DETAILS);
         const int tonic = model::letterOfTpc(14 + key);
         acc = 0;
@@ -2890,10 +2758,10 @@ std::vector<Commands::ChordSymbol> Commands::chordSymbols() const
                 continue;
             }
             const std::string harmony = d.substr(h, d.find(fret ? "</Harmony>" : "</harmonyInfo>", h) - h);
-            const std::string root = anyValue(harmony, "root"), bass = anyValue(harmony, "bass");
+            const std::string root = model::fragment::anyValue(harmony, "root"), bass = model::fragment::anyValue(harmony, "bass");
             cs.root = root.empty() ? -9 : std::atoi(root.c_str());
             cs.bass = bass.empty() ? -9 : std::atoi(bass.c_str());
-            cs.name = anyValue(harmony, "name");
+            cs.name = model::fragment::anyValue(harmony, "name");
         } else {
             cs.root = o->has(F::INT_VALUE) ? int(o->intOr(F::INT_VALUE, -9)) : -9;
             cs.bass = o->has(F::BASS) ? int(o->intOr(F::BASS, -9)) : -9;
@@ -2937,9 +2805,9 @@ int Commands::realizeChordSymbols(Transaction& tx, const std::vector<Id>& harmon
             if (cs.inFretDiagram) {
                 const std::string& d = o->text(F::DETAILS);
                 const size_t a = d.find("<Harmony");
-                own = a == std::string::npos ? std::string() : anyValue(d.substr(a, d.find("</Harmony>", a) - a), tag);
+                own = a == std::string::npos ? std::string() : model::fragment::anyValue(d.substr(a, d.find("</Harmony>", a) - a), tag);
             } else {
-                own = detailValue(o->text(F::DETAILS), tag);
+                own = model::fragment::value(o->text(F::DETAILS), tag);
             }
             if (!own.empty()) {
                 return own;

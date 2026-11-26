@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -50,6 +51,8 @@
 #include "engraving/infrastructure/localfileinfoprovider.h"
 #include "engraving/dom/factory.h"
 #include "engraving/dom/measure.h"
+#include "engraving/dom/repeatlist.h"
+#include "engraving/tests/utils/scorerw.h"
 #include "engraving/dom/timesig.h"
 #include "engraving/editing/splitjoinmeasure.h"
 
@@ -469,6 +472,32 @@ TEST(Jubelle_Reference, MusicListing)
                     s->endCmd();
                 }
                 head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
+            }
+            if (std::getenv("JUBELLE_REFERENCE_REPEATS")) {
+                // the play order (MuseScore's RepeatList, repeats expanded): measure index ranges and pass
+                std::map<const Measure*, int> index;
+                int n = 0;
+                for (Measure* m = s->firstMeasure(); m; m = m->nextMeasure()) {
+                    index[m] = n++;
+                }
+                s->setPlaylistDirty();   // as the app does on opening (reading may have cached a partial list)
+                s->doLayout();   // as MuseScore's repeat tests read scores (voltas are measured by layout)
+                std::string line = "# repeats:";
+                for (const RepeatSegment* rs : s->repeatList(true, false)) {
+                    if (!rs->firstMeasure()) {
+                        continue;
+                    }
+                    line += " " + std::to_string(index[rs->firstMeasure()]) + "-" + std::to_string(index[rs->lastMeasure()])
+                            + "/" + std::to_string(rs->playbackCount);
+                }
+                head += line + "\n";
+            }
+            if (const char* saveDir = std::getenv("JUBELLE_REFERENCE_SAVE")) {
+                // MuseScore's own save (4.x), to turn older test files into files the engine reads
+                std::filesystem::path to = std::filesystem::path(saveDir) / rel;
+                to.replace_extension(".mscx");
+                std::filesystem::create_directories(to.parent_path());
+                ScoreRW::saveScore(s, String::fromStdString(to.string()));
             }
             std::ofstream(out) << head << listing(s);
             ++done;

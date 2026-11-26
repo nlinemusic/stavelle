@@ -45,6 +45,7 @@
 #include "io/scorefile.h"
 #include "model/invariants.h"
 #include "model/packing.h"
+#include "perform/repeatlist.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1282,6 +1283,28 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
     return 0;
 }
 
+//! The play order of every 4.x score in a folder (perform::RepeatList), in the reference tool's format
+//! ("# repeats: first-last/pass…", measure indices from 0): <out>/<score>.txt, and "listed: <score>" printed
+int repeats(const std::string& folder, const std::string& outDir)
+{
+    int done = 0;
+    forEachScore(folder, [&](const std::string& rel, const fs::path&, model::Model& m, IdGenerator&) {
+        const perform::RepeatList rl = perform::RepeatList::build(m.snapshot());
+        std::string line = "# repeats:";
+        for (const perform::RepeatSegment& rs : rl.segments()) {
+            line += " " + std::to_string(rs.measures.front()) + "-" + std::to_string(rs.measures.back()) + "/"
+                    + std::to_string(rs.playbackCount);
+        }
+        const fs::path out = fs::path(outDir) / (rel + ".txt");
+        fs::create_directories(out.parent_path());
+        std::ofstream(out) << line << "\n";
+        std::cout << "listed: " << rel << "\n";
+        ++done;
+    });
+    std::cerr << "repeats: " << done << " scores\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1332,6 +1355,9 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
+    }
+    if (a.size() == 4 && a[0] == "repeats" && a[2] == "--out") {   // every score's play order
+        return repeats(a[1], a[3]);
     }
     if (a.size() == 4 && a[0] == "chordlist" && a[2] == "--out") {
         return chordlist(a[1], a[3]);
