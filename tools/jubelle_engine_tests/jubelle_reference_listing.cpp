@@ -99,6 +99,9 @@ void line(std::ostringstream& out, size_t staff, int voice, ChordRest* cr, bool 
     if (std::getenv("JUBELLE_REFERENCE_SLASH") && cr->isRest() && toRest(cr)->accent()) {
         out << " acc";   // Rest::accent
     }
+    if ((std::getenv("JUBELLE_REFERENCE_SLASH") || std::getenv("JUBELLE_REFERENCE_DETAIL")) && cr->staffMove() != 0) {
+        out << " sm:" << cr->staffMove();   // cross-staff
+    }
     out << '\n';
 }
 
@@ -372,10 +375,11 @@ TEST(Jubelle_Reference, MusicListing)
             const char* slashFill = std::getenv("JUBELLE_REFERENCE_SLASHFILL");
             const char* slashRhythm = std::getenv("JUBELLE_REFERENCE_SLASHRHYTHM");
             const char* realize = std::getenv("JUBELLE_REFERENCE_REALIZE");
-            if (explode || implode || slashFill || slashRhythm || realize) {
+            const char* moveStaff = std::getenv("JUBELLE_REFERENCE_MOVESTAFF");
+            if (explode || implode || slashFill || slashRhythm || realize || moveStaff) {
                 // "<first staff> <last staff (exclusive)> <first measure> <last measure>": that range selected, then
                 // Score::cmdExplode / cmdImplode / cmdSlashFill / cmdSlashRhythm
-                if (slashFill || slashRhythm || realize) {
+                if (slashFill || slashRhythm || realize || moveStaff) {
                     // measures as they are: a selection ending in a multimeasure rest would take in the whole rest
                     // (the selection is the interface's matter, not the command's)
                     s->style().set(Sid::createMultiMeasureRests, false);
@@ -383,7 +387,7 @@ TEST(Jubelle_Reference, MusicListing)
                 s->setLayoutAll();
                 s->doLayout();
                 const std::string before = listing(s);
-                std::istringstream spec(explode ? explode : (implode ? implode : (slashFill ? slashFill : (slashRhythm ? slashRhythm : realize))));
+                std::istringstream spec(explode ? explode : (implode ? implode : (slashFill ? slashFill : (slashRhythm ? slashRhythm : (realize ? realize : moveStaff)))));
                 int s0 = 0, s1 = 1, m0 = 0, m1 = 0;
                 spec >> s0 >> s1 >> m0 >> m1;
                 int voicing = -1, duration = -1, literal = 1;   // realize: the chord symbols' own settings unless given
@@ -410,6 +414,18 @@ TEST(Jubelle_Reference, MusicListing)
                         s->cmdSlashFill();
                     } else if (slashRhythm) {
                         s->cmdSlashRhythm();
+                    } else if (moveStaff) {
+                        // NotationInteraction::moveChordRestToStaff: each selected chord or rest, up (0) or down (1)
+                        for (EngravingItem* e : s->selection().uniqueElements()) {
+                            ChordRest* cr = e->isChordRest() ? toChordRest(e) : (e->isNote() ? toNote(e)->chord() : nullptr);
+                            if (cr) {
+                                if (voicing == 0) {
+                                    s->moveUp(cr);
+                                } else {
+                                    s->moveDown(cr);
+                                }
+                            }
+                        }
                     } else {
                         s->cmdRealizeChordSymbols(literal != 0, Voicing(voicing), HDuration(duration));
                     }

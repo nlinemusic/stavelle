@@ -1733,6 +1733,9 @@ private:
                 n.children.push_back(leaf("duration", frac(ev.fractionOr(F::GRACE_LENGTH, Fraction()))));
             }
         }
+        if (ev.intOr(F::STAFF_MOVE, 0) != 0) {
+            n.children.push_back(leaf("staffMove", std::to_string(ev.intOr(F::STAFF_MOVE, 0))));
+        }
         if (ev.has(F::GRACE)) {
             n.children.push_back(empty(ev.text(F::GRACE_TYPE).empty() ? std::string("acciaccatura") : ev.text(F::GRACE_TYPE)));
         }

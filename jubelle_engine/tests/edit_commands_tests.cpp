@@ -1173,3 +1173,31 @@ TEST(Commands, RealizingChordSymbolsWritesThemAsNotesUntilTheNext)
     d.undoRedo();
     d.roundTrip();
 }
+
+TEST(Commands, ChordsMoveToTheOtherStaffOfTheirInstrument)
+{
+    // a piano's right hand reaching into the left hand's staff (cross-staff), and back; one staff at most either way
+    Doc d;
+    d.edit("Second staff", [&](Transaction& tx) {
+        const Id st = create(tx, d.ids, d.flute.player, { Kind::Staff, {} });
+        const Id v = d.ops.voice(tx, st, 0);
+        create(tx, d.ids, v, { Kind::Rest, { { F::TIME, Fraction(0, 1) }, { F::DURATION, Fraction(1, 1) }, { F::MEASURE_REST, true } } },
+               Placement::ByTime);
+        create(tx, d.ids, v, { Kind::Rest, { { F::TIME, Fraction(1, 1) }, { F::DURATION, Fraction(1, 1) }, { F::MEASURE_REST, true } } },
+               Placement::ByTime);
+    });
+    const Id c = d.chord(d.flute.voice, 0, { 55 });
+    int moved = 0;
+    d.edit("Move down", [&](Transaction& tx) { moved = d.cmd.moveToStaff(tx, { c }, false); });
+    EXPECT_EQ(moved, 1);
+    EXPECT_EQ(d.o(c)->intOr(F::STAFF_MOVE, 0), 1);
+    d.edit("Move down", [&](Transaction& tx) { moved = d.cmd.moveToStaff(tx, { c }, false); });
+    EXPECT_EQ(moved, 0);   // there is no third staff
+    d.roundTrip();
+    EXPECT_NE(reopenedWithSlashes(d.model).find("0 0 0/1 1/4 55 sm:1"), std::string::npos);
+    d.edit("Move up", [&](Transaction& tx) { moved = d.cmd.moveToStaff(tx, { c }, true); });
+    EXPECT_FALSE(d.o(c)->has(F::STAFF_MOVE));
+    d.edit("Move up", [&](Transaction& tx) { moved = d.cmd.moveToStaff(tx, { c }, true); });
+    EXPECT_EQ(moved, 0);   // the top staff has none above
+    d.consistent();
+}

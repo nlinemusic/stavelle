@@ -3054,4 +3054,42 @@ int Commands::realizeChordSymbols(Transaction& tx, const std::vector<Id>& harmon
     }
     return made;
 }
+
+// ---- cross-staff ---------------------------------------------------------------------------------------------
+int Commands::moveToStaff(Transaction& tx, const std::vector<Id>& events, bool up)
+{
+    int moved = 0;
+    std::set<Id> done;
+    for (Id e : events) {
+        const Object* o = m_ops.obj(e);
+        if (!o || (o->kind() != Kind::Chord && o->kind() != Kind::Rest) || !done.insert(e).second) {
+            continue;
+        }
+        const Id staff = staffOfEvent(e);
+        const Object* player = m_ops.obj(m_ops.obj(staff)->parent());
+        std::vector<Id> staves;
+        for (Id st : player->children()) {
+            if (m_ops.obj(st)->kind() == Kind::Staff) {
+                staves.push_back(st);
+            }
+        }
+        const int rstaff = int(std::find(staves.begin(), staves.end(), staff) - staves.begin());
+        const int move = int(o->intOr(F::STAFF_MOVE, 0));
+        const int to = move + (up ? -1 : 1);
+        // one staff at most either way, inside the instrument
+        if (to < -1 || to > 1 || rstaff + to < 0 || rstaff + to >= int(staves.size())) {
+            continue;
+        }
+        auto standard = [this](Id st) {
+            const std::string g = m_ops.obj(st)->text(F::SUBKIND);
+            return g.empty() || g == "pitched";
+        };
+        if (!standard(staff) || !standard(staves[size_t(rstaff + to)])) {
+            continue;   // MuseScore: only between staves in standard notation
+        }
+        tx.set(e, F::STAFF_MOVE, to ? Value(int64_t(to)) : Value());
+        ++moved;
+    }
+    return moved;
+}
 }

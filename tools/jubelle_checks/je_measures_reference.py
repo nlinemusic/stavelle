@@ -50,7 +50,7 @@ def main(argv):
     todo, crashed = list(scores), []
     env = dict(os.environ, JUBELLE_REFERENCE_ROOT=repo,
                JUBELLE_REFERENCE_LIST=os.path.join(work, "todo.txt"), JUBELLE_REFERENCE_OUT=theirs)
-    if op.startswith("slash"):
+    if op.startswith("slash") or op == "movestaff":
         env["JUBELLE_REFERENCE_SLASH"] = "1"   # slashes and accent rests marked in both listings
     env[variable] = spec
     while todo:

@@ -15,7 +15,8 @@ namespace {
 bool excluded(Field f)
 {
     // (an element's place in time isn't part of it: its details stay when measures are inserted before it)
-    static const std::set<Field> skip { F::TIME, F::KIND, F::CHILDREN, F::PARENT, F::ORIGIN_EID, F::DETAILS, F::DETAILS_KEY,
+    // (nor which of its instrument's staves it is shown on)
+    static const std::set<Field> skip { F::TIME, F::STAFF_MOVE, F::KIND, F::CHILDREN, F::PARENT, F::ORIGIN_EID, F::DETAILS, F::DETAILS_KEY,
                                                 F::DETAILS_2, F::DETAILS_AFTER, F::TIE_EID, F::LINK_EID, F::LINK_MARK, F::TIE_LINK, F::SEQ, F::AT_END, F::TAG, F::HOME_STAFF, F::TIE_TO,
                                                 F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK, F::LINE_DETAILS, F::TIE_GENERATED };
     return skip.count(f) > 0;

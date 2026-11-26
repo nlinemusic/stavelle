@@ -31,7 +31,7 @@ const std::set<Field>& notMusic()
                                      F::DETAILS_2, F::DETAILS_AFTER, F::DETAILS_KEY, F::SEQ, F::ANCHOR, F::HOME_STAFF, F::START_EVENT,
                                      F::END_STAFF, F::END_ANCHOR, F::LINK_EID, F::LINK_MARK, F::TIE_EID, F::TIE_LINK, F::TAG,
                                      F::AT_END, F::LINKED_TO, F::LINKED_STAFF, F::FRET, F::STRING, F::TIE_MARK, F::LINE_DETAILS,
-                                     F::TIE_GENERATED };
+                                     F::TIE_GENERATED, F::STAFF_MOVE };
     return s;
 }
 

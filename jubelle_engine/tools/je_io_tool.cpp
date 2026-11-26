@@ -1133,7 +1133,7 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
         edit::Operations ops(m, ids);
         edit::Commands cmd(ops);
         const model::Snapshot before = m.snapshot();
-        const std::string listingBefore = io::musicListing(before, op == "slashfill" || op == "slashrhythm");
+        const std::string listingBefore = io::musicListing(before, op == "slashfill" || op == "slashrhythm" || op == "movestaff");
         const std::vector<Id> ms = ops.measures();
         std::string label = "refused";
         try {
@@ -1188,6 +1188,29 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
                     }
                     ok = cmd.realizeChordSymbols(tx, hs, o, concert) > 0;
                 }
+            } else if (op == "movestaff" && size_t(c) < ms.size() && size_t(d) < ms.size()) {
+                // the chords and rests of staves a … b-1, measures c … d, up (JE_MOVESTAFF=0) or down (1)
+                const std::vector<Id> all = cmd.stavesInOrder();
+                if (a < b && size_t(b) <= all.size()) {
+                    label = "unchanged";
+                    const Fraction from = ops.measureStart(ms[size_t(c)]), to = ops.measureEnd(ms[size_t(d)]);
+                    std::vector<Id> events;
+                    for (size_t si = size_t(a); si < size_t(b); ++si) {
+                        for (Id v : m.find(all[si])->children()) {
+                            if (m.find(v)->kind() != model::Kind::Voice) {
+                                continue;
+                            }
+                            for (Id e : ops.eventsOf(v)) {
+                                const Fraction t = m.find(e)->fractionOr(F::TIME, Fraction());
+                                if (from <= t && t < to) {
+                                    events.push_back(e);
+                                }
+                            }
+                        }
+                    }
+                    const char* dir = std::getenv("JE_MOVESTAFF");
+                    ok = cmd.moveToStaff(tx, events, !(dir && std::string(dir) == "1")) > 0;
+                }
             } else if ((op == "slashfill" || op == "slashrhythm") && size_t(c) < ms.size() && size_t(d) < ms.size()) {
                 // staves a … b-1, measures c … d selected
                 const std::vector<Id> all = cmd.stavesInOrder();
@@ -1228,7 +1251,7 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
             std::cout << "failed: " << rel << ": " << e.what() << "\n";
             return;
         }
-        const bool appearance = op == "slashfill" || op == "slashrhythm";
+        const bool appearance = op == "slashfill" || op == "slashrhythm" || op == "movestaff";
         const std::string listingAfter = io::musicListing(m.snapshot(), appearance);
         if (label != "refused" && listingAfter != listingBefore) {
             label = "changed";
@@ -1314,6 +1337,13 @@ int main(int argc, char** argv)
     }
     if (a.size() >= 6 && a[0] == "measedit" && a[2] == "--out") {
         auto arg = [&a](size_t i) { return a.size() > i ? std::atoi(a[i].c_str()) : 0; };
+        if (a[4] == "movestaff" && a.size() >= 10) {   // the direction: 0 up, 1 down
+#ifdef _WIN32
+            _putenv_s("JE_MOVESTAFF", a[9].c_str());
+#else
+            setenv("JE_MOVESTAFF", a[9].c_str(), 1);
+#endif
+        }
         if (a[4] == "realize" && a.size() >= 12) {   // voicing, duration, literal given: instead of each symbol's own
 #ifdef _WIN32
             _putenv_s("JE_REALIZE", (a[9] + " " + a[10] + " " + a[11]).c_str());

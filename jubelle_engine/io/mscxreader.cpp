@@ -1059,9 +1059,12 @@ private:
         if (e.name != "Chord") {
             f.push_back({ F::TAG, Text(e.name) });
         }
+        if (const int64_t move = toInt(e.childText("staffMove"))) {
+            f.push_back({ F::STAFF_MOVE, move });   // cross-staff
+        }
         {
             // the details after the first note are written after the notes again (some refer to them by index)
-            static const std::vector<const char*> modelled { "durationType", "dots", "duration", "Note", "Articulation", "Ornament",
+            static const std::vector<const char*> modelled { "durationType", "dots", "duration", "staffMove", "Note", "Articulation", "Ornament",
                                                              "Lyrics", "Spanner", "Arpeggio", "TremoloSingleChord", "ChordLine",
                                                              "Fermata", "acciaccatura", "appoggiatura", "grace4", "grace16",
                                                              "grace32", "grace8after", "grace16after", "grace32after" };
@@ -1135,6 +1138,7 @@ private:
                 add(Kind::Attachment, ev, af);
                 report.modelled[c.name]++;
             } else if (c.name != "Note" && c.name != "durationType" && c.name != "dots" && c.name != "duration" && c.name != "eid"
+                       && c.name != "staffMove"
                        && !graceTags().count(c.name)) {
                 report.keptOnly[e.name + "/" + c.name]++;
             }
@@ -1795,6 +1799,9 @@ std::string musicListing(const model::Snapshot& s, bool appearance)
                         }
                         if (ev->kind() == Kind::Rest && voice->intOr(F::NUMBER, 0) >= 2 && shown(*ev).find("<small>1</small>") != std::string::npos) {
                             out << " acc";   // an accent rest (Rest::accent)
+                        }
+                        if (ev->intOr(F::STAFF_MOVE, 0) != 0) {
+                            out << " sm:" << ev->intOr(F::STAFF_MOVE, 0);   // cross-staff
                         }
                     }
                     out << '\n';

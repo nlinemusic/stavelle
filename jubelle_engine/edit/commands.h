@@ -132,6 +132,11 @@ public:
     };
     int realizeChordSymbols(Transaction& tx, const std::vector<Id>& harmonies, const RealizeOptions& options, bool concertPitch);
 
+    //! Score::moveUp / moveDown ("move chord/rest to staff above / below"): each chord or rest shown on the next
+    //! staff of its instrument (cross-staff, one staff at most either way; standard staves only). Returns how many
+    //! moved
+    int moveToStaff(Transaction& tx, const std::vector<Id>& events, bool up);
+
     //! The staves in score order (players in order, their staves in order), as the indices above count them
     std::vector<Id> stavesInOrder() const { return allStaves(); }
 

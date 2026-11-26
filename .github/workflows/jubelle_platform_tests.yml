@@ -186,7 +186,7 @@ jobs:
         timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
           "$RUNNER_TEMP/tsref" timesig 1 5 8 > je_timesig_reference.txt || rc=1
         for spec in "split 1" "join 1 2" "explode 0 1 0 1" "implode 0 1 0 1" "implode 0 2 0 1" "slashfill 0 1 0 1" "slashfill 0 2 1 2" \
-                    "slashrhythm 0 1 0 1" "realize 0 1 0 3" "realize 0 1 0 3 3 1 0"; do
+                    "slashrhythm 0 1 0 1" "realize 0 1 0 3" "realize 0 1 0 3 3 1 0" "movestaff 0 1 0 1 1" "movestaff 1 2 0 1 0"; do
           echo "against MuseScore's own command: $spec ($(date +%T), $(df -h --output=avail . | tail -1) free)"
           timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
             "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
