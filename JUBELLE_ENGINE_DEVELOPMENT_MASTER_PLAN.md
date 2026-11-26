@@ -256,6 +256,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **S3 split and join measures** (`Commands::splitMeasure` / `joinMeasures`, MuseScore's SplitJoinMeasure, on the same rewrite as time signatures, now with measures of any lengths): split where a chord, rest or chord symbol starts (not on the first beat, inside a tuplet, on a measure repeat or finer than 1/128); join with the first measure's time signature, the time signatures inside removed and each staff's last moved to the next measure. Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI): **split 2,105 of 2,115, join 2,093 of 2,110 the same music** (the rest: staves with their own time signature, left unchanged for now, and a MuseScore oddity after joining across an end-of-measure time signature); MuseScore reads every saved result with the same music. 117 tests |
 | 25 Nov 2026 | **S3 measure rewriting, the remaining differences** (on the same rewrite): staves with their own time signature follow MuseScore's rules (measure rests take the global signature; music refuses the change); the staves' old time signatures are given back per staff after the range; a staff's own signature replaced by a global one loses its stretch; tuplets inside tuplets are split with their parents. Time signature against MuseScore's command: **5/8 from bar 2, 2,094 of 2,111; 3/4 from bar 1, 2,089 of 2,112**; split and join unchanged; every saved result read by MuseScore with the same music. The intentional differences are listed in §15. 120 tests |
 | 26 Nov 2026 | **S3 explode and implode** (`Commands::explode` / `implode`, MuseScore's `cmdExplode` / `cmdImplode` with its CloneVoice): explode gives each staff below one note of every chord (from the top, reused from the bottom), or, with voices 2–4 in use, moves each voice to the first free voice below from the measure its music starts in; implode on one staff joins voices 2–4 into voice 1 where the chords have the same length, across staves puts the first four voices with music into the first staff. Both refuse staves with different local time signatures, as MuseScore does, and staves linked to each other. Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI): **explode 2,096 of 2,118, implode on one staff 2,109 of 2,118, implode across staves 2,014 of 2,118 the same music**; the rest are the intentional differences of §15 (most are guitar scores whose standard staff and tablature are linked) and files MuseScore already reads differently; MuseScore reads every saved result with the same music. 126 tests |
+| 26 Nov 2026 | **S3 slashes** (`Commands::slashFill` / `slashRhythm`, MuseScore's `cmdSlashFill` / `cmdSlashRhythm` and `Chord::setSlash`): fill gives every beat (a dotted beat in compound time) a stemless, unplayed slash on the middle line, in each measure's first voice free there (pitch from the clef, key, earlier accidentals in the measure, the instrument's transposition, drum sets and tablature strings as MuseScore finds them); rhythmic slashes toggle the slash look and accent rests in voices 3–4. The look is kept in the elements' details where MuseScore writes it (`setDetailValues`; the details fingerprint is now in the model, `model/detailskey`); linked staves get the slashes too. Found on the way: a chord with an after-grace split by a measure rewrite left the after-grace before its last piece (now after it; CI's time signature check caught it once the files' reading problems were fixed); notes after an **instrument change** took the first instrument's transposition (`Operations::transpositionAt`, now used by note entry, paste, spelling and slashes). Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI, slashes marked in both listings): **fill 2,088 of 2,118 (bars 1–2, staff 1) and 2,061 of 2,118 (bars 2–3, staves 1–2), rhythm 2,107 of 2,118 the same music**; MuseScore reads every saved result with the same music and the same slashes. 132 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -263,11 +264,16 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 - **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
   tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
   texts on linked staves, the editing commands of `edit/commands`, time signature changes, split and join measures,
-  explode and implode. Next: the remaining commands of `docs/10_…` (slashes, chord-symbol realization,
+  explode and implode, slashes. Next: the remaining commands of `docs/10_…` (chord-symbol realization,
   moving to another staff, lyrics and text), scripted comparisons with MuseScore's engine (the clipboard's text format
   is part of S10). Then S4 (autosave journal and crash recovery).
 - Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
   (C and B♯ in one chord) is not added, MuseScore allows it; changing the voice of notes inside tuplets.
+- Slashes, not yet like MuseScore: slash fill on a staff with its own (local) time signature is skipped there; an
+  instrument change to or from a drum set is not followed (the player's first instrument decides); un-slashing on a
+  drum staff doesn't restore the drum set's noteheads and stem directions. Slash notes are marked not played in their
+  details (`<play>0</play>`): S5 playback must honour it. The slash look of an element read from a file is dropped
+  with its other details when its music is edited later (D-E27), as for any appearance detail today.
 - Measure rewriting (time signatures, split, join), where the engine still differs from MuseScore's own commands:
   staves with their own (local) time signature that hold music are refused, by MuseScore's rule in
   `rewriteMeasures` (they follow where they hold only measure rests); the reference run nevertheless shows MuseScore
@@ -275,8 +281,10 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   files, one dynamics score) are not yet looked at.
 - **Intentional differences from MuseScore** (the user's rule, 25 Nov 2026: musical correctness before identical
   results; each is listed here and in `docs/10_edit_vocabulary.md`):
-  1. A note split by a measure rewrite keeps its grace notes on the first piece only; MuseScore copies them onto
-     every tied piece, so they would sound and show again.
+  1. A note split by a measure rewrite keeps its grace notes before the first piece and its after-graces after the
+     last one (the tie into an after-grace runs on from the last piece); MuseScore copies the graces before it onto
+     every tied piece, so they would sound and show again, and leaves the after-graces after the first piece, in
+     the middle of the tied note (13 corpus files differ from MuseScore's time signature change for this).
   2. A tuplet inside a tuplet is split at a new barline only where the barline falls at its middle, as for any
      tuplet; MuseScore halves it wherever the barline falls, which leaves its notes the wrong length. Refused
      otherwise.
@@ -293,6 +301,13 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   8. Implode across staves replaces the first staff's voices over the whole range; MuseScore leaves a voice's old
      notes where its new source has only a measure rest (so a moved voice's notes sound twice) and keeps old rests
      under the new notes (overlapping events), and clones multimeasure rests into voice 2.
+  9. Slash fill on a beat cut short by the barline (a pickup, an irregular measure) writes a shorter slash;
+     MuseScore writes the whole beat tied into the next measure, which shifts that measure's slashes and can
+     overwrite its music in that voice.
+  10. Slash fill over a staff and its linked staff (standard and tablature) fills them once; MuseScore fills the
+     pair twice, a second set in another voice, and runs out of voices sooner.
+  11. Beats inside a tuplet get no slash (MuseScore has no segment there either); where it does write into one, the
+     tuplet is left as it is.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds

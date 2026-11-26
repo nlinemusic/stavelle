@@ -1714,7 +1714,7 @@ bool readScore(const ScoreFile& file, model::Model& model, IdGenerator& ids, Rea
     return r.run(error);
 }
 
-std::string musicListing(const model::Snapshot& s)
+std::string musicListing(const model::Snapshot& s, bool appearance)
 {
     // staff order: players in score order, staves in player order
     std::ostringstream out;
@@ -1753,6 +1753,26 @@ std::string musicListing(const model::Snapshot& s)
                     std::sort(pitches.begin(), pitches.end());
                     for (int64_t p2 : pitches) {
                         out << ' ' << p2;
+                    }
+                    if (appearance) {
+                        // as written: details only while they fit the music (D-E27)
+                        auto shown = [](const model::Object& o) {
+                            return !o.has(F::DETAILS_KEY) || detailsKey(o) == o.intOr(F::DETAILS_KEY, 0)
+                                   ? o.text(F::DETAILS) + o.text(F::DETAILS_AFTER) : std::string();
+                        };
+                        const model::Object* top = nullptr;
+                        for (Id n : ev->children()) {
+                            const model::Object* note = s.find(n);
+                            if (note->kind() == Kind::Note && (!top || note->intOr(F::PITCH, -1) >= top->intOr(F::PITCH, -1))) {
+                                top = note;
+                            }
+                        }
+                        if (top && shown(*top).find("<fixed>1</fixed>") != std::string::npos) {
+                            out << " /";   // a slash (Chord::slash)
+                        }
+                        if (ev->kind() == Kind::Rest && voice->intOr(F::NUMBER, 0) >= 2 && shown(*ev).find("<small>1</small>") != std::string::npos) {
+                            out << " acc";   // an accent rest (Rest::accent)
+                        }
                     }
                     out << '\n';
                 }

@@ -98,7 +98,43 @@ public:
     //! four voices with music become the first staff's voices
     bool implode(Transaction& tx, size_t first, size_t last, const Fraction& t0, const Fraction& t1);
 
+    // ---- slashes (staves by index in score order) ------------------------------------------------------------------
+    //! Score::cmdSlashFill: slashes on every beat of staves first … last-1 in [t0, t1) (stemless, not played), in
+    //! each measure's first voice that is free there; returns how many were made
+    int slashFill(Transaction& tx, size_t first, size_t last, const Fraction& t0, const Fraction& t1, bool concertPitch);
+    //! Score::cmdSlashRhythm: the chords shown as slashes with their rhythm, or back; rests in voices 3 and 4 as
+    //! accent rests, or back
+    bool slashRhythm(Transaction& tx, const std::vector<Id>& events);
+    //! Chord::slash
+    bool isSlash(Id chord) const;
+    //! The staves in score order (players in order, their staves in order), as the indices above count them
+    std::vector<Id> stavesInOrder() const { return allStaves(); }
+
 private:
+    struct StaffLines {
+        int lines = 5, stepOffset = 0;
+        bool upsideDown = false;
+    };
+    struct SlashPitch {
+        bool ok = true;
+        int pitch = 71;
+        int64_t tpc = 19;
+        int string = -1, fret = -1;
+    };
+    //! Sets (an empty value: removes) child elements of an object's kept details (appearance the model doesn't hold)
+    void setDetailValues(Transaction& tx, Id id, const std::vector<std::pair<std::string, std::string> >& values,
+                         Field addTo = model::fields::DETAILS);
+    //! A child element's value in an object's kept details (before or after its notes or pitch), if they still fit
+    std::string detailOf(Id id, const std::string& tag) const;
+    std::vector<Id> notesOf(Id chord) const;
+    StaffLines staffLines(Id staff) const;
+    std::string clefAt(Id staff, const Fraction& t, bool concertPitch) const;
+    void setSlash(Transaction& tx, Id chord, bool on, bool stemless);
+    std::vector<Id> linkedStavesOf(Id staff) const;
+    Id eventAt(Id staff, int voice, const Fraction& t, model::Kind kind) const;
+    SlashPitch slashPitch(Id staff, const Fraction& t, bool concertPitch) const;
+    bool insideTuplet(Id voice, const Fraction& t) const;
+
     std::vector<Id> timeSigsAt(const Fraction& t) const;
     int measureRepeatCount(Id measure) const;
     Id voiceNumbered(Id staff, int number) const;

@@ -15,6 +15,9 @@
 
 #include "structure.h"
 #include "clipboard.h"
+#include "links.h"
+#include "tablature.h"
+#include "model/detailskey.h"
 #include "model/fields.h"
 #include "model/notation.h"
 #include "model/packing.h"
@@ -73,8 +76,9 @@ Commands::Spelling Commands::shown(Id note, bool concertPitch) const
     const Object* player = staff ? m_ops.obj(staff->parent()) : nullptr;
     Spelling s { F::TPC, n->intOr(F::TPC, model::defaultTpc(n->intOr(F::PITCH, 60), 0)), 0, 0 };
     if (player) {
-        s.chrom = player->intOr(F::TRANSPOSE_CHROMATIC, 0);
-        s.dia = player->intOr(F::TRANSPOSE_DIATONIC, model::diatonicOf(s.chrom));
+        const Operations::Transposition tr = m_ops.transpositionAt(staff->id(), m_ops.timeOf(n->parent()));
+        s.chrom = tr.chromatic;
+        s.dia = tr.diatonic;
     }
     if (!concertPitch && (s.dia != 0 || s.chrom != 0)) {
         s.field = F::TPC2;
@@ -1643,6 +1647,13 @@ void Commands::finishPieces(Transaction& tx, const Pieces& p)
     if (p.rest || !p.prev.isValid() || p.prev == p.source) {
         return;
     }
+    // grace notes after the chord come after its last piece (those before it stay before the first)
+    if (const std::vector<Id> after = gracesOf(p.source).second; !after.empty() && m_ops.obj(p.prev)) {
+        for (Id g : after) {
+            tx.set(g, F::TIME, m_ops.timeOf(p.prev));
+        }
+        moveGraces(tx, { {}, after }, m_ops.obj(p.prev)->parent(), p.prev);
+    }
     std::vector<Id> lastNotes;
     for (Id x : m_ops.obj(p.prev)->children()) {
         if (m_ops.obj(x)->kind() == Kind::Note) {
@@ -2227,5 +2238,622 @@ bool Commands::implode(Transaction& tx, size_t first, size_t last, const Fractio
         }
     }
     return true;
+}
+
+// ---- slashes --------------------------------------------------------------------------------------------------
+namespace {
+//! The elements directly inside a details fragment (<x>…</x>, io/details.h): name and [begin, end) in the text
+struct DetailChild {
+    std::string name;
+    size_t begin, end;
+};
+
+//! Finds the fragment's root content and its children; false if the text isn't a fragment
+bool detailChildren(const std::string& d, size_t& contentBegin, size_t& contentEnd, std::vector<DetailChild>& out)
+{
+    size_t i = d.find('<');
+    while (i != std::string::npos && (d.compare(i, 2, "<?") == 0 || d.compare(i, 4, "<!--") == 0)) {
+        i = d.compare(i, 2, "<?") == 0 ? d.find("?>", i) : d.find("-->", i);
+        i = i == std::string::npos ? i : d.find('<', i);
+    }
+    if (i == std::string::npos) {
+        return false;
+    }
+    const size_t rootEnd = d.find('>', i);
+    if (rootEnd == std::string::npos || d[rootEnd - 1] == '/') {
+        return false;
+    }
+    size_t n = i + 1;
+    while (n < rootEnd && d[n] != ' ' && d[n] != '>' && d[n] != '\t' && d[n] != '\n') {
+        ++n;
+    }
+    const std::string root = d.substr(i + 1, n - i - 1);
+    contentBegin = rootEnd + 1;
+    contentEnd = d.rfind("</" + root);
+    if (contentEnd == std::string::npos || contentEnd < contentBegin) {
+        return false;
+    }
+    int depth = 0;
+    for (size_t pos = d.find('<', contentBegin); pos != std::string::npos && pos < contentEnd; pos = d.find('<', pos)) {
+        if (d.compare(pos, 4, "<!--") == 0) {
+            const size_t e = d.find("-->", pos);
+            pos = e == std::string::npos ? contentEnd : e + 3;
+            continue;
+        }
+        const size_t e = d.find('>', pos);
+        if (e == std::string::npos || e > contentEnd) {
+            return false;
+        }
+        if (d[pos + 1] == '/') {
+            if (--depth == 0 && !out.empty()) {
+                out.back().end = e + 1;
+            }
+        } else {
+            const bool empty = d[e - 1] == '/';
+            if (depth == 0) {
+                size_t k = pos + 1;
+                while (k < e && d[k] != ' ' && d[k] != '/' && d[k] != '\t' && d[k] != '\n') {
+                    ++k;
+                }
+                out.push_back({ d.substr(pos + 1, k - pos - 1), pos, empty ? e + 1 : std::string::npos });
+            }
+            if (!empty) {
+                ++depth;
+            }
+        }
+        pos = e + 1;
+    }
+    return depth == 0;
+}
+
+//! The text of a child element (empty if there is none)
+std::string detailValue(const std::string& d, const std::string& tag)
+{
+    size_t b = 0, e = 0;
+    std::vector<DetailChild> kids;
+    if (!detailChildren(d, b, e, kids)) {
+        return std::string();
+    }
+    for (const DetailChild& k : kids) {
+        if (k.name == tag && k.end != std::string::npos) {
+            const size_t open = d.find('>', k.begin) + 1;
+            const size_t close = d.rfind("</", k.end);
+            return close > open ? d.substr(open, close - open) : std::string();
+        }
+    }
+    return std::string();
+}
+
+//! The fragment with these child elements set (an empty value: removed); empty when no child is left
+std::string withDetailValues(std::string d, const std::vector<std::pair<std::string, std::string> >& values)
+{
+    size_t b = 0, e = 0;
+    std::vector<DetailChild> kids;
+    if (d.empty() || !detailChildren(d, b, e, kids)) {
+        d = "<x>\n</x>\n";
+        kids.clear();
+        detailChildren(d, b, e, kids);
+    }
+    std::set<std::string> names;
+    for (const auto& [name, value] : values) {
+        names.insert(name);
+    }
+    for (auto it = kids.rbegin(); it != kids.rend(); ++it) {
+        if (names.count(it->name) && it->end != std::string::npos) {
+            size_t from = it->begin;
+            while (from > b && (d[from - 1] == ' ' || d[from - 1] == '\t')) {
+                --from;   // with its indentation
+            }
+            size_t to = it->end;
+            if (to < d.size() && d[to] == '\n') {
+                ++to;
+            }
+            d.erase(from, to - from);
+            e -= to - from;
+        }
+    }
+    std::string added;
+    for (const auto& [name, value] : values) {
+        if (!value.empty()) {
+            added += "<" + name + ">" + value + "</" + name + ">\n";
+        }
+    }
+    d.insert(e, added);
+    size_t b2 = 0, e2 = 0;
+    std::vector<DetailChild> left;
+    return detailChildren(d, b2, e2, left) && left.empty() ? std::string() : d;
+}
+
+//! MuseScore's ClefInfo pitch offsets (the diatonic step of the top line) by clef name; G when unknown
+int clefPitchOffset(const std::string& clef)
+{
+    static const std::map<std::string, int> offsets {
+        { "G", 45 }, { "G15mb", 31 }, { "G8vb", 38 }, { "G8va", 52 }, { "G15ma", 59 }, { "G8vbo", 38 }, { "G8vbp", 45 },
+        { "G1", 47 }, { "C1", 43 }, { "C2", 41 }, { "C3", 39 }, { "C4", 37 }, { "C5", 35 }, { "C_19C", 45 }, { "C1_F18C", 43 },
+        { "C3_F18C", 39 }, { "C4_F18C", 37 }, { "C1_F20C", 43 }, { "C3_F20C", 39 }, { "C4_F20C", 37 }, { "F", 33 },
+        { "F15mb", 19 }, { "F8vb", 26 }, { "F8va", 40 }, { "F15ma", 47 }, { "F3", 35 }, { "F5", 31 }, { "F_F18C", 33 },
+        { "F_19C", 33 }, { "PERC", 45 }, { "PERC2", 45 }, { "TAB", 45 }, { "TAB4", 45 }, { "TAB2", 45 }, { "TAB4_SERIF", 45 },
+        { "C4_8VB", 30 }, { "G8vbc", 38 },
+    };
+    auto it = offsets.find(clef);
+    return it == offsets.end() ? 45 : it->second;
+}
+
+//! The first value of a tag anywhere in a fragment (a staff type's <lines>…)
+std::string anyValue(const std::string& d, const std::string& tag)
+{
+    const std::string open = "<" + tag + ">";
+    const size_t a = d.find(open);
+    if (a == std::string::npos) {
+        return std::string();
+    }
+    const size_t b = d.find("</" + tag + ">", a);
+    return b == std::string::npos ? std::string() : d.substr(a + open.size(), b - a - open.size());
+}
+}
+
+void Commands::setDetailValues(Transaction& tx, Id id, const std::vector<std::pair<std::string, std::string> >& values, Field addTo)
+{
+    // a value is taken out of both fragments (before and after an element's notes or pitch, as read) and added
+    // to `addTo`, where MuseScore writes it
+    const Object* o = m_ops.obj(id);
+    const bool keyed = o->has(F::DETAILS_KEY);
+    const bool stale = keyed && o->intOr(F::DETAILS_KEY, 0) != model::detailsKey(*o);
+    std::vector<std::pair<std::string, std::string> > removed;
+    for (const auto& [name, value] : values) {
+        removed.push_back({ name, std::string() });
+    }
+    bool changed = false;
+    for (Field f : { F::DETAILS, F::DETAILS_AFTER }) {
+        const std::string before = m_ops.obj(id)->text(f);
+        // already out of date: the writer would leave them out
+        const std::string nd = withDetailValues(stale ? std::string() : before, f == addTo ? values : removed);
+        if (nd != before) {
+            tx.set(id, f, nd.empty() ? Value() : Value(Text(nd)));
+            changed = true;
+        }
+    }
+    if (!changed && !stale) {
+        return;
+    }
+    const Object* now = m_ops.obj(id);
+    const bool any = now->has(F::DETAILS) || now->has(F::DETAILS_AFTER) || now->has(F::DETAILS_2);
+    // the details are kept in step with the music they were set for (D-E27); a new element has no fingerprint, so
+    // its details stay with it through later edits
+    tx.set(id, F::DETAILS_KEY, any && keyed ? Value(model::detailsKey(*now)) : Value());
+}
+
+std::string Commands::detailOf(Id id, const std::string& tag) const
+{
+    const Object* o = m_ops.obj(id);
+    if (o->has(F::DETAILS_KEY) && o->intOr(F::DETAILS_KEY, 0) != model::detailsKey(*o)) {
+        return std::string();
+    }
+    const std::string v = detailValue(o->text(F::DETAILS), tag);
+    return v.empty() ? detailValue(o->text(F::DETAILS_AFTER), tag) : v;
+}
+
+std::vector<Id> Commands::notesOf(Id chord) const
+{
+    std::vector<Id> notes;
+    for (Id n : m_ops.obj(chord)->children()) {
+        if (m_ops.obj(n)->kind() == Kind::Note) {
+            notes.push_back(n);
+        }
+    }
+    // lowest first, as MuseScore keeps a chord's notes
+    std::stable_sort(notes.begin(), notes.end(), [this](Id a, Id b) { return m_ops.obj(a)->intOr(F::PITCH, 0) < m_ops.obj(b)->intOr(F::PITCH, 0); });
+    return notes;
+}
+
+bool Commands::isSlash(Id chord) const
+{
+    // Chord::slash: the top note is fixed to a line
+    const std::vector<Id> notes = notesOf(chord);
+    return !notes.empty() && detailOf(notes.back(), "fixed") == "1";
+}
+
+Commands::StaffLines Commands::staffLines(Id staff) const
+{
+    StaffLines l;
+    const std::string& d = m_ops.obj(staff)->text(F::DETAILS);
+    const std::string lines = anyValue(d, "lines"), step = anyValue(d, "stepOffset");
+    if (!lines.empty()) {
+        l.lines = std::atoi(lines.c_str());
+    }
+    if (!step.empty()) {
+        l.stepOffset = std::atoi(step.c_str());
+    }
+    l.upsideDown = anyValue(d, "upsideDown") == "1";
+    return l;
+}
+
+std::string Commands::clefAt(Id staff, const Fraction& t, bool concertPitch) const
+{
+    // the last clef of the staff at or before t; otherwise the staff's default clef
+    const Object* found = nullptr;
+    for (Id c : m_ops.obj(flowOf())->children()) {
+        const Object* it = m_ops.obj(c);
+        if (it->kind() == Kind::FlowItem && it->text(F::SUBKIND) == "clef" && it->idOr(F::ANCHOR) == staff) {
+            if (m_ops.timeOf(c) > t) {
+                break;
+            }
+            found = it;
+        }
+    }
+    if (found) {
+        const std::string transposing = concertPitch ? std::string() : detailValue(found->text(F::DETAILS), "transposingClefType");
+        return transposing.empty() ? found->text(F::TEXT) : transposing;
+    }
+    const std::string& d = m_ops.obj(staff)->text(F::DETAILS);
+    for (const char* tag : { concertPitch ? "defaultConcertClef" : "defaultTransposingClef", "defaultClef" }) {
+        const std::string v = detailValue(d, tag);
+        if (!v.empty()) {
+            return v;
+        }
+    }
+    // (MuseScore's Staff::clefType: the staff's own default, not its instrument's)
+    const std::string group = m_ops.obj(staff)->text(F::SUBKIND);
+    return group == "percussion" ? "PERC" : (group == "tablature" ? "TAB" : "G");
+}
+
+void Commands::setSlash(Transaction& tx, Id chord, bool on, bool stemless)
+{
+    // Chord::setSlash
+    const Object* c = m_ops.obj(chord);
+    const Id staff = staffOfEvent(chord);
+    const int voice = int(m_ops.obj(c->parent())->intOr(F::NUMBER, 0));
+    const bool drum = m_ops.obj(staff)->text(F::SUBKIND) == "percussion";
+    const std::vector<Id> notes = notesOf(chord);
+    if (!on) {
+        // restored (MuseScore leaves the stem direction and beam mode as they are)
+        setDetailValues(tx, chord, { { "noStem", "" }, { "small", "" }, { "offset", "" } });
+        for (Id n : notes) {
+            setDetailValues(tx, n, { { "head", "" }, { "fixed", "" }, { "fixedLine", "" }, { "play", "" }, { "visible", "" } }, F::DETAILS_AFTER);
+        }
+        return;
+    }
+    const StaffLines sl = staffLines(staff);
+    const int middleLine = sl.lines - 1 - sl.stepOffset, bottomLine = (sl.lines - 1) * 2;
+    std::vector<std::pair<std::string, std::string> > chordValues;
+    if (stemless) {
+        chordValues.push_back({ "noStem", "1" });
+        const Fraction base = c->fractionOr(F::BASE_DURATION, Fraction(1, 4));
+        if (base < Fraction(1, 4)) {
+            chordValues.push_back({ "BeamMode", "no" });   // only a value with a flag has a beam mode (ChordRest)
+        }
+    }
+    int line = middleLine;
+    std::string head = "slash";
+    if (voice < 2) {
+        chordValues.push_back({ "StemDirection", "down" });
+    } else {
+        chordValues.push_back({ "small", "1" });
+        if (voice % 2) {
+            line = bottomLine + 1;
+            chordValues.push_back({ "StemDirection", "down" });
+        } else {
+            line = -1;
+            chordValues.push_back({ "StemDirection", "up" });
+        }
+        if (drum) {
+            head = std::string();   // a drum staff keeps normal heads there
+        }
+    }
+    setDetailValues(tx, chord, chordValues);
+    for (size_t i = 0; i < notes.size(); ++i) {
+        // all but the first notehead hidden
+        // MuseScore writes a note's visibility before its pitch, the rest after it
+        setDetailValues(tx, notes[i], { { "visible", i ? "0" : "" } });
+        setDetailValues(tx, notes[i], { { "head", head }, { "play", "0" }, { "fixed", "1" }, { "fixedLine", std::to_string(line) } },
+                        F::DETAILS_AFTER);
+    }
+}
+
+std::vector<Id> Commands::linkedStavesOf(Id staff) const
+{
+    const Object* s = m_ops.obj(staff);
+    const Id main = s->idOr(F::LINKED_STAFF).isValid() ? s->idOr(F::LINKED_STAFF) : staff;
+    std::vector<Id> out;
+    for (Id other : allStaves()) {
+        const Object* o = m_ops.obj(other);
+        if (other != staff && (other == main || o->idOr(F::LINKED_STAFF) == main)) {
+            out.push_back(other);
+        }
+    }
+    return out;
+}
+
+Id Commands::eventAt(Id staff, int voice, const Fraction& t, model::Kind kind) const
+{
+    for (Id e : eventsIn(voiceNumbered(staff, voice), t, t + Fraction(1, 1920 * 4))) {
+        const Object* o = m_ops.obj(e);
+        if (o->kind() == kind && !o->has(F::GRACE) && m_ops.timeOf(e) == t) {
+            return e;
+        }
+    }
+    return Id();
+}
+
+bool Commands::insideTuplet(Id voice, const Fraction& t) const
+{
+    if (!voice.isValid()) {
+        return false;
+    }
+    for (Id e : m_ops.eventsOf(voice)) {
+        Id tuplet = m_ops.obj(e)->idOr(F::TUPLET);
+        while (tuplet.isValid() && m_ops.obj(tuplet) && m_ops.obj(tuplet)->idOr(F::TUPLET).isValid()) {
+            tuplet = m_ops.obj(tuplet)->idOr(F::TUPLET);   // the outermost
+        }
+        if (tuplet.isValid() && m_ops.timeOf(tuplet) < t && t < m_ops.endOf(tuplet)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+Commands::SlashPitch Commands::slashPitch(Id staff, const Fraction& t, bool concertPitch) const
+{
+    // Score::noteValForPosition on the staff's middle line (accidentals: the key's, or an earlier note's on that line
+    // in the measure, as MuseScore's AccidentalState gives them)
+    SlashPitch sp;
+    const Object* st = m_ops.obj(staff);
+    const Object* player = m_ops.obj(st->parent());
+    const std::string group = st->text(F::SUBKIND);
+    const StaffLines sl = staffLines(staff);
+    const std::string instrument = player ? player->text(F::DETAILS_2) : std::string();
+    if (group == "percussion") {   // pitch 0, as MuseScore enters it there
+        sp.pitch = 0;
+        sp.tpc = model::defaultTpc(0, 0);
+        return sp;
+    }
+    if (anyValue(instrument, "useDrumset") == "1") {
+        // a drum set on a five-line staff: the lowest drum on the middle line (Drumset::defaultPitchForLine); none
+        // there, no slash
+        const std::string middle = std::to_string(sl.lines - 1 - sl.stepOffset);
+        sp.ok = false;
+        int lowest = 128;
+        for (size_t at = instrument.find("<Drum pitch=\""); at != std::string::npos; at = instrument.find("<Drum pitch=\"", at + 1)) {
+            const size_t end = instrument.find("</Drum>", at);
+            const int pitch = std::atoi(instrument.c_str() + at + 13);   // after <Drum pitch="
+            if (anyValue(instrument.substr(at, end == std::string::npos ? std::string::npos : end - at), "line") == middle && pitch < lowest) {
+                lowest = pitch;
+            }
+        }
+        if (lowest < 128) {
+            sp.ok = true;
+            sp.pitch = lowest;
+            sp.tpc = model::defaultTpc(lowest, 0);
+        }
+        return sp;
+    }
+    const Operations::Transposition tr = m_ops.transpositionAt(staff, t);
+    const int64_t chrom = tr.chromatic, dia = tr.diatonic;
+    if (group == "tablature") {
+        const StringTuning tuning = StringTuning::of(*player);
+        if (tuning.empty()) {
+            sp.ok = false;
+            return sp;
+        }
+        int string = sl.lines / 2;
+        if (sl.upsideDown) {
+            string = int(tuning.strings.size()) - 1 - string;
+        }
+        if (string < 0 || string >= int(tuning.strings.size())) {
+            sp.ok = false;
+            return sp;
+        }
+        sp.pitch = tuning.pitchOf(string, 0, -int(chrom));
+        sp.tpc = model::defaultTpc(sp.pitch, m_ops.keyAt(staff, t));
+        sp.string = string;
+        sp.fret = 0;
+        return sp;
+    }
+    const int line = sl.lines - 1 - sl.stepOffset;
+    const int step = std::max(clefPitchOffset(clefAt(staff, t, concertPitch)) - line, 0);
+    const int letter = step % 7, octave = step / 7;
+    const bool transposing = !concertPitch && (chrom != 0 || dia != 0);
+    int64_t key = m_ops.keyAt(staff, t);
+    if (transposing) {
+        key -= 7 * chrom - 12 * dia;   // the written key
+        while (key > 7) {
+            key -= 12;
+        }
+        while (key < -7) {
+            key += 12;
+        }
+    }
+    int acc = model::keyAccidental(letter, key);
+    // a custom key signature: its own accidentals, on degrees from the key's tonic (MuseScore's CustDef)
+    if (const Id ks = m_ops.keySigAt(staff, t); ks.isValid() && detailValue(m_ops.obj(ks)->text(F::DETAILS), "custom") == "1") {
+        const std::string& d = m_ops.obj(ks)->text(F::DETAILS);
+        const int tonic = model::letterOfTpc(14 + key);
+        acc = 0;
+        static const std::map<std::string, int> syms { { "accidentalFlat", -1 }, { "accidentalSharp", 1 }, { "accidentalNatural", 0 },
+                                                       { "accidentalDoubleFlat", -2 }, { "accidentalDoubleSharp", 2 } };
+        for (size_t at = d.find("<sym>"); at != std::string::npos; at = d.find("<sym>", at + 1)) {
+            const size_t end = d.find("</sym>", at), def = d.find("degree=\"", at);
+            if (end == std::string::npos || def == std::string::npos) {
+                break;
+            }
+            const auto sym = syms.find(d.substr(at + 5, end - at - 5));
+            if (sym != syms.end() && (tonic + std::atoi(d.c_str() + def + 8)) % 7 == letter) {
+                acc = sym->second;
+            }
+        }
+    }
+    // an earlier note on this line in the measure
+    const Id measure = m_ops.measureAt(t);
+    const Fraction m0 = m_ops.measureStart(measure);
+    Fraction latest(-1, 1);
+    for (Id v : st->children()) {
+        if (m_ops.obj(v)->kind() != Kind::Voice) {
+            continue;
+        }
+        for (Id e : eventsIn(v, m0, t)) {
+            if (m_ops.obj(e)->kind() != Kind::Chord || m_ops.timeOf(e) < latest) {
+                continue;
+            }
+            for (Id n : notesOf(e)) {
+                const Object* no = m_ops.obj(n);
+                const int64_t tpc = transposing && no->has(F::TPC2) ? no->intOr(F::TPC2, 14)
+                                                                     : (transposing ? model::transposeTpc(no->intOr(F::TPC, 14), -dia, -chrom)
+                                                                                    : no->intOr(F::TPC, 14));
+                const int64_t written = no->intOr(F::PITCH, 60) - (transposing ? chrom : 0);
+                const int a = model::accidentalOfTpc(tpc), l = model::letterOfTpc(tpc);
+                static const int natural[7] = { 0, 2, 4, 5, 7, 9, 11 };
+                const int64_t oct = (written - a - natural[l]) / 12;
+                if (l == letter && oct == octave) {
+                    acc = a;
+                    latest = m_ops.timeOf(e);
+                }
+            }
+        }
+    }
+    static const int natural[7] = { 0, 2, 4, 5, 7, 9, 11 };
+    const int writtenPitch = natural[letter] + octave * 12 + acc;
+    const int64_t writtenTpc = model::tpcOf(letter, acc);
+    sp.pitch = std::clamp(writtenPitch + (transposing ? int(chrom) : 0), 0, 127);
+    sp.tpc = transposing ? model::transposeTpc(writtenTpc, dia, chrom) : writtenTpc;
+    return sp;
+}
+
+int Commands::slashFill(Transaction& tx, size_t first, size_t last, const Fraction& t0, const Fraction& t1, bool concertPitch)
+{
+    // Score::cmdSlashFill: a slash on every beat (a dotted beat in compound time) of the range, in the first voice of
+    // each measure that has only rests there (or none), voice 1 when every voice has music
+    const std::vector<Id> staves = allStaves();
+    int made = 0;
+    std::vector<std::pair<Id, Id> > slashes;   // staff, chord
+    for (size_t si = first; si < last && si < staves.size(); ++si) {
+        const Id staff = staves[si];
+        int voice = -1;
+        for (Id measure : m_ops.measures()) {
+            const Fraction ms = m_ops.measureStart(measure), me = m_ops.measureEnd(measure);
+            if (me <= t0 || ms >= t1) {
+                continue;
+            }
+            const Object* mo = m_ops.obj(measure);
+            const int64_t num = mo->intOr(F::TIMESIG_NUM, 4), den = mo->intOr(F::TIMESIG_DEN, 4);
+            const Fraction beat(den > 4 && num % 3 == 0 ? 3 : 1, int(den));
+            const Fraction end = std::min(me, t1);
+            if (const Id v0 = voiceNumbered(staff, 0); v0.isValid() && m_ops.stretchAt(v0, ms) != Fraction(1, 1)) {
+                continue;   // a staff with its own time signature there: not yet (its beats aren't the measure's)
+            }
+            for (Fraction b = ms; b < end; b += beat) {
+                if (b < t0) {
+                    continue;
+                }
+                if (voice < 0 || b == ms) {
+                    voice = -1;
+                    for (int v = 0; v < 4 && voice < 0; ++v) {
+                        if (eventAt(staff, v, b, Kind::Chord).isValid()) {
+                            continue;
+                        }
+                        const Id rest = eventAt(staff, v, b, Kind::Rest);
+                        if (rest.isValid() && m_ops.obj(rest)->has(F::MEASURE_REST)) {
+                            voice = v;
+                            break;
+                        }
+                        bool onlyRests = true;
+                        for (Id e : eventsIn(voiceNumbered(staff, v), b, me)) {
+                            onlyRests = onlyRests && !(m_ops.obj(e)->kind() == Kind::Chord && m_ops.timeOf(e) > b);
+                        }
+                        if (onlyRests) {
+                            voice = v;
+                        }
+                    }
+                    if (voice < 0) {
+                        voice = 0;
+                    }
+                }
+                const SlashPitch sp = slashPitch(staff, b, concertPitch);
+                if (!sp.ok || insideTuplet(voiceNumbered(staff, voice), b)) {
+                    continue;   // a beat inside a tuplet has no place for a slash (MuseScore finds no segment there)
+                }
+                const Id v = m_ops.voice(tx, staff, voice);
+                // a beat cut short by the barline (a pickup, an irregular measure) gets a shorter slash; MuseScore
+                // writes the whole beat, tied into the next measure, which shifts that measure's slashes
+                Fraction at = b;
+                for (const NoteValue& value : durationList(std::min(beat, me - b), 2)) {
+                    const Id chord = m_ops.enterChord(tx, v, at, value, { sp.pitch });
+                    at += value.length();
+                    if (!chord.isValid()) {
+                        continue;
+                    }
+                    for (Id n : notesOf(chord)) {
+                        m_ops.setPitch(tx, n, sp.pitch, sp.tpc);
+                        if (sp.string >= 0) {
+                            tx.set(n, F::STRING, int64_t(sp.string));
+                            tx.set(n, F::FRET, int64_t(sp.fret));
+                        }
+                    }
+                    setSlash(tx, chord, true, true);
+                    slashes.push_back({ staff, chord });
+                    ++made;
+                }
+            }
+        }
+    }
+    // linked staves (a tablature under its standard staff) show the slashes too, as MuseScore sets them on every
+    // linked chord: their copies are made now, then given the slash look of their own staff
+    bool linked = false;
+    for (const auto& [staff, chord] : slashes) {
+        linked = linked || !linkedStavesOf(staff).empty();
+    }
+    if (linked) {
+        const ChangeSet soFar = tx.changes();
+        syncLinkedStaves(tx, m_ops.m, m_ops.m_ids, &soFar);
+    }
+    for (const auto& [staff, chord] : slashes) {
+        if (!m_ops.obj(chord)) {
+            continue;
+        }
+        const int voice = int(m_ops.obj(m_ops.obj(chord)->parent())->intOr(F::NUMBER, 0));
+        for (Id other : linkedStavesOf(staff)) {
+            const Id copy = eventAt(other, voice, m_ops.timeOf(chord), Kind::Chord);
+            if (copy.isValid()) {
+                setSlash(tx, copy, true, true);
+            }
+        }
+    }
+    return made;
+}
+
+bool Commands::slashRhythm(Transaction& tx, const std::vector<Id>& events)
+{
+    // Score::cmdSlashRhythm: each chord's slash look toggled (stems kept); a rest in voice 3 or 4 becomes an accent
+    // rest (small) or back
+    bool changed = false;
+    std::set<Id> done;
+    for (Id e : events) {
+        const Object* o = m_ops.obj(e);
+        if (!o || !done.insert(e).second) {
+            continue;
+        }
+        const Id staff = staffOfEvent(e);
+        const int voice = int(m_ops.obj(o->parent())->intOr(F::NUMBER, 0));
+        std::vector<Id> all { e };
+        for (Id other : linkedStavesOf(staff)) {
+            const Id copy = eventAt(other, voice, m_ops.timeOf(e), o->kind());
+            if (copy.isValid() && done.insert(copy).second) {
+                all.push_back(copy);
+            }
+        }
+        if (o->kind() == Kind::Rest && voice >= 2) {
+            const bool accent = detailOf(e, "small") == "1";
+            for (Id x : all) {
+                setDetailValues(tx, x, { { "small", accent ? "" : "1" } });
+            }
+            changed = true;
+        } else if (o->kind() == Kind::Chord && !o->has(F::GRACE) && !notesOf(e).empty()) {
+            const bool slash = isSlash(e);
+            for (Id x : all) {
+                setSlash(tx, x, !slash, false);
+            }
+            changed = true;
+        }
+    }
+    return changed;
 }
 }

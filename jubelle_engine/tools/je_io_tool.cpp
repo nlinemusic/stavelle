@@ -42,6 +42,7 @@
 #include "io/mscxwriter.h"
 #include "io/scorefile.h"
 #include "model/invariants.h"
+#include "model/packing.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1081,7 +1082,7 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
         edit::Operations ops(m, ids);
         edit::Commands cmd(ops);
         const model::Snapshot before = m.snapshot();
-        const std::string listingBefore = io::musicListing(before);
+        const std::string listingBefore = io::musicListing(before, op == "slashfill" || op == "slashrhythm");
         const std::vector<Id> ms = ops.measures();
         std::string label = "refused";
         try {
@@ -1107,6 +1108,38 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
                     ok = op == "explode" ? cmd.explode(tx, size_t(a), size_t(b), from, to) >= 0
                                          : cmd.implode(tx, size_t(a), size_t(b), from, to);
                 }
+            } else if ((op == "slashfill" || op == "slashrhythm") && size_t(c) < ms.size() && size_t(d) < ms.size()) {
+                // staves a … b-1, measures c … d selected
+                const std::vector<Id> all = cmd.stavesInOrder();
+                if (a < b && size_t(b) <= all.size()) {
+                    label = "unchanged";
+                    const Fraction from = ops.measureStart(ms[size_t(c)]), to = ops.measureEnd(ms[size_t(d)]);
+                    if (op == "slashfill") {
+                        // as the score is shown: in concert pitch when its style says so
+                        bool concert = false;
+                        for (const auto& [name, value] : model::unpackPairs(m.find(m.score())->text(F::STYLE))) {
+                            concert = concert || (name == "concertPitch" && value == "1");
+                        }
+                        ok = cmd.slashFill(tx, size_t(a), size_t(b), from, to, concert) > 0;
+                    } else {
+                        // the selection's elements: its chords and rests (MuseScore selects their notes)
+                        std::vector<Id> events;
+                        for (size_t si = size_t(a); si < size_t(b); ++si) {
+                            for (Id v : m.find(all[si])->children()) {
+                                if (m.find(v)->kind() != model::Kind::Voice) {
+                                    continue;
+                                }
+                                for (Id e : ops.eventsOf(v)) {
+                                    const Fraction t = m.find(e)->fractionOr(F::TIME, Fraction());
+                                    if (from <= t && t < to && !m.find(e)->has(F::GRACE)) {
+                                        events.push_back(e);
+                                    }
+                                }
+                            }
+                        }
+                        ok = cmd.slashRhythm(tx, events);
+                    }
+                }
             }
             if (ok) {
                 tx.commit();
@@ -1115,7 +1148,8 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
             std::cout << "failed: " << rel << ": " << e.what() << "\n";
             return;
         }
-        const std::string listingAfter = io::musicListing(m.snapshot());
+        const bool appearance = op == "slashfill" || op == "slashrhythm";
+        const std::string listingAfter = io::musicListing(m.snapshot(), appearance);
         if (label != "refused" && listingAfter != listingBefore) {
             label = "changed";
         }

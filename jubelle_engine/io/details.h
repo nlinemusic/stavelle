@@ -8,6 +8,7 @@
  */
 #pragma once
 
+#include "model/detailskey.h"
 #include "model/packing.h"
 
 #include <string>
@@ -20,9 +21,8 @@
 namespace je::io {
 using FieldList = std::vector<std::pair<model::Field, model::Value> >;
 
-//! The fingerprint of an object's musical fields (structure, origin and details fields aside)
-int64_t detailsKey(const FieldList& fields);
-int64_t detailsKey(const model::Object& object);
+//! The fingerprint of an object's musical fields (structure, origin and details fields aside): model/detailskey.h
+using model::detailsKey;
 
 //! Child elements as a fragment (each written in MuseScore's layout), and back
 std::string fragment(const std::vector<const xml::Node*>& nodes);

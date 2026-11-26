@@ -54,6 +54,8 @@ add_library(je_core STATIC
     model/bulkbuilder.h
     model/invariants.cpp
     model/invariants.h
+    model/detailskey.cpp
+    model/detailskey.h
     edit/changeset.cpp
     edit/changeset.h
     edit/history.cpp

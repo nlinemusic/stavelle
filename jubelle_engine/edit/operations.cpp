@@ -232,6 +232,12 @@ Id Operations::voice(Transaction& tx, Id staff, int number)
 
 int64_t Operations::keyAt(Id staff, const Fraction& t) const
 {
+    const Id k = keySigAt(staff, t);
+    return k.isValid() ? obj(k)->intOr(F::INT_VALUE, 0) : 0;
+}
+
+Id Operations::keySigAt(Id staff, const Fraction& t) const
+{
     // back from t through the flow (in time order) to the nearest key signature for this staff or all staves
     const Object* score = obj(m.score());
     for (Id c : score->children()) {
@@ -257,11 +263,11 @@ int64_t Operations::keyAt(Id staff, const Fraction& t) const
                         it = found;
                     }
                 }
-                return obj(*it)->intOr(F::INT_VALUE, 0);
+                return *it;
             }
         }
     }
-    return 0;
+    return Id();
 }
 
 Fraction Operations::tupletFactor(Id tuplet) const
@@ -283,24 +289,56 @@ std::vector<std::pair<Field, Value> > Operations::noteFields(Id staff, const Fra
 {
     const int64_t tpc = model::defaultTpc(pitch, keyAt(staff, t));
     std::vector<std::pair<Field, Value> > f { { F::PITCH, int64_t(pitch) }, { F::TPC, tpc } };
-    if (const auto written = writtenTpc(staff, tpc)) {
+    if (const auto written = writtenTpc(staff, tpc, t)) {
         f.push_back({ F::TPC2, *written });
     }
     return f;
 }
 
-std::optional<int64_t> Operations::writtenTpc(Id staff, int64_t tpc) const
+std::optional<int64_t> Operations::writtenTpc(Id staff, int64_t tpc, const Fraction& t) const
 {
-    if (const Object* st = obj(staff); st && obj(st->parent()) && obj(st->parent())->kind() == Kind::Player) {
-        const Object* p = obj(st->parent());
-        const int64_t c = p->intOr(F::TRANSPOSE_CHROMATIC, 0);
-        const int64_t d = p->intOr(F::TRANSPOSE_DIATONIC, model::diatonicOf(c));
-        const int64_t written = model::transposeTpc(tpc, -d, -c);
-        if (written != tpc) {
-            return written;
-        }
+    const Transposition tr = transpositionAt(staff, t);
+    const int64_t written = model::transposeTpc(tpc, -tr.diatonic, -tr.chromatic);
+    if (written != tpc) {
+        return written;
     }
     return std::nullopt;
+}
+
+Operations::Transposition Operations::transpositionAt(Id staff, const Fraction& t) const
+{
+    // the instrument's, or that of the last instrument change before t on one of its staves (a saxophone player
+    // changing to flute)
+    Transposition tr;
+    const Object* st = obj(staff);
+    const Object* p = st ? obj(st->parent()) : nullptr;
+    if (!p || p->kind() != Kind::Player) {
+        return tr;
+    }
+    const Object* source = p;
+    for (Id c : obj(m.score())->children()) {
+        const Object* f = obj(c);
+        if (!f || f->kind() != Kind::Flow) {
+            continue;
+        }
+        for (Id it : f->children()) {
+            const Object* item = obj(it);
+            if (item->kind() != Kind::FlowItem || item->text(F::SUBKIND) != "instrumentChange" || !item->has(F::INSTRUMENT)) {
+                continue;
+            }
+            if (timeOf(it) > t) {
+                break;
+            }
+            const Object* anchor = obj(item->idOr(F::ANCHOR));
+            if (anchor && anchor->parent() == p->id()) {
+                source = item;
+            }
+        }
+    }
+    tr.chromatic = source->intOr(F::TRANSPOSE_CHROMATIC, 0);
+    // (an instrument change's steps follow from its semitones, as the writer gives them)
+    tr.diatonic = source->intOr(F::TRANSPOSE_DIATONIC, model::diatonicOf(tr.chromatic));
+    return tr;
 }
 
 // ---- building blocks ----------------------------------------------------------------------------------------

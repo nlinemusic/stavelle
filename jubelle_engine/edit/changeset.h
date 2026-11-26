@@ -79,6 +79,9 @@ public:
 
     bool isOpen() const { return m_open; }
 
+    //! The changes made so far (a command that brings linked staves in line before it finishes)
+    const ChangeSet& changes() const { return m_changes; }
+
     //! What the transaction changes, for reading the current state while building it
     const ChangeTarget& target() const { return m_target; }
 

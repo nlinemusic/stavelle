@@ -415,7 +415,7 @@ RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, con
                         nf.erase(std::remove_if(nf.begin(), nf.end(), [](const auto& p) { return p.first == F::TPC2; }), nf.end());
                         for (const auto& [k2, val] : cn.fields) {
                             if (k2 == F::TPC) {
-                                if (const auto w = ops.writtenTpc(target, std::get<int64_t>(val))) {
+                                if (const auto w = ops.writtenTpc(target, std::get<int64_t>(val), m.find(e)->fractionOr(F::TIME, Fraction()))) {
                                     nf.push_back({ F::TPC2, *w });
                                 }
                             }
@@ -488,7 +488,7 @@ RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, con
                                 for (const auto& [k2, val] : ce.notes[idx].fields) {
                                     if (k2 == F::TPC) {
                                         tx.set(n, k2, val);
-                                        const auto w = ops.writtenTpc(target, std::get<int64_t>(val));
+                                        const auto w = ops.writtenTpc(target, std::get<int64_t>(val), m.find(e)->fractionOr(F::TIME, Fraction()));
                                         tx.set(n, F::TPC2, w ? Value(*w) : Value());
                                     }
                                 }

@@ -37,6 +37,8 @@ def main(argv):
     todo, crashed = list(scores), []
     env = dict(os.environ, JUBELLE_REFERENCE_ROOT=repo,
                JUBELLE_REFERENCE_LIST=os.path.join(work, "todo.txt"), JUBELLE_REFERENCE_OUT=theirs)
+    if op.startswith("slash"):
+        env["JUBELLE_REFERENCE_SLASH"] = "1"   # slashes and accent rests marked in both listings
     env[variable] = spec
     while todo:
         with open(env["JUBELLE_REFERENCE_LIST"], "w", encoding="utf-8") as f:

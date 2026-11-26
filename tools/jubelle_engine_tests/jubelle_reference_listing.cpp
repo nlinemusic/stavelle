@@ -72,6 +72,10 @@ void line(std::ostringstream& out, size_t staff, int voice, ChordRest* cr, bool 
         for (int p : pitches) {
             out << ' ' << p;
         }
+        // JUBELLE_REFERENCE_SLASH=1: slashes marked (Chord::slash), as the engine's listing marks them
+        if (std::getenv("JUBELLE_REFERENCE_SLASH") && !toChord(cr)->notes().empty() && toChord(cr)->slash()) {
+            out << " /";
+        }
         // JUBELLE_REFERENCE_DETAIL=1: what playback depends on too (for comparing two files read by MuseScore)
         if (std::getenv("JUBELLE_REFERENCE_DETAIL")) {
             Chord* c = toChord(cr);
@@ -88,6 +92,9 @@ void line(std::ostringstream& out, size_t staff, int voice, ChordRest* cr, bool 
             }
             out << " nt:" << int(c->noteType());
         }
+    }
+    if (std::getenv("JUBELLE_REFERENCE_SLASH") && cr->isRest() && toRest(cr)->accent()) {
+        out << " acc";   // Rest::accent
     }
     out << '\n';
 }
@@ -319,13 +326,20 @@ TEST(Jubelle_Reference, MusicListing)
             }
             const char* explode = std::getenv("JUBELLE_REFERENCE_EXPLODE");
             const char* implode = std::getenv("JUBELLE_REFERENCE_IMPLODE");
-            if (explode || implode) {
+            const char* slashFill = std::getenv("JUBELLE_REFERENCE_SLASHFILL");
+            const char* slashRhythm = std::getenv("JUBELLE_REFERENCE_SLASHRHYTHM");
+            if (explode || implode || slashFill || slashRhythm) {
                 // "<first staff> <last staff (exclusive)> <first measure> <last measure>": that range selected, then
-                // Score::cmdExplode / cmdImplode
+                // Score::cmdExplode / cmdImplode / cmdSlashFill / cmdSlashRhythm
+                if (slashFill || slashRhythm) {
+                    // measures as they are: a selection ending in a multimeasure rest would take in the whole rest
+                    // (the selection is the interface's matter, not the command's)
+                    s->style().set(Sid::createMultiMeasureRests, false);
+                }
                 s->setLayoutAll();
                 s->doLayout();
                 const std::string before = listing(s);
-                std::istringstream spec(explode ? explode : implode);
+                std::istringstream spec(explode ? explode : (implode ? implode : (slashFill ? slashFill : slashRhythm)));
                 int s0 = 0, s1 = 1, m0 = 0, m1 = 0;
                 spec >> s0 >> s1 >> m0 >> m1;
                 auto measureAt = [s](int index) {
@@ -344,8 +358,12 @@ TEST(Jubelle_Reference, MusicListing)
                     s->select(mb, SelectType::RANGE, size_t(s1 - 1));
                     if (explode) {
                         s->cmdExplode();
-                    } else {
+                    } else if (implode) {
                         s->cmdImplode();
+                    } else if (slashFill) {
+                        s->cmdSlashFill();
+                    } else {
+                        s->cmdSlashRhythm();
                     }
                     s->endCmd();
                 }

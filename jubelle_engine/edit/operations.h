@@ -59,13 +59,21 @@ public:
     Id voice(Transaction& tx, Id staff, int number);
     Id staffOf(Id voice) const;
     int64_t keyAt(Id staff, const Fraction& t) const;
+    //! The key signature in force there (none: C major)
+    Id keySigAt(Id staff, const Fraction& t) const;
     //! The stretch of a staff's local time signature in the measure at t (1 when there is none)
     Fraction stretchAt(Id voice, const Fraction& t) const;
 
     //! A new note's fields on a staff: pitch, spelling for the key, written spelling on a transposing instrument
     std::vector<std::pair<Field, Value> > noteFields(Id staff, const Fraction& t, int pitch) const;
     //! The written spelling on this staff's instrument for a concert spelling (none if it doesn't transpose)
-    std::optional<int64_t> writtenTpc(Id staff, int64_t tpc) const;
+    std::optional<int64_t> writtenTpc(Id staff, int64_t tpc, const Fraction& t) const;
+    //! The transposition of the instrument the staff is played on at t (written → sounding), instrument changes
+    //! included
+    struct Transposition {
+        int64_t diatonic = 0, chromatic = 0;
+    };
+    Transposition transpositionAt(Id staff, const Fraction& t) const;
 
     // ---- note entry ----
     //! Enters a chord with these pitches (sounding) at t; returns the first chord made (later ones are tied to it)

@@ -10,6 +10,7 @@
 
 #include "edit/commands.h"
 #include "edit/history.h"
+#include "edit/links.h"
 #include "edit/operations.h"
 #include "edit/scorebuilder.h"
 #include "io/mscxreader.h"
@@ -897,4 +898,147 @@ TEST(Commands, ImplodingJoinsVoicesAndStaves)
         d.consistent();
         d.roundTrip();
     }
+}
+
+namespace {
+//! The listing with slashes and accent rests marked, after saving and reopening
+std::string reopenedWithSlashes(const model::Model& m)
+{
+    const auto path = std::filesystem::temp_directory_path() / "je_commands_slashes.mscz";
+    std::string error;
+    EXPECT_TRUE(io::saveScore(m.snapshot(), path.string(), error)) << error;
+    model::Model back;
+    IdGenerator backIds { 1 };
+    EXPECT_TRUE(io::openScore(path.string(), back, backIds, error)) << error;
+    std::filesystem::remove(path);
+    return io::musicListing(back.snapshot(), true);
+}
+}
+
+TEST(Commands, SlashFillPutsSlashesOnEveryBeatInAFreeVoice)
+{
+    // MuseScore's cmdSlashFill: on the middle line (B in the treble clef), stemless and not played; in the first
+    // measure voice 1 has music, so the slashes go to voice 2; in the second, voice 1 holds only a measure rest
+    Doc d;
+    d.chord(d.flute.voice, 0, { 72 }, 2);
+    int made = 0;
+    d.edit("Fill with slashes", [&](Transaction& tx) { made = d.cmd.slashFill(tx, 0, 1, Fraction(0, 1), Fraction(2, 1), false); });
+    EXPECT_EQ(made, 8);
+    const std::string expected = "0 0 0/1 1/2 72\n0 0 1/2 1/2\n0 0 1/1 1/4 71 /\n0 0 5/4 1/4 71 /\n0 0 3/2 1/4 71 /\n"
+                                 "0 0 7/4 1/4 71 /\n0 1 0/1 1/4 71 /\n0 1 1/4 1/4 71 /\n0 1 1/2 1/4 71 /\n0 1 3/4 1/4 71 /\n";
+    const std::string listing = io::musicListing(d.model.snapshot(), true);
+    EXPECT_EQ(listing.substr(0, expected.size()), expected);
+    const Id slash = d.ops.eventsOf(d.flute.voice)[2];
+    const std::string& noteDetails = d.o(d.notes(slash)[0])->text(F::DETAILS_AFTER);   // after the pitch, as MuseScore writes them
+    EXPECT_NE(noteDetails.find("<head>slash</head>"), std::string::npos);
+    EXPECT_NE(noteDetails.find("<play>0</play>"), std::string::npos);
+    EXPECT_NE(noteDetails.find("<fixedLine>4</fixedLine>"), std::string::npos);
+    EXPECT_NE(d.o(slash)->text(F::DETAILS).find("<noStem>1</noStem>"), std::string::npos);
+    EXPECT_TRUE(d.cmd.isSlash(slash));
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+    EXPECT_EQ(reopenedWithSlashes(d.model), listing);
+}
+
+TEST(Commands, SlashFillOnATransposingInstrumentIsWrittenOnTheMiddleLine)
+{
+    // horn in F: the written B on the middle line sounds a fifth lower (E)
+    Doc d(1);
+    d.edit("Fill with slashes", [&](Transaction& tx) { d.cmd.slashFill(tx, 1, 2, Fraction(0, 1), Fraction(1, 1), false); });
+    const Id slash = d.ops.eventsOf(d.horn.voice)[0];
+    EXPECT_EQ(d.pitch(d.notes(slash)[0]), 64);
+    EXPECT_EQ(d.tpc2(d.notes(slash)[0]), 19);   // B written
+    EXPECT_EQ(d.tpc(d.notes(slash)[0]), 18);    // E sounding
+    d.consistent();
+}
+
+TEST(Commands, SlashRhythmTogglesSlashesAndAccentRests)
+{
+    Doc d(1);
+    const Id c = d.chord(d.flute.voice, 0, { 60, 64 });
+    d.edit("Toggle rhythmic slash notation", [&](Transaction& tx) { EXPECT_TRUE(d.cmd.slashRhythm(tx, { c })); });
+    EXPECT_TRUE(d.cmd.isSlash(c));
+    // stems kept; the upper note hidden; neither played
+    EXPECT_EQ(d.o(c)->text(F::DETAILS).find("<noStem>"), std::string::npos);
+    const std::vector<Id> n = d.notes(c);
+    EXPECT_NE(d.o(n[1])->text(F::DETAILS).find("<visible>0</visible>"), std::string::npos);
+    EXPECT_NE(d.o(n[0])->text(F::DETAILS_AFTER).find("<play>0</play>"), std::string::npos);
+    d.undoRedo();
+    d.edit("Toggle rhythmic slash notation", [&](Transaction& tx) { d.cmd.slashRhythm(tx, { c }); });
+    EXPECT_FALSE(d.cmd.isSlash(c));
+    EXPECT_TRUE(d.o(n[0])->text(F::DETAILS).empty() && d.o(n[0])->text(F::DETAILS_AFTER).empty());
+    // a rest in voice 3 becomes an accent rest
+    Id rest;
+    d.edit("Voice 3", [&](Transaction& tx) {
+        const Id v3 = d.ops.voice(tx, d.flute.staff, 2);
+        rest = d.ops.enterRest(tx, v3, Fraction(0, 1), { Fraction(1, 4), 0 });
+    });
+    d.edit("Toggle rhythmic slash notation", [&](Transaction& tx) { d.cmd.slashRhythm(tx, { rest }); });
+    EXPECT_NE(io::musicListing(d.model.snapshot(), true).find("0 2 0/1 1/4 acc"), std::string::npos);
+    d.consistent();
+    d.roundTrip();
+    EXPECT_EQ(reopenedWithSlashes(d.model), io::musicListing(d.model.snapshot(), true));
+}
+
+TEST(Commands, AnInstrumentChangeGivesItsTranspositionToNotesAfterIt)
+{
+    // the flute player changes to a B♭ clarinet in bar 2: notes there are written a tone higher, slashes too
+    Doc d;
+    d.edit("Instrument change", [&](Transaction& tx) {
+        Id flow;
+        for (Id c : d.model.find(d.model.score())->children()) {
+            if (d.model.find(c)->kind() == Kind::Flow) {
+                flow = c;
+            }
+        }
+        create(tx, d.ids, flow, { Kind::FlowItem, { { F::SUBKIND, model::Text("instrumentChange") }, { F::ANCHOR, d.flute.staff },
+                                                   { F::TIME, Fraction(1, 1) }, { F::INSTRUMENT, model::Text("bb-clarinet") },
+                                                   { F::TRANSPOSE_CHROMATIC, int64_t(-2) } } },
+               Placement::ByTime);
+    });
+    const Id before = d.chord(d.flute.voice, 0, { 60 });
+    const Id after = d.chord(d.flute.voice, 4, { 60 });
+    EXPECT_EQ(d.tpc2(d.notes(before)[0]), 14);   // C
+    EXPECT_EQ(d.tpc2(d.notes(after)[0]), 16);    // D written
+    d.edit("Fill with slashes", [&](Transaction& tx) { d.cmd.slashFill(tx, 0, 1, Fraction(5, 4), Fraction(2, 1), false); });
+    const std::vector<Id> events = d.ops.eventsOf(d.flute.voice);
+    const Id slash = events[events.size() - 3];
+    EXPECT_EQ(d.pitch(d.notes(slash)[0]), 69);   // the written B on the middle line sounds A
+    d.consistent();
+}
+
+TEST(Commands, SlashFillShowsTheSlashesOnALinkedStaffToo)
+{
+    // a staff linked to the filled one (a tablature under its standard staff) gets the same slashes, once (MuseScore,
+    // filling both, puts a second set in another voice)
+    Doc d(1);
+    d.edit("Link", [&](Transaction& tx) { tx.set(d.horn.staff, F::LINKED_STAFF, d.flute.staff); });
+    d.edit("Fill with slashes", [&](Transaction& tx) { EXPECT_EQ(d.cmd.slashFill(tx, 0, 1, Fraction(0, 1), Fraction(1, 1), false), 4); });
+    const std::vector<Id> copies = d.ops.eventsOf(d.horn.voice);
+    ASSERT_EQ(copies.size(), 4u);
+    for (Id c : copies) {
+        EXPECT_TRUE(d.cmd.isSlash(c));
+    }
+    EXPECT_TRUE(linkedStaffDifferences(d.model).empty());
+    d.consistent();
+}
+
+TEST(Commands, ASplitChordKeepsGraceNotesBeforeItsFirstPieceAndAfterItsLast)
+{
+    // 3/4 from bar 1: the half note on beat 3 is split at the new barline; its acciaccatura stays before the first
+    // piece, its after-grace (tied from it) comes after the last piece, and the tie runs on from there
+    Doc d;
+    const Id c = d.chord(d.flute.voice, 2, { 67 }, 2);
+    d.edit("Acciaccatura", [&](Transaction& tx) { d.cmd.addGraceNote(tx, d.notes(c)[0], "acciaccatura", Fraction(1, 8)); });
+    d.edit("After", [&](Transaction& tx) {
+        const Id g = d.cmd.addGraceNote(tx, d.notes(c)[0], "grace16after", Fraction(1, 16));
+        tx.set(d.notes(c)[0], F::TIE_TO, d.notes(g)[0]);
+    });
+    d.edit("Time signature", [&](Transaction& tx) { EXPECT_TRUE(d.cmd.changeTimeSignature(tx, 0, 3, 4)); });
+    const std::string v = d.voice(d.flute.voice);
+    EXPECT_NE(v.find("1/2 1/8 g 67\n1/2 1/4 67~\n3/4 1/4 67~\n3/4 1/16 g 67\n"), std::string::npos) << v;
+    d.consistent();
+    d.undoRedo();
+    d.roundTrip();
 }
