@@ -1063,8 +1063,11 @@ TEST(Commands, AppearanceDetailsStayWhenTheMusicMovesInTime)
     const auto path = std::filesystem::temp_directory_path() / "je_details_in_time.mscx";
     std::string error;
     ASSERT_TRUE(io::saveScore(d.model.snapshot(), path.string(), error)) << error;
-    std::ifstream in(path);
-    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string text;
+    {
+        std::ifstream in(path);   // closed before the file is removed (Windows)
+        text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
     EXPECT_NE(text.find("<StemDirection>up</StemDirection>"), std::string::npos);
     std::filesystem::remove(path);
 }
@@ -1095,8 +1098,11 @@ TEST(Commands, ChordSymbolsKeepTheirBassAndLookWhenTransposed)
     const auto path = std::filesystem::temp_directory_path() / "je_chord_symbol.mscx";
     std::string error;
     ASSERT_TRUE(io::saveScore(d.model.snapshot(), path.string(), error)) << error;
-    std::ifstream in(path);
-    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    std::string text;
+    {
+        std::ifstream in(path);   // closed before the file is removed (Windows)
+        text.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
     EXPECT_NE(text.find("<offset x=\"0\" y=\"-3\"/>"), std::string::npos);
     EXPECT_NE(text.find("<harmonyInfo>"), std::string::npos);
     model::Model back;
