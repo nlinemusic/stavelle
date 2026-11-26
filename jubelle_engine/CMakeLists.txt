@@ -136,6 +136,10 @@ add_library(je_layout STATIC
     style/font.cpp
     style/font.h
     style/symbols.cpp
+    layout/context.cpp
+    layout/context.h
+    layout/notes.cpp
+    layout/notes.h
 )
 target_include_directories(je_layout PUBLIC ${JE_ROOT})
 target_compile_definitions(je_layout PRIVATE JE_FONTS_DIR="${JE_REPO}/fonts")
@@ -169,6 +173,7 @@ add_executable(je_tests
     tests/edit_links_tests.cpp
     tests/edit_session_tests.cpp
     tests/style_tests.cpp
+    tests/layout_notes_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core je_io je_layout gtest)

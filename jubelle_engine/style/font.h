@@ -41,6 +41,35 @@ struct ComposedGlyph {
     std::vector<SymId> parts;
 };
 extern const ComposedGlyph COMPOSED_GLYPHS[7];
+//! MuseScore's notehead groups: the name in files, and the symbol by head type (whole, half, quarter, breve) for a
+//! stem down and up (Note::noteHead)
+struct NoteheadGroup {
+    const char* name;
+    std::array<std::array<SymId, 2>, 4> heads;
+};
+extern const NoteheadGroup NOTEHEAD_GROUPS[];   // ends with a null name
+//! MuseScore's accidental types (AccidentalType, in its order): alteration in semitones, cents, symbol
+struct AccidentalDef {
+    int alteration;
+    double cents;
+    SymId sym;
+};
+extern const AccidentalDef ACCIDENTALS[];
+extern const int ACCIDENTAL_COUNT;
+//! MuseScore's accidentals by alteration (key.cpp's accTable), for custom key signatures
+extern const SymId ACCIDENTAL_ORDER[];
+extern const int ACCIDENTAL_ORDER_COUNT;
+//! MuseScore's clefs (ClefInfo): the name in files, the line it sits on, the step of the top staff line (pitch
+//! offset), the lines of a key signature's sharps and flats, the symbol and the staff group
+struct ClefDef {
+    const char* name;
+    int line;
+    int pitchOffset;
+    std::array<signed char, 14> keyLines;
+    SymId sym;
+    const char* group;
+};
+extern const ClefDef CLEFS[];   // ends with a null name
 
 enum class SmuflAnchor : uint8_t { stemDownNW, stemUpSE, stemDownSW, stemUpNW, cutOutNE, cutOutNW, cutOutSE, cutOutSW, opticalCenter, COUNT };
 

@@ -229,6 +229,13 @@ jobs:
             "$PWD/v4_scores.txt" "$RUNNER_TEMP/styles" > je_style_reference.txt || rc=1
           { echo; echo '```'; tail -20 je_style_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         fi
+        # every chord's notes as shaped (lines, noteheads, accidentals) against MuseScore's layout (S7)
+        if [ -f tools/jubelle_checks/je_layout_reference.py ]; then
+          echo "chord shaping against MuseScore's layout ($(date +%T))"
+          timeout 1800 python3 tools/jubelle_checks/je_layout_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+            "$PWD/v4_scores.txt" "$RUNNER_TEMP/layout" > je_layout_reference.txt || rc=1
+          { echo; echo '```'; grep -v '^ ' je_layout_reference.txt | tail -20; grep 'UNEXPLAINED' je_layout_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        fi
         exit $rc
     - name: Upload the comparison
       if: always()

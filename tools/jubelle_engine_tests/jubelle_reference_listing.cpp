@@ -41,6 +41,7 @@
 #include "engraving/style/defaultstyle.h"
 #include "engraving/style/style.h"
 #include "engraving/style/textstyle.h"
+#include "engraving/types/typesconv.h"
 #include "engraving/rw/compat/compatutils.h"
 #include "engraving/rw/xmlwriter.h"
 #include "engraving/infrastructure/rtti.h"
@@ -1470,6 +1471,17 @@ TEST(Jubelle_Reference, StyleDefaults)
         if (sym != Sid::NOSTYLE && size != Sid::NOSTYLE) {
             o << MStyle::valueName(sym) << "\t" << MStyle::valueName(size) << "\t" << (t == TextStyleType::TEMPO ? 1 : 0) << "\n";
         }
+    }
+    // the notehead table (Note::noteHead): group (as written in files), type, down and up
+    o << "#noteheads\n";
+    for (int g = 0; g < int(NoteHeadGroup::HEAD_GROUPS) - 1; ++g) {
+        o << TConv::toXml(NoteHeadGroup(g)).ascii();
+        for (int t = 0; t < int(NoteHeadType::HEAD_TYPES); ++t) {
+            for (int d = 0; d < 2; ++d) {
+                o << "\t" << SymNames::nameForSymId(Note::noteHead(d, NoteHeadGroup(g), NoteHeadType(t))).ascii();
+            }
+        }
+        o << "\n";
     }
     // the header, footer, copyright and page number text styles, entry by entry (CompatUtils::mapHeaderFooterStyles)
     o << "#headerfooter\n";

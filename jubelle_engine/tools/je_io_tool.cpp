@@ -51,6 +51,8 @@
 #include "edit/journal.h"
 #include "edit/session.h"
 #include "style/style.h"
+#include "layout/context.h"
+#include "layout/notes.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1724,6 +1726,48 @@ int stylelist(const std::string& root, const std::string& list, const std::strin
     return 0;
 }
 
+//! Each listed score's chords as the engine shapes them so far (S7: lines, noteheads, accidentals), in the form of
+//! the reference tool's chord layout listing (je_layout_reference.py compares them)
+int chordshapes(const std::string& root, const std::string& list, const std::string& out)
+{
+    std::ifstream in(list);
+    int done = 0;
+    for (std::string rel; std::getline(in, rel);) {
+        if (rel.empty()) {
+            continue;
+        }
+        model::Model m;
+        IdGenerator ids(1);
+        std::string error;
+        const fs::path target = fs::path(out) / (rel + ".chords");
+        fs::create_directories(target.parent_path());
+        std::ofstream o(target);
+        if (!io::openScore(root + "/" + rel, m, ids, error)) {
+            o << "NOT READ\n";
+            continue;
+        }
+        const model::Snapshot snap = m.snapshot();
+        const layout::ScoreContext ctx(snap);
+        for (const layout::ChordLayout& c : layout::layoutNotes(ctx)) {
+            // Fraction::ticks: rounded to the nearest tick
+            const int64_t n = c.tick.numerator(), d = c.tick.denominator();
+            o << c.kind << " " << c.staff << " " << c.voice << " " << (n * 1920 + d / 2) / d
+              << (c.standard && c.shown ? "" : " nonstandard");
+            for (const layout::NoteLayout& n : c.notes) {
+                o << " | " << n.line << " " << style::SYMBOL_CODES[int(n.headUp)].name << "/" << style::SYMBOL_CODES[int(n.headDown)].name
+                  << (n.headKnown ? "" : "?");
+                if (n.accidental != style::SymId::noSym) {
+                    o << " acc=" << style::SYMBOL_CODES[int(n.accidental)].name;
+                }
+            }
+            o << "\n";
+        }
+        ++done;
+    }
+    std::cerr << "chordshapes: " << done << " scores\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1825,6 +1869,9 @@ int main(int argc, char** argv)
     }
     if (a.size() >= 4 && a[0] == "journal" && a[2] == "--work") {   // crash recovery on every score
         return journalcheck(a[1], a[3], std::find(a.begin(), a.end(), "--json") != a.end());
+    }
+    if (a.size() == 4 && a[0] == "chordshapes") {   // each listed score's chords as shaped (root, list, output folder)
+        return chordshapes(a[1], a[2], a[3]);
     }
     if (a.size() == 4 && a[0] == "stylelist") {   // each listed score's style (root, list, output folder)
         return stylelist(a[1], a[2], a[3]);
