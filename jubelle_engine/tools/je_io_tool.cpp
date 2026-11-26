@@ -980,6 +980,96 @@ int cmdedit(const std::string& folder, const std::string& outDir)
     return 0;
 }
 
+//! Every 4.x score under `folder` read into a model (sorted by path); `fn(rel, path, model, ids)`
+template<typename Fn>
+void forEachScore(const std::string& folder, Fn&& fn)
+{
+    std::vector<fs::path> files;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+         it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (!ec && it->is_regular_file() && isScore(it->path())) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    for (const fs::path& p : files) {
+        const std::string rel = fs::relative(p, folder).generic_string();
+        std::string bytes, error;
+        io::zip::readFile(p.string(), bytes);
+        io::ScoreFile file;
+        if (!io::loadBytes(bytes, p.extension() == ".mscx", file, error) || !file.isVersion4()) {
+            continue;
+        }
+        model::Model m;
+        IdGenerator ids(1);
+        io::ReadReport r;
+        if (!io::readScore(file, m, ids, r, error)) {
+            continue;
+        }
+        fn(rel, p, m, ids);
+    }
+}
+
+//! Every corpus score given a time signature by the engine (changeTimeSignature: measure index, num, den), with the
+//! edited model's listing next to each saved file (<name>.mscz.je.txt, headed "# timesig changed|refused"), for
+//! comparing with MuseScore's own command (the reference listing with JUBELLE_REFERENCE_TIMESIG set the same)
+int tsedit(const std::string& folder, const std::string& outDir, int index, int num, int den)
+{
+    int changed = 0, refused = 0;
+    forEachScore(folder, [&](const std::string& rel, const fs::path& p, model::Model& m, IdGenerator& ids) {
+        edit::Operations ops(m, ids);
+        edit::Commands cmd(ops);
+        const model::Snapshot before = m.snapshot();
+        bool ok = false;
+        try {
+            edit::Transaction tx(m, "Time signature", { edit::linkedStavesHook(m, ids) });
+            const auto start = std::chrono::steady_clock::now();
+            ok = cmd.changeTimeSignature(tx, size_t(index), num, den);
+            if (ok) {
+                tx.commit();
+            }
+            if (std::getenv("JE_TSEDIT_TIME")) {
+                std::cout << "time: " << rel << " " << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count() << " ms\n";
+            }
+        } catch (const std::exception& e) {
+            std::cout << "failed: " << rel << ": " << e.what() << "\n";
+            return;
+        }
+        std::vector<std::string> problems;
+        {
+            std::multiset<std::string> had;
+            auto strip = [](std::string x) { return x.substr(x.find(':') == std::string::npos ? 0 : x.find(':')); };
+            for (const std::string& pr : model::checkInvariants(before, 1000)) {
+                had.insert(strip(pr));
+            }
+            for (const std::string& pr : model::checkInvariants(m.snapshot(), 1000)) {
+                auto it = had.find(strip(pr));
+                if (it != had.end()) {
+                    had.erase(it);
+                } else if (problems.size() < 20) {
+                    problems.push_back(pr);
+                }
+            }
+        }
+        const fs::path out = fs::path(outDir) / (rel.substr(0, rel.size() - p.extension().string().size()) + ".mscz");
+        fs::create_directories(out.parent_path());
+        std::string error;
+        if (!io::saveScore(m.snapshot(), out.string(), error)) {
+            std::cout << "not saved: " << rel << ": " << error << "\n";
+            return;
+        }
+        std::ofstream(out.string() + ".je.txt") << "# timesig " << (ok ? "changed" : "refused") << "\n" << io::musicListing(m.snapshot());
+        (ok ? changed : refused)++;
+        std::cout << (ok ? "changed: " : "refused: ") << rel << (problems.empty() ? "" : " PROBLEMS") << "\n";
+        for (const std::string& pr : problems) {
+            std::cout << "  " << pr << "\n";
+        }
+    });
+    std::cout << changed << " scores changed, " << refused << " refused\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1030,6 +1120,9 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
+    }
+    if (a.size() == 7 && a[0] == "tsedit" && a[2] == "--out") {
+        return tsedit(a[1], a[3], std::atoi(a[4].c_str()), std::atoi(a[5].c_str()), std::atoi(a[6].c_str()));
     }
     if (a.size() == 4 && a[0] == "cmdedit" && a[2] == "--out") {
         return cmdedit(a[1], a[3]);

@@ -37,6 +37,10 @@ struct NoteValue {
 //! undotted and on their own beat; notes may be dotted
 std::vector<NoteValue> valuesFor(const Fraction& position, const Fraction& length, bool forRest);
 
+//! MuseScore's toDurationList: the longest values first (each no longer than the one before), with up to `maxDots`
+//! dots, that add up to `length` (as a rewritten measure splits its notes and rests)
+std::vector<NoteValue> durationList(const Fraction& length, int maxDots);
+
 class Operations
 {
 public:

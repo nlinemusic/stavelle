@@ -10,10 +10,15 @@
  *
  *   JUBELLE_REFERENCE_ROOT=<repository> JUBELLE_REFERENCE_LIST=<file of relative paths>
  *   JUBELLE_REFERENCE_OUT=<folder> jubelle_engine_tests --gtest_filter=Jubelle_Reference.*
+ *
+ * JUBELLE_REFERENCE_TIMESIG="<measure index> <num> <den>": before listing, MuseScore's own command adds that time
+ * signature (Score::cmdAddTimeSig, as dropping it from the palette), for comparing the Jubelle engine's
+ * changeTimeSignature (`je_io_tool tsedit`); the listing starts with "# timesig changed" or "# timesig refused".
  */
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -37,6 +42,9 @@
 #include "engraving/dom/staff.h"
 #include "engraving/dom/linkedobjects.h"
 #include "engraving/infrastructure/localfileinfoprovider.h"
+#include "engraving/dom/factory.h"
+#include "engraving/dom/measure.h"
+#include "engraving/dom/timesig.h"
 
 using namespace mu::engraving;
 
@@ -257,7 +265,55 @@ TEST(Jubelle_Reference, MusicListing)
             std::ofstream(out) << "NOT READ\n";
             ++failed;
         } else {
-            std::ofstream(out) << listing(s);
+            std::string head;
+            if (const char* ts = std::getenv("JUBELLE_REFERENCE_TIMESIG")) {
+                std::istringstream spec(ts);
+                int index = 0, num = 4, den = 4;
+                spec >> index >> num >> den;
+                Measure* m = s->firstMeasure();
+                for (int i = 0; m && i < index; ++i) {
+                    m = m->nextMeasure();
+                }
+                bool changed = false;
+                if (m) {
+                    // laid out first, as a score in the app always is (the measures' end barline segments come
+                    // from the layout, and the rewrite reads up to them)
+                    s->setLayoutAll();
+                    s->doLayout();
+                    // in the app every measure ends with its end barline segment (made by the layout, which here, without
+                    // a page view, doesn't add them); the rewrite reads up to it, so it is made here too
+                    for (Measure* mm = s->firstMeasure(); mm; mm = mm->nextMeasure()) {
+                        mm->getSegmentR(SegmentType::EndBarLine, mm->ticks());
+                    }
+                    if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                        for (Measure* mm = s->firstMeasure(); mm; mm = mm->nextMeasure()) {
+                            std::cout << "measure " << frac(mm->tick()) << " +" << frac(mm->ticks()) << ":";
+                            for (Segment* sg = mm->first(); sg; sg = sg->next()) {
+                                std::cout << " " << sg->subTypeName() << "@" << frac(sg->tick());
+                            }
+                            std::cout << "\n";
+                        }
+                    }
+                    const std::string before = listing(s);
+                    TimeSig* sig = Factory::createTimeSig(s->dummy()->segment());
+                    sig->setSig(Fraction(num, den), TimeSigType::NORMAL);
+                    const auto started = std::chrono::steady_clock::now();
+                    s->startCmd(TranslatableString::untranslatable("time signature"));
+                    s->cmdAddTimeSig(m, 0, sig, false);
+                    s->endCmd();
+                    if (std::getenv("JUBELLE_REFERENCE_TIME")) {
+                        std::cout << "time: " << rel << " "
+                                  << std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started).count() << " ms\n";
+                    }
+                    Measure* after = s->firstMeasure();   // the measures may be new ones now
+                    for (int i = 0; after && i < index; ++i) {
+                        after = after->nextMeasure();
+                    }
+                    changed = listing(s) != before || (after && after->timesig().identical(Fraction(num, den)));
+                }
+                head = std::string("# timesig ") + (changed ? "changed" : "refused") + "\n";
+            }
+            std::ofstream(out) << head << listing(s);
             ++done;
         }
         delete s;

@@ -8,6 +8,8 @@
  */
 #pragma once
 
+#include "model/packing.h"
+
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,8 +29,8 @@ std::string fragment(const std::vector<const xml::Node*>& nodes);
 std::vector<xml::Node> parseFragment(const std::string& fragment);
 
 //! (name, value) pairs in one text (separated by control characters, which XML text never holds)
-std::string packPairs(const std::vector<std::pair<std::string, std::string> >& pairs);
-std::vector<std::pair<std::string, std::string> > unpackPairs(const std::string& packed);
+using model::packPairs;     // model/packing.h
+using model::unpackPairs;
 
 //! The file head Jubelle writes for a score that has none of its own (the program version), as a fragment
 std::string defaultScoreHead();

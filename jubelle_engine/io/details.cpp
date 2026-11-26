@@ -16,7 +16,7 @@ bool excluded(model::Field f)
 {
     static const std::set<model::Field> skip { F::KIND, F::CHILDREN, F::PARENT, F::ORIGIN_EID, F::DETAILS, F::DETAILS_KEY,
                                                 F::DETAILS_2, F::DETAILS_AFTER, F::TIE_EID, F::LINK_EID, F::LINK_MARK, F::TIE_LINK, F::SEQ, F::AT_END, F::TAG, F::HOME_STAFF, F::TIE_TO,
-                                                F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK, F::LINE_DETAILS };
+                                                F::LINKED_TO, F::LINKED_STAFF, F::TIE_MARK, F::LINE_DETAILS, F::TIE_GENERATED };
     return skip.count(f) > 0;
 }
 
@@ -120,34 +120,6 @@ std::vector<xml::Node> parseFragment(const std::string& text)
         return {};
     }
     return d.root.children;
-}
-
-std::string packPairs(const std::vector<std::pair<std::string, std::string> >& pairs)
-{
-    std::string out;
-    for (const auto& [k, v] : pairs) {
-        out += k + "\x1F" + v + "\x1E";   // control characters XML text can't hold, so values may have any text
-    }
-    return out;
-}
-
-std::vector<std::pair<std::string, std::string> > unpackPairs(const std::string& packed)
-{
-    std::vector<std::pair<std::string, std::string> > out;
-    size_t at = 0;
-    while (at < packed.size()) {
-        const size_t nl = packed.find('\x1E', at);
-        const std::string line = packed.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
-        const size_t tab = line.find('\x1F');
-        if (tab != std::string::npos) {
-            out.emplace_back(line.substr(0, tab), line.substr(tab + 1));
-        }
-        if (nl == std::string::npos) {
-            break;
-        }
-        at = nl + 1;
-    }
-    return out;
 }
 
 std::string defaultScoreHead()

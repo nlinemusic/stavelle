@@ -412,3 +412,161 @@ TEST(Commands, NoteEntryOnALocalTimeSignatureUsesItsOwnValues)
     d.consistent();
     d.roundTrip();
 }
+
+namespace {
+std::string measuresOf(const Doc& d)
+{
+    std::string out;
+    for (Id m : d.ops.measures()) {
+        const model::Object* o = d.o(m);
+        out += o->fractionOr(F::TIME, Fraction()).toString() + "+" + o->fractionOr(F::DURATION, Fraction()).toString() + " "
+               + std::to_string(o->intOr(F::TIMESIG_NUM, 0)) + "/" + std::to_string(o->intOr(F::TIMESIG_DEN, 0)) + "\n";
+    }
+    return out;
+}
+}
+
+TEST(Commands, ATimeSignatureRewritesTheMeasuresAsMuseScoreDoes)
+{
+    Doc d(2);
+    int q = 0;
+    for (int p : { 60, 62, 64, 65, 67, 69, 71, 72 }) {
+        d.chord(d.flute.voice, q++, { p });
+    }
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    // eight quarters in 3/4: three measures, the last filled with a rest
+    EXPECT_EQ(measuresOf(d), "0/1+3/4 3/4\n3/4+3/4 3/4\n3/2+3/4 3/4\n");
+    EXPECT_EQ(d.voice(d.flute.voice), "0/1 1/4 60\n1/4 1/4 62\n1/2 1/4 64\n3/4 1/4 65\n1/1 1/4 67\n5/4 1/4 69\n"
+                                      "3/2 1/4 71\n7/4 1/4 72\n2/1 1/4\n");
+    // the horn had only measure rests: measure rests of the new length
+    EXPECT_EQ(d.voice(d.horn.voice), "0/1 3/4\n3/4 3/4\n3/2 3/4\n");
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, NotesAcrossANewBarlineAreSplitAndTied)
+{
+    Doc d(1);
+    d.chord(d.flute.voice, 0, { 60 });
+    d.chord(d.flute.voice, 1, { 62 });
+    d.chord(d.flute.voice, 2, { 64 }, 2);   // a half note on beat 3
+    d.edit("Staccato", [&](Transaction& tx) {
+        for (Id e : d.ops.eventsOf(d.flute.voice)) {
+            if (d.o(e)->fractionOr(F::TIME, Fraction()) == Fraction(1, 2)) {
+                d.cmd.toggleArticulation(tx, { e }, "articStaccatoAbove");
+            }
+        }
+    });
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(d.voice(d.flute.voice), "0/1 1/4 60\n1/4 1/4 62\n1/2 1/4 64~\n3/4 1/4 64\n1/1 1/2\n");
+    // the articulation stays on the first part only
+    int articulations = 0;
+    for (Id e : d.ops.eventsOf(d.flute.voice)) {
+        for (Id x : d.o(e)->children()) {
+            articulations += d.o(x)->kind() == Kind::Attachment;
+        }
+    }
+    EXPECT_EQ(articulations, 1);
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, TheSameLengthOnlyRenamesTheMeasures)
+{
+    Doc d(2);
+    d.chord(d.flute.voice, 1, { 67 }, 2);
+    const std::string before = d.voice(d.flute.voice);
+    bool ok = false;
+    d.edit("2/2", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 2, 2); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(measuresOf(d), "0/1+1/1 2/2\n1/1+1/1 2/2\n");
+    EXPECT_EQ(d.voice(d.flute.voice), before);
+    d.roundTrip();
+}
+
+TEST(Commands, ATimeSignatureInTheMiddleRewritesFromThere)
+{
+    Doc d(3);
+    d.chord(d.flute.voice, 4, { 60 }, 2);
+    d.chord(d.flute.voice, 6, { 62 }, 2);
+    bool ok = false;
+    d.edit("6/8", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 1, 6, 8); });
+    ASSERT_TRUE(ok);
+    // measures 2–3 (8 quarters) in 6/8: three measures of 3/4, a quarter filled; the first measure untouched
+    EXPECT_EQ(measuresOf(d), "0/1+1/1 4/4\n1/1+3/4 6/8\n7/4+3/4 6/8\n5/2+3/4 6/8\n");
+    EXPECT_EQ(d.voice(d.flute.voice), "0/1 1/1\n1/1 1/2 60\n3/2 1/4 62~\n7/4 1/4 62\n2/1 1/2\n5/2 3/4\n");
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ATupletAcrossANewBarlineIsSplitAtItsMiddleOrRefused)
+{
+    Doc d(1);
+    d.edit("Triplet", [&](Transaction& tx) { d.ops.makeTuplet(tx, d.flute.voice, Fraction(1, 2), 3, 2, Fraction(1, 4)); });
+    const std::string before = d.listing() + measuresOf(d);
+    bool ok = true;
+    d.edit("5/8", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 5, 8); });
+    EXPECT_FALSE(ok);   // the barline would fall at 5/8, not the triplet's middle
+    EXPECT_EQ(d.listing() + measuresOf(d), before);
+    // at its middle (3/4) it is split into two halves, as MuseScore splits it
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    EXPECT_TRUE(ok);
+    int tuplets = 0;
+    for (Id c : d.o(d.flute.voice)->children()) {
+        if (d.o(c)->kind() == Kind::Tuplet) {
+            ++tuplets;
+            EXPECT_EQ(d.o(c)->fractionOr(F::DURATION, Fraction()), Fraction(1, 4));
+        }
+    }
+    EXPECT_EQ(tuplets, 2);
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ChangingTheTimeSignatureBackJoinsTheTiedPiecesAgain)
+{
+    // as in MuseScore: 4/4 → 3/4 splits the half note, 3/4 → 4/4 joins it again (ties made by the rewrite)
+    Doc d(1);
+    d.chord(d.flute.voice, 0, { 60 });
+    d.chord(d.flute.voice, 1, { 62 });
+    d.chord(d.flute.voice, 2, { 64 }, 2);
+    const std::string before = d.voice(d.flute.voice);
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    d.edit("4/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 4, 4); });
+    ASSERT_TRUE(ok);
+    // 2 measures of 4/4 now (5/4 of music filled to 2/1): the first as it was, the second a measure rest
+    EXPECT_EQ(measuresOf(d), "0/1+1/1 4/4\n1/1+1/1 4/4\n");
+    EXPECT_EQ(d.voice(d.flute.voice), before + "1/1 1/1\n");
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ANoteWithATieOfItsOwnIsNotTiedToItsPieces)
+{
+    // a laissez vibrer (kept as written) is the note's own tie: MuseScore doesn't add another, and the pieces after
+    // it don't get it (two ties on one note make MuseScore fail to read the file)
+    Doc d(1);
+    d.chord(d.flute.voice, 0, { 60 });
+    d.chord(d.flute.voice, 1, { 62 });
+    const Id c = d.chord(d.flute.voice, 2, { 64 }, 2);
+    const Id n = d.notes(c)[0];
+    d.edit("l.v.", [&](Transaction& tx) { tx.set(n, F::DETAILS, model::Text("<x>|  <LaissezVib>|    </LaissezVib>|  </x>")); });
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(d.voice(d.flute.voice), "0/1 1/4 60\n1/4 1/4 62\n1/2 1/4 64\n3/4 1/4 64\n1/1 1/2\n");
+    for (Id e : d.ops.eventsOf(d.flute.voice)) {
+        if (e != c && d.o(e)->kind() == Kind::Chord && d.o(e)->fractionOr(F::TIME, Fraction()) == Fraction(3, 4)) {
+            EXPECT_EQ(d.o(d.notes(e)[0])->text(F::DETAILS).find("LaissezVib"), std::string::npos);
+        }
+    }
+    d.consistent();
+    d.roundTrip();
+}

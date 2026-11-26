@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""S3, editing commands: every corpus score edited with the engine's commands (je_io_tool cmdedit) must be read by
+"""S3, editing commands: every corpus score edited with the engine's commands (je_io_tool cmdedit, tsedit) must be read by
 MuseScore's engine with exactly the music the edited model holds (<name>.mscz.je.txt next to each file).
 
 Usage: je_command_compare.py <cmdedit dir> <list> <MuseScore listings dir> <report.md> --expected <reference_differences.txt>
@@ -12,6 +12,11 @@ import sys
 
 def stem(path):
     return os.path.splitext(path)[0]
+
+
+def strip_head(text):
+    # je_io_tool tsedit heads its listing with "# timesig changed|refused"
+    return text.split("\n", 1)[1] if text.startswith("# timesig") else text
 
 
 def main(argv):
@@ -30,7 +35,7 @@ def main(argv):
         theirs = os.path.join(ref, rel + ".txt")
         if not os.path.exists(theirs) or not os.path.exists(mine):
             missing.append(rel)
-        elif open(mine, encoding="utf-8").read() == open(theirs, encoding="utf-8").read():
+        elif strip_head(open(mine, encoding="utf-8").read()) == open(theirs, encoding="utf-8").read():
             same += 1
         elif stem(rel) in expected:
             known.append(rel)

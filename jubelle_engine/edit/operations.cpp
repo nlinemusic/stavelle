@@ -85,6 +85,35 @@ std::vector<NoteValue> valuesFor(const Fraction& position, const Fraction& lengt
     return out;
 }
 
+std::vector<NoteValue> durationList(const Fraction& length, int maxDots)
+{
+    static const std::vector<Fraction> types { Fraction(4, 1), Fraction(2, 1), Fraction(1, 1), Fraction(1, 2), Fraction(1, 4),
+                                               Fraction(1, 8), Fraction(1, 16), Fraction(1, 32), Fraction(1, 64),
+                                               Fraction(1, 128), Fraction(1, 256), Fraction(1, 512), Fraction(1, 1024) };
+    std::vector<NoteValue> out;
+    Fraction rem = length;
+    size_t from = 0;
+    while (Fraction() < rem) {
+        bool found = false;
+        for (size_t i = from; i < types.size() && !found; ++i) {
+            for (int dots = maxDots; dots >= 0; --dots) {
+                const NoteValue v { types[i], dots };
+                if (v.length() <= rem) {
+                    out.push_back(v);
+                    rem -= v.length();
+                    from = i;
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            break;   // a remainder shorter than 1/1024
+        }
+    }
+    return out;
+}
+
 // ---- reading ------------------------------------------------------------------------------------------------
 Fraction Operations::timeOf(Id id) const
 {

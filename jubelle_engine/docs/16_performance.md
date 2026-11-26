@@ -34,6 +34,11 @@ comparable now: both read or write the whole file; MuseScore's open is its read 
 | Big Band test chart (18 staves, 40 bars) | MuseScore | 29 ms | 28.1 ms | 28.8 ms | n/a | 30 ms | n/a |
 | | **Jubelle engine** | **21 ms** | 0.14 ms | 0.02 ms | 0.02 ms | **22 ms** | 3.8 MB |
 
+**Time signature change** on the large orchestra (5/8 from bar 2: every staff's music rewritten into 455 new
+measures; `je_io_tool tsedit`, `JUBELLE_REFERENCE_TIME=1` for MuseScore's `cmdAddTimeSig`, both without the page
+layout): MuseScore **6,426 ms**, Jubelle engine **533 ms** (3/4 from bar 101: 4,375 → 477 ms). Same music, apart from
+the grace notes MuseScore copies onto the tied pieces (see the master plan).
+
 Memory: MuseScore's is the resident memory added by the open score (with its layout); the Jubelle engine's is the
 heap of its model with everything a save needs.
 

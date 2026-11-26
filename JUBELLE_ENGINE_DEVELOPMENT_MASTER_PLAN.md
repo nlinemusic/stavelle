@@ -252,18 +252,25 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **S2:** parts written inside a plain .mscx are read as part layouts (they were carried as written, so edits didn't reach them), and a plain .mscx is saved as XML with its parts inside, as MuseScore does (it was written as an archive); a part's instruments are found by its staves' links, not only by name; a part staff linked to a linked staff finds its originals as MuseScore does. 95 tests |
 | 25 Nov 2026 | **Benchmarks against MuseScore's engine** (`docs/16_performance.md`, same scores and machine): large orchestra open **982 → ~300 ms**, save **1,039 → ~450 ms**, model memory **115 → 32 MB**, undo **109 → 0.03 ms** (MuseScore's includes layout; Jubelle's layout comes with S7); saving was quadratic in score size (104 s on the large orchestra) until fixed today |
 | 25 Nov 2026 | **S3 editing commands** (`edit/commands`, MuseScore's rules): enharmonic spelling (concert and written), accidentals, add interval (key, octave rule, along ties), articulations, change and swap voices (grace notes move with their chord), grace notes, lines, slurs, glissandos, key signatures, clefs. Found by the new check and fixed: **note entry on a staff with its own time signature** (a 3/4 staff in a 4/4 score) now uses that staff's values, and such a time signature is saved with its stretch. 108 tests; corpus checks unchanged; new check, also in CI: **every corpus score edited with the commands is read by MuseScore with exactly the edited music** (1,486 of 1,489; the other 3 already differ unedited); edit time on the large orchestra unchanged |
+| 25 Nov 2026 | **S3 time signature changes** (`Commands::changeTimeSignature`, ported from MuseScore's `cmdAddTimeSig`, `rewriteMeasures` and `ScoreRange`): the music from the changed bar to the next time signature or section break is rewritten into the new measures, as MuseScore does it (notes split and tied at the new barlines, articulations on the first part, rests joined where MuseScore joins them and split undotted, measure rests, holes in voices 2–4 kept, the last measure filled, tuplets split at their middle, pickups, the same length only renamed, pieces tied by a rewrite joined again by the next); repeats, line, page and section breaks, voltas, rehearsal marks and part layouts' breaks kept. **Compared with MuseScore's own command on every corpus score** (`je_timesig_reference.py`, in CI): 5/8 from bar 2, **2,088 of 2,111 the same music**; 3/4 from bar 1, **2,077 of 2,112**; MuseScore reads every saved result with the same music (2,111 of 2,111 outside the known list, CI). Found and fixed on the way: notes with a tie of their own (laissez vibrer, partial ties) given a second tie made MuseScore crash reading the file; measure repeats rewritten as rests. Large orchestra: **6.4 s in MuseScore's engine, 0.53 s in the Jubelle engine**. 114 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
   and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
 - **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
   tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
-  texts on linked staves, the editing commands of `edit/commands`. Next: the remaining commands of `docs/10_…` (time
-  signature changes with rebarring, split and join measures, explode and implode, slashes, chord-symbol realization,
+  texts on linked staves, the editing commands of `edit/commands`, time signature changes. Next: the remaining
+  commands of `docs/10_…` (split and join measures, explode and implode, slashes, chord-symbol realization,
   moving to another staff, lyrics and text), scripted comparisons with MuseScore's engine (the clipboard's text format
   is part of S10). Then S4 (autosave journal and crash recovery).
 - Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
   (C and B♯ in one chord) is not added, MuseScore allows it; changing the voice of notes inside tuplets.
+- Time signature changes, where the engine still differs from MuseScore (23–35 of ~2,110 corpus scores): scores with
+  a staff that has its own (local) time signature are left unchanged (MuseScore rewrites some of them); a tuplet with
+  tuplets inside it that crosses a new barline is refused (MuseScore splits it); damaged files with overlapping
+  events are refused. **Open question for the user:** when a note with grace notes is split at a new barline,
+  MuseScore copies its grace notes onto every tied piece (5 corpus scores); the engine keeps them on the first piece
+  only. To be decided: keep that difference, or copy MuseScore exactly.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
@@ -272,7 +279,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).
-- Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
+- Then S3–S10 as in `docs/14_full_engine_roadmap.md`. One question for the user is open (grace notes on tied pieces, above).
 
 ## 15a. App fixes reported by the user, scheduled after the new engine (25 Nov 2026)
 The user asked (25 Nov, 12:12) not to make Windows builds for these now, and to put them in the plan for after the

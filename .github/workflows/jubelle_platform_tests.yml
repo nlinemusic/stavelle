@@ -137,6 +137,9 @@ jobs:
         # lines, voices), saved with the edited model's listing next to it
         ./build-je/je_io_tool cmdedit . --out "$RUNNER_TEMP/cmdedit" > cmdedit.log || rc=1
         if grep -q PROBLEMS cmdedit.log; then echo "::error::the editing commands left the model inconsistent"; rc=1; fi
+        # and a time signature change (5/8 from the second measure: the music rewritten as MuseScore rewrites it)
+        ./build-je/je_io_tool tsedit . --out "$RUNNER_TEMP/tsedit" 1 5 8 > tsedit.log || rc=1
+        if grep -q PROBLEMS tsedit.log; then echo "::error::the time signature change left the model inconsistent"; rc=1; fi
         # the same scores written from the Jubelle model, read by MuseScore's engine: as it reads the originals
         ./build-je/je_io_tool regenerate . --out generated > /dev/null || rc=1
         (cd generated && find . -name '*.mscz' | sed 's|^\./||' | sort) > generated.txt
@@ -171,6 +174,17 @@ jobs:
         python3 tools/jubelle_checks/je_command_compare.py "$RUNNER_TEMP/cmdedit" cmdedit.txt cmdedit_ref je_commands.md \
           --expected jubelle_engine/corpus/reference_differences.txt || rc=1
         { echo; cat je_commands.md; } >> "$GITHUB_STEP_SUMMARY"
+        (cd "$RUNNER_TEMP/tsedit" && find . -name '*.mscz' | sed 's|^\./||' | sort) > tsedit.txt
+        JUBELLE_REFERENCE_ROOT="$RUNNER_TEMP/tsedit" JUBELLE_REFERENCE_LIST=$PWD/tsedit.txt JUBELLE_REFERENCE_OUT=$PWD/tsedit_ref \
+          ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
+        python3 tools/jubelle_checks/je_command_compare.py "$RUNNER_TEMP/tsedit" tsedit.txt tsedit_ref je_timesig.md \
+          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+        { echo; echo "### Time signature change"; cat je_timesig.md; } >> "$GITHUB_STEP_SUMMARY"
+        # and against MuseScore's own command (Score::cmdAddTimeSig) on the originals: the same music expected
+        mkdir -p "$RUNNER_TEMP/tsref"
+        python3 tools/jubelle_checks/je_timesig_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+          "$RUNNER_TEMP/tsref" 1 5 8 > je_timesig_reference.txt || rc=1
+        { echo; echo '```'; cat je_timesig_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison
       if: always()
@@ -183,3 +197,4 @@ jobs:
           je_generated_detail.md
           je_linked.md
           je_commands.md
+          je_timesig.md

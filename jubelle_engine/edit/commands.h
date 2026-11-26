@@ -70,7 +70,32 @@ public:
     //! Score::undoChangeClef: a clef (MuseScore's name: "G", "F", "C3", "TAB" …) on the staff at t
     Id insertClef(Transaction& tx, Id staff, const Fraction& t, const std::string& clef);
 
+    // ---- measures -----------------------------------------------------------------------------------------------
+    //! Score::cmdAddTimeSig (a time signature for every staff): from measure `measure` to the next time signature
+    //! or section break the music is rewritten into measures of num/den (rewriteMeasures: notes split and tied at
+    //! the new barlines, the last measure filled with rests); the same length (4/4 → 2/2) only renames them; a
+    //! pickup keeps its length. False, with nothing changed, where MuseScore refuses: a tuplet across a new
+    //! barline, or a staff with its own time signature in music that isn't all measure rests
+    bool changeTimeSignature(Transaction& tx, size_t measure, int num, int den);
+
 private:
+    std::vector<Id> timeSigsAt(const Fraction& t) const;
+    std::vector<Id> allStaves() const;
+    void setTimeSigs(Transaction& tx, const Fraction& t, int64_t num, int64_t den);
+    bool rewriteMeasures(Transaction& tx, size_t from, int num, int den);
+    void rewriteRun(Transaction& tx, const std::vector<Id>& measures, size_t first, size_t last, int num, int den);
+    //! An event written again as tied pieces: the first is the event itself, the others new (with its notes)
+    struct Pieces {
+        Id source, voice, prev;
+        bool rest = true, first = true, gone = false;
+        std::vector<Id> notes, tiedTo;
+        std::vector<bool> tieGenerated;
+    };
+    Pieces startPieces(Id source, Id voice) const;
+    bool hasOwnTie(Id note) const;
+    Id addPiece(Transaction& tx, Pieces& p, const Fraction& t, const Fraction& duration, const NoteValue* v, bool measureRest, Id tuplet);
+    void finishPieces(Transaction& tx, const Pieces& p);
+
     struct Spelling {
         Field field;     // the spelling shown: TPC (concert) or TPC2 (written)
         int64_t tpc;
