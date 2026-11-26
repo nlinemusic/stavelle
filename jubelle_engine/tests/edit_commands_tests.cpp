@@ -626,3 +626,132 @@ TEST(Commands, AMeasureIsNotSplitInsideATuplet)
     EXPECT_TRUE(ok);
     d.consistent();
 }
+
+TEST(Commands, AStaffWithItsOwnTimeSignatureFollowsOnlyWhereItHoldsMeasureRests)
+{
+    // the flute has its own 3/4 in the 4/4 score; a 4/4 from bar 1 (no change to the measures) gives it the
+    // global signature where it has only measure rests, and is refused where it has music (MuseScore's rule)
+    auto make = [](Doc& d, bool music) {
+        d.edit("Local time signature", [&](Transaction& tx) {
+            Id flow;
+            for (Id c : d.o(d.model.score())->children()) {
+                flow = d.o(c)->kind() == Kind::Flow ? c : flow;
+            }
+            create(tx, d.ids, flow, { Kind::FlowItem, { { F::SUBKIND, model::Text("timeSig") }, { F::ANCHOR, d.flute.staff },
+                                                        { F::TIME, Fraction(0, 1) }, { F::TIMESIG_NUM, int64_t(3) },
+                                                        { F::TIMESIG_DEN, int64_t(4) } } },
+                   Placement::ByTime);
+            for (Id e : d.ops.eventsOf(d.flute.voice)) {
+                tx.set(e, F::STRETCH, Fraction(3, 4));
+            }
+        });
+        if (music) {
+            d.chord(d.flute.voice, 0, { 60 });
+        }
+    };
+    Doc rests(2);
+    make(rests, false);
+    bool ok = false;
+    rests.edit("4/4", [&](Transaction& tx) { ok = rests.cmd.changeTimeSignature(tx, 0, 4, 4); });
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(rests.ops.stretchAt(rests.flute.voice, Fraction(0, 1)), Fraction(1, 1));
+    rests.consistent();
+    rests.roundTrip();
+    Doc notes(2);
+    make(notes, true);
+    const std::string before = notes.listing();
+    notes.edit("4/4", [&](Transaction& tx) { ok = notes.cmd.changeTimeSignature(tx, 0, 4, 4); });
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(notes.listing(), before);
+}
+
+TEST(Commands, ATupletInsideATupletIsSplitWithIt)
+{
+    // a triplet of half notes with a triplet inside its first part, across a barline at its middle
+    Doc d(2);
+    d.edit("Tuplets", [&](Transaction& tx) {
+        const Id outer = d.ops.makeTuplet(tx, d.flute.voice, Fraction(1, 2), 3, 2, Fraction(1, 4));
+        // its first half (a half rest, as the triplet was filled) becomes a triplet of eighths and a quarter rest
+        for (Id e : d.ops.eventsOf(d.flute.voice)) {
+            if (d.o(e)->idOr(F::TUPLET) == outer && d.o(e)->fractionOr(F::TIME, Fraction()) == Fraction(1, 2)) {
+                removeTree(tx, e);
+                break;
+            }
+        }
+        const Id inner = create(tx, d.ids, d.flute.voice, { Kind::Tuplet, { { F::TIME, Fraction(1, 2) }, { F::DURATION, Fraction(1, 6) },
+                                                                            { F::BASE_DURATION, Fraction(1, 8) }, { F::RATIO_NUM, int64_t(3) },
+                                                                            { F::RATIO_DEN, int64_t(2) }, { F::TUPLET, outer } } },
+                                Placement::ByTime);
+        for (int i = 0; i < 3; ++i) {
+            create(tx, d.ids, d.flute.voice, { Kind::Rest, { { F::TIME, Fraction(1, 2) + Fraction(i, 18) }, { F::DURATION, Fraction(1, 18) },
+                                                             { F::BASE_DURATION, Fraction(1, 8) }, { F::TUPLET, inner } } },
+                   Placement::ByTime);
+        }
+        create(tx, d.ids, d.flute.voice, { Kind::Rest, { { F::TIME, Fraction(2, 3) }, { F::DURATION, Fraction(1, 6) },
+                                                         { F::BASE_DURATION, Fraction(1, 4) }, { F::TUPLET, outer } } },
+               Placement::ByTime);
+    });
+    d.consistent();
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    // two halves of the outer triplet (one at the middle of the 3/4 barline), the inner one in the first
+    std::string tuplets;
+    for (Id c : d.o(d.flute.voice)->children()) {
+        if (d.o(c)->kind() == Kind::Tuplet) {
+            tuplets += d.o(c)->fractionOr(F::TIME, Fraction()).toString() + "+" + d.o(c)->fractionOr(F::DURATION, Fraction()).toString()
+                       + (d.o(c)->has(F::TUPLET) ? " inner" : "") + "\n";
+        }
+    }
+    EXPECT_EQ(tuplets, "1/2+1/4\n1/2+1/6 inner\n3/4+1/4\n");
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ATupletInsideATupletAcrossTheBarlineGivesBothHalvesTheirParents)
+{
+    // the outer triplet's middle part is a triplet of eighths, and the 3/4 barline falls at the middle of both
+    Doc d(2);
+    Id outer;
+    d.edit("Tuplets", [&](Transaction& tx) {
+        outer = d.ops.makeTuplet(tx, d.flute.voice, Fraction(1, 2), 3, 2, Fraction(1, 4));
+        for (Id e : d.ops.eventsOf(d.flute.voice)) {
+            if (d.o(e)->idOr(F::TUPLET) == outer) {
+                removeTree(tx, e);
+            }
+        }
+        for (const Fraction& t : { Fraction(1, 2), Fraction(5, 6) }) {
+            create(tx, d.ids, d.flute.voice, { Kind::Rest, { { F::TIME, t }, { F::DURATION, Fraction(1, 6) }, { F::BASE_DURATION, Fraction(1, 4) },
+                                                             { F::TUPLET, outer } } },
+                   Placement::ByTime);
+        }
+        const Id inner = create(tx, d.ids, d.flute.voice, { Kind::Tuplet, { { F::TIME, Fraction(2, 3) }, { F::DURATION, Fraction(1, 6) },
+                                                                            { F::BASE_DURATION, Fraction(1, 8) }, { F::RATIO_NUM, int64_t(3) },
+                                                                            { F::RATIO_DEN, int64_t(2) }, { F::TUPLET, outer } } },
+                                Placement::ByTime);
+        for (int i = 0; i < 3; ++i) {
+            const Id c = create(tx, d.ids, d.flute.voice, { Kind::Chord, { { F::TIME, Fraction(2, 3) + Fraction(i, 18) }, { F::DURATION, Fraction(1, 18) },
+                                                                           { F::BASE_DURATION, Fraction(1, 8) }, { F::TUPLET, inner } } },
+                                Placement::ByTime);
+            create(tx, d.ids, c, { Kind::Note, { { F::PITCH, int64_t(72 + i) }, { F::TPC, int64_t(14 + 2 * i) } } });
+        }
+    });
+    d.consistent();
+    bool ok = false;
+    d.edit("3/4", [&](Transaction& tx) { ok = d.cmd.changeTimeSignature(tx, 0, 3, 4); });
+    ASSERT_TRUE(ok);
+    std::string tuplets;
+    for (Id c : d.o(d.flute.voice)->children()) {
+        const model::Object* t = d.o(c);
+        if (t->kind() == Kind::Tuplet) {
+            const model::Object* p = d.o(t->idOr(F::TUPLET));
+            tuplets += t->fractionOr(F::TIME, Fraction()).toString() + "+" + t->fractionOr(F::DURATION, Fraction()).toString()
+                       + (p ? " in " + p->fractionOr(F::TIME, Fraction()).toString() : "") + "\n";
+        }
+    }
+    EXPECT_EQ(tuplets, "1/2+1/4\n2/3+1/12 in 1/2\n3/4+1/4\n3/4+1/12 in 3/4\n");
+    // the middle note is split at the barline and tied
+    EXPECT_NE(d.voice(d.flute.voice).find("13/18 1/36 73~\n3/4 1/36 73\n"), std::string::npos) << d.voice(d.flute.voice);
+    d.consistent();
+    d.roundTrip();
+}

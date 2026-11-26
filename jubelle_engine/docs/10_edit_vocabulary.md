@@ -51,3 +51,11 @@ explode, transpose, harmonise) are sequences of these.
    `<linkedMain/>` and `<linked>` with the `<indexDiff>` MuseScore's reader needs before 4.60. Tablature staves then get
    strings and frets (`edit/tablature`, MuseScore's StringData rules) for new notes and notes whose pitch changed.
    Not yet: lines and staff texts added on one staff of a pair appearing on the other.
+
+## Intentional differences from MuseScore
+Where MuseScore's behaviour is musically wrong, the engine does not copy it (the user's rule, 25 Nov 2026); each
+difference is listed here, with its test, and in the master plan §15:
+- Measure rewriting (time signature change, split, join): a split note keeps its grace notes on the first piece
+  only (MuseScore copies them onto every piece); a tuplet inside a tuplet is split only at its middle (MuseScore
+  halves it anywhere); measures after a join across an end-of-measure time signature keep their own signature
+  (MuseScore stretches them by 4/3); damaged files are refused rather than rewritten to a different length.

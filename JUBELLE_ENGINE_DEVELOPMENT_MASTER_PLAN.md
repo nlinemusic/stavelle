@@ -254,6 +254,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **S3 editing commands** (`edit/commands`, MuseScore's rules): enharmonic spelling (concert and written), accidentals, add interval (key, octave rule, along ties), articulations, change and swap voices (grace notes move with their chord), grace notes, lines, slurs, glissandos, key signatures, clefs. Found by the new check and fixed: **note entry on a staff with its own time signature** (a 3/4 staff in a 4/4 score) now uses that staff's values, and such a time signature is saved with its stretch. 108 tests; corpus checks unchanged; new check, also in CI: **every corpus score edited with the commands is read by MuseScore with exactly the edited music** (1,486 of 1,489; the other 3 already differ unedited); edit time on the large orchestra unchanged |
 | 25 Nov 2026 | **S3 time signature changes** (`Commands::changeTimeSignature`, ported from MuseScore's `cmdAddTimeSig`, `rewriteMeasures` and `ScoreRange`): the music from the changed bar to the next time signature or section break is rewritten into the new measures, as MuseScore does it (notes split and tied at the new barlines, articulations on the first part, rests joined where MuseScore joins them and split undotted, measure rests, holes in voices 2–4 kept, the last measure filled, tuplets split at their middle, pickups, the same length only renamed, pieces tied by a rewrite joined again by the next); repeats, line, page and section breaks, voltas, rehearsal marks and part layouts' breaks kept. **Compared with MuseScore's own command on every corpus score** (`je_measures_reference.py`, in CI): 5/8 from bar 2, **2,088 of 2,111 the same music**; 3/4 from bar 1, **2,077 of 2,112**; MuseScore reads every saved result with the same music (2,111 of 2,111 outside the known list, CI). Found and fixed on the way: notes with a tie of their own (laissez vibrer, partial ties) given a second tie made MuseScore crash reading the file; measure repeats rewritten as rests. Large orchestra: **6.4 s in MuseScore's engine, 0.53 s in the Jubelle engine**. 114 tests |
 | 25 Nov 2026 | **S3 split and join measures** (`Commands::splitMeasure` / `joinMeasures`, MuseScore's SplitJoinMeasure, on the same rewrite as time signatures, now with measures of any lengths): split where a chord, rest or chord symbol starts (not on the first beat, inside a tuplet, on a measure repeat or finer than 1/128); join with the first measure's time signature, the time signatures inside removed and each staff's last moved to the next measure. Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI): **split 2,105 of 2,115, join 2,093 of 2,110 the same music** (the rest: staves with their own time signature, left unchanged for now, and a MuseScore oddity after joining across an end-of-measure time signature); MuseScore reads every saved result with the same music. 117 tests |
+| 25 Nov 2026 | **S3 measure rewriting, the remaining differences** (on the same rewrite): staves with their own time signature follow MuseScore's rules (measure rests take the global signature; music refuses the change); the staves' old time signatures are given back per staff after the range; a staff's own signature replaced by a global one loses its stretch; tuplets inside tuplets are split with their parents. Time signature against MuseScore's command: **5/8 from bar 2, 2,094 of 2,111; 3/4 from bar 1, 2,089 of 2,112**; split and join unchanged; every saved result read by MuseScore with the same music. The intentional differences are listed in §15. 120 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -266,12 +267,22 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   is part of S10). Then S4 (autosave journal and crash recovery).
 - Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
   (C and B♯ in one chord) is not added, MuseScore allows it; changing the voice of notes inside tuplets.
-- Time signature changes, where the engine still differs from MuseScore (23–35 of ~2,110 corpus scores): scores with
-  a staff that has its own (local) time signature are left unchanged (MuseScore rewrites some of them); a tuplet with
-  tuplets inside it that crosses a new barline is refused (MuseScore splits it); damaged files with overlapping
-  events are refused. **Open question for the user:** when a note with grace notes is split at a new barline,
-  MuseScore copies its grace notes onto every tied piece (5 corpus scores); the engine keeps them on the first piece
-  only. To be decided: keep that difference, or copy MuseScore exactly.
+- Measure rewriting (time signatures, split, join), where the engine still differs from MuseScore's own commands:
+  staves with their own (local) time signature that hold music are refused, by MuseScore's rule in
+  `rewriteMeasures` (they follow where they hold only measure rests); the reference run nevertheless shows MuseScore
+  changing 8 such test files, not yet understood. A few single files (a capo score, two slur and bend importer
+  files, one dynamics score) are not yet looked at.
+- **Intentional differences from MuseScore** (the user's rule, 25 Nov 2026: musical correctness before identical
+  results; each is listed here and in `docs/10_edit_vocabulary.md`):
+  1. A note split by a measure rewrite keeps its grace notes on the first piece only; MuseScore copies them onto
+     every tied piece, so they would sound and show again.
+  2. A tuplet inside a tuplet is split at a new barline only where the barline falls at its middle, as for any
+     tuplet; MuseScore halves it wherever the barline falls, which leaves its notes the wrong length. Refused
+     otherwise.
+  3. Joining measures across an end-of-measure time signature: MuseScore's result gives the following measures a
+     stretch of 4/3 that no staff asked for; the engine leaves them in their own time signature.
+  4. Damaged files (events that overlap, a tuplet whose music doesn't fill it) are not rewritten; MuseScore
+     rewrites them into music of a different length.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds
@@ -280,7 +291,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 - The user's private scores: `~/JubellePrivateScores` wasn't found on the connected computer; run
   `je_io_tool corpus <folder> --private` once it is available.
 - **S1** follow-ups as S7 needs them (layout fields, typed views).
-- Then S3–S10 as in `docs/14_full_engine_roadmap.md`. One question for the user is open (grace notes on tied pieces, above).
+- Then S3–S10 as in `docs/14_full_engine_roadmap.md`. No user decisions are pending.
 
 ## 15a. App fixes reported by the user, scheduled after the new engine (25 Nov 2026)
 The user asked (25 Nov, 12:12) not to make Windows builds for these now, and to put them in the plan for after the

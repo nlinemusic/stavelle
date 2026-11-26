@@ -728,6 +728,22 @@ void Commands::setTimeSigs(Transaction& tx, const Fraction& t, int64_t num, int6
     for (Id ts : timeSigsAt(t)) {
         tx.set(ts, F::TIMESIG_NUM, num);
         tx.set(ts, F::TIMESIG_DEN, den);
+        // a global time signature has no stretch: a staff's own one kept as written loses it (MuseScore sets the
+        // new signature's stretch, 1)
+        std::string d = m_ops.obj(ts)->text(F::DETAILS);
+        for (const char* tag : { "stretchN", "stretchD" }) {
+            const std::string open = std::string("<") + tag + ">", close = std::string("</") + tag + ">";
+            for (size_t a; (a = d.find(open)) != std::string::npos;) {
+                const size_t b = d.find(close, a);
+                if (b == std::string::npos) {
+                    break;
+                }
+                d.erase(a, b + close.size() - a);
+            }
+        }
+        if (d != m_ops.obj(ts)->text(F::DETAILS)) {
+            tx.set(ts, F::DETAILS, Text(d));
+        }
         if (!m_ops.obj(ts)->has(F::ANCHOR)) {
             return;   // one for every staff
         }
@@ -767,21 +783,6 @@ bool Commands::changeTimeSignature(Transaction& tx, size_t index, int num, int d
         setTimeSigs(tx, tick, num, den);
         return true;
     }
-    // staves with their own (local) time signatures: MuseScore rewrites them only in special cases (measure rests
-    // only), which the engine doesn't do yet; it leaves such a score unchanged rather than risk a wrong rewrite
-    for (size_t i = index; i < ms.size(); ++i) {
-        if (i > index + 1 && hasTimeSig(ms[i]) && i > index) {
-            break;
-        }
-        for (Id staff : allStaves()) {
-            for (Id v : m_ops.obj(staff)->children()) {
-                if (m_ops.obj(v)->kind() == Kind::Voice && !(m_ops.stretchAt(v, m_ops.measureStart(ms[i])) == Fraction(1, 1))) {
-                    return false;
-                }
-                break;
-            }
-        }
-    }
     const Object* m0 = m_ops.obj(fm);
     size_t from = index;
     bool rewrite = true;
@@ -793,7 +794,48 @@ bool Commands::changeTimeSignature(Transaction& tx, size_t index, int num, int d
         from = 1;
         rewrite = !hasTimeSig(ms[1]);
     } else if (m0->intOr(F::TIMESIG_NUM, 4) == num && m0->intOr(F::TIMESIG_DEN, 4) == den) {
-        rewrite = false;   // the measures already have it
+        // the measures already have it; only staves with their own time signature there change, and only where
+        // they hold nothing but measure rests (MuseScore's rewriteMeasures for a staff: otherwise refused)
+        rewrite = false;
+        std::vector<Id> measureRests;
+        for (Id staff : allStaves()) {
+            std::vector<Id> voices;
+            for (Id v : m_ops.obj(staff)->children()) {
+                if (m_ops.obj(v)->kind() == Kind::Voice) {
+                    voices.push_back(v);
+                }
+            }
+            if (voices.empty() || m_ops.stretchAt(voices.front(), tick) == Fraction(1, 1)) {
+                continue;
+            }
+            // up to the staff's next time signature
+            Fraction until = m_ops.measureEnd(ms.back());
+            for (size_t i = index + 1; i < ms.size(); ++i) {
+                bool own = false;
+                for (Id ts : timeSigsAt(m_ops.measureStart(ms[i]))) {
+                    own = own || !m_ops.obj(ts)->has(F::ANCHOR) || m_ops.obj(ts)->idOr(F::ANCHOR) == staff;
+                }
+                if (own) {
+                    until = m_ops.measureStart(ms[i]);
+                    break;
+                }
+            }
+            for (Id v : voices) {
+                for (Id e : m_ops.eventsOf(v)) {
+                    const Fraction t = m_ops.timeOf(e);
+                    if (t < tick || !(t < until)) {
+                        continue;
+                    }
+                    if (!m_ops.obj(e)->has(F::MEASURE_REST)) {
+                        return false;   // "cannot change local time signature: measure is not empty"
+                    }
+                    measureRests.push_back(e);
+                }
+            }
+        }
+        for (Id r : measureRests) {
+            tx.set(r, F::STRETCH, Value());
+        }
     }
     if (rewrite && !rewriteMeasures(tx, from, num, den)) {
         return false;
@@ -882,18 +924,24 @@ bool Commands::rewriteMeasures(Transaction& tx, size_t from, int num, int den)
                     }
                     if (o->kind() == Kind::Tuplet) {
                         // a tuplet may cross a new barline only at its middle (MuseScore: "cannot split tuplet"
-                        // otherwise), and here only one without tuplets inside it
-                        const Fraction s = t - t0, f = m_ops.endOf(e) - t0;
-                        const Fraction k = s / ns;
-                        const Fraction nextBar = ns * Fraction(k.numerator() / k.denominator() + 1, 1);
-                        if (nextBar < f) {
-                            bool nested = false;
-                            for (Id x : m_ops.obj(v)->children()) {
-                                nested = nested || (m_ops.obj(x)->kind() == Kind::Tuplet && m_ops.obj(x)->idOr(F::TUPLET) == e);
-                            }
-                            if (!(f - s == (nextBar - s) * Fraction(2, 1)) || nested || f - nextBar > ns) {
+                        // otherwise); so may the tuplets inside it (MuseScore halves them wherever the barline falls,
+                        // which makes no sense musically: the engine refuses that instead)
+                        std::function<bool(Id)> fits = [&](Id tu) {
+                            const Fraction s = m_ops.timeOf(tu) - t0, f = m_ops.endOf(tu) - t0;
+                            const Fraction k = s / ns;
+                            const Fraction nextBar = ns * Fraction(k.numerator() / k.denominator() + 1, 1);
+                            if (nextBar < f && (!(f - s == (nextBar - s) * Fraction(2, 1)) || f - nextBar > ns)) {
                                 return false;
                             }
+                            for (Id x : m_ops.obj(v)->children()) {
+                                if (m_ops.obj(x)->kind() == Kind::Tuplet && m_ops.obj(x)->idOr(F::TUPLET) == tu && !fits(x)) {
+                                    return false;
+                                }
+                            }
+                            return true;
+                        };
+                        if (!fits(e)) {
+                            return false;
                         }
                     }
                 }
@@ -910,16 +958,53 @@ bool Commands::rewriteMeasures(Transaction& tx, size_t from, int num, int den)
             }
         }
     }
-    // the old time signature, given back after the range when the next measure has none (a section break)
-    const Object* last = m_ops.obj(ms[end - 1]);
-    const int64_t oldNum = last->intOr(F::TIMESIG_NUM, 4), oldDen = last->intOr(F::TIMESIG_DEN, 4);
-    const bool reinstate = end < ms.size() && timeSigsAt(m_ops.measureStart(ms[end])).empty();
+    // the staves' old time signatures are given back after the range where a staff has none there
+    const bool reinstate = end < ms.size();
     // the runs, last first: a run's new length moves only what comes after it
     for (auto run = runs.rbegin(); run != runs.rend(); ++run) {
         rewriteRun(tx, m_ops.measures(), run->first, run->second, num, den);
     }
     if (reinstate) {
-        setTimeSigs(tx, m_ops.measureStart(ms[end]), oldNum, oldDen);   // that measure is kept (moved by the runs)
+        // every staff without a time signature of its own there gets the old one back (MuseScore's rewriteMeasures);
+        // that measure is kept (moved by the runs)
+        const Fraction at = m_ops.measureStart(ms[end]);
+        std::set<Id> have;
+        bool global = false;
+        for (Id ts : timeSigsAt(at)) {
+            const Object* o = m_ops.obj(ts);
+            global = global || !o->has(F::ANCHOR);
+            have.insert(o->idOr(F::ANCHOR));
+        }
+        // (a copy of the staff's own time signature in effect there; a staff that has none gets none)
+        const std::vector<Id>& kids = m_ops.obj(flowOf())->children().ids();
+        for (Id staff : global ? std::vector<Id>() : allStaves()) {
+            if (have.count(staff)) {
+                continue;
+            }
+            Id before;
+            for (Id c : kids) {
+                const Object* o = m_ops.obj(c);
+                if (!(m_ops.timeOf(c) < at)) {
+                    break;
+                }
+                if (isTimeSig(o) && (!o->has(F::ANCHOR) || o->idOr(F::ANCHOR) == staff)) {
+                    before = c;
+                }
+            }
+            if (!before.isValid()) {
+                continue;
+            }
+            std::vector<std::pair<Field, Value> > f;
+            m_ops.obj(before)->forEachField([&f](Field fl, const Value& val) {
+                if (fl != F::KIND && fl != F::PARENT && fl != F::CHILDREN && fl != F::ORIGIN_EID && fl != F::SEQ && fl != F::AT_END
+                    && fl != F::TIME && fl != F::ANCHOR && fl != F::LINKED_TO) {
+                    f.push_back({ fl, val });
+                }
+            });
+            f.push_back({ F::TIME, at });
+            f.push_back({ F::ANCHOR, staff });
+            create(tx, m_ops.m_ids, flowOf(), { Kind::FlowItem, f }, Placement::ByTime);
+        }
     }
     return true;
 }
@@ -1304,24 +1389,50 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
         Fraction at = t0;
         // a tuplet written again (MuseScore's TrackList::writeTuplet): its notes and rests in undotted values,
         // tied; one that crosses a new barline at its middle is split into two halves
-        std::function<void(Id, Id)> writeTuplet = [&](Id tuplet, Id parent) {
-            const Fraction du = m_ops.endOf(tuplet) - m_ops.timeOf(tuplet);
-            const Fraction start = at;
+        // (nested tuplets too: a tuplet split in two gives the tuplets inside it a second parent, made when the
+        // first music after the barline needs it)
+        struct Level {
+            Id first, current, second;
             std::vector<std::pair<Field, Value> > fields;   // read before it changes (a changed object is a new one)
-            m_ops.obj(tuplet)->forEachField([&fields](Field fl, const Value& val) {
+            Fraction du, base, start;
+            bool split = false;
+            Level* parent = nullptr;
+        };
+        std::function<Id(Level&)> secondOf = [&](Level& l) -> Id {
+            if (!l.split || l.second.isValid()) {
+                return l.current;
+            }
+            std::vector<std::pair<Field, Value> > f = l.fields;
+            f.push_back({ F::TIME, at });
+            f.push_back({ F::DURATION, l.du * Fraction(1, 2) });
+            f.push_back({ F::BASE_DURATION, l.base * Fraction(1, 2) });
+            const Id parent = l.parent ? secondOf(*l.parent) : Id();
+            if (parent.isValid()) {
+                f.push_back({ F::TUPLET, parent });
+            }
+            l.second = l.current = create(tx, m_ops.m_ids, tr.voice, { Kind::Tuplet, f }, Placement::ByTime);
+            return l.current;
+        };
+        auto atItsBarline = [&](const Level& l) { return l.split && !l.second.isValid() && l.start < at && at == measureOf(at); };
+        std::function<void(Id, Level*)> writeTuplet = [&](Id tuplet, Level* parentLevel) {
+            Level l;
+            l.first = l.current = tuplet;
+            l.parent = parentLevel;
+            l.du = m_ops.endOf(tuplet) - m_ops.timeOf(tuplet);
+            l.start = at;
+            m_ops.obj(tuplet)->forEachField([&l](Field fl, const Value& val) {
                 if (copiedToPiece(fl) && fl != F::TUPLET) {
-                    fields.push_back({ fl, val });
+                    l.fields.push_back({ fl, val });
                 }
             });
-            const Fraction base = m_ops.obj(tuplet)->fractionOr(F::BASE_DURATION, Fraction(1, 8));
-            const bool split = measureEndOf(at) - at < du;
-            Id dt = tuplet;
-            if (split) {   // two halves, each half as long (MuseScore: baseLen shifted by one)
-                tx.set(dt, F::DURATION, du * Fraction(1, 2));
-                tx.set(dt, F::BASE_DURATION, base * Fraction(1, 2));
+            l.base = m_ops.obj(tuplet)->fractionOr(F::BASE_DURATION, Fraction(1, 8));
+            l.split = measureEndOf(at) - at < l.du;
+            if (l.split) {   // two halves, each half as long (MuseScore: baseLen shifted by one)
+                tx.set(tuplet, F::DURATION, l.du * Fraction(1, 2));
+                tx.set(tuplet, F::BASE_DURATION, l.base * Fraction(1, 2));
             }
-            tx.set(dt, F::TIME, at);
-            tx.set(dt, F::TUPLET, parent.isValid() ? Value(parent) : Value());
+            tx.set(tuplet, F::TIME, at);
+            tx.set(tuplet, F::TUPLET, parentLevel ? Value(parentLevel->current) : Value());
             std::vector<Id> elements;
             for (Id c : m_ops.obj(tr.voice)->children()) {
                 if (c != tuplet && m_ops.obj(c)->idOr(F::TUPLET) == tuplet && !m_ops.obj(c)->has(F::GRACE)) {
@@ -1329,33 +1440,28 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
                 }
             }
             for (const Id e : elements) {
+                if (atItsBarline(l)) {
+                    secondOf(l);
+                }
                 if (m_ops.obj(e)->kind() == Kind::Tuplet) {
-                    writeTuplet(e, dt);
+                    writeTuplet(e, &l);
                     continue;
                 }
                 Pieces pw = startPieces(e, tr.voice);
                 Fraction left = m_ops.endOf(e) - m_ops.timeOf(e);
                 while (Fraction() < left) {
                     const Fraction remains = measureEndOf(at) - at;
-                    if (split && dt == tuplet && start < at && at == measureOf(at)) {
-                        // the second half, from the barline
-                        std::vector<std::pair<Field, Value> > f = fields;
-                        f.push_back({ F::TIME, at });
-                        f.push_back({ F::DURATION, du * Fraction(1, 2) });
-                        f.push_back({ F::BASE_DURATION, base * Fraction(1, 2) });
-                        if (parent.isValid()) {
-                            f.push_back({ F::TUPLET, parent });
-                        }
-                        dt = create(tx, m_ops.m_ids, tr.voice, { Kind::Tuplet, f }, Placement::ByTime);
+                    if (atItsBarline(l)) {
+                        secondOf(l);   // the second half, from the barline
                     }
-                    const Fraction factor = m_ops.tupletFactor(dt);   // written → actual
+                    const Fraction factor = m_ops.tupletFactor(l.current);   // written → actual
                     const Fraction actual = std::min(remains, left);
                     const auto values = durationList(actual / factor, 0);
                     if (values.empty()) {
                         break;
                     }
                     for (const NoteValue& v : values) {
-                        addPiece(tx, pw, at, v.length() * factor, &v, false, dt);
+                        addPiece(tx, pw, at, v.length() * factor, &v, false, l.current);
                         at += v.length() * factor;
                         left -= v.length() * factor;
                     }
@@ -1366,7 +1472,7 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
         for (size_t n = 0; n < tr.items.size(); ++n) {
             const Item& it = tr.items[n];
             if (it.tuplet) {
-                writeTuplet(it.id, Id());
+                writeTuplet(it.id, nullptr);
                 at = it.t + it.len;
                 continue;
             }
