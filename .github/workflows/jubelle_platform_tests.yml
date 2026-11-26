@@ -182,8 +182,12 @@ jobs:
         { echo; echo "### Time signature change"; cat je_timesig.md; } >> "$GITHUB_STEP_SUMMARY"
         # and against MuseScore's own command (Score::cmdAddTimeSig) on the originals: the same music expected
         mkdir -p "$RUNNER_TEMP/tsref"
-        python3 tools/jubelle_checks/je_timesig_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-          "$RUNNER_TEMP/tsref" 1 5 8 > je_timesig_reference.txt || rc=1
+        python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+          "$RUNNER_TEMP/tsref" timesig 1 5 8 > je_timesig_reference.txt || rc=1
+        for spec in "split 1" "join 1 2"; do
+          python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
+        done
         { echo; echo '```'; cat je_timesig_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Upload the comparison

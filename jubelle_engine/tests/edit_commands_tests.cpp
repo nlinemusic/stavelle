@@ -570,3 +570,59 @@ TEST(Commands, ANoteWithATieOfItsOwnIsNotTiedToItsPieces)
     d.consistent();
     d.roundTrip();
 }
+
+TEST(Commands, SplittingAMeasureKeepsItsMusicInTwoMeasures)
+{
+    Doc d(2);
+    d.chord(d.flute.voice, 0, { 60 });
+    d.chord(d.flute.voice, 1, { 62 });
+    d.chord(d.flute.voice, 2, { 64 }, 2);
+    const std::string before = d.voice(d.flute.voice);
+    bool ok = true;
+    d.edit("Split", [&](Transaction& tx) { ok = d.cmd.splitMeasure(tx, Fraction(0, 1)); });
+    EXPECT_FALSE(ok);   // the first beat
+    d.edit("Split", [&](Transaction& tx) { ok = d.cmd.splitMeasure(tx, Fraction(1, 4)); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(measuresOf(d), "0/1+1/4 4/4\n1/4+3/4 4/4\n1/1+1/1 4/4\n");
+    EXPECT_EQ(d.voice(d.flute.voice), before);
+    // the horn's measure rest becomes one in each part
+    EXPECT_EQ(d.voice(d.horn.voice).substr(0, 16), "0/1 1/4\n1/4 3/4\n");
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, JoiningMeasuresMakesOneOfTheFirstsTimeSignature)
+{
+    Doc d(3);
+    d.chord(d.flute.voice, 0, { 60 }, 2);
+    d.chord(d.flute.voice, 2, { 62 }, 2);
+    d.chord(d.flute.voice, 4, { 64 }, 2);
+    bool ok = false;
+    d.edit("Join", [&](Transaction& tx) { ok = d.cmd.joinMeasures(tx, 0, 1); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(measuresOf(d), "0/1+2/1 4/4\n2/1+1/1 4/4\n");
+    EXPECT_EQ(d.voice(d.flute.voice).substr(0, 33), "0/1 1/2 60\n1/2 1/2 62\n1/1 1/2 64\n");
+    // the horn's two measure rests are one measure rest of the joined measure
+    EXPECT_EQ(d.voice(d.horn.voice), "0/1 2/1\n2/1 1/1\n");
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+    // and split again
+    d.edit("Split", [&](Transaction& tx) { ok = d.cmd.splitMeasure(tx, Fraction(1, 1)); });
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(measuresOf(d), "0/1+1/1 4/4\n1/1+1/1 4/4\n2/1+1/1 4/4\n");
+    d.consistent();
+}
+
+TEST(Commands, AMeasureIsNotSplitInsideATuplet)
+{
+    Doc d(1);
+    d.edit("Triplet", [&](Transaction& tx) { d.ops.makeTuplet(tx, d.flute.voice, Fraction(0, 1), 3, 2, Fraction(1, 4)); });
+    bool ok = true;
+    d.edit("Split", [&](Transaction& tx) { ok = d.cmd.splitMeasure(tx, Fraction(1, 6)); });
+    EXPECT_FALSE(ok);
+    d.edit("Split", [&](Transaction& tx) { ok = d.cmd.splitMeasure(tx, Fraction(1, 2)); });
+    EXPECT_TRUE(ok);
+    d.consistent();
+}

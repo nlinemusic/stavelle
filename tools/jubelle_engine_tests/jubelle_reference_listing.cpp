@@ -14,6 +14,9 @@
  * JUBELLE_REFERENCE_TIMESIG="<measure index> <num> <den>": before listing, MuseScore's own command adds that time
  * signature (Score::cmdAddTimeSig, as dropping it from the palette), for comparing the Jubelle engine's
  * changeTimeSignature (`je_io_tool tsedit`); the listing starts with "# timesig changed" or "# timesig refused".
+ * JUBELLE_REFERENCE_SPLIT="<measure index>": SplitJoinMeasure::splitMeasure at the middle of that measure (where a
+ * chord or rest starts there); JUBELLE_REFERENCE_JOIN="<first> <last>": joinMeasures; compared with
+ * `je_io_tool measedit` ("# measures changed|refused").
  */
 #include <gtest/gtest.h>
 
@@ -45,6 +48,7 @@
 #include "engraving/dom/factory.h"
 #include "engraving/dom/measure.h"
 #include "engraving/dom/timesig.h"
+#include "engraving/editing/splitjoinmeasure.h"
 
 using namespace mu::engraving;
 
@@ -312,6 +316,43 @@ TEST(Jubelle_Reference, MusicListing)
                     changed = listing(s) != before || (after && after->timesig().identical(Fraction(num, den)));
                 }
                 head = std::string("# timesig ") + (changed ? "changed" : "refused") + "\n";
+            }
+            const char* split = std::getenv("JUBELLE_REFERENCE_SPLIT");
+            const char* join = std::getenv("JUBELLE_REFERENCE_JOIN");
+            if (split || join) {
+                s->setLayoutAll();
+                s->doLayout();
+                for (Measure* mm = s->firstMeasure(); mm; mm = mm->nextMeasure()) {
+                    mm->getSegmentR(SegmentType::EndBarLine, mm->ticks());
+                }
+                const std::string before = listing(s);
+                std::istringstream spec(split ? split : join);
+                int a = 0, b = 0;
+                spec >> a >> b;
+                auto measureAt = [s](int index) {
+                    Measure* mm = s->firstMeasure();
+                    for (int i = 0; mm && i < index; ++i) {
+                        mm = mm->nextMeasure();
+                    }
+                    return mm;
+                };
+                Measure* ma = measureAt(a);
+                Measure* mb = join ? measureAt(b) : nullptr;
+                bool can = ma && (split || (mb && a < b));
+                if (can && split) {
+                    const Fraction tick = ma->tick() + ma->ticks() * Fraction(1, 2);
+                    can = s->tick2segment(tick, false, SegmentType::ChordRest) != nullptr;
+                    if (can) {
+                        s->startCmd(TranslatableString::untranslatable("split"));
+                        SplitJoinMeasure::splitMeasure(s, tick);
+                        s->endCmd();
+                    }
+                } else if (can) {
+                    s->startCmd(TranslatableString::untranslatable("join"));
+                    SplitJoinMeasure::joinMeasures(s, ma->tick(), mb->tick());
+                    s->endCmd();
+                }
+                head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
             }
             std::ofstream(out) << head << listing(s);
             ++done;

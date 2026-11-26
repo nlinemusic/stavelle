@@ -924,14 +924,29 @@ bool Commands::rewriteMeasures(Transaction& tx, size_t from, int num, int den)
     return true;
 }
 
-void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, size_t b, int num, int den)
+void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, size_t b, int num, int den,
+                          std::vector<Fraction> lens)
 {
     const Fraction ns(num, den);
     const Fraction t0 = m_ops.measureStart(ms[a]), t1 = m_ops.measureEnd(ms[b]);
     const Fraction len = t1 - t0;
-    const Fraction k = len / ns;
-    const int64_t count = (k.numerator() + k.denominator() - 1) / k.denominator();
-    const Fraction fill = ns * Fraction(count, 1) - len;
+    if (lens.empty()) {   // as many measures of the new time signature as the music needs
+        const Fraction k = len / ns;
+        lens.assign(size_t((k.numerator() + k.denominator() - 1) / k.denominator()), ns);
+    }
+    const int64_t count = int64_t(lens.size());
+    std::vector<Fraction> starts { t0 };   // the new measures' starts, and the end
+    for (const Fraction& l : lens) {
+        starts.push_back(starts.back() + l);
+    }
+    const Fraction fill = starts.back() - t1;
+    // the new measure holding a time (its start, its length)
+    auto newMeasure = [&starts](const Fraction& at) {
+        auto it = std::upper_bound(starts.begin(), starts.end() - 1, at);
+        const size_t i = it == starts.begin() ? 0 : size_t(it - starts.begin()) - 1;
+        return std::make_pair(starts[i], starts[i + 1] - starts[i]);
+    };
+    auto isBarline = [&starts](const Fraction& at) { return std::binary_search(starts.begin(), starts.end(), at); };
 
     // what the old measures carry that MuseScore keeps: repeats (by time), line and page breaks (by the time they
     // follow), a section break (on the last measure), part layouts' own breaks
@@ -1192,8 +1207,8 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
     }
     std::vector<Id> made;
     for (int64_t i = 0; i < count; ++i) {
-        const Fraction at = t0 + ns * Fraction(i, 1);
-        std::vector<std::pair<Field, Value> > f { { F::TIME, at }, { F::DURATION, ns }, { F::TIMESIG_NUM, int64_t(num) },
+        const Fraction at = starts[size_t(i)], ml = lens[size_t(i)];
+        std::vector<std::pair<Field, Value> > f { { F::TIME, at }, { F::DURATION, ml }, { F::TIMESIG_NUM, int64_t(num) },
                                                    { F::TIMESIG_DEN, int64_t(den) } };
         for (const Fraction& r : repeatStarts) {
             if (r == at) {
@@ -1201,12 +1216,12 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
             }
         }
         for (const Fraction& r : repeatEnds) {
-            if (r == at + ns) {
+            if (r == at + ml) {
                 f.push_back({ F::REPEAT_END, int64_t(2) });
             }
         }
         for (const auto& [p, kind] : breaks) {
-            if (at < p && p <= at + ns) {
+            if (at < p && p <= at + ml) {
                 f.push_back({ F::BREAK, Text(kind) });
             }
         }
@@ -1231,17 +1246,15 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
         }
     }
     for (Id c : items) {
-        const Fraction rel = m_ops.timeOf(c) - t0;
-        const Fraction q = rel / ns;
-        tx.set(c, F::TIME, t0 + ns * Fraction(q.numerator() / q.denominator(), 1));
+        tx.set(c, F::TIME, newMeasure(m_ops.timeOf(c)).first);
     }
     std::vector<Id> voltas;
     for (Id c : m_ops.obj(m_ops.m.score())->children()) {
         const Object* o = m_ops.obj(c);
         if (o->kind() == Kind::Spanner && o->text(F::SUBKIND) == "volta" && t0 <= m_ops.timeOf(c) && m_ops.timeOf(c) < t1 + fill) {
             const Fraction s = m_ops.timeOf(c) - t0, e = s + o->fractionOr(F::DURATION, Fraction());
-            const bool startOk = (s / ns).denominator() == 1;
-            const bool endOk = (e / ns).denominator() == 1 || t1 + fill < t0 + e;
+            const bool startOk = isBarline(t0 + s);
+            const bool endOk = isBarline(t0 + e) || t1 + fill < t0 + e;
             if (!startOk || !endOk) {
                 voltas.push_back(c);
             }
@@ -1279,10 +1292,8 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
     // each voice written again into the new measures: values split at the barlines (MuseScore's toDurationList:
     // notes with dots, rests without), tied; a rest that fills a measure from its start a measure rest (voice 1;
     // nothing in the other voices)
-    auto measureOf = [&](const Fraction& at) {
-        const Fraction q = (at - t0) / ns;
-        return t0 + ns * Fraction(q.numerator() / q.denominator(), 1);
-    };
+    auto measureOf = [&](const Fraction& at) { return newMeasure(at).first; };
+    auto measureEndOf = [&](const Fraction& at) { const auto m = newMeasure(at); return m.first + m.second; };
     for (Track& tr : tracks) {
         if (tr.number > 0 && tr.items.size() == 1 && tr.items.front().rest) {
             if (tr.items.front().id.isValid()) {
@@ -1303,7 +1314,7 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
                 }
             });
             const Fraction base = m_ops.obj(tuplet)->fractionOr(F::BASE_DURATION, Fraction(1, 8));
-            const bool split = measureOf(at) + ns - at < du;
+            const bool split = measureEndOf(at) - at < du;
             Id dt = tuplet;
             if (split) {   // two halves, each half as long (MuseScore: baseLen shifted by one)
                 tx.set(dt, F::DURATION, du * Fraction(1, 2));
@@ -1325,7 +1336,7 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
                 Pieces pw = startPieces(e, tr.voice);
                 Fraction left = m_ops.endOf(e) - m_ops.timeOf(e);
                 while (Fraction() < left) {
-                    const Fraction remains = measureOf(at) + ns - at;
+                    const Fraction remains = measureEndOf(at) - at;
                     if (split && dt == tuplet && start < at && at == measureOf(at)) {
                         // the second half, from the barline
                         std::vector<std::pair<Field, Value> > f = fields;
@@ -1371,19 +1382,19 @@ void Commands::rewriteRun(Transaction& tx, const std::vector<Id>& ms, size_t a, 
             pw.rest = it.rest;
             Fraction left = it.len;
             while (Fraction() < left) {
-                const Fraction mStart = measureOf(at);
-                const Fraction remains = mStart + ns - at;
-                if (it.rest && (!(left < remains) || lastItem) && remains == ns) {
+                const Fraction mLen = newMeasure(at).second;
+                const Fraction remains = measureEndOf(at) - at;
+                if (it.rest && (!(left < remains) || lastItem) && remains == mLen) {
                     // a measure rest (voice 1 only)
                     if (tr.number == 0) {
-                        addPiece(tx, pw, at, ns, nullptr, true, Id());
+                        addPiece(tx, pw, at, mLen, nullptr, true, Id());
                     } else if (pw.first && it.id.isValid()) {
                         m_ops.removeEvent(tx, it.id);
                         pw.first = false;
                         pw.gone = true;
                     }
-                    at += ns;
-                    left = left < ns ? Fraction() : left - ns;
+                    at += mLen;
+                    left = left < mLen ? Fraction() : left - mLen;
                     continue;
                 }
                 const Fraction du = std::min(remains, left);
@@ -1539,5 +1550,185 @@ void Commands::finishPieces(Transaction& tx, const Pieces& p)
             }
         }
     }
+}
+
+// ---- splitting and joining measures ---------------------------------------------------------------------------
+int Commands::measureRepeatCount(Id measure) const
+{
+    // MuseScore's measureRepeatCount (the place of the measure in a measure repeat group, per staff; kept with the
+    // measure's other per-staff properties as written): the largest over the staves
+    int count = 0;
+    const Fraction a = m_ops.measureStart(measure);
+    for (Id c : m_ops.obj(flowOf())->children()) {
+        const Object* o = m_ops.obj(c);
+        if (o->kind() == Kind::FlowItem && o->text(F::SUBKIND) == "measureDetail" && m_ops.timeOf(c) == a) {
+            const std::string& d = o->text(F::DETAILS);
+            const size_t at = d.find("<measureRepeatCount>");
+            if (at != std::string::npos) {
+                count = std::max(count, std::atoi(d.c_str() + at + std::string("<measureRepeatCount>").size()));
+            }
+        }
+    }
+    return count;
+}
+
+bool Commands::canSplitAt(const Fraction& tick) const
+{
+    // MuseScore splits at a chord-rest segment: a chord or rest, or something attached there (a chord symbol…)
+    static const std::set<std::string> attached { "harmony", "dynamic", "staffText", "systemText", "rehearsalMark", "tempo",
+                                                  "instrumentChange", "fermata", "expression", "playTechnique" };
+    for (Id staff : allStaves()) {
+        for (Id v : m_ops.obj(staff)->children()) {
+            if (m_ops.obj(v)->kind() != Kind::Voice) {
+                continue;
+            }
+            for (Id c : m_ops.obj(v)->children()) {
+                const Object* o = m_ops.obj(c);
+                if ((o->kind() == Kind::Chord || o->kind() == Kind::Rest) && !o->has(F::GRACE) && m_ops.timeOf(c) == tick) {
+                    return true;
+                }
+            }
+        }
+    }
+    for (Id c : timeItemsAt(tick)) {
+        if (attached.count(m_ops.obj(c)->text(F::SUBKIND))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::vector<Id> Commands::timeItemsAt(const Fraction& t) const
+{
+    std::vector<Id> out;
+    const std::vector<Id>& kids = m_ops.obj(flowOf())->children().ids();
+    auto it = std::lower_bound(kids.begin(), kids.end(), t, [this](Id x, const Fraction& time) { return m_ops.timeOf(x) < time; });
+    for (; it != kids.end() && m_ops.timeOf(*it) == t; ++it) {
+        out.push_back(*it);
+    }
+    return out;
+}
+
+bool Commands::localTimeSignatures(const Fraction& t0, const Fraction& t1) const
+{
+    for (Id m : m_ops.measures()) {
+        const Fraction at = m_ops.measureStart(m);
+        if (at < t0 || !(at < t1)) {
+            continue;
+        }
+        for (Id staff : allStaves()) {
+            for (Id v : m_ops.obj(staff)->children()) {
+                if (m_ops.obj(v)->kind() == Kind::Voice) {
+                    if (!(m_ops.stretchAt(v, at) == Fraction(1, 1))) {
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool Commands::splitMeasure(Transaction& tx, const Fraction& tick)
+{
+    const std::vector<Id> ms = m_ops.measures();
+    const Id m = m_ops.measureAt(tick);
+    const auto pos = std::find(ms.begin(), ms.end(), m);
+    if (!m.isValid() || pos == ms.end()) {
+        return false;
+    }
+    const Fraction start = m_ops.measureStart(m), end = m_ops.measureEnd(m);
+    if (!(start < tick) || !(tick < end)) {
+        return false;   // MuseScore: "cannot split measure here: first beat of measure"
+    }
+    if (!canSplitAt(tick) || measureRepeatCount(m) > 0 || localTimeSignatures(start, end)) {
+        return false;   // "cannot split measure repeat"; staves with their own time signature: not yet
+    }
+    // no tuplet is cut ("cannot split measure here: cannot split tuplet")
+    for (Id staff : allStaves()) {
+        for (Id v : m_ops.obj(staff)->children()) {
+            if (m_ops.obj(v)->kind() != Kind::Voice) {
+                continue;
+            }
+            for (Id c : m_ops.obj(v)->children()) {
+                const Object* o = m_ops.obj(c);
+                const Fraction t = m_ops.timeOf(c);
+                if (o->kind() == Kind::Tuplet && t < tick && tick < m_ops.endOf(c)) {
+                    return false;
+                }
+            }
+        }
+    }
+    // the two lengths, no finer than MuseScore allows ("cannot split measure here: too short")
+    const Fraction first = tick - start, second = end - tick;
+    if (first.denominator() > 128 || second.denominator() > 128) {
+        return false;
+    }
+    const Object* mo = m_ops.obj(m);
+    const size_t index = size_t(pos - ms.begin());
+    rewriteRun(tx, ms, index, index, int(mo->intOr(F::TIMESIG_NUM, 4)), int(mo->intOr(F::TIMESIG_DEN, 4)), { first, second });
+    return true;
+}
+
+bool Commands::joinMeasures(Transaction& tx, size_t first, size_t last)
+{
+    const std::vector<Id> ms = m_ops.measures();
+    if (!(first < last) || last >= ms.size()) {
+        return false;
+    }
+    // a measure repeat group may not be cut by the join (MuseScore: "cannot split measure repeat")
+    if (measureRepeatCount(ms[first]) > 1 || (last + 1 < ms.size() && measureRepeatCount(ms[last + 1]) > 1)) {
+        return false;
+    }
+    const Fraction t0 = m_ops.measureStart(ms[first]), t1 = m_ops.measureEnd(ms[last]);
+    if (localTimeSignatures(t0, t1)) {
+        return false;   // staves with their own time signature: not yet (MuseScore keeps their stretch)
+    }
+    const Object* m1 = m_ops.obj(ms[first]);
+    const int num = int(m1->intOr(F::TIMESIG_NUM, 4)), den = int(m1->intOr(F::TIMESIG_DEN, 4));
+    // the time signatures inside go; the last one of each staff moves to the next measure if it has none
+    std::map<Id, Id> lastSig;   // staff (or none: every staff) → its last time signature inside
+    std::vector<Id> inside;
+    for (Id c : m_ops.obj(flowOf())->children()) {
+        const Object* o = m_ops.obj(c);
+        const Fraction t = m_ops.timeOf(c);
+        if (isTimeSig(o) && t0 < t && t < t1) {
+            inside.push_back(c);
+            lastSig[o->idOr(F::ANCHOR)] = c;
+        }
+    }
+    std::vector<std::vector<std::pair<Field, Value> > > moves;
+    if (last + 1 < ms.size()) {
+        const std::vector<Id> atNext = timeSigsAt(t1);
+        for (const auto& [staff, sig] : lastSig) {
+            bool there = false;
+            for (Id n : atNext) {
+                there = there || m_ops.obj(n)->idOr(F::ANCHOR) == staff;
+            }
+            if (!there) {
+                std::vector<std::pair<Field, Value> > f;
+                m_ops.obj(sig)->forEachField([&f](Field fl, const Value& val) {
+                    if (fl != F::KIND && fl != F::PARENT && fl != F::CHILDREN && fl != F::ORIGIN_EID && fl != F::SEQ
+                        && fl != F::AT_END) {
+                        f.push_back({ fl, val });
+                    }
+                });
+                f.push_back({ F::TIME, t1 });
+                moves.push_back(std::move(f));
+            }
+        }
+    }
+    std::vector<Fraction> lens { t1 - t0 };
+    rewriteRun(tx, ms, first, last, num, den, lens);
+    for (Id c : inside) {
+        if (m_ops.obj(c)) {
+            removeTree(tx, c);
+        }
+    }
+    for (auto& f : moves) {
+        create(tx, m_ops.m_ids, flowOf(), { Kind::FlowItem, f }, Placement::ByTime);
+    }
+    return true;
 }
 }

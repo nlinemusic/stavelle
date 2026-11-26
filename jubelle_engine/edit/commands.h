@@ -78,12 +78,28 @@ public:
     //! barline, or a staff with its own time signature in music that isn't all measure rests
     bool changeTimeSignature(Transaction& tx, size_t measure, int num, int den);
 
+    //! SplitJoinMeasure::splitMeasure: the measure is split at `tick` (where a chord or rest starts) into two
+    //! measures of the same time signature, the music written again into them. False, nothing changed, at the
+    //! first beat, inside a tuplet, on a measure repeat, or for a length finer than 1/128
+    bool splitMeasure(Transaction& tx, const Fraction& tick);
+    //! Where MuseScore can split: a chord or rest starts there, or something is attached there (a chord symbol…)
+    bool canSplitAt(const Fraction& tick) const;
+    //! SplitJoinMeasure::joinMeasures: measures first … last become one, with the first one's time signature; the
+    //! time signatures inside go (each staff's last one moves to the next measure if it has none)
+    bool joinMeasures(Transaction& tx, size_t first, size_t last);
+
 private:
     std::vector<Id> timeSigsAt(const Fraction& t) const;
+    int measureRepeatCount(Id measure) const;
+    std::vector<Id> timeItemsAt(const Fraction& t) const;
+    bool localTimeSignatures(const Fraction& t0, const Fraction& t1) const;
     std::vector<Id> allStaves() const;
     void setTimeSigs(Transaction& tx, const Fraction& t, int64_t num, int64_t den);
     bool rewriteMeasures(Transaction& tx, size_t from, int num, int den);
-    void rewriteRun(Transaction& tx, const std::vector<Id>& measures, size_t first, size_t last, int num, int den);
+    //! The measures [first, last] written again as measures of the given lengths (none: of num/den, as many as the
+    //! music needs), with num/den their nominal time signature
+    void rewriteRun(Transaction& tx, const std::vector<Id>& measures, size_t first, size_t last, int num, int den,
+                    std::vector<Fraction> lengths = {});
     //! An event written again as tied pieces: the first is the event itself, the others new (with its notes)
     struct Pieces {
         Id source, voice, prev;

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
-"""S3, time signature change against MuseScore's own command: the engine (`je_io_tool tsedit`) and MuseScore's
-Score::cmdAddTimeSig (the reference listing with JUBELLE_REFERENCE_TIMESIG) change the same time signature in every
-4.x corpus score; the music listings are compared.
+"""S3, measure commands against MuseScore's own: the engine (`je_io_tool tsedit` / `measedit`) and MuseScore
+(Score::cmdAddTimeSig, SplitJoinMeasure::splitMeasure / joinMeasures, by the reference listing with
+JUBELLE_REFERENCE_TIMESIG / _SPLIT / _JOIN) make the same change in every 4.x corpus score; the music listings are
+compared.
 
-Usage: je_timesig_reference.py <je_io_tool> <reference tests binary> <repository> <work dir> <index> <num> <den>
+Usage: je_measures_reference.py <je_io_tool> <reference tests binary> <repository> <work dir> timesig <index> <num> <den>
+       je_measures_reference.py … split <measure index>
+       je_measures_reference.py … join <first index> <last index>
 
 MuseScore's command crashes on a few test files in the headless test build; those are skipped (and counted), the run
 resumes after them. Prints a summary and writes <work dir>/differences.txt."""
@@ -15,19 +18,26 @@ import sys
 
 
 def main(argv):
-    if len(argv) != 8:
+    if len(argv) < 7:
         print(__doc__)
         return 2
-    tool, ref, repo, work, index, num, den = argv[1:]
-    spec = f"{index} {num} {den}"
+    tool, ref, repo, work, op = argv[1:6]
+    args = argv[6:]
+    spec = " ".join(args)
     mine, theirs = os.path.join(work, "jubelle"), os.path.join(work, "musescore")
     os.makedirs(theirs, exist_ok=True)
-    log = subprocess.run([tool, "tsedit", repo, "--out", mine, index, num, den], capture_output=True, text=True).stdout
-    scores = [l.split(": ", 1)[1].removesuffix(" PROBLEMS") for l in log.splitlines() if l.startswith(("changed: ", "refused: "))]
+    if op == "timesig":
+        command, variable = [tool, "tsedit", repo, "--out", mine] + args, "JUBELLE_REFERENCE_TIMESIG"
+    else:
+        command, variable = [tool, "measedit", repo, "--out", mine, op] + args, "JUBELLE_REFERENCE_" + op.upper()
+    log = subprocess.run(command, capture_output=True, text=True).stdout
+    scores = [l.split(": ", 1)[1].removesuffix(" PROBLEMS") for l in log.splitlines()
+              if l.split(": ", 1)[0] in ("changed", "refused", "unchanged") and ": " in l]
     problems = [l for l in log.splitlines() if l.endswith(" PROBLEMS")]
     todo, crashed = list(scores), []
-    env = dict(os.environ, JUBELLE_REFERENCE_TIMESIG=spec, JUBELLE_REFERENCE_ROOT=repo,
+    env = dict(os.environ, JUBELLE_REFERENCE_ROOT=repo,
                JUBELLE_REFERENCE_LIST=os.path.join(work, "todo.txt"), JUBELLE_REFERENCE_OUT=theirs)
+    env[variable] = spec
     while todo:
         with open(env["JUBELLE_REFERENCE_LIST"], "w", encoding="utf-8") as f:
             f.write("\n".join(todo) + "\n")
@@ -44,13 +54,13 @@ def main(argv):
             continue
         a = open(os.path.join(mine, os.path.splitext(rel)[0] + ".mscz.je.txt"), encoding="utf-8").read()
         b = open(os.path.join(theirs, rel + ".txt"), encoding="utf-8").read()
-        ha, hb = a.split("\n", 1)[0][10:], b.split("\n", 1)[0][10:]
+        ha, hb = a.split("\n", 1)[0].split(" ")[-1], b.split("\n", 1)[0].split(" ")[-1]
         if a == b:
             stat[f"the same music ({hb})"] += 1
         else:
             stat[f"different: Jubelle {ha}, MuseScore {hb}"] += 1
             diffs.append(rel)
-    print(f"time signature {num}/{den} at measure index {index}: {len(scores)} scores; {len(problems)} left inconsistent")
+    print(f"{op} {spec}: {len(scores)} scores; {len(problems)} left inconsistent")
     for k, v in sorted(stat.items()):
         print(f"  {v:5d}  {k}")
     with open(os.path.join(work, "differences.txt"), "w", encoding="utf-8") as f:

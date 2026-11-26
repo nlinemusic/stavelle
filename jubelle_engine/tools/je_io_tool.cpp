@@ -1070,6 +1070,70 @@ int tsedit(const std::string& folder, const std::string& outDir, int index, int 
     return 0;
 }
 
+//! Every corpus score with measures split (split <index>: at the middle of that measure, where a chord or rest
+//! starts) or joined (join <first> <last>) by the engine, its listing next to each saved file headed "# measures
+//! changed|unchanged|refused", for comparing with MuseScore's SplitJoinMeasure (JUBELLE_REFERENCE_SPLIT / _JOIN)
+int measedit(const std::string& folder, const std::string& outDir, const std::string& op, int a, int b)
+{
+    namespace F = model::fields;
+    std::map<std::string, int> count;
+    forEachScore(folder, [&](const std::string& rel, const fs::path& p, model::Model& m, IdGenerator& ids) {
+        edit::Operations ops(m, ids);
+        edit::Commands cmd(ops);
+        const model::Snapshot before = m.snapshot();
+        const std::string listingBefore = io::musicListing(before);
+        const std::vector<Id> ms = ops.measures();
+        std::string label = "refused";
+        try {
+            edit::Transaction tx(m, op, { edit::linkedStavesHook(m, ids) });
+            bool ok = false;
+            if (op == "split" && size_t(a) < ms.size()) {
+                const Fraction tick = ops.measureStart(ms[size_t(a)]) + (ops.measureEnd(ms[size_t(a)]) - ops.measureStart(ms[size_t(a)])) * Fraction(1, 2);
+                const bool starts = cmd.canSplitAt(tick);
+                if (starts) {
+                    label = "unchanged";
+                    ok = cmd.splitMeasure(tx, tick);
+                }
+            } else if (op == "join" && a < b && size_t(b) < ms.size()) {
+                label = "unchanged";
+                ok = cmd.joinMeasures(tx, size_t(a), size_t(b));
+            }
+            if (ok) {
+                tx.commit();
+            }
+        } catch (const std::exception& e) {
+            std::cout << "failed: " << rel << ": " << e.what() << "\n";
+            return;
+        }
+        const std::string listingAfter = io::musicListing(m.snapshot());
+        if (label != "refused" && listingAfter != listingBefore) {
+            label = "changed";
+        }
+        const auto problems = model::checkInvariants(m.snapshot(), 1000);
+        const auto had = model::checkInvariants(before, 1000);
+        const bool newProblems = problems.size() > had.size();
+        const fs::path out = fs::path(outDir) / (rel.substr(0, rel.size() - p.extension().string().size()) + ".mscz");
+        fs::create_directories(out.parent_path());
+        std::string error;
+        if (!io::saveScore(m.snapshot(), out.string(), error)) {
+            std::cout << "not saved: " << rel << ": " << error << "\n";
+            return;
+        }
+        std::ofstream(out.string() + ".je.txt") << "# measures " << label << "\n" << listingAfter;
+        count[label]++;
+        std::cout << label << ": " << rel << (newProblems ? " PROBLEMS" : "") << "\n";
+        if (newProblems) {
+            for (const std::string& pr : problems) {
+                std::cout << "  " << pr << "\n";
+            }
+        }
+    });
+    for (const auto& [k, v] : count) {
+        std::cout << v << " " << k << "\n";
+    }
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1120,6 +1184,9 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
+    }
+    if (a.size() >= 6 && a[0] == "measedit" && a[2] == "--out") {
+        return measedit(a[1], a[3], a[4], std::atoi(a[5].c_str()), a.size() > 6 ? std::atoi(a[6].c_str()) : 0);
     }
     if (a.size() == 7 && a[0] == "tsedit" && a[2] == "--out") {
         return tsedit(a[1], a[3], std::atoi(a[4].c_str()), std::atoi(a[5].c_str()), std::atoi(a[6].c_str()));

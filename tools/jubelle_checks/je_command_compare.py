@@ -15,8 +15,8 @@ def stem(path):
 
 
 def strip_head(text):
-    # je_io_tool tsedit heads its listing with "# timesig changed|refused"
-    return text.split("\n", 1)[1] if text.startswith("# timesig") else text
+    # je_io_tool tsedit and measedit head their listings with "# timesig …" or "# measures …"
+    return text.split("\n", 1)[1] if text.startswith(("# timesig", "# measures")) else text
 
 
 def main(argv):
