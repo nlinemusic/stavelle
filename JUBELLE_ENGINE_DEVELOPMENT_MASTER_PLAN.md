@@ -255,14 +255,15 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 25 Nov 2026 | **S3 time signature changes** (`Commands::changeTimeSignature`, ported from MuseScore's `cmdAddTimeSig`, `rewriteMeasures` and `ScoreRange`): the music from the changed bar to the next time signature or section break is rewritten into the new measures, as MuseScore does it (notes split and tied at the new barlines, articulations on the first part, rests joined where MuseScore joins them and split undotted, measure rests, holes in voices 2–4 kept, the last measure filled, tuplets split at their middle, pickups, the same length only renamed, pieces tied by a rewrite joined again by the next); repeats, line, page and section breaks, voltas, rehearsal marks and part layouts' breaks kept. **Compared with MuseScore's own command on every corpus score** (`je_measures_reference.py`, in CI): 5/8 from bar 2, **2,088 of 2,111 the same music**; 3/4 from bar 1, **2,077 of 2,112**; MuseScore reads every saved result with the same music (2,111 of 2,111 outside the known list, CI). Found and fixed on the way: notes with a tie of their own (laissez vibrer, partial ties) given a second tie made MuseScore crash reading the file; measure repeats rewritten as rests. Large orchestra: **6.4 s in MuseScore's engine, 0.53 s in the Jubelle engine**. 114 tests |
 | 25 Nov 2026 | **S3 split and join measures** (`Commands::splitMeasure` / `joinMeasures`, MuseScore's SplitJoinMeasure, on the same rewrite as time signatures, now with measures of any lengths): split where a chord, rest or chord symbol starts (not on the first beat, inside a tuplet, on a measure repeat or finer than 1/128); join with the first measure's time signature, the time signatures inside removed and each staff's last moved to the next measure. Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI): **split 2,105 of 2,115, join 2,093 of 2,110 the same music** (the rest: staves with their own time signature, left unchanged for now, and a MuseScore oddity after joining across an end-of-measure time signature); MuseScore reads every saved result with the same music. 117 tests |
 | 25 Nov 2026 | **S3 measure rewriting, the remaining differences** (on the same rewrite): staves with their own time signature follow MuseScore's rules (measure rests take the global signature; music refuses the change); the staves' old time signatures are given back per staff after the range; a staff's own signature replaced by a global one loses its stretch; tuplets inside tuplets are split with their parents. Time signature against MuseScore's command: **5/8 from bar 2, 2,094 of 2,111; 3/4 from bar 1, 2,089 of 2,112**; split and join unchanged; every saved result read by MuseScore with the same music. The intentional differences are listed in §15. 120 tests |
+| 26 Nov 2026 | **S3 explode and implode** (`Commands::explode` / `implode`, MuseScore's `cmdExplode` / `cmdImplode` with its CloneVoice): explode gives each staff below one note of every chord (from the top, reused from the bottom), or, with voices 2–4 in use, moves each voice to the first free voice below from the measure its music starts in; implode on one staff joins voices 2–4 into voice 1 where the chords have the same length, across staves puts the first four voices with music into the first staff. Both refuse staves with different local time signatures, as MuseScore does, and staves linked to each other. Against MuseScore's own commands on every corpus score (`je_measures_reference.py`, CI): **explode 2,096 of 2,118, implode on one staff 2,109 of 2,118, implode across staves 2,014 of 2,118 the same music**; the rest are the intentional differences of §15 (most are guitar scores whose standard staff and tablature are linked) and files MuseScore already reads differently; MuseScore reads every saved result with the same music. 126 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
-  and 11 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
+  and 7 consistency known issues; older formats (1.x–3.x), MusicXML and MIDI; the kept XML's memory.
 - **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
   tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
-  texts on linked staves, the editing commands of `edit/commands`, time signature changes, split and join measures. Next: the remaining
-  commands of `docs/10_…` (explode and implode, slashes, chord-symbol realization,
+  texts on linked staves, the editing commands of `edit/commands`, time signature changes, split and join measures,
+  explode and implode. Next: the remaining commands of `docs/10_…` (slashes, chord-symbol realization,
   moving to another staff, lyrics and text), scripted comparisons with MuseScore's engine (the clipboard's text format
   is part of S10). Then S4 (autosave journal and crash recovery).
 - Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
@@ -283,6 +284,15 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
      stretch of 4/3 that no staff asked for; the engine leaves them in their own time signature.
   4. Damaged files (events that overlap, a tuplet whose music doesn't fill it) are not rewritten; MuseScore
      rewrites them into music of a different length.
+  5. Explode and implode between staves linked to each other (a guitar's standard staff and its tablature) are
+     refused: the two show the same music, so MuseScore's result takes notes out of both or doubles them.
+  6. Explode of chords with no staff below to take the other notes leaves the music as it is; MuseScore removes
+     those notes from the score.
+  7. Exploding a voice whose music starts after the first measure keeps the destination's music before it, also
+     where MuseScore's copy of the source's earlier rests would overwrite notes there.
+  8. Implode across staves replaces the first staff's voices over the whole range; MuseScore leaves a voice's old
+     notes where its new source has only a measure rest (so a moved voice's notes sound twice) and keeps old rests
+     under the new notes (overlapping events), and clones multimeasure rests into voice 2.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds

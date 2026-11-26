@@ -755,3 +755,146 @@ TEST(Commands, ATupletInsideATupletAcrossTheBarlineGivesBothHalvesTheirParents)
     d.consistent();
     d.roundTrip();
 }
+
+namespace {
+//! A doc with two more players (clarinet in C, bassoon: not transposing)
+struct Quartet : Doc {
+    ScoreBuilder::PlayerIds clarinet, bassoon;
+    Quartet()
+        : Doc(2)
+    {
+        edit("More players", [&](Transaction& tx) {
+            clarinet = b.addPlayer(tx, "Clarinet in C", "clarinet", "woodwinds", 1);
+            bassoon = b.addPlayer(tx, "Bassoon", "bassoon", "woodwinds", 1);
+            for (Id v : { clarinet.voice, bassoon.voice }) {
+                for (int i = 0; i < 2; ++i) {
+                    create(tx, ids, v, { Kind::Rest, { { F::TIME, Fraction(i, 1) }, { F::DURATION, Fraction(1, 1) },
+                                                       { F::MEASURE_REST, true } } }, Placement::ByTime);
+                }
+            }
+        });
+    }
+    Id voiceOf(Id staff, int n) const
+    {
+        for (Id v : o(staff)->children()) {
+            if (o(v)->kind() == Kind::Voice && o(v)->intOr(F::NUMBER, 0) == n) {
+                return v;
+            }
+        }
+        return Id();
+    }
+};
+}
+
+TEST(Commands, ExplodingChordsGivesEachStaffOneNoteFromTheTop)
+{
+    Quartet d;   // staves: flute, horn, clarinet, bassoon
+    d.chord(d.flute.voice, 0, { 60, 64, 67 });
+    d.chord(d.flute.voice, 1, { 62, 65 });
+    int last = 0;
+    d.edit("Explode", [&](Transaction& tx) { last = d.cmd.explode(tx, 0, 1, Fraction(0, 1), Fraction(1, 1)); });
+    EXPECT_EQ(last, 3);   // as many staves as the largest chord has notes
+    EXPECT_EQ(d.voice(d.flute.voice).substr(0, 22), "0/1 1/4 67\n1/4 1/4 65\n");
+    EXPECT_EQ(d.voice(d.horn.voice).substr(0, 22), "0/1 1/4 64\n1/4 1/4 62\n");
+    EXPECT_EQ(d.voice(d.clarinet.voice).substr(0, 22), "0/1 1/4 60\n1/4 1/4 62\n");   // the two-note chord: its bottom note again
+    EXPECT_EQ(d.voice(d.bassoon.voice), "0/1 1/1\n1/1 1/1\n");   // untouched
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ExplodingVoicesMovesEachToTheNextStaff)
+{
+    Quartet d;
+    d.chord(d.flute.voice, 0, { 72 }, 2);
+    d.edit("Voice 2", [&](Transaction& tx) {
+        const Id v2 = d.ops.voice(tx, d.flute.staff, 1);
+        d.ops.enterChord(tx, v2, Fraction(0, 1), { Fraction(1, 2), 0 }, { 60 });
+    });
+    int last = 0;
+    d.edit("Explode", [&](Transaction& tx) { last = d.cmd.explode(tx, 0, 1, Fraction(0, 1), Fraction(1, 1)); });
+    EXPECT_EQ(last, 2);
+    EXPECT_EQ(d.voice(d.flute.voice).substr(0, 11), "0/1 1/2 72\n");
+    EXPECT_TRUE(d.voice(d.voiceOf(d.flute.staff, 1)).empty());
+    EXPECT_EQ(d.voice(d.horn.voice).substr(0, 11), "0/1 1/2 60\n");
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ExplodingVoicesKeepsTheDestinationsEarlierMusic)
+{
+    // voice 2's music starts in the second measure: the horn's first measure is kept (it is only checked, and only
+    // written, from there); MuseScore keeps it too
+    Quartet d;
+    d.chord(d.flute.voice, 0, { 72 }, 4);
+    d.chord(d.flute.voice, 4, { 74 }, 4);
+    d.chord(d.horn.voice, 0, { 60 }, 4);
+    d.edit("Voice 2", [&](Transaction& tx) {
+        const Id v2 = d.ops.voice(tx, d.flute.staff, 1);
+        d.ops.enterChord(tx, v2, Fraction(1, 1), { Fraction(1, 2), 0 }, { 65 });
+    });
+    int last = 0;
+    d.edit("Explode", [&](Transaction& tx) { last = d.cmd.explode(tx, 0, 1, Fraction(0, 1), Fraction(2, 1)); });
+    EXPECT_EQ(last, 2);
+    EXPECT_EQ(d.voice(d.horn.voice).substr(0, 22), "0/1 1/1 60\n1/1 1/2 65\n");
+    EXPECT_TRUE(d.voice(d.voiceOf(d.flute.staff, 1)).empty());
+    d.undoRedo();
+    d.consistent();
+    d.roundTrip();
+}
+
+TEST(Commands, ExplodingAndImplodingRefuseLinkedStaves)
+{
+    // a staff and the staff linked to it show the same music: taking notes out of one takes them out of both
+    Quartet d;
+    d.chord(d.flute.voice, 0, { 60, 64 });
+    d.edit("Link", [&](Transaction& tx) { tx.set(d.horn.staff, F::LINKED_STAFF, d.flute.staff); });
+    int last = 0;
+    bool ok = true;
+    d.edit("Explode", [&](Transaction& tx) { last = d.cmd.explode(tx, 0, 2, Fraction(0, 1), Fraction(1, 1)); });
+    d.edit("Implode", [&](Transaction& tx) { ok = d.cmd.implode(tx, 0, 2, Fraction(0, 1), Fraction(1, 1)); });
+    EXPECT_EQ(last, -1);
+    EXPECT_FALSE(ok);
+    EXPECT_EQ(d.voice(d.flute.voice).substr(0, 14), "0/1 1/4 60 64\n");
+}
+
+TEST(Commands, ImplodingJoinsVoicesAndStaves)
+{
+    {
+        // one staff: voice 2's chord of the same length joins voice 1's; a different length stays
+        Doc d(1);
+        d.chord(d.flute.voice, 0, { 72 });
+        d.chord(d.flute.voice, 1, { 74 });
+        d.edit("Voice 2", [&](Transaction& tx) {
+            const Id v2 = d.ops.voice(tx, d.flute.staff, 1);
+            d.ops.enterChord(tx, v2, Fraction(0, 1), { Fraction(1, 4), 0 }, { 64 });
+            d.ops.enterChord(tx, v2, Fraction(1, 4), { Fraction(1, 8), 0 }, { 65 });
+        });
+        bool ok = false;
+        d.edit("Implode", [&](Transaction& tx) { ok = d.cmd.implode(tx, 0, 1, Fraction(0, 1), Fraction(1, 1)); });
+        ASSERT_TRUE(ok);
+        EXPECT_EQ(d.voice(d.flute.voice).substr(0, 25), "0/1 1/4 64 72\n1/4 1/4 74\n");
+        Id v2;
+        for (Id v : d.o(d.flute.staff)->children()) {
+            v2 = d.o(v)->kind() == Kind::Voice && d.o(v)->intOr(F::NUMBER, 0) == 1 ? v : v2;
+        }
+        EXPECT_EQ(d.voice(v2), "1/4 1/8 65\n");
+        d.consistent();
+        d.roundTrip();
+    }
+    {
+        // several staves: the second staff's music becomes the first staff's voice 2
+        Quartet d;
+        d.chord(d.flute.voice, 0, { 72 }, 2);
+        d.chord(d.horn.voice, 0, { 60 });
+        bool ok = false;
+        d.edit("Implode", [&](Transaction& tx) { ok = d.cmd.implode(tx, 0, 2, Fraction(0, 1), Fraction(1, 1)); });
+        ASSERT_TRUE(ok);
+        // with its rests, as MuseScore clones them (not the empty second measure's measure rest)
+        EXPECT_EQ(d.voice(d.voiceOf(d.flute.staff, 1)), "0/1 1/4 60\n1/4 1/4\n1/2 1/2\n");
+        EXPECT_EQ(d.voice(d.horn.voice).substr(0, 11), "0/1 1/4 60\n");   // the source stays
+        d.undoRedo();
+        d.consistent();
+        d.roundTrip();
+    }
+}

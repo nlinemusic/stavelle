@@ -1073,7 +1073,7 @@ int tsedit(const std::string& folder, const std::string& outDir, int index, int 
 //! Every corpus score with measures split (split <index>: at the middle of that measure, where a chord or rest
 //! starts) or joined (join <first> <last>) by the engine, its listing next to each saved file headed "# measures
 //! changed|unchanged|refused", for comparing with MuseScore's SplitJoinMeasure (JUBELLE_REFERENCE_SPLIT / _JOIN)
-int measedit(const std::string& folder, const std::string& outDir, const std::string& op, int a, int b)
+int measedit(const std::string& folder, const std::string& outDir, const std::string& op, int a, int b, int c, int d)
 {
     namespace F = model::fields;
     std::map<std::string, int> count;
@@ -1097,6 +1097,16 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
             } else if (op == "join" && a < b && size_t(b) < ms.size()) {
                 label = "unchanged";
                 ok = cmd.joinMeasures(tx, size_t(a), size_t(b));
+            } else if ((op == "explode" || op == "implode") && size_t(c) < ms.size() && size_t(d) < ms.size()) {
+                // staves a … b-1, measures c … d (as a range selection of whole measures)
+                size_t staves = 0;
+                m.snapshot().forEachObject([&](const model::Object& o) { staves += o.kind() == model::Kind::Staff; });
+                if (a < b && size_t(b) <= staves) {
+                    label = "unchanged";
+                    const Fraction from = ops.measureStart(ms[size_t(c)]), to = ops.measureEnd(ms[size_t(d)]);
+                    ok = op == "explode" ? cmd.explode(tx, size_t(a), size_t(b), from, to) >= 0
+                                         : cmd.implode(tx, size_t(a), size_t(b), from, to);
+                }
             }
             if (ok) {
                 tx.commit();
@@ -1186,7 +1196,8 @@ int main(int argc, char** argv)
         return linkedit(a[1], a[3]);
     }
     if (a.size() >= 6 && a[0] == "measedit" && a[2] == "--out") {
-        return measedit(a[1], a[3], a[4], std::atoi(a[5].c_str()), a.size() > 6 ? std::atoi(a[6].c_str()) : 0);
+        auto arg = [&a](size_t i) { return a.size() > i ? std::atoi(a[i].c_str()) : 0; };
+        return measedit(a[1], a[3], a[4], arg(5), arg(6), arg(7), arg(8));
     }
     if (a.size() == 7 && a[0] == "tsedit" && a[2] == "--out") {
         return tsedit(a[1], a[3], std::atoi(a[4].c_str()), std::atoi(a[5].c_str()), std::atoi(a[6].c_str()));

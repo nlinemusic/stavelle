@@ -317,6 +317,40 @@ TEST(Jubelle_Reference, MusicListing)
                 }
                 head = std::string("# timesig ") + (changed ? "changed" : "refused") + "\n";
             }
+            const char* explode = std::getenv("JUBELLE_REFERENCE_EXPLODE");
+            const char* implode = std::getenv("JUBELLE_REFERENCE_IMPLODE");
+            if (explode || implode) {
+                // "<first staff> <last staff (exclusive)> <first measure> <last measure>": that range selected, then
+                // Score::cmdExplode / cmdImplode
+                s->setLayoutAll();
+                s->doLayout();
+                const std::string before = listing(s);
+                std::istringstream spec(explode ? explode : implode);
+                int s0 = 0, s1 = 1, m0 = 0, m1 = 0;
+                spec >> s0 >> s1 >> m0 >> m1;
+                auto measureAt = [s](int index) {
+                    Measure* mm = s->firstMeasure();
+                    for (int i = 0; mm && i < index; ++i) {
+                        mm = mm->nextMeasure();
+                    }
+                    return mm;
+                };
+                Measure* ma = measureAt(m0);
+                Measure* mb = measureAt(m1);
+                const bool can = ma && mb && size_t(s1) <= s->nstaves() && s0 < s1;
+                if (can) {
+                    s->startCmd(TranslatableString::untranslatable("explode"));
+                    s->select(ma, SelectType::RANGE, size_t(s0));
+                    s->select(mb, SelectType::RANGE, size_t(s1 - 1));
+                    if (explode) {
+                        s->cmdExplode();
+                    } else {
+                        s->cmdImplode();
+                    }
+                    s->endCmd();
+                }
+                head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
+            }
             const char* split = std::getenv("JUBELLE_REFERENCE_SPLIT");
             const char* join = std::getenv("JUBELLE_REFERENCE_JOIN");
             if (split || join) {

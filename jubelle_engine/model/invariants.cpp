@@ -307,7 +307,10 @@ std::vector<std::string> checkInvariants(const Snapshot& s, size_t limit)
                     // chords (ties held through an arpeggio); from a grace note it goes to its main chord
                     const Fraction start = chord->fractionOr(F::TIME, Fraction());
                     const Fraction end = chord->has(F::GRACE) ? start : start + chord->fractionOr(F::DURATION, Fraction());
-                    if (toChord->fractionOr(F::TIME, Fraction()) < end) {
+                    // (or from a chord into one of its grace notes after it, at its own time)
+                    const bool intoAfterGrace = toChord->has(F::GRACE) && toChord->text(F::GRACE_TYPE).find("after") != std::string::npos
+                                                && toChord->fractionOr(F::TIME, Fraction()) == start && !chord->has(F::GRACE);
+                    if (toChord->fractionOr(F::TIME, Fraction()) < end && !intoAfterGrace) {
                         report(o, "is tied to a note that doesn't come after it");
                     }
                     if (to->intOr(F::PITCH, -1) != o.intOr(F::PITCH, -2)) {

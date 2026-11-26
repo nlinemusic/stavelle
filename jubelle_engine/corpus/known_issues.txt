@@ -1,16 +1,13 @@
 # je::io known issues (S2): repository test files the native reader doesn't read consistently yet.
 # Each is reported on every run; CI fails on a failure in any other file, or when a listed file starts
 # passing (then it is removed from this list). Kinds: tuplet positions in 1.14-era and importer test outputs
-# (rounding), ties in linked-staff test files, an old 1.x .msc inside an archive. To be settled against
+# (rounding), an old 1.x .msc inside an archive. (Ties from a chord into its own after-grace notes, once listed
+# here, are valid: the consistency rule now allows them.) To be settled against
 # MuseScore's reading of the same files (the reference comparison).
 src/engraving/tests/compat114_data/tuplets-ref.mscx
 src/engraving/tests/compat114_data/tuplets_1-ref.mscx
 src/engraving/tests/compat114_data/tuplets_2-ref.mscx
-src/engraving/tests/parts_data/linked-ties-1.mscx
-src/engraving/tests/parts_data/linked-ties-parts.mscx
-src/engraving/tests/parts_data/linked-ties.mscx
 src/importexport/capella/tests/data/testTuplet3.capx-ref.mscx
 src/importexport/musicxml/tests/data/testBackupRoundingError_ref.mscx
 src/importexport/tabledit/tests/data/rests-dotted.mscx
 test/fractional_beams.mscz
-vtest/scores/tie-19.mscz

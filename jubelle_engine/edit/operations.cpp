@@ -758,6 +758,17 @@ void Operations::removeNote(Transaction& tx, Id note)
                 }
             }
         }
+        // and the lines from or to it (a glissando, a bend): whole or not at all
+        std::vector<Id> lines;
+        for (Id c : obj(m.score())->children()) {
+            const Object* sp = obj(c);
+            if (sp->kind() == Kind::Spanner && (sp->idOr(F::ANCHOR) == note || sp->idOr(F::END_ANCHOR) == note)) {
+                lines.push_back(c);
+            }
+        }
+        for (Id l : lines) {
+            removeTree(tx, l);
+        }
         removeTree(tx, note);
         return;
     }

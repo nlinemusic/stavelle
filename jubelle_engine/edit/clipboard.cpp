@@ -87,7 +87,7 @@ RangeSelection Clipboard::whole(const RangeSelection& range) const
     return r;
 }
 
-Clip Clipboard::copy(const RangeSelection& selection) const
+Clip Clipboard::copy(const RangeSelection& selection, bool voiceOneRests) const
 {
     const RangeSelection r = whole(selection);
     Clip clip;
@@ -131,7 +131,7 @@ Clip Clipboard::copy(const RangeSelection& selection) const
                 }
                 const bool rest = o->kind() == Kind::Rest;
                 // voice 1's rests outside tuplets are made again by the paste
-                if (rest && cv.number == 0 && !o->has(F::TUPLET)) {
+                if (rest && cv.number == 0 && !o->has(F::TUPLET) && !voiceOneRests) {
                     continue;
                 }
                 if (o->has(F::MEASURE_REST)) {
@@ -252,7 +252,90 @@ Clip Clipboard::copy(const RangeSelection& selection) const
     return clip;
 }
 
-RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, const Fraction& at)
+Clip Clipboard::voiceOf(const Clip& clip, int fromNumber, int toNumber)
+{
+    Clip out;
+    out.length = clip.length;
+    if (clip.staves.empty()) {
+        return out;
+    }
+    int index = -1;
+    for (size_t i = 0; i < clip.staves[0].voices.size(); ++i) {
+        if (clip.staves[0].voices[i].number == fromNumber) {
+            index = int(i);
+        }
+    }
+    out.staves.resize(1);
+    if (index < 0) {
+        return out;
+    }
+    out.staves[0].voices.push_back(clip.staves[0].voices[size_t(index)]);
+    out.staves[0].voices[0].number = toNumber;
+    auto voiceIndex = [](const Clip::Item& item) {
+        for (const auto& [f, v] : item.fields) {
+            if (f == F::VOICE_INDEX && std::holds_alternative<int64_t>(v)) {
+                return int(std::get<int64_t>(v));
+            }
+        }
+        return 0;
+    };
+    // MuseScore's cloneVoice: the voice's annotations (dynamics, texts, chord symbols…), its slurs, hammer-ons and
+    // hairpins, and the lines between its notes
+    static const std::set<std::string> lines { "slur", "hammerOnPullOff", "hairPin", "hairpin" };
+    static const std::set<std::string> notItems { "clef", "keySig", "timeSig", "breath", "frame", "measureDetail", "mmrMeasure",
+                                                  "detail" };
+    for (Clip::Item item : clip.items) {
+        if (item.staff != 0) {
+            continue;
+        }
+        std::string sub;
+        for (const auto& [f, v] : item.fields) {
+            if (f == F::SUBKIND && std::holds_alternative<model::Text>(v)) {
+                sub = std::get<model::Text>(v).str();
+            }
+        }
+        if (item.kind == Kind::FlowItem) {
+            if (notItems.count(sub) || voiceIndex(item) != fromNumber) {
+                continue;
+            }
+            for (auto& [f, v] : item.fields) {
+                if (f == F::VOICE_INDEX) {
+                    v = int64_t(toNumber);
+                }
+            }
+            out.items.push_back(item);
+            continue;
+        }
+        if (item.kind != Kind::Spanner || (item.fromNote.event < 0 && !lines.count(sub))) {
+            continue;
+        }
+        if (item.fromNote.event >= 0) {
+            if (item.fromNote.voice != index || item.toNote.voice != index) {
+                continue;
+            }
+            item.fromNote.voice = item.toNote.voice = 0;
+        } else {
+            if (voiceIndex(item) != fromNumber) {
+                continue;
+            }
+            for (auto& [f, v] : item.fields) {
+                if (f == F::VOICE_INDEX) {
+                    v = int64_t(toNumber);
+                }
+            }
+            if (item.startVoice >= 0) {
+                if (item.startVoice != index) {
+                    continue;
+                }
+                item.startVoice = 0;
+            }
+        }
+        out.items.push_back(item);
+    }
+    return out;
+}
+
+RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, const Fraction& at, bool onlyItsVoices)
 {
     m_left = 0;
     RangeSelection pasted;
@@ -273,7 +356,14 @@ RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, con
         pasted.staves.push_back(target);
         // the target range is replaced in every voice
         for (Id v : m.find(target)->children()) {
-            if (m.find(v)->kind() == Kind::Voice) {
+            if (m.find(v)->kind() != Kind::Voice) {
+                continue;
+            }
+            bool its = !onlyItsVoices;
+            for (const Clip::Voice& cv : clip.staves[i].voices) {
+                its = its || cv.number == int(m.find(v)->intOr(F::NUMBER, 0));
+            }
+            if (its) {
                 ops.clearRange(tx, v, at, end);
             }
         }
@@ -466,9 +556,9 @@ RangeSelection Clipboard::paste(Transaction& tx, const Clip& clip, Id staff, con
                 }
             }
         }
-        // a staff without a voice 1 in the copy still keeps its voice 1 full
+        // a staff without a voice 1 in the copy still keeps its voice 1 full (unless only the copy's voices were replaced)
         bool hasVoice1 = std::any_of(clip.staves[i].voices.begin(), clip.staves[i].voices.end(), [](const Clip::Voice& v) { return v.number == 0; });
-        if (!hasVoice1) {
+        if (!hasVoice1 && !onlyItsVoices) {
             ops.fillGap(tx, ops.voice(tx, target, 0), at, end);
         }
     }

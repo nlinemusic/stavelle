@@ -80,9 +80,14 @@ public:
 
     //! The range widened so that it holds whole tuplets
     RangeSelection whole(const RangeSelection& range) const;
-    Clip copy(const RangeSelection& range) const;
-    //! Pastes at a staff and time; returns the range pasted into (empty if nothing fitted)
-    RangeSelection paste(Transaction& tx, const Clip& clip, Id staff, const Fraction& at);
+    //! `voiceOneRests`: voice 1's rests too, as they are (a voice copied to another voice, as MuseScore clones it);
+    //! otherwise the paste makes them again
+    Clip copy(const RangeSelection& range, bool voiceOneRests = false) const;
+    //! Pastes at a staff and time; returns the range pasted into (empty if nothing fitted). `onlyItsVoices`: only
+    //! the voices the copy has are replaced (a voice copied into another voice)
+    RangeSelection paste(Transaction& tx, const Clip& clip, Id staff, const Fraction& at, bool onlyItsVoices = false);
+    //! The copy of one voice of a one-staff copy, as voice `toNumber` (its notes, ties, tuplets and the lines in it)
+    static Clip voiceOf(const Clip& clip, int fromNumber, int toNumber);
     void erase(Transaction& tx, const RangeSelection& range);
     //! Number of tuplets left out by the last paste because they would cross a barline there
     int tupletsLeftOut() const { return m_left; }

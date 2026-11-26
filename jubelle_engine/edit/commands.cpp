@@ -14,6 +14,7 @@
 #include <stdexcept>
 
 #include "structure.h"
+#include "clipboard.h"
 #include "model/fields.h"
 #include "model/notation.h"
 #include "model/packing.h"
@@ -1834,6 +1835,396 @@ bool Commands::joinMeasures(Transaction& tx, size_t first, size_t last)
     }
     for (auto& f : moves) {
         create(tx, m_ops.m_ids, flowOf(), { Kind::FlowItem, f }, Placement::ByTime);
+    }
+    return true;
+}
+
+// ---- explode and implode --------------------------------------------------------------------------------------
+Id Commands::voiceNumbered(Id staff, int number) const
+{
+    for (Id v : m_ops.obj(staff)->children()) {
+        if (m_ops.obj(v)->kind() == Kind::Voice && m_ops.obj(v)->intOr(F::NUMBER, 0) == number) {
+            return v;
+        }
+    }
+    return Id();
+}
+
+std::vector<Id> Commands::eventsIn(Id voice, const Fraction& t0, const Fraction& t1) const
+{
+    std::vector<Id> out;
+    if (!voice.isValid()) {
+        return out;
+    }
+    for (Id e : m_ops.eventsOf(voice)) {
+        const Fraction t = m_ops.timeOf(e);
+        if (t0 <= t && t < t1) {
+            out.push_back(e);
+        }
+    }
+    return out;
+}
+
+bool Commands::sameStretch(const std::vector<Id>& staves, const Fraction& t0, const Fraction& t1) const
+{
+    // MuseScore: "cannot explode or implode between staves with different local time signatures"
+    for (Id m : m_ops.measures()) {
+        const Fraction at = m_ops.measureStart(m);
+        if (m_ops.measureEnd(m) <= t0 || !(at < t1)) {
+            continue;
+        }
+        Fraction first(-1, 1);
+        for (Id staff : staves) {
+            const Id v = voiceNumbered(staff, 0);
+            const Fraction st = v.isValid() ? m_ops.stretchAt(v, at) : Fraction(1, 1);
+            if (first < Fraction()) {
+                first = st;
+            } else if (!(st == first)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool Commands::linkedTogether(const std::vector<Id>& staves) const
+{
+    // two staves that show the same music (a guitar's standard staff and its tablature): exploding or imploding
+    // between them would take notes out of both (MuseScore's result is damaged); refused
+    std::set<Id> mains;
+    for (Id s : staves) {
+        const Id main = m_ops.obj(s)->idOr(F::LINKED_STAFF);
+        if (!mains.insert(main.isValid() ? main : s).second) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Commands::cloneVoice(Transaction& tx, Id fromStaff, int fromVoice, Id toStaff, int toVoice, const Fraction& t0,
+                          const Fraction& t1, bool move)
+{
+    Clipboard clip(m_ops.m, m_ops.m_ids);
+    const Clip voice = Clipboard::voiceOf(clip.copy({ { fromStaff }, t0, t1 }, true), fromVoice, toVoice);
+    clip.paste(tx, voice, toStaff, t0, true);
+    if (!move) {
+        return;
+    }
+    // the source voice gives its music up (voice 1: rests), with its slurs, hairpins and annotations
+    const Id v = voiceNumbered(fromStaff, fromVoice);
+    if (!v.isValid() || (fromStaff == toStaff && fromVoice == toVoice)) {
+        return;
+    }
+    m_ops.clearRange(tx, v, t0, t1);
+    if (fromVoice == 0) {
+        m_ops.fillGap(tx, v, t0, t1);
+    }
+    static const std::set<std::string> lines { "slur", "hammerOnPullOff", "hairPin", "hairpin" };
+    std::vector<Id> gone;
+    for (Id c : m_ops.obj(m_ops.m.score())->children()) {
+        const Object* o = m_ops.obj(c);
+        if (o->kind() == Kind::Spanner && lines.count(o->text(F::SUBKIND)) && o->idOr(F::ANCHOR) == fromStaff
+            && o->intOr(F::VOICE_INDEX, 0) == fromVoice && t0 <= m_ops.timeOf(c) && m_ops.timeOf(c) < t1) {
+            gone.push_back(c);
+        }
+    }
+    static const std::set<std::string> notItems { "clef", "keySig", "timeSig", "breath", "frame", "measureDetail", "mmrMeasure",
+                                                  "detail" };
+    for (Id c : m_ops.obj(flowOf())->children()) {
+        const Object* o = m_ops.obj(c);
+        if (o->kind() == Kind::FlowItem && !notItems.count(o->text(F::SUBKIND)) && o->idOr(F::ANCHOR) == fromStaff
+            && o->intOr(F::VOICE_INDEX, 0) == fromVoice && t0 <= m_ops.timeOf(c) && m_ops.timeOf(c) < t1) {
+            gone.push_back(c);
+        }
+    }
+    for (Id c : gone) {
+        removeTree(tx, c);
+    }
+}
+
+int Commands::explode(Transaction& tx, size_t first, size_t last, const Fraction& from, const Fraction& to)
+{
+    const std::vector<Id> staves = allStaves();
+    const std::vector<Id> ms = m_ops.measures();
+    if (first >= staves.size() || last <= first || ms.empty()) {
+        return -1;
+    }
+    last = std::min(last, staves.size());
+    const Id src = staves[first];
+    // whole measures: from the measure of the start to the measure the range ends in
+    const Id startMeasure = m_ops.measureAt(from);
+    const Fraction t0 = m_ops.measureStart(startMeasure);
+    Id endMeasure = m_ops.measureAt(to);
+    if (!(m_ops.measureEnd(ms.back()) > to)) {
+        endMeasure = ms.back();
+    } else if (m_ops.measureStart(endMeasure) == to && to > t0) {
+        endMeasure = m_ops.measureAt(to - Fraction(1, 1024));
+    }
+    const Fraction t1 = m_ops.measureEnd(endMeasure);
+    // voices 2–4 with music in the range: the voices go to the staves below; otherwise the chords' notes do
+    bool voices = false;
+    for (int n = 1; n < 4 && !voices; ++n) {
+        voices = !eventsIn(voiceNumbered(src, n), t0, t1).empty();
+    }
+    if (!voices) {
+        if (first + 1 == last) {   // one staff chosen: as many staves as the largest chord has notes
+            size_t notes = 0;
+            for (Id e : eventsIn(voiceNumbered(src, 0), t0, t1)) {
+                size_t k = 0;
+                for (Id x : m_ops.obj(e)->children()) {
+                    k += m_ops.obj(x)->kind() == Kind::Note;
+                }
+                notes = std::max(notes, k);
+            }
+            last = std::min(staves.size(), first + notes);
+        }
+        if (last <= first || !sameStretch(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(last)), t0, t1)
+            || linkedTogether(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(last)))) {
+            return last <= first ? int(first + 1) : -1;
+        }
+        // the staff's music to every staff below it, then each keeps one note of every chord (the top one for the
+        // first staff, the next one down for the next…; reused from the bottom when there are more staves)
+        Clipboard clip(m_ops.m, m_ops.m_ids);
+        const Clip copied = clip.copy({ { src }, t0, t1 }, true);   // its rests as written, as MuseScore copies them
+        for (size_t i = first + 1; i < last; ++i) {
+            clip.paste(tx, copied, staves[i], t0, true);   // the staff's other voices stay, as in MuseScore
+        }
+        for (size_t i = 0; first + i < last; ++i) {
+            for (Id e : eventsIn(voiceNumbered(staves[first + i], 0), t0, t1)) {
+                const Object* c = m_ops.obj(e);
+                if (c->kind() != Kind::Chord) {
+                    continue;
+                }
+                std::vector<Id> notes;
+                for (Id x : c->children()) {
+                    if (m_ops.obj(x)->kind() == Kind::Note) {
+                        notes.push_back(x);
+                    }
+                }
+                std::sort(notes.begin(), notes.end(), [this](Id a, Id b) {
+                    return m_ops.obj(a)->intOr(F::PITCH, 0) < m_ops.obj(b)->intOr(F::PITCH, 0);
+                });
+                if (notes.empty()) {
+                    continue;
+                }
+                const size_t perNote = std::max((last - first) / notes.size(), size_t(1));
+                const size_t keep = size_t(std::max(int(notes.size()) - 1 - int(i / perNote), 0));
+                for (size_t k = 0; k < notes.size(); ++k) {
+                    if (k != keep) {
+                        m_ops.removeNote(tx, notes[k]);
+                    }
+                }
+            }
+        }
+        return int(last);
+    }
+    // the voices: each voice with music goes to the first voice below that is free (empty or only rests) from there
+    // to the end of the range: the next staff's voice 1 for the second, and so on (MuseScore's cmdExplode)
+    if (first + 1 == last) {
+        last = std::min(staves.size(), first + 4);
+    }
+    auto onlyRests = [this](Id voice, const Fraction& a, const Fraction& b) {
+        for (Id e : eventsIn(voice, a, b)) {
+            if (m_ops.obj(e)->kind() != Kind::Rest) {
+                return false;
+            }
+        }
+        return true;
+    };
+    struct Move {
+        int voice;
+        size_t staff;
+        int toVoice;
+        Fraction from;   // the measure its music starts in: the destination is only checked, and written, from there
+    };
+    std::vector<Move> moves;
+    // the voices in the order their music first appears
+    std::vector<std::pair<Fraction, int> > firstMusic;
+    for (int n = 0; n < 4; ++n) {
+        for (Id e : eventsIn(voiceNumbered(src, n), t0, t1)) {
+            if (m_ops.obj(e)->kind() != Kind::Rest) {
+                firstMusic.push_back({ m_ops.measureStart(m_ops.measureAt(m_ops.timeOf(e))), n });
+                break;
+            }
+        }
+    }
+    std::stable_sort(firstMusic.begin(), firstMusic.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (size_t k = 0; k < firstMusic.size() && k < 4; ++k) {
+        const auto [measureStart, n] = firstMusic[k];
+        bool found = false;
+        for (size_t staff = first + k; staff < last && !found; ++staff) {
+            for (int dv = (staff == first + k ? 0 : 0); dv < 4 && !found; ++dv) {
+                if (staff == first && dv == n) {
+                    moves.push_back({ n, staff, dv, measureStart });   // already there
+                    found = true;
+                } else if (onlyRests(voiceNumbered(staves[staff], dv), measureStart, t1)) {
+                    moves.push_back({ n, staff, dv, measureStart });
+                    found = true;
+                }
+            }
+        }
+    }
+    if (moves.empty()) {
+        return -1;
+    }
+    size_t newLast = first + 1;
+    for (const Move& mv : moves) {
+        newLast = std::max(newLast, mv.staff + 1);
+    }
+    if (!sameStretch(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(newLast)), t0, t1)
+        || linkedTogether(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(newLast)))) {
+        return -1;
+    }
+    for (const Move& mv : moves) {
+        if (!(staves[mv.staff] == src && mv.toVoice == mv.voice)) {
+            // from the measure the voice's music starts in: the destination's music before it stays (MuseScore)
+            cloneVoice(tx, src, mv.voice, staves[mv.staff], mv.toVoice, mv.from, t1, true);
+            // before that measure the voice held only rests: they go with it
+            const Id v = voiceNumbered(src, mv.voice);
+            if (t0 < mv.from && v.isValid()) {
+                m_ops.clearRange(tx, v, t0, mv.from);
+                if (mv.voice == 0) {
+                    m_ops.fillGap(tx, v, t0, mv.from);
+                }
+            }
+        }
+    }
+    return int(newLast);
+}
+
+bool Commands::implode(Transaction& tx, size_t first, size_t last, const Fraction& t0, const Fraction& t1)
+{
+    const std::vector<Id> staves = allStaves();
+    if (first >= staves.size() || last <= first) {
+        return false;
+    }
+    last = std::min(last, staves.size());
+    if (!sameStretch(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(last)), t0, t1)
+        || linkedTogether(std::vector<Id>(staves.begin() + long(first), staves.begin() + long(last)))) {
+        return false;
+    }
+    const Id dst = staves[first];
+    if (first + 1 == last) {
+        // one staff: its voices 2–4 join voice 1 where a chord there has the same length (notes added, articulations
+        // moved, ties continued); what joined goes, as do the rests of voices 2–4 where voice 1 has a rest
+        const Id v0 = voiceNumbered(dst, 0);
+        // a chord or rest goes with its grace notes (MuseScore removes the chord, which holds them)
+        auto removeWithGraces = [&](Id event) {
+            const auto graces = gracesOf(event);
+            for (const auto* list : { &graces.first, &graces.second }) {
+                for (Id g : *list) {
+                    m_ops.removeEvent(tx, g);
+                }
+            }
+            m_ops.removeEvent(tx, event);
+        };
+        for (Id e : eventsIn(v0, t0, t1)) {
+            const Object* d = m_ops.obj(e);
+            if (!d || d->has(F::GRACE)) {
+                continue;   // the chords and rests of the measure (grace notes belong to their chord)
+            }
+            const Fraction t = m_ops.timeOf(e);
+            if (d->kind() == Kind::Chord) {
+                // the chord this one is tied from, if any
+                Id tied;
+                for (Id x : d->children()) {
+                    if (m_ops.obj(x)->kind() == Kind::Note && !tied.isValid()) {
+                        for (Id p : eventsIn(v0, Fraction(), t)) {
+                            for (Id pn : m_ops.obj(p)->children()) {
+                                if (m_ops.obj(pn)->idOr(F::TIE_TO) == x) {
+                                    tied = p;
+                                }
+                            }
+                        }
+                    }
+                }
+                for (int n = 1; n < 4; ++n) {
+                    for (Id se : eventsIn(voiceNumbered(dst, n), t, t + Fraction(1, 1000000))) {
+                        const Object* src = m_ops.obj(se);
+                        if (!src || m_ops.timeOf(se) != t || src->has(F::GRACE)) {
+                            continue;
+                        }
+                        if (src->kind() == Kind::Chord) {
+                            if (!(m_ops.endOf(se) - t == m_ops.endOf(e) - t)) {
+                                continue;   // not the same length: kept
+                            }
+                            for (Id x : std::vector<Id>(src->children().ids())) {
+                                const Object* note = m_ops.obj(x);
+                                if (note->kind() != Kind::Note) {
+                                    continue;
+                                }
+                                bool has = false;
+                                for (Id y : m_ops.obj(e)->children()) {
+                                    has = has || (m_ops.obj(y)->kind() == Kind::Note && m_ops.obj(y)->intOr(F::PITCH, -1) == note->intOr(F::PITCH, -2));
+                                }
+                                if (has) {
+                                    continue;
+                                }
+                                const int pitch = int(note->intOr(F::PITCH, 60));
+                                const int64_t tpc = note->intOr(F::TPC, -1);
+                                const Id nn = m_ops.addNote(tx, e, pitch);
+                                if (tpc >= 0) {
+                                    m_ops.setPitch(tx, nn, pitch, tpc);
+                                }
+                                if (tied.isValid()) {
+                                    for (Id tn : m_ops.obj(tied)->children()) {
+                                        const Object* tno = m_ops.obj(tn);
+                                        if (tno->kind() == Kind::Note && tno->intOr(F::PITCH, -1) == pitch
+                                            && tno->intOr(F::TPC, -1) == m_ops.obj(nn)->intOr(F::TPC, -2) && !tno->has(F::TIE_TO)) {
+                                            tx.set(tn, F::TIE_TO, nn);
+                                        }
+                                    }
+                                }
+                            }
+                            // its articulations the chord doesn't have
+                            for (Id a : std::vector<Id>(m_ops.obj(se)->children().ids())) {
+                                const Object* at = m_ops.obj(a);
+                                if (at->kind() != Kind::Attachment || model::articulationKind(at->text(F::SUBKIND)).empty()
+                                    || at->text(F::SUBKIND) == "lyric") {
+                                    continue;
+                                }
+                                bool has = false;
+                                for (Id y : m_ops.obj(e)->children()) {
+                                    has = has || (m_ops.obj(y)->kind() == Kind::Attachment
+                                                  && model::articulationKind(m_ops.obj(y)->text(F::SUBKIND)) == model::articulationKind(at->text(F::SUBKIND)));
+                                }
+                                if (!has) {
+                                    moveTo(tx, a, e, Placement::Append);
+                                }
+                            }
+                        }
+                        removeWithGraces(se);
+                    }
+                }
+            } else {
+                for (int n = 1; n < 4; ++n) {
+                    for (Id se : eventsIn(voiceNumbered(dst, n), t, t + Fraction(1, 1000000))) {
+                        if (m_ops.obj(se)->kind() == Kind::Rest && m_ops.timeOf(se) == t) {
+                            m_ops.removeEvent(tx, se);
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+    // several staves: the first four voices with music (in staff order) become the first staff's voices
+    std::vector<std::pair<Id, int> > sources;
+    for (size_t s = first; s < last && sources.size() < 4; ++s) {
+        for (int n = 0; n < 4 && sources.size() < 4; ++n) {
+            bool music = false;
+            for (Id e : eventsIn(voiceNumbered(staves[s], n), t0, t1)) {
+                music = music || m_ops.obj(e)->kind() != Kind::Rest;
+            }
+            if (music) {
+                sources.push_back({ staves[s], n });
+            }
+        }
+    }
+    for (size_t i = 0; i < sources.size(); ++i) {
+        if (!(sources[i].first == dst && sources[i].second == int(i))) {
+            cloneVoice(tx, sources[i].first, sources[i].second, dst, int(i), t0, t1, false);
+        }
     }
     return true;
 }

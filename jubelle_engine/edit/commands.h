@@ -88,9 +88,27 @@ public:
     //! time signatures inside go (each staff's last one moves to the next measure if it has none)
     bool joinMeasures(Transaction& tx, size_t first, size_t last);
 
+    // ---- explode and implode (staves by index in score order) ----------------------------------------------------
+    //! Score::cmdExplode: staff `first`'s music spread over the staves first … last-1 (one staff chosen: as many as
+    //! needed), in whole measures from `from` to `to`: with voices 2–4, each voice to its own staff; otherwise the
+    //! music copied to the staves below and each keeping one note of every chord, from the top. Returns the staff
+    //! after the last one used, or -1 where MuseScore refuses (staves with different local time signatures)
+    int explode(Transaction& tx, size_t first, size_t last, const Fraction& from, const Fraction& to);
+    //! Score::cmdImplode: one staff: its voices joined into voice 1 where the lengths match; several: their first
+    //! four voices with music become the first staff's voices
+    bool implode(Transaction& tx, size_t first, size_t last, const Fraction& t0, const Fraction& t1);
+
 private:
     std::vector<Id> timeSigsAt(const Fraction& t) const;
     int measureRepeatCount(Id measure) const;
+    Id voiceNumbered(Id staff, int number) const;
+    std::vector<Id> eventsIn(Id voice, const Fraction& t0, const Fraction& t1) const;
+    bool linkedTogether(const std::vector<Id>& staves) const;
+    bool sameStretch(const std::vector<Id>& staves, const Fraction& t0, const Fraction& t1) const;
+    //! MuseScore's CloneVoice: a voice's music (notes, ties, tuplets, its slurs, hairpins and annotations) to
+    //! another voice, replacing it; `move`: taken from the source (voice 1 left with rests)
+    void cloneVoice(Transaction& tx, Id fromStaff, int fromVoice, Id toStaff, int toVoice, const Fraction& t0,
+                    const Fraction& t1, bool move);
     std::vector<Id> timeItemsAt(const Fraction& t) const;
     bool localTimeSignatures(const Fraction& t0, const Fraction& t1) const;
     std::vector<Id> allStaves() const;
