@@ -80,7 +80,9 @@ flowchart LR
 | S2 files | **4.x reading and writing complete**: archives, engine store, the MuseScore 4.x reader (**2,109 of 2,118 identical to MuseScore's own reading**) and the model-based writer (D-E27, D-E28): **2,118 of 2,118 regenerate exactly; MuseScore reads 2,110 of 2,117 generated files as the originals**; parts generated and linked; save-and-reopen tests; the 11 style settings through saving and MuseScore (`15_file_handling.md`). Next: part-only content, older formats, MusicXML, MIDI |
 | S3 editing | **complete** (26 Nov 2026): the operation vocabulary, note input, clipboard, linked staves, tablature, the editing commands, measure rewriting (time signatures, split, join), explode and implode, slashes, chord-symbol realization, cross-staff moves, lyric entry and text, each compared with MuseScore's own command on every corpus score (results and intentional differences in the master plan, §14 and §15) |
 | S4 undo | **complete** (26 Nov 2026): history with the saved (clean) state and step names; the autosave journal and crash recovery (`edit/journal`, `edit/session`), exact on every corpus score and at every cut of the journal; 10,000-step random undo and redo checked after every step |
-| S5–S10 | not started (S5 has the play order, `perform/repeatlist`) |
+| S5–S6 | not started (S5 has the play order, `perform/repeatlist`) |
+| S7 layout | **started** (26 Nov 2026): style values read as MuseScore reads them (every corpus score), music font metrics from the outlines; chord shaping next |
+| S8–S10 | not started |
 
 ## 7. Scale and timeline
 MuseScore's engine is about 260,000 lines, built over many years. This is a long programme, realistically many months

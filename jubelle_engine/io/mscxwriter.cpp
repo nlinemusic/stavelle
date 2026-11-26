@@ -538,7 +538,7 @@ public:
         file.style.hasRoot = true;
         file.style.trailing = "\n";
         file.style.root.name = "museScore";
-        file.style.root.attrs.emplace_back("version", format);
+        file.style.root.attrs.emplace_back("version", score->has(F::STYLE_FORMAT) ? score->text(F::STYLE_FORMAT) : format);
         file.style.root.children.push_back(styleNode());
 
         zip::Entry container;

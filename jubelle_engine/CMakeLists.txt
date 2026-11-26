@@ -112,11 +112,35 @@ target_link_libraries(je_io PUBLIC je_core PRIVATE ZLIB::ZLIB)
 
 # the corpus tool: round trips and reading checks over a folder of scores (used by CI and locally)
 add_executable(je_io_tool tools/je_io_tool.cpp)
-target_link_libraries(je_io_tool PRIVATE je_io)
+target_link_libraries(je_io_tool PRIVATE je_io je_layout)
 
 # Tests (GoogleTest from the repository's framework, as Jubelle's other test tools use)
 set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+# FreeType, as MuseScore bundles it: the music fonts' outlines and metrics (S7)
+foreach(opt FT_DISABLE_ZLIB FT_DISABLE_BZIP2 FT_DISABLE_PNG FT_DISABLE_HARFBUZZ FT_DISABLE_BROTLI)
+    set(${opt} ON CACHE BOOL "" FORCE)
+endforeach()
+set(SKIP_INSTALL_ALL ON)
+add_subdirectory(${JE_REPO}/src/framework/draw/thirdparty/freetype/freetype-2.14.1 freetype EXCLUDE_FROM_ALL)
+
+# je::style and je::layout (S7): style values, music fonts, layout
+add_library(je_layout STATIC
+    style/sid.h
+    style/symid.h
+    style/style.cpp
+    style/style.h
+    style/styledefaults.cpp
+    style/json.cpp
+    style/json.h
+    style/font.cpp
+    style/font.h
+    style/symbols.cpp
+)
+target_include_directories(je_layout PUBLIC ${JE_ROOT})
+target_compile_definitions(je_layout PRIVATE JE_FONTS_DIR="${JE_REPO}/fonts")
+target_link_libraries(je_layout PUBLIC je_io PRIVATE freetype)
+
 add_subdirectory(${JE_REPO}/src/framework/testing/thirdparty/googletest googletest EXCLUDE_FROM_ALL)
 
 add_executable(je_tests
@@ -144,9 +168,10 @@ add_executable(je_tests
     tests/edit_clipboard_tests.cpp
     tests/edit_links_tests.cpp
     tests/edit_session_tests.cpp
+    tests/style_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
-target_link_libraries(je_tests PRIVATE je_core je_io gtest)
+target_link_libraries(je_tests PRIVATE je_core je_io je_layout gtest)
 
 add_executable(je_bench bench/main.cpp)
 target_link_libraries(je_bench PRIVATE je_core)

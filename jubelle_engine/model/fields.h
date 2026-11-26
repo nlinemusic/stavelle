@@ -172,6 +172,8 @@ constexpr Field STAFF_MOVE = ENGINE_BASE + 151;      // int64, on a chord or res
                                                      // in its instrument (cross-staff notation; MuseScore's staffMove)
 constexpr Field BASS = ENGINE_BASE + 150;            // int64: a chord symbol's bass note (TPC), "C7/E"
 constexpr Field INLINE_PART = ENGINE_BASE + 148;     // bool: a part layout written inside the main score (a plain .mscx's parts)
+constexpr Field STYLE_FORMAT = ENGINE_BASE + 152;   // string: the format of score_style.mss where it isn't the score's
+                                                     // ("4.00" in a 4.40 file): MuseScore reads the style by that version
 constexpr Field LINKED_TO = ENGINE_BASE + 143;       // Id: on an element of a linked staff made by Jubelle, its original on
                                                      // the main staff (written as MuseScore's link)
 

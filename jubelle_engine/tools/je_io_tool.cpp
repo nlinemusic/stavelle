@@ -50,6 +50,7 @@
 #include "edit/lyrics.h"
 #include "edit/journal.h"
 #include "edit/session.h"
+#include "style/style.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1660,6 +1661,69 @@ int recoverJournal(const std::string& journal, const std::string& out)
     return 0;
 }
 
+//! Each listed score's style as the engine reads it, written as MuseScore writes a whole style (MStyle::save without
+//! leaving out defaults), to compare with MuseScore's reading (je_style_reference.py)
+int stylelist(const std::string& root, const std::string& list, const std::string& out)
+{
+    std::ifstream in(list);
+    int done = 0;
+    for (std::string rel; std::getline(in, rel);) {
+        if (rel.empty()) {
+            continue;
+        }
+        model::Model m;
+        IdGenerator ids(1);
+        std::string error;
+        const fs::path target = fs::path(out) / (rel + ".style");
+        fs::create_directories(target.parent_path());
+        std::ofstream o(target);
+        if (!io::openScore(root + "/" + rel, m, ids, error)) {
+            o << "NOT READ\n";
+            continue;
+        }
+        const style::Style st = style::scoreStyle(m.snapshot());
+        o << "<Style>\n";
+        for (int i = 0; i < int(style::Sid::STYLES); ++i) {
+            const style::Sid sid = style::Sid(i);
+            if (sid == style::Sid::spatium) {
+                continue;
+            }
+            const style::StyleDef& d = style::Style::def(sid);
+            const std::string_view type = d.type;
+            std::ostringstream v;
+            switch (d.kind) {
+            case style::ValueKind::Number:
+                if (type == "REAL" || type == "SPATIUM" || type == "MILLIMETRE") {
+                    v << st.value(sid);
+                } else {
+                    v << st.integer(sid);
+                }
+                o << "  <" << d.name << ">" << v.str() << "</" << d.name << ">\n";
+                break;
+            case style::ValueKind::Text:
+                o << "  <" << d.name << ">" << io::xml::encode(st.text(sid)) << "</" << d.name << ">\n";
+                break;
+            case style::ValueKind::Pair: {
+                const style::PointF p = st.point(sid);
+                const char* a = type == "POINT" ? "x" : "w";
+                const char* b = type == "POINT" ? "y" : "h";
+                v << "<" << d.name << " " << a << "=\"" << p.x << "\" " << b << "=\"" << p.y << "\"/>";
+                o << "  " << v.str() << "\n";
+            } break;
+            case style::ValueKind::Color: {
+                const uint32_t c = st.color(sid);
+                o << "  <" << d.name << " r=\"" << (c >> 24) << "\" g=\"" << ((c >> 16) & 0xFF) << "\" b=\""
+                  << ((c >> 8) & 0xFF) << "\" a=\"" << (c & 0xFF) << "\"/>\n";
+            } break;
+            }
+        }
+        o << "  <spatium>" << st.spatium() / style::DPMM << "</spatium>\n</Style>\n";
+        ++done;
+    }
+    std::cerr << "stylelist: " << done << " scores\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1761,6 +1825,9 @@ int main(int argc, char** argv)
     }
     if (a.size() >= 4 && a[0] == "journal" && a[2] == "--work") {   // crash recovery on every score
         return journalcheck(a[1], a[3], std::find(a.begin(), a.end(), "--json") != a.end());
+    }
+    if (a.size() == 4 && a[0] == "stylelist") {   // each listed score's style (root, list, output folder)
+        return stylelist(a[1], a[2], a[3]);
     }
     if (a.size() == 3 && a[0] == "recover") {   // a journal left by a crash, saved as a score
         return recoverJournal(a[1], a[2]);

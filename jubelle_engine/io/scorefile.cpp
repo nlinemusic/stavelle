@@ -154,6 +154,21 @@ bool loadBytes(const std::string& bytes, bool plainMscx, ScoreFile& file, std::s
     return true;
 }
 
+namespace {
+//! MuseScore opens an .mscx as a folder (MscReader's DirReader): a folder with META-INF/container.xml is a container,
+//! whose score_style.mss holds the score's style
+std::string dirContainerStyle(const std::string& mscxPath)
+{
+    const size_t slash = mscxPath.find_last_of("/\\");
+    const std::string dir = slash == std::string::npos ? std::string(".") : mscxPath.substr(0, slash);
+    std::string bytes;
+    if (!zip::readFile(dir + "/META-INF/container.xml", bytes)) {
+        return std::string();
+    }
+    return dir + "/score_style.mss";
+}
+}
+
 bool load(const std::string& path, ScoreFile& file, std::string& error)
 {
     std::string bytes;
@@ -161,7 +176,22 @@ bool load(const std::string& path, ScoreFile& file, std::string& error)
         error = "can't read the file";
         return false;
     }
-    return loadBytes(bytes, endsWith(path, ".mscx"), file, error);
+    if (!loadBytes(bytes, endsWith(path, ".mscx"), file, error)) {
+        return false;
+    }
+    if (file.plainMscx) {
+        const std::string stylePath = dirContainerStyle(path);
+        std::string style;
+        if (!stylePath.empty() && zip::readFile(stylePath, style)) {
+            if (!xml::parse(style, file.style, error)) {
+                error = "score_style.mss: " + error;
+                return false;
+            }
+            file.hasStyleEntry = true;
+            file.dirContainer = true;
+        }
+    }
+    return true;
 }
 
 std::string saveBytes(const ScoreFile& file)
@@ -203,6 +233,13 @@ void makeArchive(ScoreFile& file, const std::string& scoreName)
 
 bool save(const std::string& path, const ScoreFile& file)
 {
+    // an .mscx saved into a folder container: its score_style.mss too (MuseScore reads the style from there)
+    if (file.plainMscx && file.hasStyleEntry && endsWith(path, ".mscx")) {
+        const std::string stylePath = dirContainerStyle(path);
+        if (!stylePath.empty() && !zip::writeFile(stylePath, xml::write(file.style))) {
+            return false;
+        }
+    }
     if (file.plainMscx && endsWith(path, ".mscz")) {
         ScoreFile archive = file;
         makeArchive(archive);

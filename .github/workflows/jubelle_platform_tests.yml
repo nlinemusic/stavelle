@@ -222,6 +222,13 @@ jobs:
         timeout 2400 python3 tools/jubelle_checks/je_repeats_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
           "$RUNNER_TEMP/repeats" > je_repeats_reference.txt || rc=1
         { echo; echo '```'; cat je_repeats_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        # every score's style values as MuseScore reads them (S7)
+        if [ -f tools/jubelle_checks/je_style_reference.py ]; then
+          echo "styles against MuseScore's reading ($(date +%T))"
+          timeout 1200 python3 tools/jubelle_checks/je_style_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+            "$PWD/v4_scores.txt" "$RUNNER_TEMP/styles" > je_style_reference.txt || rc=1
+          { echo; echo '```'; tail -20 je_style_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        fi
         exit $rc
     - name: Upload the comparison
       if: always()

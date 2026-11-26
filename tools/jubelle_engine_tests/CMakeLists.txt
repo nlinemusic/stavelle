@@ -163,6 +163,16 @@ target_include_directories(jubelle_engine_tests PRIVATE
     ${MU_ROOT}/src/engraving/tests
     ${MU_ROOT}/tools/jubelle_templates)
 target_link_libraries(jubelle_engine_tests muse::global muse::draw engraving gmock gtest)
+# FreeType for the font stub's outline metrics (JUBELLE_REALISTIC_METRICS=2, the S7 layout comparisons): MuseScore's
+# bundled copy, unless the draw module already built it
+if (NOT TARGET freetype)
+    foreach(opt FT_DISABLE_ZLIB FT_DISABLE_BZIP2 FT_DISABLE_PNG FT_DISABLE_HARFBUZZ FT_DISABLE_BROTLI)
+        set(${opt} ON CACHE BOOL "" FORCE)
+    endforeach()
+    set(SKIP_INSTALL_ALL ON)
+    add_subdirectory(${MU_ROOT}/src/framework/draw/thirdparty/freetype/freetype-2.14.1 je_freetype EXCLUDE_FROM_ALL)
+endif()
+target_link_libraries(jubelle_engine_tests freetype)
 
 enable_testing()
 add_test(NAME jubelle_engine_tests COMMAND jubelle_engine_tests)

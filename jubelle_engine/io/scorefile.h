@@ -29,6 +29,7 @@ struct ScoreFile {
     xml::Document style;               // score_style.mss: where a 4.x archive keeps the score's style
     bool hasStyleEntry = false;
     bool plainMscx = false;            // read from an .mscx file, not an archive
+    bool dirContainer = false;         // an .mscx in a folder container (META-INF/container.xml): style in score_style.mss
 
     std::string formatVersion() const { return main.root.attr("version"); }   // "4.60"
     bool isVersion4() const { return formatVersion().rfind("4.", 0) == 0; }

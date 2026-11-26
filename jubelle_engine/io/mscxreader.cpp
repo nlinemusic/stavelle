@@ -340,7 +340,36 @@ private:
         if (file.formatVersion() != "4.70") {
             f.push_back({ F::SOURCE_FORMAT, Text(file.formatVersion()) });
         }
-        documentFields(f, styleNode(file), score, file.main.root);
+        // MuseScore reads score_style.mss first, then a <Style> in the score itself over it (MscLoader, read460)
+        const Node* style = styleNode(file);
+        Node merged;
+        const Node* inline_ = file.hasStyleEntry && file.score() ? file.score()->child("Style") : nullptr;
+        if (style && inline_ && inline_ != style) {
+            // the k-th element of a name replaces the k-th of that name (old files repeat some names)
+            merged = *style;
+            std::map<std::string, int> seen;
+            for (const Node& c : inline_->children) {
+                if (c.type != Node::Type::Element) {
+                    continue;
+                }
+                int k = seen[c.name]++;
+                auto same = std::find_if(merged.children.begin(), merged.children.end(), [&](const Node& m) {
+                    return m.type == Node::Type::Element && m.name == c.name && k-- == 0;
+                });
+                if (same != merged.children.end()) {
+                    *same = c;
+                } else {
+                    merged.children.push_back(c);
+                }
+            }
+            style = &merged;
+        } else if (!style) {
+            style = inline_;
+        }
+        documentFields(f, style, score, file.main.root);
+        if (file.hasStyleEntry && file.style.root.attr("version") != file.formatVersion() && !file.style.root.attr("version").empty()) {
+            f.push_back({ F::STYLE_FORMAT, Text(file.style.root.attr("version")) });
+        }
         // other score data in the archive (mixer, view and automation settings); thumbnails are regenerated
         std::string extras;
         for (const zip::Entry& e : file.entries) {
