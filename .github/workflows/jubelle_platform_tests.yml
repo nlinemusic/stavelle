@@ -148,11 +148,11 @@ jobs:
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_listings ref_listings je_generated.md \
           --expected jubelle_engine/corpus/reference_differences.txt || rc=1
         cat je_generated.md >> "$GITHUB_STEP_SUMMARY"
-        # and in detail (ties, slurs and other lines, articulations, spellings, annotations) and as MuseScore plays it
+        # and in detail (ties, slurs and other lines, articulations, spellings, annotations, lyrics and texts) and as MuseScore plays it
         # (its MIDI rendering)
-        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_detail \
+        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_TEXTS=1 JUBELLE_REFERENCE_ROOT=$PWD JUBELLE_REFERENCE_LIST=$PWD/v4_scores.txt JUBELLE_REFERENCE_OUT=$PWD/ref_detail \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
-        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_detail \
+        JUBELLE_REFERENCE_MIDI=1 JUBELLE_REFERENCE_DETAIL=1 JUBELLE_REFERENCE_TEXTS=1 JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_detail \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         cat jubelle_engine/corpus/reference_differences.txt jubelle_engine/corpus/generated_playback_differences.txt > playback_expected.txt
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_detail ref_detail je_generated_detail.md \
@@ -191,6 +191,22 @@ jobs:
           timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
             "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
           rm -rf "$RUNNER_TEMP/mref_${spec// /_}/jubelle"   # the saved copies (the listings stay)
+        done
+        # text added (Score::addText) and lyrics typed (NotationInteraction's lyric entry) as MuseScore does them
+        for spec in "addtext 0 1 staff hello" "addtext 0 1 dynamics mf espr." "addtext 0 1 rehearsal_mark" "addtext 0 1 tempo" \
+                    "addtext 0 1 fingering 3"; do
+          echo "against MuseScore's own command: $spec ($(date +%T))"
+          timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
+          rm -rf "$RUNNER_TEMP/mref_${spec// /_}/jubelle"
+        done
+        n=0
+        for keys in "0 0|Glo-ry_ _to God in the high-est" "0 1|a--b c  d_e/f^g!h<i" "0 -1|x-y_z w--v"; do
+          n=$((n+1)); where="${keys%%|*}"; typed="${keys#*|}"
+          echo "against MuseScore's own lyric entry: $where \"$typed\" ($(date +%T))"
+          timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
+            "$RUNNER_TEMP/lyrics_$n" lyrics $where "$typed" >> je_timesig_reference.txt || rc=1
+          rm -rf "$RUNNER_TEMP/lyrics_$n/jubelle"
         done
         { echo; echo '```'; cat je_timesig_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         # the play order (repeats, endings, jumps) against MuseScore's RepeatList: its 72 repeat tests and the corpus

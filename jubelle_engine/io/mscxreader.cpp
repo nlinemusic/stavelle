@@ -5,11 +5,13 @@
 #include "mscxreader.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <functional>
 #include <map>
 #include <set>
 #include <sstream>
 
+#include "model/fragment.h"
 #include "model/bulkbuilder.h"
 #include "details.h"
 
@@ -940,10 +942,36 @@ private:
     }
 
     //! A text child as written (MuseScore rich text: markup kept, still escaped)
+    //! A text element's content as written: a leaf's verbatim, or (formatted text, "<b>bold</b>", which the parser
+    //! keeps as elements) its elements written back inline, as MuseScore writes them
+    static std::string innerXml(const Node& n)
+    {
+        if (n.leaf) {
+            return n.raw;
+        }
+        std::string out;
+        for (const Node& c : n.children) {
+            if (c.type != Node::Type::Element) {
+                out += c.name;   // a comment, as it was
+                continue;
+            }
+            out += "<" + c.name;
+            for (const auto& [k, v] : c.attrs) {
+                out += " " + k + "=\"" + v + "\"";
+            }
+            if (c.selfClosing) {
+                out += "/>";
+                continue;
+            }
+            out += ">" + innerXml(c) + "</" + c.name + ">";
+        }
+        return out;
+    }
+
     static std::string rawText(const Node& e, const char* tag)
     {
         const Node* c = e.child(tag);
-        return c ? c->raw : std::string();
+        return c ? innerXml(*c) : std::string();
     }
 
     static bool isGrace(const Node& e)
@@ -1741,7 +1769,7 @@ bool readScore(const ScoreFile& file, model::Model& model, IdGenerator& ids, Rea
     return r.run(error);
 }
 
-std::string musicListing(const model::Snapshot& s, bool appearance)
+std::string musicListing(const model::Snapshot& s, bool appearance, bool lyrics, bool texts)
 {
     // staff order: players in score order, staves in player order
     std::ostringstream out;
@@ -1750,6 +1778,7 @@ std::string musicListing(const model::Snapshot& s, bool appearance)
         return std::string();
     }
     int staffIndex = 0;
+    std::map<Id, int> staffIndexOf;
     for (Id p : score->children()) {
         const model::Object* player = s.find(p);
         if (!player || player->kind() != Kind::Player) {
@@ -1804,10 +1833,162 @@ std::string musicListing(const model::Snapshot& s, bool appearance)
                             out << " sm:" << ev->intOr(F::STAFF_MOVE, 0);   // cross-staff
                         }
                     }
+                    if (lyrics && !ev->has(F::GRACE)) {
+                        // lyrics: verse (a: above), syllabic, extension, text (the reference listing's form)
+                        std::vector<std::string> ls;
+                        for (Id c : ev->children()) {
+                            const model::Object* l = s.find(c);
+                            if (l->kind() != Kind::Attachment || l->text(F::SUBKIND) != "lyric") {
+                                continue;
+                            }
+                            const std::string syl = l->text(F::SYLLABIC);
+                            const bool above = model::fragment::value(l->text(F::DETAILS), "placement") == "above";
+                            ls.push_back(" L" + std::to_string(l->intOr(F::VERSE, 0)) + (above ? "a" : "") + ":"
+                                         + (syl.empty() ? "s" : syl.substr(0, 1)) + ":"
+                                         + l->fractionOr(F::DURATION, Fraction()).toString() + ":" + l->text(F::TEXT));
+                        }
+                        std::sort(ls.begin(), ls.end());
+                        for (const std::string& x : ls) {
+                            out << x;
+                        }
+                    }
                     out << '\n';
                 }
             }
+            staffIndexOf[st] = staffIndex;
             ++staffIndex;
+        }
+    }
+    if (texts) {
+        // texts, dynamics, tempos, rehearsal marks… (the reference listing's form): system-wide ones on the top staff
+        static const std::map<std::string, std::string> names { { "staffText", "StaffText" }, { "systemText", "SystemText" },
+                                                                { "dynamic", "Dynamic" }, { "expression", "Expression" },
+                                                                { "rehearsalMark", "RehearsalMark" }, { "tempo", "Tempo" },
+                                                                { "playTechnique", "PlayTechAnnotation" },
+                                                                { "instrumentChange", "InstrumentChange" } };
+        std::vector<std::string> lines;
+        for (Id fl : score->children()) {
+            const model::Object* flow = s.find(fl);
+            if (!flow || flow->kind() != Kind::Flow) {
+                continue;
+            }
+            for (Id c : flow->children()) {
+                const model::Object* o = s.find(c);
+                auto n = names.find(o->text(F::SUBKIND));
+                if (o->kind() != Kind::FlowItem || n == names.end()) {
+                    continue;
+                }
+                const bool system = o->has(F::HOME_STAFF);
+                const int staff = staffIndexOf.count(o->idOr(system ? F::HOME_STAFF : F::ANCHOR)) ? staffIndexOf[o->idOr(system ? F::HOME_STAFF : F::ANCHOR)] : -1;
+                const int64_t voice = o->intOr(F::VOICE_INDEX, 0);
+                if (system && (staff != 0 || voice != 0)) {
+                    continue;
+                }
+                std::string t = o->text(F::TEXT);
+                // as MuseScore reads them: an empty <font …></font> is <font …/>, and a staff text in the expression
+                // style an expression (files before 4.0)
+                for (size_t at = t.find("></"); at != std::string::npos; at = t.find("></", at + 1)) {
+                    // an empty element <x …></x>: <x …/>
+                    const size_t open = t.rfind('<', at);
+                    if (open == std::string::npos || t[open + 1] == '/') {
+                        continue;
+                    }
+                    size_t nameEnd = open + 1;
+                    while (nameEnd < at && t[nameEnd] != ' ' && t[nameEnd] != '/') {
+                        ++nameEnd;
+                    }
+                    const std::string name = t.substr(open + 1, nameEnd - open - 1);
+                    if (t.compare(at + 3, name.size() + 1, name + ">") == 0) {
+                        t.replace(at, name.size() + 4, "/>");
+                    }
+                }
+                // a line break as <br/>; whitespace alone between two tags is not kept by MuseScore's reader
+                for (size_t at = t.find('\n'); at != std::string::npos; at = t.find('\n', at)) {
+                    t.replace(at, 1, "<br/>");
+                }
+                for (size_t at = t.find('>'); at != std::string::npos; at = t.find('>', at + 1)) {
+                    size_t e = at + 1;
+                    while (e < t.size() && (t[e] == ' ' || t[e] == '\t' || t[e] == '\r')) {
+                        ++e;
+                    }
+                    if (e > at + 1 && e < t.size() && t[e] == '<') {
+                        t.erase(at + 1, e - at - 1);
+                    }
+                }
+                std::string name = n->second;
+                if (name == "StaffText" && model::fragment::value(o->text(F::DETAILS), "style") == "expression") {
+                    name = "Expression";
+                }
+                if (o->text(F::SUBKIND) == "tempo") {
+                    char b[32];
+                    std::snprintf(b, sizeof(b), " @%.4g", std::holds_alternative<double>(o->get(F::REAL_VALUE)) ? std::get<double>(o->get(F::REAL_VALUE)) : 2.0);
+                    t += b;
+                }
+                lines.push_back("# text " + name + " " + o->fractionOr(F::TIME, Fraction()).toString() + " " + std::to_string(staff) + " "
+                                + std::to_string(voice) + " " + t);
+            }
+        }
+        // fingerings, on their notes
+        int si = 0;
+        for (Id p : score->children()) {
+            const model::Object* player = s.find(p);
+            if (!player || player->kind() != Kind::Player) {
+                continue;
+            }
+            for (Id st : player->children()) {
+                for (Id v : s.find(st)->children()) {
+                    const model::Object* voice = s.find(v);
+                    if (voice->kind() != Kind::Voice) {
+                        continue;
+                    }
+                    for (Id e : voice->children()) {
+                        const model::Object* ev = s.find(e);
+                        if (ev->kind() != Kind::Chord || ev->has(F::GRACE)) {
+                            continue;
+                        }
+                        for (Id n : ev->children()) {
+                            const model::Object* note = s.find(n);
+                            if (note->kind() != Kind::Note) {
+                                continue;
+                            }
+                            for (Id a : note->children()) {
+                                const model::Object* fg = s.find(a);
+                                if (fg->text(F::SUBKIND) == "fingering") {
+                                    std::string style = model::fragment::value(fg->text(F::DETAILS), "style");
+                                    lines.push_back("# fingering " + ev->fractionOr(F::TIME, Fraction()).toString() + " " + std::to_string(si) + " "
+                                                    + std::to_string(voice->intOr(F::NUMBER, 0)) + " " + std::to_string(note->intOr(F::PITCH, 0)) + " "
+                                                    + (style.empty() ? std::string("fingering") : style) + " " + fg->text(F::TEXT));
+                                }
+                            }
+                        }
+                    }
+                }
+                ++si;
+            }
+        }
+        std::sort(lines.begin(), lines.end());
+        for (const std::string& l : lines) {
+            out << l << '\n';
+        }
+    }
+    if (lyrics) {
+        // partial dashes and extension lines at repeats
+        std::vector<std::string> lines;
+        for (Id c : score->children()) {
+            const model::Object* o = s.find(c);
+            if (!o || o->kind() != Kind::Spanner || o->text(F::SUBKIND) != "partialLyricsLine") {
+                continue;
+            }
+            const std::string& d = o->text(F::DETAILS);
+            const std::string m = model::fragment::value(d, "isEndMelisma");
+            lines.push_back("# partial " + std::to_string(staffIndexOf[o->idOr(F::ANCHOR)]) + " " + std::to_string(o->intOr(F::VOICE_INDEX, 0))
+                            + " " + o->fractionOr(F::TIME, Fraction()).toString() + " " + o->fractionOr(F::DURATION, Fraction()).toString()
+                            + " " + std::to_string(std::atoi(model::fragment::value(d, "no").c_str())) + " "
+                            + (m == "1" || m == "true" ? "m" : "d") + " " + (model::fragment::value(d, "placement") == "above" ? "a" : "b"));
+        }
+        std::sort(lines.begin(), lines.end());
+        for (const std::string& l : lines) {
+            out << l << '\n';
         }
     }
     return out.str();

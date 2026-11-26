@@ -1208,3 +1208,61 @@ TEST(Commands, ChordsMoveToTheOtherStaffOfTheirInstrument)
     EXPECT_EQ(moved, 0);   // the top staff has none above
     d.consistent();
 }
+
+namespace {
+std::vector<const model::Object*> itemsOf(const Doc& d, const std::string& subkind)
+{
+    std::vector<const model::Object*> out;
+    d.model.snapshot().forEachObject([&](const model::Object& o) {
+        if (o.kind() == Kind::FlowItem && o.text(F::SUBKIND) == subkind) {
+            out.push_back(&o);
+        }
+    });
+    return out;
+}
+}
+
+TEST(Commands, TextIsAddedAsMuseScoreAddsIt)
+{
+    Doc d;
+    const Id c = d.chord(d.flute.voice, 1, { 72 });
+    d.edit("Text", [&](Transaction& tx) {
+        EXPECT_TRUE(d.cmd.addText(tx, "staff", d.notes(c)[0], "espressivo").isValid());
+        EXPECT_TRUE(d.cmd.addText(tx, "dynamics", c, "mf").isValid());
+        EXPECT_FALSE(d.cmd.addText(tx, "expression", c, "").isValid());   // left empty: taken away
+        EXPECT_TRUE(d.cmd.addText(tx, "tempo", c, "").isValid());
+        EXPECT_TRUE(d.cmd.addText(tx, "fingering", d.notes(c)[0], "3").isValid());
+        EXPECT_FALSE(d.cmd.addText(tx, "fingering", c, "3").isValid());   // a fingering needs a note
+    });
+    ASSERT_EQ(itemsOf(d, "staffText").size(), 1u);
+    EXPECT_EQ(itemsOf(d, "staffText")[0]->text(F::TEXT), "espressivo");
+    EXPECT_EQ(itemsOf(d, "staffText")[0]->idOr(F::ANCHOR), d.flute.staff);
+    EXPECT_EQ(itemsOf(d, "staffText")[0]->fractionOr(F::TIME, Fraction()), Fraction(1, 4));
+    EXPECT_EQ(itemsOf(d, "dynamic")[0]->text(F::TEXT), "mf");
+    EXPECT_TRUE(itemsOf(d, "expression").empty());
+    // the tempo: the beat of 4/4 at 80
+    ASSERT_EQ(itemsOf(d, "tempo").size(), 1u);
+    EXPECT_EQ(itemsOf(d, "tempo")[0]->text(F::TEXT), "<sym>metNoteQuarterUp</sym> = 80");
+    EXPECT_NEAR(std::get<double>(itemsOf(d, "tempo")[0]->get(F::REAL_VALUE)), 80.0 / 60.0, 1e-9);
+    d.consistent();
+    d.undoRedo();
+    d.roundTrip();
+}
+
+TEST(Commands, RehearsalMarksFollowTheirSequence)
+{
+    Doc d(4);
+    std::vector<Id> c;
+    for (int m = 0; m < 4; ++m) {
+        c.push_back(d.chord(d.flute.voice, m * 4, { 72 }));
+    }
+    auto mark = [&](int i) {
+        Id made;
+        d.edit("Rehearsal mark", [&](Transaction& tx) { made = d.cmd.addText(tx, "rehearsal_mark", c[size_t(i)], ""); });
+        return d.model.find(made)->text(F::TEXT);
+    };
+    EXPECT_EQ(mark(0), "A");
+    EXPECT_EQ(mark(2), "B");
+    EXPECT_EQ(mark(1), "A1");   // between A and B: B is taken
+    EXPECT_EQ(mark(3), "C");
+}

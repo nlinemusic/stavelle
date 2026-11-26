@@ -137,6 +137,17 @@ public:
     //! moved
     int moveToStaff(Transaction& tx, const std::vector<Id>& events, bool up);
 
+    // ---- text (edit/text.cpp) -----------------------------------------------------------------------------------
+    //! Score::addText with MuseScore's text style name ("staff", "system", "expression", "dynamics",
+    //! "rehearsal_mark", "tempo", "fingering", "lh_guitar_fingering", "rh_guitar_fingering", "string_number") on a
+    //! chord, rest or note (fingerings: a note), and the text typed in it (TextBase::endEdit): the item made, or none
+    //! (refused, or left empty: MuseScore takes an empty text away). A rehearsal mark gets the next in the score's
+    //! sequence and a tempo text the time signature's beat at 80 unless text is typed; a dynamic typed as its name
+    //! ("mf") becomes that dynamic. Lyrics: edit/lyrics.h
+    Id addText(Transaction& tx, const std::string& style, Id destination, const std::string& text);
+    //! Score::createRehearsalMarkText: the next rehearsal mark at t, in the sequence of those before it
+    std::string rehearsalMarkText(const Fraction& t) const;
+
     //! The staves in score order (players in order, their staves in order), as the indices above count them
     std::vector<Id> stavesInOrder() const { return allStaves(); }
 

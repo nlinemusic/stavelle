@@ -437,15 +437,29 @@ TEST(LinkedStaves, DynamicsAndLinesAreAddedChangedAndRemovedOnBothStaves)
         });
         return out;
     };
+    // a dynamic added to one staff of the part stays on it, as MuseScore keeps dynamics, staff texts, chord symbols
+    // and lyrics to their own staff (Score::undoAddElement leaves them off the part's other staves)
+    Id alone;
+    g.edit([&](Transaction& tx) {
+        alone = create(tx, g.ids, g.b.flow(), { Kind::FlowItem, { { F::SUBKIND, Text("dynamic") }, { F::ANCHOR, g.guitar.staff },
+                                                                  { F::TIME, Fraction(0, 1) }, { F::TEXT, Text("p") } } },
+                       Placement::ByTime);
+    });
+    EXPECT_TRUE(onStaff(g.tab, "dynamic").empty());
+    g.edit([&](Transaction& tx) { removeTree(tx, alone); });
+    // one the file linked to a copy on the other staff: the copy follows it
+    Id tabDyn;
     g.edit([&](Transaction& tx) {
         dyn = create(tx, g.ids, g.b.flow(), { Kind::FlowItem, { { F::SUBKIND, Text("dynamic") }, { F::ANCHOR, g.guitar.staff },
                                                                 { F::TIME, Fraction(1, 1) }, { F::TEXT, Text("mf") } } },
                      Placement::ByTime);
+        tabDyn = create(tx, g.ids, g.b.flow(), { Kind::FlowItem, { { F::SUBKIND, Text("dynamic") }, { F::ANCHOR, g.tab },
+                                                                   { F::TIME, Fraction(1, 1) }, { F::TEXT, Text("mf") },
+                                                                   { F::LINKED_TO, dyn } } },
+                        Placement::ByTime);
     });
     ASSERT_EQ(onStaff(g.tab, "dynamic").size(), 1u);
-    const Id tabDyn = onStaff(g.tab, "dynamic").front();
     EXPECT_EQ(g.model.find(tabDyn)->idOr(F::LINKED_TO), dyn);
-    EXPECT_EQ(g.model.find(tabDyn)->text(F::TEXT), "mf");
     // changed on the tablature: the standard staff's follows
     g.edit([&](Transaction& tx) { tx.set(tabDyn, F::TEXT, Text("ff")); });
     EXPECT_EQ(g.model.find(dyn)->text(F::TEXT), "ff");
@@ -484,4 +498,38 @@ TEST(LinkedStaves, DynamicsAndLinesAreAddedChangedAndRemovedOnBothStaves)
         ++slurs;
     }
     EXPECT_EQ(slurs, 2u);
+}
+
+TEST(LinkedStaves, LyricsStayOnTheirOwnStaff)
+{
+    // as MuseScore: a lyric typed on one staff of the part is not put on the other, and the other's own lyrics stay
+    // when its music is written again from the main staff
+    Guitar g;
+    g.edit([&](Transaction& tx) {
+        g.ops.enterChord(tx, g.guitar.voice, Fraction(0, 1), { Fraction(1, 4), 0 }, { 60 });
+        g.ops.enterChord(tx, g.guitar.voice, Fraction(1, 4), { Fraction(1, 4), 0 }, { 62 });
+    });
+    auto lyricOn = [&](Id event) {
+        std::string out;
+        for (Id c : g.model.find(event)->children()) {
+            if (g.model.find(c)->text(F::SUBKIND) == "lyric") {
+                out += g.model.find(c)->text(F::TEXT);
+            }
+        }
+        return out;
+    };
+    g.edit([&](Transaction& tx) {
+        create(tx, g.ids, g.eventAt(g.guitar.voice, Fraction(0, 1)),
+               { Kind::Attachment, { { F::SUBKIND, Text("lyric") }, { F::VERSE, int64_t(0) }, { F::TEXT, Text("la") } } });
+        create(tx, g.ids, g.eventAt(g.tabVoice, Fraction(1, 4)),
+               { Kind::Attachment, { { F::SUBKIND, Text("lyric") }, { F::VERSE, int64_t(0) }, { F::TEXT, Text("tab") } } });
+    });
+    EXPECT_EQ(lyricOn(g.eventAt(g.guitar.voice, Fraction(0, 1))), "la");
+    EXPECT_EQ(lyricOn(g.eventAt(g.tabVoice, Fraction(0, 1))), "");
+    EXPECT_EQ(lyricOn(g.eventAt(g.tabVoice, Fraction(1, 4))), "tab");
+    // the rhythm changes on the standard staff: the tablature's bar is written again, its lyric kept
+    g.edit([&](Transaction& tx) { g.ops.enterChord(tx, g.guitar.voice, Fraction(1, 4), { Fraction(1, 2), 0 }, { 64 }); });
+    EXPECT_EQ(lyricOn(g.eventAt(g.tabVoice, Fraction(1, 4))), "tab");
+    EXPECT_EQ(lyricOn(g.eventAt(g.tabVoice, Fraction(0, 1))), "");
+    EXPECT_EQ(lyricOn(g.eventAt(g.guitar.voice, Fraction(0, 1))), "la");
 }

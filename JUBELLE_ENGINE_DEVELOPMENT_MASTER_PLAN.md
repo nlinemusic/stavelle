@@ -7,7 +7,7 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 |---|---|
 | Last updated | 26 Nov 2026 |
 | Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
-| Current work | **S3 editing and note entry** (S1 model and S2 file handling done; S2 follow-ups listed in §15) |
+| Current work | **S4 undo and redo, autosave journal, crash recovery** (S1 model, S2 file handling and S3 editing done; follow-ups listed in §15) |
 | Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
@@ -260,6 +260,9 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 26 Nov 2026 | **S2/S3 fixes found while porting the commands:** a chord's kept appearance (stem direction, stemless, small…) was dropped when a measure was inserted before it, because its time was part of its details' fingerprint (no longer: `model/detailskey`); chord symbols are modelled with their bass (`BASS`) and, from 4.60, read from and written to MuseScore's `<harmonyInfo>` — before, a 4.60 file's chord symbols weren't transposed with the music, and transposing an older file's dropped their slash bass and look. MuseScore's reading of every regenerated file now also compares each chord symbol's root, bass and name (2,107 of 2,117 as the originals, the 10 expected). 134 tests |
 | 26 Nov 2026 | **S3 realize chord symbols** (`Commands::realizeChordSymbols`, MuseScore's `cmdRealizeChordSymbols`) on a new **chord-symbol module** (`edit/chordsymbol`, ported from MuseScore's `ParsedChord::parse` and `RealizedHarmony`: quality, extension and modifiers; the ranked intervals; the jazz additions before the next chord; the seven voicings), which S5's playback of chord symbols will use too. Each symbol (fret diagrams' included) is written on its staff and voice for its duration — until the next symbol, to the barline or for its segment — in MuseScore's values, tied across barlines, with each symbol's own settings or the dialog's. **Every corpus chord symbol compared with MuseScore's understanding and its seven voicings, literal and jazz (`je_io_tool chordlist`, `JUBELLE_REFERENCE_HARMONY`): 1,166 of 1,177 identical** (the rest: a 1.x score's chord list ids, a "♭" written in a modifier, which both realize as the root only). Against MuseScore's own command (`je_measures_reference.py`, also run in CI): **with the symbols' own settings 2,106 of 2,118 the same music, with the dialog's (drop 2, to the barline, jazz) 2,105** — the rest are stacked fret diagrams at one time, read differently, and tuplets (below). 136 tests |
 | 26 Nov 2026 | **S3 move to staff above / below** (`Commands::moveToStaff`, MuseScore's `moveUp` / `moveDown`, cross-staff notation): a chord or rest shown on the next staff of its instrument, one staff at most either way, between standard staves; the cross-staff move is now modelled (`STAFF_MOVE`, read and written as MuseScore's `<staffMove>`, so it no longer disappears when the chord's music is edited, and MuseScore's reading of every regenerated file compares it too). Against MuseScore's own command (`je_measures_reference.py`, also run in CI): **down from the first staff 2,103 of 2,118, up from the second 2,103 the same** — the rest are files whose parts show only one staff of an instrument (MuseScore refuses a move between a staff in a part and one that isn't; the model doesn't record parts per staff yet) and files MuseScore already reads differently. 137 tests |
+| 26 Nov 2026 | **The play order** (`perform/repeatlist`, ported from MuseScore's RepeatList, with Jubelle's "Play this repeat"): repeats and their play counts, first and second endings (overlapping ones merged as MuseScore merges them), D.C. / D.S. with Fine and Coda, section breaks. **The same as MuseScore's on its 72 repeat test files and on all 2,118 corpus scores** (`je_repeats_reference.py`, in CI). Lyric entry uses it now, playback (S5) will. 143 tests |
+| 26 Nov 2026 | **S3 lyric entry** (`edit/lyrics`, ported from MuseScore's lyric entry: next syllable, extension line, next and previous word, new verse, verse up and down, and Ctrl+L; with TextBase::endEdit and the lyric checks of its layout): dashes and extension lines across voices, rests and repeats (partial dashes and lines at a repeat or between endings), a lyric left empty removed and one just made for typing taken back with the step that made it. Against MuseScore's own lyric entry, the same keys typed on every corpus score (`je_measures_reference.py … lyrics`, in CI): **2,109, 2,105 and 2,109 of 2,118 the same lyrics and music** (three key sequences; the rest are the 9 files MuseScore already reads differently, and 4 test files of §15's difference 13), and **864 of 864** on MuseScore's repeat test files (`je_repeats_reference.py`) |
+| 26 Nov 2026 | **S3 text** (`Commands::addText`, MuseScore's `Score::addText` and the text typed): staff and system texts, expressions, dynamics (a typed name becomes the dynamic), rehearsal marks (the next in the score's sequence), tempo texts (the beat at 80), fingerings. Against MuseScore's own command on every corpus score (in CI): **2,109 of 2,118 the same** for each kind (tempo 2,106: §15's difference 14). Found and fixed on the way: **formatted text was lost when a score was saved from the model** (a lyric or text whose whole content is markup, such as `<b>bold</b>` or a symbol); MuseScore now reads all 2,118 regenerated files with the same lyrics and texts (compared in CI with the detailed reading). And the 25 Nov linked-staff change copied dynamics, staff texts and chord symbols to the other staff of a part, which MuseScore doesn't do; now they stay on their own staff, as lyrics and (on a tablature that hides them) fingerings do, and only copies the file already linked follow. 153 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -267,9 +270,15 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 - **S3 editing** (now): done: operations, note input, range copy/paste/delete, transposition, linked staves and
   tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
   texts on linked staves, the editing commands of `edit/commands`, time signature changes, split and join measures,
-  explode and implode, slashes, chord-symbol realization, moving to another staff. Next: the remaining commands of
-  `docs/10_…` (lyrics and text), scripted comparisons with MuseScore's engine (the clipboard's text format
-  is part of S10). Then S4 (autosave journal and crash recovery).
+  explode and implode, slashes, chord-symbol realization, moving to another staff, lyric entry, text; each compared
+  with MuseScore's own command on the corpus. Next: **S4** (undo refinements, autosave journal, crash recovery). The
+  clipboard's text format and text formatting while typing belong to S10.
+- Text, not yet: typing chord symbols (MuseScore's chord-symbol entry and its navigation), frame texts (title,
+  composer…), instrument change texts, sticking, harp pedal diagrams and figured bass; system texts, tempos and
+  rehearsal marks are added on the top staff only, not also on the score's extra system-object staves; numbered
+  rehearsal marks follow measure numbers counting irregular measures out only.
+- Lyrics, not yet: copying lyrics to the clipboard (S10); a lyric left empty is taken away in the next step's undo
+  record rather than in the one that made it (the music ends the same as MuseScore's).
 - Known limits of the commands, to fix when next touched: add interval on drum staves (needs the drum set); a unison
   (C and B♯ in one chord) is not added, MuseScore allows it; changing the voice of notes inside tuplets.
 - Slashes, not yet like MuseScore: slash fill on a staff with its own (local) time signature is skipped there; an
@@ -315,6 +324,14 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
      pair twice, a second set in another voice, and runs out of voices sooner.
   11. Beats inside a tuplet get no slash (MuseScore has no segment there either); where it does write into one, the
      tuplet is left as it is.
+  12. Enter (a new verse) on a lyric whose chord already has the next verse goes to that lyric; MuseScore adds a
+     second lyric of the same verse to the chord.
+  13. A hyphen that crosses a chord without a syllable ("high – ness" over three chords) is kept; MuseScore removes
+     such dashes when it opens a score or its repeats change (`Score::undoRemoveStaleTieJumpPoints`), making one
+     word two (4 vtest lyric files).
+  14. A tempo text added where a staff has its own time signature takes its beat from the score's time signature;
+     MuseScore takes the local signature's stretched value, a whole note in 4/4 against a 12/8 staff (3 vtest
+     files).
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds

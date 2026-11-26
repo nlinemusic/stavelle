@@ -46,6 +46,7 @@
 #include "model/invariants.h"
 #include "model/packing.h"
 #include "perform/repeatlist.h"
+#include "edit/lyrics.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1127,6 +1128,56 @@ int chordlist(const std::string& folder, const std::string& outDir)
 //! Every corpus score with measures split (split <index>: at the middle of that measure, where a chord or rest
 //! starts) or joined (join <first> <last>) by the engine, its listing next to each saved file headed "# measures
 //! changed|unchanged|refused", for comparing with MuseScore's SplitJoinMeasure (JUBELLE_REFERENCE_SPLIT / _JOIN)
+//! Lyric entry keys, as typed: text, then '-' (next syllable), '_' (extension), ' ' (next word), '<' (previous word),
+//! '/' (Enter: a new verse), '^' and '!' (verse up and down); typing replaces the lyric's text (MuseScore selects it
+//! on arrival); the entry is finished at the end (Escape)
+void lyricsScript(edit::LyricsEntry& entry, edit::Transaction& tx, const std::string& script)
+{
+    std::string typed;   // since arriving at the lyric (a key that doesn't move keeps it)
+    auto key = [&](char k) {
+        if (!typed.empty()) {
+            entry.setText(typed);
+        }
+        if (!entry.editing()) {
+            typed.clear();
+            return;
+        }
+        const Id was = entry.current();
+        struct Clear {
+            std::string& t;
+            edit::LyricsEntry& e;
+            Id was;
+            ~Clear()
+            {
+                if (!e.editing() || e.current() != was) {
+                    t.clear();
+                }
+            }
+        } clear { typed, entry, was };
+        switch (k) {
+        case '-': entry.nextSyllable(tx); break;
+        case '_': entry.melisma(tx); break;
+        case ' ': entry.nextWord(tx); break;
+        case '<': entry.nextWord(tx, true); break;
+        case '/': entry.addVerse(tx); break;
+        case '^': entry.changeVerse(tx, true); break;
+        case '!': entry.changeVerse(tx, false); break;
+        default: break;
+        }
+    };
+    for (char c : script) {
+        if (std::string("-_ </^!").find(c) != std::string::npos) {
+            key(c);
+        } else {
+            typed += c;
+        }
+    }
+    if (!typed.empty()) {
+        entry.setText(typed);
+    }
+    entry.finish(tx);
+}
+
 int measedit(const std::string& folder, const std::string& outDir, const std::string& op, int a, int b, int c, int d)
 {
     namespace F = model::fields;
@@ -1135,7 +1186,7 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
         edit::Operations ops(m, ids);
         edit::Commands cmd(ops);
         const model::Snapshot before = m.snapshot();
-        const std::string listingBefore = io::musicListing(before, op == "slashfill" || op == "slashrhythm" || op == "movestaff");
+        const std::string listingBefore = io::musicListing(before, op == "slashfill" || op == "slashrhythm" || op == "movestaff", op == "lyrics", op == "addtext");
         const std::vector<Id> ms = ops.measures();
         std::string label = "refused";
         try {
@@ -1245,6 +1296,88 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
                         ok = cmd.slashRhythm(tx, events);
                     }
                 }
+            } else if (op == "addtext") {
+                // Score::addText (JE_ADDTEXT: "<style> <text>") on the first chord (its top note) or rest of voice 1 of
+                // staff a in measure b
+                const std::vector<Id> all = cmd.stavesInOrder();
+                const char* spec = std::getenv("JE_ADDTEXT");
+                if (spec && size_t(a) < all.size() && size_t(b) < ms.size()) {
+                    std::string style = spec, text;
+                    if (const size_t sp = style.find(' '); sp != std::string::npos) {
+                        text = style.substr(sp + 1);
+                        style = style.substr(0, sp);
+                    }
+                    Id dest;
+                    for (Id v : m.find(all[size_t(a)])->children()) {
+                        const model::Object* vo = m.find(v);
+                        if (vo->kind() != model::Kind::Voice || vo->intOr(F::NUMBER, 0) != 0) {
+                            continue;
+                        }
+                        for (Id e : ops.eventsOf(v)) {
+                            const model::Object* eo = m.find(e);
+                            const Fraction t = eo->fractionOr(F::TIME, Fraction());
+                            if (eo->has(F::GRACE) || t < ops.measureStart(ms[size_t(b)]) || t >= ops.measureEnd(ms[size_t(b)])) {
+                                continue;
+                            }
+                            dest = e;
+                            int64_t top = -1;
+                            for (Id n : eo->children()) {
+                                const model::Object* no = m.find(n);
+                                if (no->kind() == model::Kind::Note && no->intOr(F::PITCH, 0) > top) {
+                                    top = no->intOr(F::PITCH, 0);
+                                    dest = n;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    if (dest.isValid()) {
+                        ok = cmd.addText(tx, style, dest, text).isValid();
+                        label = ok ? "unchanged" : "refused";   // nothing made: refused, as MuseScore's
+                    }
+                }
+            } else if (op == "lyrics") {
+                // lyric entry typed on staff a from the first chord or rest of measure b's voice 1 (b = -1: editing
+                // the score's first lyric on staff a), with the keys of JE_LYRICS (lyricsScript)
+                const std::vector<Id> all = cmd.stavesInOrder();
+                if (size_t(a) < all.size() && (b < 0 || size_t(b) < ms.size())) {
+                    Id start, lyric;
+                    for (Id v : m.find(all[size_t(a)])->children()) {
+                        const model::Object* vo = m.find(v);
+                        if (vo->kind() != model::Kind::Voice || vo->intOr(F::NUMBER, 0) != 0) {
+                            continue;
+                        }
+                        for (Id e : ops.eventsOf(v)) {
+                            const model::Object* eo = m.find(e);
+                            const Fraction t = eo->fractionOr(F::TIME, Fraction());
+                            if (eo->has(F::GRACE)) {
+                                continue;
+                            }
+                            if (b >= 0 && ops.measureStart(ms[size_t(b)]) <= t && t < ops.measureEnd(ms[size_t(b)])) {
+                                start = e;
+                                break;
+                            }
+                            if (b < 0) {
+                                for (Id c : eo->children()) {
+                                    if (m.find(c)->text(F::SUBKIND) == "lyric") {
+                                        lyric = c;
+                                        break;
+                                    }
+                                }
+                                if (lyric.isValid()) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    const char* script = std::getenv("JE_LYRICS");
+                    edit::LyricsEntry entry(ops);
+                    if ((start.isValid() && entry.start(tx, start)) || (lyric.isValid() && entry.edit(lyric))) {
+                        label = "unchanged";
+                        lyricsScript(entry, tx, script ? script : "");
+                        ok = true;
+                    }
+                }
             }
             if (ok) {
                 tx.commit();
@@ -1254,7 +1387,7 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
             return;
         }
         const bool appearance = op == "slashfill" || op == "slashrhythm" || op == "movestaff";
-        const std::string listingAfter = io::musicListing(m.snapshot(), appearance);
+        const std::string listingAfter = io::musicListing(m.snapshot(), appearance, op == "lyrics", op == "addtext");
         if (label != "refused" && listingAfter != listingBefore) {
             label = "changed";
         }
@@ -1364,6 +1497,24 @@ int main(int argc, char** argv)
     }
     if (a.size() >= 6 && a[0] == "measedit" && a[2] == "--out") {
         auto arg = [&a](size_t i) { return a.size() > i ? std::atoi(a[i].c_str()) : 0; };
+        if (a[4] == "addtext" && a.size() >= 8) {   // the style and the text typed
+            std::string spec = a[7];
+            for (size_t i = 8; i < a.size(); ++i) {
+                spec += " " + a[i];
+            }
+#ifdef _WIN32
+            _putenv_s("JE_ADDTEXT", spec.c_str());
+#else
+            setenv("JE_ADDTEXT", spec.c_str(), 1);
+#endif
+        }
+        if (a[4] == "lyrics" && a.size() >= 8) {   // the keys typed
+#ifdef _WIN32
+            _putenv_s("JE_LYRICS", a[7].c_str());
+#else
+            setenv("JE_LYRICS", a[7].c_str(), 1);
+#endif
+        }
         if (a[4] == "movestaff" && a.size() >= 10) {   // the direction: 0 up, 1 down
 #ifdef _WIN32
             _putenv_s("JE_MOVESTAFF", a[9].c_str());

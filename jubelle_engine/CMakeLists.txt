@@ -65,6 +65,8 @@ add_library(je_core STATIC
     edit/structure.cpp
     edit/operations.cpp
     edit/commands.cpp
+    edit/text.cpp
+    edit/lyrics.cpp
     edit/chordsymbol.cpp
     edit/chordsymbol.h
     edit/commands.h
@@ -135,6 +137,7 @@ add_executable(je_tests
     tests/edit_operations_tests.cpp
     tests/edit_commands_tests.cpp
     tests/perform_repeatlist_tests.cpp
+    tests/edit_lyrics_tests.cpp
     tests/edit_noteinput_tests.cpp
     tests/edit_clipboard_tests.cpp
     tests/edit_links_tests.cpp

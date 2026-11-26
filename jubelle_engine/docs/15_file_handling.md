@@ -75,7 +75,10 @@ hold yet (an element's appearance) travels with its object as a fragment and a f
 written only while the music is unchanged (its place in time is not part of the fingerprint, since 26 Nov: a
 chord's stem direction stays when a measure is inserted before it; a chord symbol's look stays when it is
 transposed). Chord symbols are modelled with their root, bass and name, from 4.60 inside MuseScore's
-`<harmonyInfo>` (a polychord, with several, is carried as written). Objects made by editing are translated from the engine's own vocabulary
+`<harmonyInfo>` (a polychord, with several, is carried as written). A text's content (lyrics, staff texts, tempos…) is
+kept as written, formatting included; since 26 Nov also when it is all markup (`<b>bold</b>`, a symbol alone), which
+was lost before in files saved from the model (MuseScore's reading of every regenerated file now compares lyrics and
+texts too). Objects made by editing are translated from the engine's own vocabulary
 (a slur anchored to a chord, "accent", "Cmaj7", notes without a spelling, a transposition in semitones only).
 
 | Check (19 Nov 2026, Linux; CI runs the first on Windows, macOS and Linux) | Result |

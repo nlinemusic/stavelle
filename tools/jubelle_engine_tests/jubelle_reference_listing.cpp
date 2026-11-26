@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <map>
 #include <sstream>
 #include <string>
@@ -52,6 +53,15 @@
 #include "engraving/dom/factory.h"
 #include "engraving/dom/measure.h"
 #include "engraving/dom/repeatlist.h"
+#include "engraving/dom/lyrics.h"
+#include "engraving/dom/navigate.h"
+#include "engraving/dom/utils.h"
+#include "engraving/dom/textbase.h"
+#include <set>
+#include "engraving/dom/fingering.h"
+#include "engraving/dom/tempotext.h"
+#include "engraving/dom/dynamic.h"
+#include "engraving/types/typesconv.h"
 #include "engraving/tests/utils/scorerw.h"
 #include "engraving/dom/timesig.h"
 #include "engraving/editing/splitjoinmeasure.h"
@@ -105,6 +115,19 @@ void line(std::ostringstream& out, size_t staff, int voice, ChordRest* cr, bool 
     if ((std::getenv("JUBELLE_REFERENCE_SLASH") || std::getenv("JUBELLE_REFERENCE_DETAIL")) && cr->staffMove() != 0) {
         out << " sm:" << cr->staffMove();   // cross-staff
     }
+    if ((std::getenv("JUBELLE_REFERENCE_LYRICS") || std::getenv("JUBELLE_REFERENCE_TEXTS")) && !grace) {
+        // lyrics: verse (a: above), syllabic, extension, text (as the engine's listing writes them)
+        std::vector<std::string> ls;
+        for (Lyrics* l : cr->lyrics()) {
+            static const char* syl[] = { "s", "b", "e", "m" };   // LyricsSyllabic: SINGLE, BEGIN, END, MIDDLE
+            ls.push_back(" L" + std::to_string(l->verse()) + (l->placeAbove() ? "a" : "") + ":" + syl[int(l->syllabic())] + ":"
+                         + frac(l->ticks()) + ":" + l->xmlText().toStdString());
+        }
+        std::sort(ls.begin(), ls.end());
+        for (const std::string& x : ls) {
+            out << x;
+        }
+    }
     out << '\n';
 }
 
@@ -145,6 +168,70 @@ std::string listing(MasterScore* s)
                 }
             }
             ++staffIndex;
+        }
+    }
+    if (std::getenv("JUBELLE_REFERENCE_ADDTEXT") || std::getenv("JUBELLE_REFERENCE_TEXTS")) {
+        // texts, dynamics, tempos, rehearsal marks, chord symbols…: type, time, staff, voice, text
+        std::vector<std::string> texts;
+        // the kinds the engine models (as flow items); system-wide ones on the top staff only
+        static const std::set<std::string> kinds { "StaffText", "SystemText", "Dynamic", "Expression", "RehearsalMark", "Tempo",
+                                                   "PlayTechAnnotation", "InstrumentChange" };
+        for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
+            for (EngravingItem* a : seg->annotations()) {
+                if (a->isTextBase() && kinds.count(a->typeName()) && (!a->systemFlag() || a->isTopSystemObject())) {
+                    // a dynamic by its type (its text is the type's symbols unless the file says otherwise)
+                    std::string t = a->isDynamic() ? std::string(TConv::toXml(toDynamic(a)->dynamicType()).ascii())
+                                                   : toTextBase(a)->xmlText().toStdString();
+                    for (size_t at = t.find('\n'); at != std::string::npos; at = t.find('\n', at)) {
+                        t.replace(at, 1, "<br/>");   // a line break, as files write it
+                    }
+                    if (a->isTempoText()) {
+                        char b[32];
+                        std::snprintf(b, sizeof(b), " @%.4g", toTempoText(a)->tempo().val);
+                        t += b;
+                    }
+                    texts.push_back(std::string("# text ") + a->typeName() + " " + frac(seg->tick()) + " " + std::to_string(a->staffIdx()) + " "
+                                    + std::to_string(a->voice()) + " " + t);
+                }
+            }
+        }
+        // fingerings: on their notes
+        for (Segment* seg = s->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+            for (EngravingItem* e : seg->elist()) {
+                if (!e || !e->isChord()) {
+                    continue;
+                }
+                for (Note* n : toChord(e)->notes()) {
+                    for (EngravingItem* x : n->el()) {
+                        if (x->isFingering()) {
+                            texts.push_back("# fingering " + frac(seg->tick()) + " " + std::to_string(e->staffIdx()) + " "
+                                            + std::to_string(e->voice()) + " " + std::to_string(n->pitch()) + " "
+                                            + TConv::toXml(toTextBase(x)->textStyleType()).ascii() + " " + toTextBase(x)->xmlText().toStdString());
+                        }
+                    }
+                }
+            }
+        }
+        std::sort(texts.begin(), texts.end());
+        for (const std::string& l : texts) {
+            out << l << '\n';
+        }
+    }
+    if (std::getenv("JUBELLE_REFERENCE_LYRICS") || std::getenv("JUBELLE_REFERENCE_TEXTS")) {
+        // partial dashes and extension lines at repeats
+        std::vector<std::string> lines;
+        for (const auto& [tick, sp] : s->spanner()) {
+            if (!sp->isPartialLyricsLine()) {
+                continue;
+            }
+            const PartialLyricsLine* p = toPartialLyricsLine(sp);
+            lines.push_back("# partial " + std::to_string(p->staffIdx()) + " " + std::to_string(p->voice()) + " " + frac(p->tick()) + " "
+                            + frac(p->ticks()) + " " + std::to_string(p->verse()) + " " + (p->isEndMelisma() ? "m" : "d") + " "
+                            + (p->placeAbove() ? "a" : "b"));
+        }
+        std::sort(lines.begin(), lines.end());
+        for (const std::string& l : lines) {
+            out << l << '\n';
         }
     }
     // JUBELLE_REFERENCE_LINKS=1: for linked staves of the score (a guitar's standard and tablature staves), how
@@ -203,9 +290,14 @@ std::string listing(MasterScore* s)
                         }
                         return false;
                     };
+                    // (not those MuseScore keeps to their own staff of a part: Score::undoAddElement leaves them off the
+                    // part's other staves, so a new one is linked to nothing)
+                    static const std::set<std::string> ownStaff { "StaffText", "Dynamic", "Expression", "Harmony", "PlayTechAnnotation",
+                                                                  "FretDiagram", "Capo", "StringTunings", "TripletFeel", "FiguredBass",
+                                                                  "PlayCountText" };
                     for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
                         for (EngravingItem* a : seg->annotations()) {
-                            if (a->staffIdx() == staff->idx() && !a->systemFlag()) {
+                            if (a->staffIdx() == staff->idx() && !a->systemFlag() && !ownStaff.count(a->typeName())) {
                                 ++elements;
                                 linked += linkedInScore(a) ? 1 : 0;
                                 if (!linkedInScore(a) && std::string(std::getenv("JUBELLE_REFERENCE_LINKS")) == "2") {
@@ -300,6 +392,693 @@ std::string listing(MasterScore* s)
     }
     return out.str();
 }
+
+//! MuseScore's lyric entry (NotationInteraction::navigateToLyrics, navigateToNextSyllable, addMelisma,
+//! addLyricsVerse, navigateToLyricsVerse, copied with the interface left out) with TextBase::endEdit's outcome for a
+//! lyric: the typed text committed with Lyrics::adjustPrevious, or the lyric removed (a new one: the command that
+//! made it rolled back). Keys as je_io_tool's lyricsScript.
+class LyricSession
+{
+public:
+    explicit LyricSession(MasterScore* s)
+        : m_s(s) {}
+    Lyrics* cur = nullptr;
+    bool newlyAdded = false;
+    std::string typed;
+
+    void startEditText(Lyrics* l, bool isNew)
+    {
+        cur = l;
+        newlyAdded = isNew;
+        typed.clear();
+    }
+
+    void endEditText()
+    {
+        if (!cur) {
+            return;
+        }
+        Lyrics* l = cur;
+        cur = nullptr;
+        const String text = typed.empty() ? l->xmlText() : String::fromStdString(typed);
+        typed.clear();
+        if (!text.isEmpty()) {
+            m_s->startCmd(TranslatableString::untranslatable("lyrics text"));
+            if (text != l->xmlText()) {
+                l->undoChangeProperty(Pid::TEXT, text);
+            }
+            l->adjustPrevious();
+            m_s->endCmd();
+            return;
+        }
+        if (newlyAdded) {
+            m_s->undoRedo(true, nullptr);   // the "add element" command rolled back
+        } else {
+            m_s->startCmd(TranslatableString::untranslatable("lyrics removed"));
+            PartialLyricsLine* partialDash = findPrevPartialLyricsLineDash(l);
+            m_s->undoRemoveElement(l);
+            if (partialDash) {
+                m_s->removeElement(partialDash);
+            }
+            m_s->endCmd();
+        }
+        Lyrics* prev = prevLyrics(l);
+        if (prev) {
+            m_s->startCmd(TranslatableString::untranslatable("lyrics layout"));
+            prev->setNeedRemoveInvalidSegments();
+            prev->triggerLayout();
+            m_s->setLayoutAll();
+            m_s->endCmd();
+        }
+    }
+
+    void navigateToLyrics(bool back, bool moveOnly)
+    {
+        Lyrics* lyrics = cur;
+        track_idx_t track = lyrics->track();
+        Segment* segment = lyrics->segment();
+        int verse = lyrics->verse();
+        PlacementV placement = lyrics->placement();
+        PropertyFlags pFlags = lyrics->propertyFlags(Pid::PLACEMENT);
+        FontStyle fStyle = lyrics->fontStyle();
+        PropertyFlags fFlags = lyrics->propertyFlags(Pid::FONT_STYLE);
+        TextStyleType styleType = lyrics->textStyleType();
+
+        Segment* nextSegment = segment;
+        while ((nextSegment = back ? nextSegment->prev1(SegmentType::ChordRest) : nextSegment->next1(SegmentType::ChordRest))) {
+            EngravingItem* el = nextSegment->element(track);
+            if (!el) {
+                continue;
+            }
+            if (el->isChord()) {
+                break;
+            } else if (el->isRest()) {
+                if (toChordRest(el)->lyrics(verse, placement)) {
+                    break;
+                }
+            }
+        }
+        if (!nextSegment) {
+            return;
+        }
+        endEditText();
+        Lyrics* fromLyrics = nullptr;
+        if (!back) {
+            while (segment) {
+                ChordRest* cr = toChordRest(segment->element(track));
+                if (cr) {
+                    fromLyrics = cr->lyrics(verse, placement);
+                    if (fromLyrics) {
+                        break;
+                    }
+                }
+                segment = segment->prev1(SegmentType::ChordRest);
+            }
+        }
+        ChordRest* cr = toChordRest(nextSegment->element(track));
+        if (!cr) {
+            return;
+        }
+        Lyrics* nextLyrics = cr->lyrics(verse, placement);
+        bool newLyrics = false;
+        if (!nextLyrics) {
+            nextLyrics = Factory::createLyrics(cr);
+            nextLyrics->setTrack(track);
+            nextLyrics->setParent(cr);
+            nextLyrics->setVerse(verse);
+            nextLyrics->setTextStyleType(styleType);
+            nextLyrics->setPlacement(placement);
+            nextLyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+            nextLyrics->setSyllabic(LyricsSyllabic::SINGLE);
+            nextLyrics->setFontStyle(fStyle);
+            nextLyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+            newLyrics = true;
+        }
+        m_s->startCmd(TranslatableString::untranslatable("Navigate to lyrics"));
+        if (fromLyrics && !moveOnly) {
+            switch (nextLyrics->syllabic()) {
+            case LyricsSyllabic::SINGLE:
+            case LyricsSyllabic::BEGIN:
+                break;
+            case LyricsSyllabic::END:
+                nextLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::SINGLE));
+                break;
+            case LyricsSyllabic::MIDDLE:
+                nextLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::BEGIN));
+                break;
+            }
+            switch (fromLyrics->syllabic()) {
+            case LyricsSyllabic::SINGLE:
+            case LyricsSyllabic::END:
+                break;
+            case LyricsSyllabic::BEGIN:
+                fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::SINGLE));
+                break;
+            case LyricsSyllabic::MIDDLE:
+                fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::END));
+                break;
+            }
+            if (fromLyrics->separator() && !fromLyrics->separator()->isEndMelisma()) {
+                fromLyrics->undoChangeProperty(Pid::LYRIC_TICKS, Fraction::fromTicks(0));
+            }
+        }
+        if (newLyrics) {
+            m_s->undoAddElement(nextLyrics);
+        }
+        m_s->setLayoutAll();
+        m_s->endCmd();
+        startEditText(nextLyrics, newLyrics);
+    }
+
+    void navigateToNextSyllable()
+    {
+        Lyrics* lyrics = cur;
+        ChordRest* initialCR = lyrics->chordRest();
+        const bool hasPrecedingRepeat = initialCR->hasPrecedingJumpItem();
+        const bool hasFollowingRepeat = initialCR->hasFollowingJumpItem();
+        track_idx_t track = lyrics->track();
+        track_idx_t toLyricTrack = track;
+        Segment* segment = lyrics->segment();
+        int verse = lyrics->verse();
+        PlacementV placement = lyrics->placement();
+        PropertyFlags pFlags = lyrics->propertyFlags(Pid::PLACEMENT);
+        FontStyle fStyle = lyrics->fontStyle();
+        PropertyFlags fFlags = lyrics->propertyFlags(Pid::FONT_STYLE);
+        TextStyleType styleType = lyrics->textStyleType();
+
+        Segment* nextSegment = segment;
+        while ((nextSegment = nextSegment->next1(SegmentType::ChordRest))) {
+            EngravingItem* el = nextSegment->element(track);
+            if (!el || !el->isChord()) {
+                const track_idx_t strack = trackZeroVoice(track);
+                const track_idx_t etrack = strack + VOICES;
+                for (track_idx_t t = strack; t < etrack; ++t) {
+                    el = nextSegment->element(t);
+                    if (el && el->isChord() && toChord(el)->lyrics(verse, placement)) {
+                        toLyricTrack = t;
+                        break;
+                    }
+                }
+            }
+            if (el && el->isChord()) {
+                break;
+            }
+        }
+        if (!segmentsAreAdjacent(segment, nextSegment)) {
+            nextSegment = nullptr;
+        }
+        if (!nextSegment && !hasFollowingRepeat && !hasPrecedingRepeat) {
+            return;
+        }
+        PartialLyricsLine* prevPartialLyricsLine = findPrevPartialLyricsLineDash(lyrics);
+        endEditText();
+        Lyrics* fromLyrics = nullptr;
+        Segment* curSeg = segment;
+        while (segment && segmentsAreAdjacent(segment, curSeg)) {
+            ChordRest* cr = toChordRest(segment->element(track));
+            if (!cr) {
+                segment = segment->prev1(SegmentType::ChordRest);
+                continue;
+            }
+            fromLyrics = cr->lyrics(verse, placement);
+            if (fromLyrics) {
+                break;
+            }
+            segment = segment->prev1(SegmentType::ChordRest);
+        }
+        if (!nextSegment) {
+            m_s->startCmd(TranslatableString::untranslatable("Navigate to next syllable"));
+            if (fromLyrics && hasFollowingRepeat) {
+                switch (fromLyrics->syllabic()) {
+                case LyricsSyllabic::BEGIN:
+                case LyricsSyllabic::MIDDLE:
+                    break;
+                case LyricsSyllabic::SINGLE:
+                    fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::BEGIN));
+                    break;
+                case LyricsSyllabic::END:
+                    fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::MIDDLE));
+                    break;
+                }
+                fromLyrics->undoChangeProperty(Pid::LYRIC_TICKS, Fraction(0, 1));
+                m_s->setLayoutAll();
+                m_s->endCmd();
+                return;
+            }
+            if (hasPrecedingRepeat) {
+                m_s->endCmd();
+                m_s->startCmd(TranslatableString::untranslatable("Add partial lyrics dash"));
+                PartialLyricsLine* dash = Factory::createPartialLyricsLine(m_s->dummy());
+                dash->setIsEndMelisma(false);
+                dash->setVerse(verse);
+                dash->setPlacement(placement);
+                dash->setTick(initialCR->tick());
+                dash->setTicks(Fraction(0, 1));
+                dash->setTrack(initialCR->track());
+                dash->setTrack2(initialCR->track());
+                m_s->undoAddElement(dash);
+                Lyrics* toLyrics = Factory::createLyrics(initialCR);
+                toLyrics->setTrack(track);
+                toLyrics->setParent(initialCR);
+                toLyrics->setVerse(verse);
+                toLyrics->setTextStyleType(styleType);
+                toLyrics->setPlacement(placement);
+                toLyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+                toLyrics->setSyllabic(LyricsSyllabic::END);
+                toLyrics->setFontStyle(fStyle);
+                toLyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+                m_s->undoAddElement(toLyrics);
+                m_s->setLayoutAll();
+                m_s->endCmd();
+                startEditText(toLyrics, true);
+                return;
+            }
+            m_s->endCmd();
+            return;
+        }
+        m_s->startCmd(TranslatableString::untranslatable("Navigate to next syllable"));
+        ChordRest* cr = toChordRest(nextSegment->element(toLyricTrack));
+        Lyrics* toLyrics = cr ? cr->lyrics(verse, placement) : nullptr;
+        if (!toLyrics && !cr) {
+            m_s->endCmd();
+            return;
+        }
+        if (!toLyrics) {
+            const track_idx_t strack = trackZeroVoice(track);
+            const track_idx_t etrack = strack + VOICES;
+            for (track_idx_t t = strack; t < etrack; ++t) {
+                if (t == track) {
+                    continue;
+                }
+                cr = toChordRest(nextSegment->element(t));
+                if (cr) {
+                    toLyrics = cr->lyrics(verse, placement);
+                    if (toLyrics) {
+                        break;
+                    }
+                }
+            }
+        }
+        toLyrics = hasPrecedingRepeat && !fromLyrics ? nullptr : toLyrics;
+        cr = !toLyrics ? toChordRest(nextSegment->element(track)) : cr;
+        if (cr && fromLyrics) {
+            Measure* toLyricsMeasure = cr->measure();
+            Measure* fromLyricsMeasure = fromLyrics->measure();
+            if (toLyricsMeasure != fromLyricsMeasure && fromLyricsMeasure->lastChordRest(track)->hasFollowingJumpItem()) {
+                const std::vector<Measure*> previousRepeats = findPreviousRepeatMeasures(toLyricsMeasure);
+                const bool inPrecedingRepeatSeg = std::find(previousRepeats.begin(), previousRepeats.end(), fromLyricsMeasure)
+                                                  != previousRepeats.end();
+                if (!previousRepeats.empty() && !inPrecedingRepeatSeg) {
+                    fromLyrics = nullptr;
+                }
+            }
+        }
+        const bool startIncomingPartialDash = hasPrecedingRepeat && !fromLyrics && !prevPartialLyricsLine && lyrics->xmlText().empty();
+        const bool newLyrics = !toLyrics || startIncomingPartialDash;
+        if (newLyrics) {
+            ChordRest* toLyricsChord = startIncomingPartialDash ? initialCR : cr;
+            if (!toLyricsChord) {
+                m_s->endCmd();
+                return;
+            }
+            toLyrics = Factory::createLyrics(toLyricsChord);
+            toLyrics->setTrack(track);
+            toLyrics->setParent(toLyricsChord);
+            toLyrics->setVerse(verse);
+            toLyrics->setTextStyleType(styleType);
+            toLyrics->setPlacement(placement);
+            toLyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+            toLyrics->setSyllabic(LyricsSyllabic::END);
+            toLyrics->setFontStyle(fStyle);
+            toLyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+        } else {
+            if (toLyrics->syllabic() == LyricsSyllabic::BEGIN) {
+                toLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::MIDDLE));
+            } else if (toLyrics->syllabic() == LyricsSyllabic::SINGLE) {
+                toLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::END));
+            }
+        }
+        if (fromLyrics) {
+            switch (fromLyrics->syllabic()) {
+            case LyricsSyllabic::BEGIN:
+            case LyricsSyllabic::MIDDLE:
+                break;
+            case LyricsSyllabic::SINGLE:
+                fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::BEGIN));
+                break;
+            case LyricsSyllabic::END:
+                fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::MIDDLE));
+                break;
+            }
+            fromLyrics->undoChangeProperty(Pid::LYRIC_TICKS, Fraction(0, 1));
+        } else if (hasPrecedingRepeat && !prevPartialLyricsLine) {
+            PartialLyricsLine* dash = Factory::createPartialLyricsLine(m_s->dummy());
+            dash->setIsEndMelisma(false);
+            dash->setVerse(verse);
+            dash->setPlacement(lyrics->placement());
+            dash->setTick(initialCR->tick());
+            dash->setTicks(hasPrecedingRepeat ? Fraction(0, 1) : initialCR->ticks());
+            dash->setTrack(initialCR->track());
+            dash->setTrack2(initialCR->track());
+            m_s->undoAddElement(dash);
+        } else if (prevPartialLyricsLine) {
+            const Fraction tickDiff = cr->tick() - prevPartialLyricsLine->tick2();
+            prevPartialLyricsLine->undoMoveEnd(tickDiff);
+            m_s->undoAddElement(prevPartialLyricsLine);
+            prevPartialLyricsLine->triggerLayout();
+        }
+        if (newLyrics) {
+            m_s->undoAddElement(toLyrics);
+        }
+        m_s->setLayoutAll();
+        m_s->endCmd();
+        startEditText(toLyrics, newLyrics);
+    }
+
+    void addMelisma()
+    {
+        Lyrics* lyrics = cur;
+        ChordRest* initialCR = lyrics->chordRest();
+        const bool hasPrecedingRepeat = initialCR->hasPrecedingJumpItem();
+        track_idx_t track = lyrics->track();
+        Segment* segment = lyrics->segment();
+        int verse = lyrics->verse();
+        PlacementV placement = lyrics->placement();
+        PropertyFlags pFlags = lyrics->propertyFlags(Pid::PLACEMENT);
+        FontStyle fStyle = lyrics->fontStyle();
+        PropertyFlags fFlags = lyrics->propertyFlags(Pid::FONT_STYLE);
+        Fraction endTick = segment->tick();
+        endEditText();
+
+        Segment* nextSegment = segment;
+        while ((nextSegment = nextSegment->next1(SegmentType::ChordRest))) {
+            EngravingItem* el = nextSegment->element(track);
+            if (el && el->isChord()) {
+                break;
+            }
+        }
+        if (!segmentsAreAdjacent(segment, nextSegment)) {
+            nextSegment = nullptr;
+        }
+        Segment* curSeg = segment;
+        Lyrics* fromLyrics = nullptr;
+        PartialLyricsLine* prevPartialLyricsLine = nullptr;
+        while (segment && segmentsAreAdjacent(segment, curSeg)) {
+            ChordRest* cr = toChordRest(segment->element(track));
+            if (cr) {
+                fromLyrics = cr->lyrics(verse, placement);
+                if (fromLyrics) {
+                    break;
+                }
+                auto spanners = m_s->spannerMap().findOverlapping(cr->tick().ticks(), cr->endTick().ticks());
+                for (auto& spanner : spanners) {
+                    if (!spanner.value->isPartialLyricsLine() || spanner.value->staffIdx() != cr->staffIdx()) {
+                        continue;
+                    }
+                    PartialLyricsLine* lyricsLine = toPartialLyricsLine(spanner.value);
+                    if (lyricsLine->verse() != verse || lyricsLine->placement() != placement || !lyricsLine->isEndMelisma()) {
+                        continue;
+                    }
+                    prevPartialLyricsLine = lyricsLine;
+                    break;
+                }
+                if (prevPartialLyricsLine) {
+                    break;
+                }
+            }
+            segment = segment->prev1(SegmentType::ChordRest);
+            EngravingItem* e = segment ? segment->element(track) : 0;
+            if (e && !e->isChord()) {
+                break;
+            }
+        }
+        if (fromLyrics == lyrics && nextSegment) {
+            if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                std::cerr << "  temp: before sep=" << (lyrics->separator() != nullptr) << " need=" << lyrics->needRemoveInvalidSegments() << "\n";
+            }
+            m_s->startCmd(TranslatableString::untranslatable("Enter lyrics extension line"));
+            lyrics->undoChangeProperty(Pid::LYRIC_TICKS, Lyrics::TEMP_MELISMA_TICKS);
+            if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                std::cerr << "  temp: set need=" << lyrics->needRemoveInvalidSegments() << " ticks=" << frac(lyrics->ticks()) << "\n";
+            }
+            m_s->setLayoutAll();
+            m_s->endCmd();
+            if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                std::cerr << "  temp: after ticks=" << frac(lyrics->ticks()) << " syl=" << int(lyrics->syllabic()) << " sep=" << (lyrics->separator() != nullptr) << "\n";
+            }
+        }
+        auto getPartialLyricLineEndSegment = [&]() -> Fraction {
+            Segment* endSegment = segment;
+            while (endSegment && endSegment->tick() < endTick) {
+                endSegment = endSegment->nextCR(track, true);
+            }
+            if (!endSegment) {
+                return m_s->endTick();
+            }
+            EngravingItem* endSegmentElement = endSegment->element(track);
+            if (endSegment->tick() == endTick && endSegmentElement && endSegmentElement->isChord()) {
+                Segment* endChordSeg = endSegment;
+                Chord* endChord = toChord(endSegmentElement);
+                endSegment = endChordSeg->nextCR(track, false);
+                if (!endSegment || endSegment->tick() > endChord->endTick()) {
+                    endSegment = endChordSeg;
+                    while (endSegment && endSegment->tick() < endChord->endTick()) {
+                        endSegment = endSegment->nextCR(muse::nidx, true);
+                    }
+                }
+            }
+            return endSegment ? endSegment->tick() : m_s->endTick();
+        };
+        if (!nextSegment) {
+            m_s->startCmd(TranslatableString::untranslatable("Enter lyrics extension line"));
+            if (fromLyrics) {
+                switch (fromLyrics->syllabic()) {
+                case LyricsSyllabic::SINGLE:
+                case LyricsSyllabic::END:
+                    break;
+                default:
+                    fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::END));
+                    break;
+                }
+                if (fromLyrics->segment()->tick() < endTick
+                    || (segment && endTick + initialCR->actualTicks() == segment->measure()->endTick() && initialCR->hasFollowingJumpItem())) {
+                    Fraction ticks = std::max(endTick - fromLyrics->segment()->tick(), Lyrics::TEMP_MELISMA_TICKS);
+                    fromLyrics->undoChangeProperty(Pid::LYRIC_TICKS, ticks);
+                }
+            }
+            if (hasPrecedingRepeat && !prevPartialLyricsLine) {
+                PartialLyricsLine* melisma = Factory::createPartialLyricsLine(m_s->dummy());
+                melisma->setIsEndMelisma(true);
+                melisma->setVerse(verse);
+                melisma->setPlacement(placement);
+                melisma->setTick(initialCR->tick());
+                melisma->setTicks(initialCR->ticks());
+                melisma->setTrack(initialCR->track());
+                melisma->setTrack2(initialCR->track());
+                m_s->undoAddElement(melisma);
+            } else if (prevPartialLyricsLine) {
+                const Fraction segEndTick = getPartialLyricLineEndSegment();
+                const Fraction tickDiff = segEndTick - prevPartialLyricsLine->tick2();
+                prevPartialLyricsLine->undoMoveEnd(tickDiff);
+            }
+            m_s->setLayoutAll();
+            m_s->endCmd();
+            return;
+        }
+        ChordRest* nextCR = toChordRest(nextSegment->element(track));
+        if (nextCR && fromLyrics) {
+            Measure* toLyricsMeasure = nextCR->measure();
+            Measure* fromLyricsMeasure = fromLyrics->measure();
+            if (toLyricsMeasure != fromLyricsMeasure && fromLyricsMeasure->lastChordRest(track)->hasFollowingJumpItem()) {
+                const std::vector<Measure*> previousRepeats = findPreviousRepeatMeasures(toLyricsMeasure);
+                const bool inPrecedingRepeatSeg = std::find(previousRepeats.begin(), previousRepeats.end(), fromLyricsMeasure)
+                                                  != previousRepeats.end();
+                if (!previousRepeats.empty() && !inPrecedingRepeatSeg) {
+                    fromLyrics = nullptr;
+                }
+            }
+        }
+        m_s->startCmd(TranslatableString::untranslatable("Enter lyrics extension line"));
+        Lyrics* toLyrics = nextCR->lyrics(verse, placement);
+        bool newLyrics = (toLyrics == nullptr);
+        if (!toLyrics) {
+            toLyrics = Factory::createLyrics(nextCR);
+            toLyrics->setTrack(track);
+            toLyrics->setParent(nextCR);
+            toLyrics->setVerse(verse);
+            const TextStyleType styleType(toLyrics->isEven() ? TextStyleType::LYRICS_EVEN : TextStyleType::LYRICS_ODD);
+            toLyrics->setTextStyleType(styleType);
+            toLyrics->setPlacement(placement);
+            toLyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+            toLyrics->setSyllabic(LyricsSyllabic::SINGLE);
+            toLyrics->setFontStyle(fStyle);
+            toLyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+        } else if (toLyrics->syllabic() == LyricsSyllabic::MIDDLE) {
+            toLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::BEGIN));
+        } else if (toLyrics->syllabic() == LyricsSyllabic::END) {
+            toLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::SINGLE));
+        }
+        if (fromLyrics) {
+            switch (fromLyrics->syllabic()) {
+            case LyricsSyllabic::SINGLE:
+            case LyricsSyllabic::END:
+                break;
+            default:
+                fromLyrics->undoChangeProperty(Pid::SYLLABIC, int(LyricsSyllabic::END));
+                break;
+            }
+            if (fromLyrics->segment()->tick() < endTick) {
+                fromLyrics->undoChangeProperty(Pid::LYRIC_TICKS, endTick - fromLyrics->segment()->tick());
+            }
+        } else if (hasPrecedingRepeat && !prevPartialLyricsLine) {
+            PartialLyricsLine* melisma = Factory::createPartialLyricsLine(m_s->dummy());
+            melisma->setIsEndMelisma(true);
+            melisma->setVerse(verse);
+            melisma->setPlacement(placement);
+            melisma->setTick(initialCR->tick());
+            melisma->setTicks(initialCR->ticks());
+            melisma->setTrack(initialCR->track());
+            melisma->setTrack2(initialCR->track());
+            m_s->undoAddElement(melisma);
+        } else if (prevPartialLyricsLine) {
+            const Fraction segEndTick = getPartialLyricLineEndSegment();
+            const Fraction tickDiff = segEndTick - prevPartialLyricsLine->tick2();
+            prevPartialLyricsLine->undoMoveEnd(tickDiff);
+            prevPartialLyricsLine->triggerLayout();
+        }
+        m_s->setLayoutAll();
+        m_s->endCmd();
+        m_s->startCmd(TranslatableString::untranslatable("Enter lyrics extension line"));
+        if (newLyrics) {
+            m_s->undoAddElement(toLyrics);
+        }
+        m_s->setLayoutAll();
+        m_s->endCmd();
+        startEditText(toLyrics, newLyrics);
+    }
+
+    void addLyricsVerse()
+    {
+        Lyrics* oldLyrics = cur;
+        FontStyle fStyle = oldLyrics->fontStyle();
+        PropertyFlags fFlags = oldLyrics->propertyFlags(Pid::FONT_STYLE);
+        ChordRest* cr = oldLyrics->chordRest();
+        const int newVerse = oldLyrics->verse() + 1;
+        const PlacementV placement = oldLyrics->placement();
+        const PropertyFlags pFlags = oldLyrics->propertyFlags(Pid::PLACEMENT);
+        const track_idx_t track = oldLyrics->track();
+        endEditText();
+        if (Lyrics* existing = cr->lyrics(newVerse, placement)) {
+            // as the engine does (an intentional difference): MuseScore would add a second lyric of the verse
+            startEditText(existing, false);
+            return;
+        }
+        m_s->startCmd(TranslatableString::untranslatable("Add lyrics verse"));
+        Lyrics* lyrics = Factory::createLyrics(cr);
+        lyrics->setTrack(track);
+        lyrics->setParent(cr);
+        lyrics->setPlacement(placement);
+        lyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+        lyrics->setVerse(newVerse);
+        const TextStyleType styleType(lyrics->isEven() ? TextStyleType::LYRICS_EVEN : TextStyleType::LYRICS_ODD);
+        lyrics->setTextStyleType(styleType);
+        lyrics->setFontStyle(fStyle);
+        lyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+        m_s->undoAddElement(lyrics);
+        m_s->setLayoutAll();
+        m_s->endCmd();
+        startEditText(lyrics, true);
+    }
+
+    void navigateToLyricsVerse(bool up)
+    {
+        Lyrics* lyrics = cur;
+        track_idx_t track = lyrics->track();
+        ChordRest* cr = lyrics->chordRest();
+        int verse = lyrics->verse();
+        PlacementV placement = lyrics->placement();
+        PropertyFlags pFlags = lyrics->propertyFlags(Pid::PLACEMENT);
+        FontStyle fStyle = lyrics->fontStyle();
+        PropertyFlags fFlags = lyrics->propertyFlags(Pid::FONT_STYLE);
+        TextStyleType styleType = lyrics->textStyleType();
+        if (up) {
+            if (verse == 0) {
+                return;
+            }
+            --verse;
+        } else {
+            ++verse;
+            if (verse > cr->lastVerse(placement)) {
+                return;
+            }
+        }
+        endEditText();
+        lyrics = cr->lyrics(verse, placement);
+        bool made = false;
+        if (!lyrics) {
+            lyrics = Factory::createLyrics(cr);
+            lyrics->setTrack(track);
+            lyrics->setParent(cr);
+            lyrics->setVerse(verse);
+            lyrics->setTextStyleType(styleType);
+            lyrics->setPlacement(placement);
+            lyrics->setPropertyFlags(Pid::PLACEMENT, pFlags);
+            lyrics->setFontStyle(fStyle);
+            lyrics->setPropertyFlags(Pid::FONT_STYLE, fFlags);
+            m_s->startCmd(TranslatableString::untranslatable("Navigate to verse"));
+            m_s->undoAddElement(lyrics);
+            m_s->setLayoutAll();
+            m_s->endCmd();
+            made = true;
+        }
+        startEditText(lyrics, made);
+    }
+
+    void run(const std::string& script)
+    {
+        auto key = [&](char k) {
+            if (!cur) {
+                typed.clear();
+                return;
+            }
+            switch (k) {
+            case '-': navigateToNextSyllable(); break;
+            case '_': addMelisma(); break;
+            case ' ': navigateToLyrics(false, false); break;
+            case '<': navigateToLyrics(true, false); break;
+            case '/': addLyricsVerse(); break;
+            case '^': navigateToLyricsVerse(true); break;
+            case '!': navigateToLyricsVerse(false); break;
+            default: break;
+            }
+        };
+        for (char c : script) {
+            if (std::string("-_ </^!").find(c) != std::string::npos) {
+                key(c);
+                if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                    std::cerr << "after '" << c << "':";
+                    for (Segment* seg = m_s->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+                        for (EngravingItem* e : seg->elist()) {
+                            if (e && e->isChordRest()) {
+                                for (Lyrics* l : toChordRest(e)->lyrics()) {
+                                    std::cerr << " " << frac(seg->tick()) << "/" << l->track() << ":" << int(l->syllabic()) << ":" << frac(l->ticks())
+                                              << ":" << l->xmlText().toStdString();
+                                }
+                            }
+                        }
+                    }
+                    std::cerr << (cur ? " editing " + frac(cur->tick()) : std::string(" -")) << "\n";
+                }
+            } else if (cur) {
+                typed += c;
+            }
+        }
+        endEditText();
+    }
+
+private:
+    MasterScore* m_s;
+};
 }
 
 TEST(Jubelle_Reference, MusicListing)
@@ -433,6 +1212,112 @@ TEST(Jubelle_Reference, MusicListing)
                         s->cmdRealizeChordSymbols(literal != 0, Voicing(voicing), HDuration(duration));
                     }
                     s->endCmd();
+                }
+                head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
+            }
+            if (const char* lyricsSpec = std::getenv("JUBELLE_REFERENCE_LYRICS")) {
+                // "<staff> <measure> <keys>": lyrics typed from the first chord or rest of the measure's voice 1
+                // (Ctrl+L there: Score::addText(LYRICS_ODD)), or (measure -1) editing the staff's first lyric
+                s->style().set(Sid::createMultiMeasureRests, false);
+                s->setPlaylistDirty();
+                s->setLayoutAll();
+                s->doLayout();
+                const std::string before = listing(s);
+                std::istringstream spec(lyricsSpec);
+                int staffNo = 0, measureNo = 0;
+                spec >> staffNo >> measureNo;
+                std::string keys;
+                std::getline(spec, keys);
+                if (!keys.empty() && keys[0] == ' ') {
+                    keys.erase(0, 1);
+                }
+                const track_idx_t track = size_t(staffNo) * VOICES;
+                LyricSession session(s);
+                bool can = false;
+                if (size_t(staffNo) < s->nstaves()) {
+                    Measure* m = s->firstMeasure();
+                    for (int i = 0; m && i < measureNo; ++i) {
+                        m = m->nextMeasure();
+                    }
+                    for (Segment* seg = s->firstSegment(SegmentType::ChordRest); seg; seg = seg->next1(SegmentType::ChordRest)) {
+                        EngravingItem* e = seg->element(track);
+                        if (!e || !e->isChordRest()) {
+                            continue;
+                        }
+                        ChordRest* cr = toChordRest(e);
+                        if (measureNo >= 0 && m && seg->measure() == m) {
+                            EngravingItem* dest = cr->isChord() ? static_cast<EngravingItem*>(toChord(cr)->notes().front()) : cr;
+                            s->startCmd(TranslatableString::untranslatable("add lyrics"));
+                            TextBase* t = s->addText(TextStyleType::LYRICS_ODD, dest);
+                            s->endCmd();
+                            if (t) {
+                                session.startEditText(toLyrics(t), true);
+                                can = true;
+                            }
+                            break;
+                        }
+                        if (measureNo < 0 && !cr->lyrics().empty()) {
+                            session.startEditText(cr->lyrics().front(), false);
+                            can = true;
+                            break;
+                        }
+                    }
+                }
+                if (can) {
+                    session.run(keys);
+                }
+                head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
+            }
+            if (const char* textSpec = std::getenv("JUBELLE_REFERENCE_ADDTEXT")) {
+                // "<staff> <measure> <style> <text>": Score::addText(style) on the first chord or rest of the measure's
+                // voice 1 (its top note), then the text typed (TextBase::endEdit: an empty text removes the element)
+                s->style().set(Sid::createMultiMeasureRests, false);
+                s->setLayoutAll();
+                s->doLayout();
+                const std::string before = listing(s);
+                std::istringstream spec(textSpec);
+                int staffNo = 0, measureNo = 0;
+                std::string style, text;
+                spec >> staffNo >> measureNo >> style;
+                std::getline(spec, text);
+                if (!text.empty() && text[0] == ' ') {
+                    text.erase(0, 1);
+                }
+                bool can = false;
+                Measure* m = s->firstMeasure();
+                for (int i = 0; m && i < measureNo; ++i) {
+                    m = m->nextMeasure();
+                }
+                if (m && size_t(staffNo) < s->nstaves()) {
+                    for (Segment* seg = m->first(SegmentType::ChordRest); seg; seg = seg->next(SegmentType::ChordRest)) {
+                        EngravingItem* e = seg->element(size_t(staffNo) * VOICES);
+                        if (!e || !e->isChordRest()) {
+                            continue;
+                        }
+                        ChordRest* cr = toChordRest(e);
+                        EngravingItem* dest = cr->isChord() ? static_cast<EngravingItem*>(toChord(cr)->upNote()) : cr;
+                        s->startCmd(TranslatableString::untranslatable("add text"));
+                        TextBase* t = s->addText(TConv::fromXml(muse::AsciiStringView(style.c_str()), TextStyleType::STAFF), dest);
+                        s->endCmd();
+                        if (t) {
+                            can = true;
+                            const String typed = String::fromStdString(text);
+                            if (!typed.isEmpty()) {
+                                if (typed != t->xmlText()) {
+                                    s->startCmd(TranslatableString::untranslatable("text"));
+                                    t->undoChangeProperty(Pid::TEXT, typed);
+                                    if (t->isDynamic()) {
+                                        t->undoChangeProperty(Pid::DYNAMIC_TYPE, typed);
+                                    }
+                                    s->endCmd();
+                                }
+                            } else if (t->plainText().isEmpty()) {
+                                s->undoRedo(true, nullptr);   // left empty: the command that made it rolled back
+                                can = false;
+                            }
+                        }
+                        break;
+                    }
                 }
                 head = std::string("# measures ") + (can && listing(s) != before ? "changed" : (can ? "unchanged" : "refused")) + "\n";
             }

@@ -39,6 +39,10 @@ measures; `je_io_tool tsedit`, `JUBELLE_REFERENCE_TIME=1` for MuseScore's `cmdAd
 layout): MuseScore **6,426 ms**, Jubelle engine **533 ms** (3/4 from bar 101: 4,375 → 477 ms). Same music, apart from
 the grace notes MuseScore copies onto the tied pieces (see the master plan).
 
+**Lyric entry** on the large orchestra (`je_io_tool measedit … lyrics`, 200 syllables typed with hyphens, engine only,
+26 Nov): about **5 ms a key** (the score's chords and rests are read once when entry starts, about 0.1 s, and each key
+looks again only at the staff being typed on).
+
 Memory: MuseScore's is the resident memory added by the open score (with its layout); the Jubelle engine's is the
 heap of its model with everything a save needs.
 

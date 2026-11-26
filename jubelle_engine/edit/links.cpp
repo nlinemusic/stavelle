@@ -35,6 +35,13 @@ const std::set<Field>& notMusic()
     return s;
 }
 
+//! Lyrics belong to their own staff: MuseScore doesn't put them on the other staves of a linked group in the
+//! score (Score::undoAddElement, for staves of a part other than its own), so the link sync leaves them out
+bool isLyric(const Object* o)
+{
+    return o && o->kind() == Kind::Attachment && o->text(F::SUBKIND) == "lyric";
+}
+
 std::string valueText(const model::Value& v)
 {
     std::ostringstream o;
@@ -61,6 +68,34 @@ public:
         : tx(tx), m(m), ids(ids), ops(m, ids), report(r) {}
 
     const Object* obj(je::Id id) const { return m.find(id); }
+
+    //! What belongs to each staff of the pair, not linked: lyrics (isLyric), and fingerings when one staff is a
+    //! tablature that doesn't show them (MuseScore's Score::undoAddElement leaves them off it)
+    bool ownChild(const Object* o) const
+    {
+        return isLyric(o) || (ownFingering && o && o->kind() == Kind::Attachment && o->text(F::SUBKIND) == "fingering");
+    }
+    bool ownFingering = false;
+    void pairOf(je::Id a, je::Id b)
+    {
+        auto hides = [this](je::Id st) {
+            const Object* o = obj(st);
+            return o && isTablature(*o) && o->text(F::DETAILS).find("<showTabFingering>1</showTabFingering>") == std::string::npos;
+        };
+        ownFingering = hides(a) || hides(b);
+    }
+
+    //! An object's children without what belongs to each staff (ownChild)
+    std::vector<je::Id> musicChildren(je::Id id) const
+    {
+        std::vector<je::Id> out;
+        for (je::Id c : obj(id)->children()) {
+            if (!ownChild(obj(c))) {
+                out.push_back(c);
+            }
+        }
+        return out;
+    }
 
     std::vector<je::Id> voices(je::Id staff) const
     {
@@ -119,7 +154,9 @@ public:
             }
         }
         for (je::Id c : o->children()) {
-            describe(d, c, local, shape);
+            if (!ownChild(obj(c))) {
+                describe(d, c, local, shape);
+            }
         }
         d << ")";
     }
@@ -247,7 +284,7 @@ public:
         } else {
             relink(to, from);
         }
-        const std::vector<je::Id> ca = obj(from)->children().ids(), cb = obj(to)->children().ids();
+        const std::vector<je::Id> ca = musicChildren(from), cb = musicChildren(to);
         for (size_t i = 0; i < ca.size() && i < cb.size(); ++i) {
             if (obj(ca[i])->kind() == obj(cb[i])->kind()) {
                 relinkTree(ca[i], cb[i], toMain);
@@ -275,7 +312,7 @@ public:
                 set.emplace_back(f, model::Value());
             }
         });
-        const std::vector<je::Id> ca = a->children().ids(), cb = b->children().ids();
+        const std::vector<je::Id> ca = musicChildren(from), cb = musicChildren(to);
         for (const auto& [f, v] : set) {
             if (f == F::PITCH) {   // a new pitch on a tablature staff needs its string and fret again
                 refret.insert({ staffOf(to), eventTime(to) });
@@ -300,6 +337,24 @@ public:
         for (const auto& [p, id] : places(to)) {
             if (std::get<0>(p) == vn && t0 <= std::get<1>(p) && std::get<1>(p) < t1) {
                 before[p] = id;
+            }
+        }
+        // the staff's own lyrics, kept by place (the copies don't bring any: isLyric)
+        std::map<Place, std::vector<NewObject> > lyrics;
+        for (const auto& [p, id] : before) {
+            if (std::get<3>(p) != -1) {
+                continue;
+            }
+            for (je::Id c : obj(id)->children()) {
+                if (isLyric(obj(c))) {
+                    NewObject n { Kind::Attachment, {} };
+                    obj(c)->forEachField([&](Field f, const model::Value& v) {
+                        if (f != F::KIND && f != F::PARENT && f != F::CHILDREN) {
+                            n.fields.emplace_back(f, v);
+                        }
+                    });
+                    lyrics[p].push_back(n);
+                }
             }
         }
         if (const je::Id v = voiceNumbered(to, vn); v.isValid()) {
@@ -340,6 +395,13 @@ public:
             if (it != before.end()) {
                 moved[it->second] = id;
             }
+            auto l = lyrics.find(p);
+            if (l != lyrics.end() && std::get<1>(p) >= t0 && std::get<1>(p) < t1) {
+                for (const NewObject& n : l->second) {
+                    create(tx, ids, id, n);
+                }
+                lyrics.erase(l);
+            }
         }
         for (const auto& [p, id] : before) {
             moved.emplace(id, je::Id());   // gone: lines anchored to it go too
@@ -366,7 +428,7 @@ public:
         if (link) {
             n.fields.emplace_back(F::LINKED_TO, source);
         }
-        const std::vector<je::Id> children = o->children().ids();   // read before the model changes
+        const std::vector<je::Id> children = musicChildren(source);   // read before the model changes
         const je::Id made = create(tx, ids, parent, n, top ? Placement::ByTime : Placement::Append);
         copies[source] = made;
         for (je::Id c : children) {
@@ -455,6 +517,7 @@ public:
     //! then written again on the linked staff from it, so the main staff's elements are the originals
     void sync(je::Id from, je::Id to, bool toMain = false)
     {
+        pairOf(from, to);
         std::map<je::Id, je::Id> moved, movedBack;
         std::vector<std::tuple<int64_t, Fraction, Fraction> > back;
         for (je::Id ms : ops.measures()) {
@@ -564,7 +627,7 @@ public:
     static bool mirrored(const Object& o)
     {
         if (o.kind() == Kind::Spanner) {
-            return true;
+            return o.text(F::SUBKIND) != "partialLyricsLine" && o.text(F::SUBKIND) != "whammyBar";
         }
         static const std::set<std::string> notOnLinked { "keySig", "timeSig", "mmrMeasure", "measureDetail", "frame",
                                                          "instrumentChange", "tempo", "rehearsalMark", "systemText", "jump",
@@ -728,6 +791,21 @@ public:
         done.insert(x.id());
         const je::Id main = mainOf.at(st);
         const je::Id xid = x.id();
+        // items MuseScore keeps to their own staff of a part (Score::undoAddElement leaves them off the part's other
+        // staves): only copies the file already linked follow
+        static const std::set<std::string> ownStaff { "staffText", "dynamic", "expression", "harmony", "playTechnique",
+                                                      "fretDiagram", "capo", "stringTunings", "tripletFeel", "figuredBass",
+                                                      "playCountText" };
+        if (x.kind() == Kind::FlowItem && ownStaff.count(x.text(F::SUBKIND))) {
+            for (je::Id s : g->second) {
+                if (s != st) {
+                    if (const je::Id cp = counterpart(*obj(xid), s); cp.isValid()) {
+                        patchItem(xid, cp, st, s, linker);
+                    }
+                }
+            }
+            return;
+        }
         // the original is the main staff's: made first when the edit was on a linked staff
         je::Id original = st == main ? xid : counterpart(x, main);
         if (!original.isValid()) {
@@ -949,6 +1027,7 @@ std::vector<std::string> linkedStaffDifferences(model::Model& m)
         int index = 0;
         for (je::Id ms : linker.ops.measures()) {
             const Fraction t0 = linker.ops.measureStart(ms), t1 = linker.ops.measureEnd(ms);
+            linker.pairOf(o.idOr(F::LINKED_STAFF), o.id());
             const std::string a = linker.signature(o.idOr(F::LINKED_STAFF), t0, t1), b = linker.signature(o.id(), t0, t1);
             if (a != b) {
                 out.push_back("measure " + std::to_string(index + 1) + "\n  main:   " + a + "\n  linked: " + b);

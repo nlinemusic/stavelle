@@ -6,6 +6,9 @@ markers and section breaks unwound the same way.
 1. MuseScore's 72 repeat test files (src/engraving/tests/repeat_data, format 1.x): MuseScore lists their play order
    and saves them as 4.x (the engine reads 4.x), the engine lists the saved files.
 2. Every 4.x corpus score: both list the play order.
+3. Lyric entry across repeats, endings and jumps (partial dashes and extension lines): the same keys typed by the
+   engine (`je_io_tool measedit … lyrics`) and by MuseScore's lyric entry (JUBELLE_REFERENCE_LYRICS) on the
+   saved repeat test files, from each of their first four measures.
 
 Usage: je_repeats_reference.py <je_io_tool> <reference tests binary> <repository> <work dir>
 Prints a summary, writes <work dir>/differences.txt, and returns 1 when a play order differs."""
@@ -17,6 +20,10 @@ try:
     import resource
 except ImportError:   # Windows
     resource = None
+
+
+# files whose lyric entry is expected to differ (none)
+KNOWN_LYRICS = set()
 
 
 def limited():
@@ -85,10 +92,36 @@ def main(argv):
     reference(ref, repo, scores, theirs, work)
     same_corpus = compare([(s, os.path.join(theirs, s + ".txt"), os.path.join(mine, s + ".txt")) for s in scores], diffs)
 
+    # 3. lyric entry across repeats on the saved test files
+    saved_list = sorted(t for t in tests if os.path.exists(os.path.join(saved, t)))
+    lyric_same = lyric_total = 0
+    for measure in range(4):
+        for keys in ("-ta-ra_ _la-", "la-la-la-la-la-la-la-la-la-la-la-la", "a_ _ _ _ _ _b-c-d-e-f"):
+            mine_l, theirs_l = os.path.join(work, f"lyrics_jubelle_{measure}"), os.path.join(work, f"lyrics_musescore_{measure}")
+            subprocess.run([tool, "measedit", saved, "--out", mine_l, "lyrics", "0", str(measure), keys], capture_output=True)
+            listing = os.path.join(work, "list.txt")
+            with open(listing, "w", encoding="utf-8") as f:
+                f.write("\n".join(saved_list) + "\n")
+            env = dict(os.environ, JUBELLE_REFERENCE_ROOT=saved, JUBELLE_REFERENCE_LIST=listing, JUBELLE_REFERENCE_OUT=theirs_l,
+                       JUBELLE_REFERENCE_LYRICS=f"0 {measure} {keys}")
+            subprocess.run([ref, "--gtest_filter=Jubelle_Reference.MusicListing"], env=env, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, cwd=work, timeout=2400, preexec_fn=limited if resource else None)
+            for t in saved_list:
+                lyric_total += 1
+                try:
+                    a = open(os.path.join(mine_l, os.path.splitext(t)[0] + ".mscz.je.txt"), encoding="utf-8").read()
+                    b = open(os.path.join(theirs_l, t + ".txt"), encoding="utf-8").read()
+                except OSError:
+                    a, b = None, ""
+                if a == b:
+                    lyric_same += 1
+                elif os.path.basename(t) not in KNOWN_LYRICS:
+                    diffs.append(f"lyrics from measure {measure + 1}, keys '{keys}': {t}")
     with open(os.path.join(work, "differences.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(diffs) + ("\n" if diffs else ""))
     print(f"play order, MuseScore's repeat tests: {same_tests} of {len(tests)} the same")
     print(f"play order, corpus: {same_corpus} of {len(scores)} the same")
+    print(f"lyric entry across repeats: {lyric_same} of {lyric_total} the same")
     for d in diffs[:20]:
         print(d)
     return 1 if diffs or not tests or not scores else 0

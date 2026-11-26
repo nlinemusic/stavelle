@@ -120,6 +120,7 @@ public:
 
 private:
     friend class Commands;   // the commands built on these operations (commands.h)
+    friend class LyricsEntry;   // lyric entry (lyrics.h)
     const model::Object* obj(Id id) const { return m.find(id); }
     Fraction timeOf(Id id) const;
     Fraction endOf(Id id) const;
