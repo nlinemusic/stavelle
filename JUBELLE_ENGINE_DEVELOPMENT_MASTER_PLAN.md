@@ -7,7 +7,7 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 |---|---|
 | Last updated | 26 Nov 2026 |
 | Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
-| Current work | **S4 undo and redo, autosave journal, crash recovery** (S1 model, S2 file handling and S3 editing done; follow-ups listed in §15) |
+| Current work | next in the roadmap's order (`docs/14_full_engine_roadmap.md` §3): **S7 layout and S8 drawing**, with S5 playback and S6 audio alongside (S1 model, S2 file handling, S3 editing and S4 undo, autosave and crash recovery done; follow-ups listed in §15) |
 | Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
@@ -263,6 +263,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 26 Nov 2026 | **The play order** (`perform/repeatlist`, ported from MuseScore's RepeatList, with Jubelle's "Play this repeat"): repeats and their play counts, first and second endings (overlapping ones merged as MuseScore merges them), D.C. / D.S. with Fine and Coda, section breaks. **The same as MuseScore's on its 72 repeat test files and on all 2,118 corpus scores** (`je_repeats_reference.py`, in CI). Lyric entry uses it now, playback (S5) will. 143 tests |
 | 26 Nov 2026 | **S3 lyric entry** (`edit/lyrics`, ported from MuseScore's lyric entry: next syllable, extension line, next and previous word, new verse, verse up and down, and Ctrl+L; with TextBase::endEdit and the lyric checks of its layout): dashes and extension lines across voices, rests and repeats (partial dashes and lines at a repeat or between endings), a lyric left empty removed and one just made for typing taken back with the step that made it. Against MuseScore's own lyric entry, the same keys typed on every corpus score (`je_measures_reference.py … lyrics`, in CI): **2,109, 2,105 and 2,109 of 2,118 the same lyrics and music** (three key sequences; the rest are the 9 files MuseScore already reads differently, and 4 test files of §15's difference 13), and **864 of 864** on MuseScore's repeat test files (`je_repeats_reference.py`) |
 | 26 Nov 2026 | **S3 text** (`Commands::addText`, MuseScore's `Score::addText` and the text typed): staff and system texts, expressions, dynamics (a typed name becomes the dynamic), rehearsal marks (the next in the score's sequence), tempo texts (the beat at 80), fingerings. Against MuseScore's own command on every corpus score (in CI): **2,109 of 2,118 the same** for each kind (tempo 2,106: §15's difference 14). Found and fixed on the way: **formatted text was lost when a score was saved from the model** (a lyric or text whose whole content is markup, such as `<b>bold</b>` or a symbol); MuseScore now reads all 2,118 regenerated files with the same lyrics and texts (compared in CI with the detailed reading). And the 25 Nov linked-staff change copied dynamics, staff texts and chord symbols to the other staff of a part, which MuseScore doesn't do; now they stay on their own staff, as lyrics and (on a tablature that hides them) fingerings do, and only copies the file already linked follow. 153 tests |
+| 26 Nov 2026 | **S4 undo history, autosave journal and crash recovery** (`edit/history`, `edit/journal`, `edit/session`). The history knows where the score was saved (MuseScore's clean state: undoing back to it makes the score unmodified again; lost when that point is dropped with a redo branch or the history limit) and names the Undo and Redo steps. The **journal** records every committed edit, undo and redo as it happens (each record with its length and a CRC-32, handed to the system at once and put on the disk in the background at most once a second, so editing never waits for the disk); it starts with a copy of the whole model and its undo history, written again on every save. After a crash, `EditSession::recover` rebuilds the score from the journal alone: **exactly the score at the last whole record, with the same ids and the whole undo history, back past the last save** — also if the file was changed or deleted since (the user is told). Opening a score never overwrites a journal a crash left for it. Saving now puts the new file on the disk before it replaces the old one (Windows: an atomic replace, where the old code removed the old file first). **Checked on every corpus score** (`je_io_tool journal`, in CI on all three platforms): edited at random and saved halfway, left without closing, recovered — **2,117 of 2,117 exactly the same model, ids, history and saved file** (the 2,118th has no music to edit). Unit tests cut the journal at every record and at random bytes inside records (the last whole record recovered every time), damage a byte (recovery stops there), and run **10,000 random steps** checked after each one (undo gives exactly the state before, redo the state after) before recovering them. Costs: a journal record about 0.004 ms; starting the journal 0.7 ms for a typical score, 50 ms for Big Score, about 100 ms for the large orchestra (on opening and saving, which take 180 ms and 450 ms there); recovery 2 ms typical, 190 ms for the large orchestra. `je_io_tool recover <journal> <out>` saves a journal's score by hand. 162 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -271,8 +272,15 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   tablature fretting (parts are layouts of the same music, so they follow every edit by design), lines and staff
   texts on linked staves, the editing commands of `edit/commands`, time signature changes, split and join measures,
   explode and implode, slashes, chord-symbol realization, moving to another staff, lyric entry, text; each compared
-  with MuseScore's own command on the corpus. Next: **S4** (undo refinements, autosave journal, crash recovery). The
-  clipboard's text format and text formatting while typing belong to S10.
+  with MuseScore's own command on the corpus. The clipboard's text format and text formatting while typing belong
+  to S10.
+- **S4 undo, autosave and recovery** (done 26 Nov 2026, see §14). Left for S10, where the interface uses them: the
+  recovery question when Jubelle starts (`findJournals`: which file, whether it changed since, how much work), the
+  journal folder (Jubelle's own data folder), and a journal for a new score not yet saved (it has no file to name:
+  the journal can already hold it, the session needs a path to save to). Possible later: writing the journal's
+  starting copy in the background (it is the 50–100 ms added to opening and saving the largest scores). Paths with
+  characters outside the system code page on Windows are not yet handled by the engine's file functions (the same
+  for reading, saving and journals; to be fixed with S10's file dialogs).
 - Text, not yet: typing chord symbols (MuseScore's chord-symbol entry and its navigation), frame texts (title,
   composer…), instrument change texts, sticking, harp pedal diagrams and figured bass; system texts, tempos and
   rehearsal marks are added on the top staff only, not also on the score's extra system-object staves; numbered
@@ -332,6 +340,8 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   14. A tempo text added where a staff has its own time signature takes its beat from the score's time signature;
      MuseScore takes the local signature's stretched value, a whole note in 4/4 against a 12/8 staff (3 vtest
      files).
+  15. Autosave is a journal of every step instead of MuseScore's copy of the whole score every few minutes: after a
+     crash the score comes back as it was at the last edit, not the last autosave, and with its undo history.
 - Parts that show only some voices of their instruments (MuseScore's track list, `<Tracklist>`) are written with
   every voice: the voice choice is to be modelled on the part layout (S2 part-only content).
 - **App fixes queued until the new engine is complete** (user's decision, 25 Nov 2026: no Windows test builds

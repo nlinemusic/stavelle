@@ -66,6 +66,7 @@ add_library(je_core STATIC
     edit/operations.cpp
     edit/commands.cpp
     edit/text.cpp
+    edit/journal.cpp
     edit/lyrics.cpp
     edit/chordsymbol.cpp
     edit/chordsymbol.h
@@ -104,6 +105,7 @@ add_library(je_io STATIC
     io/details.h
     io/mscxreader.cpp
     io/mscxreader.h
+    edit/session.cpp   # the edit session opens and saves files, so it is built with je::io
 )
 target_include_directories(je_io PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(je_io PUBLIC je_core PRIVATE ZLIB::ZLIB)
@@ -141,6 +143,7 @@ add_executable(je_tests
     tests/edit_noteinput_tests.cpp
     tests/edit_clipboard_tests.cpp
     tests/edit_links_tests.cpp
+    tests/edit_session_tests.cpp
 )
 target_compile_definitions(je_tests PRIVATE JE_REPO_DIR="${JE_REPO}")
 target_link_libraries(je_tests PRIVATE je_core je_io gtest)

@@ -2,12 +2,13 @@
 
 Transactions, change sets, undo/redo, the edit operations behind INotationInteraction, and transaction hooks (linked passages).
 
-Status (S3 in progress, see `../../JUBELLE_ENGINE_DEVELOPMENT_MASTER_PLAN.md`; design: `../docs/03_engine_architecture.md`,
+Status (S3 and S4 complete, see `../../JUBELLE_ENGINE_DEVELOPMENT_MASTER_PLAN.md`; design: `../docs/03_engine_architecture.md`,
 `../docs/10_edit_vocabulary.md`):
 
 | File | What it does |
 |---|---|
-| `changeset`, `history`, `structure` | transactions with hooks, change sets, undo and redo, structural edits |
+| `changeset`, `history`, `structure` | transactions with hooks, change sets, undo and redo (with the saved state and step names), structural edits |
+| `journal`, `session` | the autosave journal and crash recovery; `EditSession` keeps a score's model, ids, history and journal together (open, commit, undo, redo, save, recover, close) |
 | `scorebuilder` | building a score in the model (tests, new scores) |
 | `operations` | MuseScore's note-entry rules: chords and rests over existing music, ties, notes, pitches, values, tuplets, measures, transposition |
 | `noteinput` | the note-input state machine (letters, octaves, accidentals, chords, values, rests, ties, re-pitch) |

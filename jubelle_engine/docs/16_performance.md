@@ -63,6 +63,21 @@ Reading this:
 | Editing | the measure at a time, and the key at a time, were found by looking at every measure or item | binary search over the flow (kept in time order), then back to the nearest key | large orchestra edit 13.6 → 4.8 ms |
 | The model (all operations) | the bit count in the persistent map called a slow library routine on x86 builds without the instruction | the inline bit count | a few % of every operation |
 
+## Autosave journal (26 Nov 2026)
+Measured by `je_io_tool journal` on every corpus score (and the large orchestra). The journal record of an edit is
+written with the edit; putting it on the disk happens in the background, so it adds nothing an editor waits for.
+
+| | Typical score (median) | Big Score (45,000 objects) | Large orchestra (82,000 objects) |
+|---|---|---|---|
+| Journal record of an edit | 0.004 ms | 0.001–0.01 ms | 0.002 ms |
+| Starting the journal (on opening and on saving) | 0.7 ms | 47–50 ms | 85–108 ms |
+| Journal size at its start | 12 KB | 5.9 MB | 10 MB |
+| Recovering after a crash | 1.8 ms | 84 ms | 184–191 ms |
+
+The edit target (≤ 16 ms) is unaffected. Starting the journal adds about a quarter to opening the largest scores
+(Big Score opens in 181 ms, the large orchestra in about 300 ms; MuseScore takes 103 ms and 982 ms); it could be
+written in the background later if that matters.
+
 ## Next
 - Opening Big Score (where MuseScore is faster) and the edit cost on the large orchestra (where the deletion of
   the music a note overwrites still looks through every line of the score).

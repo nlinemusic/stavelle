@@ -24,6 +24,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <random>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -47,6 +48,8 @@
 #include "model/packing.h"
 #include "perform/repeatlist.h"
 #include "edit/lyrics.h"
+#include "edit/journal.h"
+#include "edit/session.h"
 
 namespace fs = std::filesystem;
 using namespace je;
@@ -1438,6 +1441,221 @@ int repeats(const std::string& folder, const std::string& outDir)
     return 0;
 }
 
+//! The crash-recovery check (S4): every 4.x score is opened in an edit session with its journal, edited at random
+//! (notes entered, pitches changed, undo, redo; saved halfway), and left without closing, as a crash leaves it. The
+//! journal is then recovered in a new session, which must give back exactly the score as it was (every object, id
+//! and field, and the undo history) and save the same file. Times: starting the journal (on opening and saving),
+//! journalling an edit, recovering. One line of JSON per score with --json.
+int journalcheck(const std::string& folder, const std::string& workDir, bool json)
+{
+    std::vector<fs::path> files;
+    std::error_code ec;
+    for (auto it = fs::recursive_directory_iterator(folder, fs::directory_options::skip_permission_denied, ec);
+         it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (!ec && it->is_regular_file() && isScore(it->path())) {
+            files.push_back(it->path());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    fs::create_directories(workDir);
+    int checked = 0, failed = 0, skipped = 0;
+    double worstStart = 0, worstRecord = 0;
+    std::string worstStartScore, worstRecordScore;
+    for (const fs::path& p : files) {
+        const std::string rel = fs::relative(p, folder).generic_string();
+        const fs::path copy = fs::path(workDir) / ("score" + p.extension().string());
+        fs::copy_file(p, copy, fs::copy_options::overwrite_existing, ec);
+        std::string error;
+        std::string journal, liveDump, liveFile;
+        std::vector<std::pair<uint64_t, int>> liveIds;
+        size_t liveIndex = 0, liveSize = 0;
+        bool liveClean = false;
+        double startMs = 0, recordMs = 0, saveMs = 0;
+        int records = 0;
+        uint64_t bytes = 0;
+        {
+            edit::EditSession s;
+            auto t0 = std::chrono::steady_clock::now();
+            if (!s.open(copy.string(), workDir, error)) {
+                ++skipped;   // not a 4.x score
+                continue;
+            }
+            const double openMs = ms(t0);
+            // the journal's start alone: written again, as a save does
+            {
+                edit::Journal j;
+                edit::JournalBase base;
+                edit::describeFile(copy.string(), base);
+                t0 = std::chrono::steady_clock::now();
+                j.start((fs::path(workDir) / "start.jej").string(), base, s.model().snapshot(), s.history(), error);
+                startMs = ms(t0);
+                bytes = j.bytes();
+                j.close(true);
+            }
+            (void)openMs;
+            std::mt19937 rng(uint32_t(std::hash<std::string>()(rel)));
+            auto pick = [&](int n) { return std::uniform_int_distribution<int>(0, n - 1)(rng); };
+            edit::Operations ops(s.model(), s.ids());
+            std::vector<Id> voices = {};
+            s.model().snapshot().forEachObject([&](const model::Object& o) {
+                if (o.kind() == model::Kind::Voice && o.intOr(model::fields::NUMBER, 0) == 0) {
+                    voices.push_back(o.id());
+                }
+            });
+            std::sort(voices.begin(), voices.end());
+            const std::vector<Id> measures = ops.measures();
+            if (voices.empty() || measures.empty()) {
+                std::cout << "skipped (no music to edit): " << rel << "\n";
+                ++skipped;
+                s.close();
+                continue;
+            }
+            for (int i = 0; i < 24; ++i) {
+                if (i == 12) {
+                    t0 = std::chrono::steady_clock::now();
+                    if (!s.save(error)) {
+                        std::cout << "FAIL " << rel << ": saving: " << error << "\n";
+                        break;
+                    }
+                    saveMs = ms(t0);
+                    continue;
+                }
+                const int what = pick(10);
+                t0 = std::chrono::steady_clock::now();
+                if (what < 2 && s.canUndo()) {
+                    s.undo();
+                } else if (what == 2 && s.canRedo()) {
+                    s.redo();
+                } else {
+                    try {
+                        std::vector<Id> notes;
+                        if (what < 5) {
+                            s.model().snapshot().forEachObject([&](const model::Object& o) {
+                                if (o.kind() == model::Kind::Note) {
+                                    notes.push_back(o.id());
+                                }
+                            });
+                            std::sort(notes.begin(), notes.end());
+                        }
+                        t0 = std::chrono::steady_clock::now();
+                        if (!notes.empty()) {
+                            edit::Transaction tx(s.model(), "Change pitch", { edit::linkedStavesHook(s.model(), s.ids()) });
+                            ops.setPitch(tx, notes[size_t(pick(int(notes.size())))], 48 + pick(36));
+                            s.commit(tx);
+                        } else {
+                            edit::Transaction tx(s.model(), "Enter note", { edit::linkedStavesHook(s.model(), s.ids()) });
+                            const Fraction t = ops.measureStart(measures[size_t(pick(int(measures.size())))]);
+                            ops.enterChord(tx, voices[size_t(pick(int(voices.size())))], t, { Fraction(1, 4), 0 },
+                                           { 55 + pick(24) });
+                            s.commit(tx);
+                        }
+                    } catch (const std::exception&) {
+                        continue;   // an edit the score doesn't allow there (a measure repeat, a tablature limit…)
+                    }
+                }
+                recordMs += ms(t0);   // the edit and its journal record (the record alone is measured below)
+                ++records;
+            }
+            // the journal record alone: the last step written again to a scratch journal
+            if (s.history().size()) {
+                edit::Journal j;
+                edit::JournalBase base;
+                j.start((fs::path(workDir) / "record.jej").string(), base, model::Snapshot(), edit::History(), error);
+                t0 = std::chrono::steady_clock::now();
+                for (int k = 0; k < 20; ++k) {
+                    j.recordStep(s.history().step(s.history().size() - 1));
+                }
+                recordMs = ms(t0) / 20;
+                j.close(true);
+            } else {
+                recordMs = 0;
+            }
+            liveDump = io::modelDump(s.model().snapshot());
+            s.model().snapshot().forEachObject([&](const model::Object& o) { liveIds.emplace_back(o.id().value(), int(o.kind())); });
+            std::sort(liveIds.begin(), liveIds.end());
+            liveIndex = s.history().index();
+            liveSize = s.history().size();
+            liveClean = !s.isModified();
+            liveFile = io::saveBytes(io::generateScoreFile(s.model().snapshot()));
+            journal = s.journalPath();
+        }   // ended without closing: the journal stays, as after a crash
+        edit::EditSession r;
+        edit::RecoveryReport report;
+        auto t0 = std::chrono::steady_clock::now();
+        const bool ok = r.recover(journal, report, error);
+        const double recoverMs = ms(t0);
+        std::string why;
+        if (!ok) {
+            why = "recovering: " + error;
+        } else {
+            std::vector<std::pair<uint64_t, int>> ids;
+            r.model().snapshot().forEachObject([&](const model::Object& o) { ids.emplace_back(o.id().value(), int(o.kind())); });
+            std::sort(ids.begin(), ids.end());
+            if (io::modelDump(r.model().snapshot()) != liveDump) {
+                why = "the recovered model differs";
+            } else if (ids != liveIds) {
+                why = "the recovered ids differ";
+            } else if (r.history().index() != liveIndex || r.history().size() != liveSize || r.isModified() == liveClean) {
+                why = "the recovered history differs";
+            } else if (io::saveBytes(io::generateScoreFile(r.model().snapshot())) != liveFile) {
+                why = "the recovered score saves differently";
+            } else if (report.truncated || report.baseChanged) {
+                why = "the journal was read as cut short or for a changed file";
+            }
+        }
+        r.close();
+        fs::remove(journal, ec);
+        ++checked;
+        if (!why.empty()) {
+            ++failed;
+            std::cout << "FAIL " << rel << ": " << why << "\n";
+        }
+        if (startMs > worstStart) {
+            worstStart = startMs;
+            worstStartScore = rel;
+        }
+        if (recordMs > worstRecord) {
+            worstRecord = recordMs;
+            worstRecordScore = rel;
+        }
+        if (json) {
+            std::printf("{\"score\": \"%s\", \"objects\": %zu, \"journalKb\": %.1f, \"startMs\": %.2f, \"recordMs\": %.3f, "
+                        "\"saveMs\": %.1f, \"recoverMs\": %.1f, \"edits\": %d}\n",
+                        rel.c_str(), report.objects, bytes / 1024.0, startMs, recordMs, saveMs, recoverMs, records);
+        }
+    }
+    std::cerr << "journal: " << checked << " scores recovered, " << failed << " failed, " << skipped
+              << " skipped; slowest journal start " << worstStart << " ms (" << worstStartScore << "), slowest record "
+              << worstRecord << " ms (" << worstRecordScore << ")\n";
+    return failed ? 1 : 0;
+}
+
+//! Recovers a journal left by a crash and saves the score to `out` (the journal is left as it was)
+int recoverJournal(const std::string& journal, const std::string& out)
+{
+    const edit::RecoveryReport info = edit::inspectJournal(journal);
+    if (!info.ok) {
+        std::cerr << info.error << "\n";
+        return 1;
+    }
+    std::cout << "journal for " << info.base.file << (info.baseChanged ? " (the file has changed since)" : "") << ": "
+              << info.objects << " objects, " << info.historySteps << " earlier steps, " << info.steps << " steps, "
+              << info.undos << " undos, " << info.redos << " redos" << (info.truncated ? ", the last record cut short" : "")
+              << "\n";
+    const std::string kept = out + ".journal";
+    fs::copy_file(journal, kept, fs::copy_options::overwrite_existing);
+    edit::EditSession r;
+    edit::RecoveryReport report;
+    std::string error;
+    if (!r.recover(kept, report, error) || !r.saveAs(out, error)) {
+        std::cerr << error << "\n";
+        return 1;
+    }
+    r.close();
+    std::cout << "saved " << out << "\n";
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     const std::vector<std::string> a(argv + 1, argv + argc);
@@ -1536,6 +1754,12 @@ int main(int argc, char** argv)
     }
     if (a.size() == 4 && a[0] == "cmdedit" && a[2] == "--out") {
         return cmdedit(a[1], a[3]);
+    }
+    if (a.size() >= 4 && a[0] == "journal" && a[2] == "--work") {   // crash recovery on every score
+        return journalcheck(a[1], a[3], std::find(a.begin(), a.end(), "--json") != a.end());
+    }
+    if (a.size() == 3 && a[0] == "recover") {   // a journal left by a crash, saved as a score
+        return recoverJournal(a[1], a[2]);
     }
     if (a.size() >= 2 && a[0] == "bench-scores") {
         return benchScores(std::vector<std::string>(a.begin() + 1, a.end()));

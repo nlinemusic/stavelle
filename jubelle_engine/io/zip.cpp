@@ -10,6 +10,19 @@
 
 #include <zlib.h>
 
+#ifdef _WIN32
+#include <io.h>
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 namespace je::io::zip {
 namespace {
 uint16_t u16(const std::string& b, size_t at) { return uint16_t((unsigned char)b[at] | ((unsigned char)b[at + 1] << 8)); }
@@ -196,23 +209,36 @@ bool readFile(const std::string& path, std::string& bytes)
 
 bool writeFile(const std::string& path, const std::string& bytes)
 {
+    // The new bytes go to a temporary file beside the score and are put on the disk before it replaces the score in
+    // one step, so a crash or a full disk during saving leaves the old file whole (and the journal still matches it)
     const std::string tmp = path + ".jubelle-saving";
-    {
-        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-        if (!f) {
-            return false;
-        }
-        f.write(bytes.data(), std::streamsize(bytes.size()));
-        f.flush();
-        if (!f) {
-            std::remove(tmp.c_str());
-            return false;
-        }
+    std::FILE* f = std::fopen(tmp.c_str(), "wb");
+    if (!f) {
+        return false;
     }
-    if (std::rename(tmp.c_str(), path.c_str()) == 0) {   // replaces the old file in one step where the system allows
+    bool ok = std::fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size() && std::fflush(f) == 0;
+#ifdef _WIN32
+    ok = ok && _commit(_fileno(f)) == 0;
+#else
+    ok = ok && fsync(fileno(f)) == 0;
+#endif
+    ok = std::fclose(f) == 0 && ok;
+    if (!ok) {
+        std::remove(tmp.c_str());
+        return false;
+    }
+#ifdef _WIN32
+    if (MoveFileExA(tmp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
         return true;
     }
-    std::remove(path.c_str());                           // Windows: rename can't replace an existing file
-    return std::rename(tmp.c_str(), path.c_str()) == 0;
+    std::remove(tmp.c_str());
+    return false;
+#else
+    if (std::rename(tmp.c_str(), path.c_str()) == 0) {
+        return true;
+    }
+    std::remove(tmp.c_str());
+    return false;
+#endif
 }
 }

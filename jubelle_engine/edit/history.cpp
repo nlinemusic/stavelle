@@ -4,6 +4,7 @@
  */
 #include "history.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace je::edit {
@@ -17,13 +18,40 @@ void History::push(ChangeSet changes)
     if (changes.empty()) {
         return;
     }
+    if (m_cleanValid && m_clean > m_index) {
+        m_cleanValid = false;   // the saved state was in the redo branch dropped now
+    }
     m_steps.resize(m_index);   // drop the redo branch
     m_steps.push_back(std::move(changes));
     m_index = m_steps.size();
     if (m_limit && m_steps.size() > m_limit) {
-        m_steps.erase(m_steps.begin(), m_steps.begin() + static_cast<std::ptrdiff_t>(m_steps.size() - m_limit));
+        const std::size_t dropped = m_steps.size() - m_limit;
+        m_steps.erase(m_steps.begin(), m_steps.begin() + static_cast<std::ptrdiff_t>(dropped));
         m_index = m_steps.size();
+        if (m_cleanValid) {
+            if (m_clean < dropped) {
+                m_cleanValid = false;   // the saved state is older than the oldest step kept
+            } else {
+                m_clean -= dropped;
+            }
+        }
     }
+}
+
+void History::clear()
+{
+    m_steps.clear();
+    m_index = 0;
+    m_clean = 0;
+    m_cleanValid = true;
+}
+
+void History::restore(std::vector<ChangeSet> steps, std::size_t index)
+{
+    m_steps = std::move(steps);
+    m_index = std::min(index, m_steps.size());
+    m_clean = m_index;
+    m_cleanValid = true;
 }
 
 ChangeSet History::undo(ChangeTarget& target)

@@ -133,8 +133,10 @@ sequenceDiagram
     Note over Inv: layout and playback rebuild only what is dirty
 ```
 - Undo applies the inverse change set; redo applies it again. History holds values and IDs, never pointers.
-- Change sets also feed the autosave **journal** (crash recovery replays it on the last full save) and the
-  "Jubelle data" store.
+- Change sets also feed the autosave **journal** (`edit/journal`, `edit/session`): it starts with a copy of the
+  whole model and its history (written again on every save) and appends every step, undo and redo; crash recovery
+  rebuilds the model from that copy and replays the records (not from the score's file, whose ids would be given in
+  reading order). They also feed the "Jubelle data" store.
 - Hooks are the official extension point for linked passages (and later others), inside the same undo step.
 
 ## 5. Layout pipeline and incremental invalidation
