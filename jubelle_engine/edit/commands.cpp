@@ -14,6 +14,7 @@
 #include <stdexcept>
 
 #include "structure.h"
+#include "chordsymbol.h"
 #include "clipboard.h"
 #include "links.h"
 #include "tablature.h"
@@ -2855,5 +2856,202 @@ bool Commands::slashRhythm(Transaction& tx, const std::vector<Id>& events)
         }
     }
     return changed;
+}
+
+// ---- chord symbols -------------------------------------------------------------------------------------------
+std::vector<Commands::ChordSymbol> Commands::chordSymbols() const
+{
+    const std::vector<Id> staves = allStaves();
+    std::vector<ChordSymbol> out;
+    for (Id c : m_ops.obj(flowOf())->children()) {
+        const Object* o = m_ops.obj(c);
+        if (o->kind() != Kind::FlowItem) {
+            continue;
+        }
+        const bool fret = o->text(F::SUBKIND) == "detail" && o->text(F::TAG) == "FretDiagram";
+        if (o->text(F::SUBKIND) != "harmony" && !fret) {
+            continue;
+        }
+        const auto at = std::find(staves.begin(), staves.end(), o->idOr(F::ANCHOR));
+        if (at == staves.end()) {
+            continue;
+        }
+        ChordSymbol cs;
+        cs.item = c;
+        cs.time = m_ops.timeOf(c);
+        cs.track = int(at - staves.begin()) * 4 + int(o->intOr(F::VOICE_INDEX, 0));
+        cs.inFretDiagram = fret;
+        cs.polychord = !fret && !o->has(F::INT_VALUE) && o->text(F::DETAILS).find("<harmonyInfo>") != std::string::npos;
+        if (fret || cs.polychord) {
+            // the diagram's chord symbol, or a polychord's first chord, as written
+            const std::string& d = o->text(F::DETAILS);
+            const size_t h = d.find(fret ? "<Harmony" : "<harmonyInfo>");
+            if (h == std::string::npos) {
+                continue;
+            }
+            const std::string harmony = d.substr(h, d.find(fret ? "</Harmony>" : "</harmonyInfo>", h) - h);
+            const std::string root = anyValue(harmony, "root"), bass = anyValue(harmony, "bass");
+            cs.root = root.empty() ? -9 : std::atoi(root.c_str());
+            cs.bass = bass.empty() ? -9 : std::atoi(bass.c_str());
+            cs.name = anyValue(harmony, "name");
+        } else {
+            cs.root = o->has(F::INT_VALUE) ? int(o->intOr(F::INT_VALUE, -9)) : -9;
+            cs.bass = o->has(F::BASS) ? int(o->intOr(F::BASS, -9)) : -9;
+            cs.name = o->text(F::TEXT);
+        }
+        out.push_back(cs);
+    }
+    std::stable_sort(out.begin(), out.end(), [](const ChordSymbol& a, const ChordSymbol& b) { return a.time < b.time; });
+    return out;
+}
+
+int Commands::realizeChordSymbols(Transaction& tx, const std::vector<Id>& harmonies, const RealizeOptions& options, bool concertPitch)
+{
+    const std::vector<ChordSymbol> all = chordSymbols();
+    const std::vector<Id> staves = allStaves();
+    std::map<std::string, std::string> style;
+    for (const auto& [name, value] : model::unpackPairs(m_ops.obj(m_ops.m.score())->text(F::STYLE))) {
+        style[name] = value;
+    }
+    // the last time of the score
+    Fraction scoreEnd;
+    for (Id m : m_ops.measures()) {
+        scoreEnd = std::max(scoreEnd, m_ops.measureEnd(m));
+    }
+    int made = 0;
+    for (Id h : harmonies) {
+        size_t index = all.size();
+        for (size_t i = 0; i < all.size(); ++i) {
+            if (all[i].item == h) {
+                index = i;
+            }
+        }
+        if (index == all.size() || all[index].root < -8) {
+            continue;   // not a chord symbol that can be realized (no root: "N.C.")
+        }
+        const ChordSymbol& cs = all[index];
+        const Object* o = m_ops.obj(h);
+        auto setting = [&](const char* tag, const std::string& fallback) {
+            // its own (a fret diagram's chord symbol: in the diagram), or the style's
+            std::string own;
+            if (cs.inFretDiagram) {
+                const std::string& d = o->text(F::DETAILS);
+                const size_t a = d.find("<Harmony");
+                own = a == std::string::npos ? std::string() : anyValue(d.substr(a, d.find("</Harmony>", a) - a), tag);
+            } else {
+                own = detailValue(o->text(F::DETAILS), tag);
+            }
+            if (!own.empty()) {
+                return own;
+            }
+            auto it = style.find(tag);
+            return it != style.end() ? it->second : fallback;
+        };
+        const Fraction t = cs.time;
+        const Id staff = staves[size_t(cs.track / 4)];
+        const int voiceNumber = cs.track % 4;
+        // settings
+        const bool literal = options.override ? options.literal : setting("harmonyVoiceLiteral", "1") != "0";
+        const int voicing = options.override ? options.voicing : std::atoi(setting("harmonyVoicing", "0").c_str());
+        const int durationType = options.override ? options.duration : std::atoi(setting("harmonyDuration", "0").c_str());
+        // the next chord symbol on the same staff and voice
+        const ChordSymbol* next = nullptr;
+        for (size_t j = index + 1; j < all.size() && !next; ++j) {
+            if (all[j].track == cs.track && t < all[j].time) {
+                next = &all[j];
+            }
+        }
+        chords::Next n;
+        if (next) {
+            n.present = true;
+            n.rootTpc = next->root;
+            n.chord.parse(next->name);
+        }
+        chords::ParsedChord parsed;
+        parsed.parse(cs.name);
+        const Operations::Transposition tr = m_ops.transpositionAt(staff, t);
+        const int offset = concertPitch ? 0 : int(tr.chromatic);
+        const chords::PitchMap notes = chords::generateNotes(parsed, cs.root, cs.bass, literal, chords::Voicing(voicing), offset, n);
+        // RealizedHarmony::getActualDuration
+        const Id measure = m_ops.measureAt(t);
+        const Fraction measureEnd = m_ops.measureEnd(measure);
+        Fraction end = scoreEnd;
+        if (durationType == int(chords::Duration::SegmentDuration)) {
+            // until the next chord, rest or chord symbol of any staff (MuseScore's segment), or the barline
+            end = measureEnd;
+            for (Id st : staves) {
+                for (Id v : m_ops.obj(st)->children()) {
+                    if (m_ops.obj(v)->kind() != Kind::Voice) {
+                        continue;
+                    }
+                    for (Id e : eventsIn(v, t + Fraction(1, 1920 * 4), measureEnd)) {
+                        if (!m_ops.obj(e)->has(F::GRACE)) {
+                            end = std::min(end, m_ops.timeOf(e));
+                            break;
+                        }
+                    }
+                }
+            }
+            for (const ChordSymbol& other : all) {
+                if (t < other.time && other.time < end) {
+                    end = other.time;
+                }
+            }
+        } else {
+            if (next) {
+                end = next->time;
+            }
+            if (durationType == int(chords::Duration::StopAtMeasureEnd)) {
+                end = std::min(end, measureEnd);
+            }
+        }
+        if (!(t < end) || notes.empty() || m_ops.stretchAt(m_ops.voice(tx, staff, voiceNumber), t) != Fraction(1, 1)) {
+            continue;   // (a staff with its own time signature: not yet)
+        }
+        // setChord: from t for the duration, each measure's part written in MuseScore's values and tied on, up to a
+        // tuplet in the way
+        const Id voice = m_ops.voice(tx, staff, voiceNumber);
+        std::vector<Id> prevNotes;
+        Fraction pos = t;
+        bool first = true;
+        while (pos < end) {
+            const Fraction mEnd = m_ops.measureEnd(m_ops.measureAt(pos));
+            Fraction partEnd = std::min(end, mEnd);
+            for (Id e : m_ops.eventsOf(voice)) {
+                if (m_ops.obj(e)->has(F::TUPLET) && m_ops.timeOf(e) < partEnd && pos < m_ops.endOf(e)) {
+                    partEnd = std::min(partEnd, std::max(pos, m_ops.timeOf(e)));
+                }
+            }
+            if (!(pos < partEnd)) {
+                break;   // a tuplet: MuseScore writes into it; not yet
+            }
+            m_ops.clearRange(tx, voice, pos, partEnd);
+            for (const NoteValue& value : durationList(partEnd - pos, 4)) {
+                std::vector<std::pair<Field, Value> > f { { F::TIME, pos }, { F::DURATION, value.length() }, { F::BASE_DURATION, value.base } };
+                if (value.dots) {
+                    f.push_back({ F::DOTS, int64_t(value.dots) });
+                }
+                const Id chord = create(tx, m_ops.m_ids, voice, { Kind::Chord, f }, Placement::ByTime);
+                std::vector<Id> chordNotes;
+                for (const auto& [pitch, tpc] : notes) {
+                    // the spelling given is the one shown: concert, or written on a transposing instrument
+                    const int64_t concert = concertPitch ? tpc : model::transposeTpc(tpc, tr.diatonic, tr.chromatic);
+                    std::vector<std::pair<Field, Value> > nf { { F::PITCH, int64_t(std::clamp(pitch, 0, 127)) }, { F::TPC, concert } };
+                    if (const auto written = m_ops.writtenTpc(staff, concert, pos)) {
+                        nf.push_back({ F::TPC2, *written });
+                    }
+                    chordNotes.push_back(create(tx, m_ops.m_ids, chord, { Kind::Note, nf }));
+                }
+                for (size_t k = 0; k < prevNotes.size() && k < chordNotes.size(); ++k) {
+                    tx.set(prevNotes[k], F::TIE_TO, chordNotes[k]);
+                }
+                prevNotes = chordNotes;
+                pos += value.length();
+                first = false;
+            }
+        }
+        made += first ? 0 : 1;
+    }
+    return made;
 }
 }

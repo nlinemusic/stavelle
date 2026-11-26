@@ -63,6 +63,8 @@ add_library(je_core STATIC
     edit/structure.cpp
     edit/operations.cpp
     edit/commands.cpp
+    edit/chordsymbol.cpp
+    edit/chordsymbol.h
     edit/commands.h
     edit/noteinput.cpp
     edit/clipboard.cpp

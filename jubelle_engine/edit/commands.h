@@ -107,6 +107,31 @@ public:
     bool slashRhythm(Transaction& tx, const std::vector<Id>& events);
     //! Chord::slash
     bool isSlash(Id chord) const;
+    //! A chord symbol of the score, by itself or in a fret diagram (whose chord the model doesn't hold yet: read
+    //! from its details); track as MuseScore counts it (staff × 4 + voice)
+    struct ChordSymbol {
+        Id item;
+        Fraction time;
+        int track = 0;
+        int root = -9, bass = -9;   // MuseScore's TPC_INVALID when none ("N.C.")
+        std::string name;
+        bool inFretDiagram = false;
+        bool polychord = false;   // several chords stacked: the first one's root, bass and name
+    };
+    //! Every chord symbol in time order (MuseScore's segment order)
+    std::vector<ChordSymbol> chordSymbols() const;
+
+    //! Score::cmdRealizeChordSymbols: each chord symbol written out as notes on its staff and voice, from its time
+    //! for its duration (tied across barlines). Without `override`, each symbol's own settings (or the style's):
+    //! literal or jazz, voicing, duration. Returns how many were realized
+    struct RealizeOptions {
+        bool override = false;
+        bool literal = true;
+        int voicing = 0;    // chords::Voicing
+        int duration = 0;   // chords::Duration
+    };
+    int realizeChordSymbols(Transaction& tx, const std::vector<Id>& harmonies, const RealizeOptions& options, bool concertPitch);
+
     //! The staves in score order (players in order, their staves in order), as the indices above count them
     std::vector<Id> stavesInOrder() const { return allStaves(); }
 

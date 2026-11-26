@@ -7,8 +7,10 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <tuple>
 #include <vector>
 
+#include "edit/chordsymbol.h"
 #include "edit/commands.h"
 #include "edit/history.h"
 #include "edit/links.h"
@@ -1107,4 +1109,67 @@ TEST(Commands, ChordSymbolsKeepTheirBassAndLookWhenTransposed)
     });
     EXPECT_TRUE(found);
     std::filesystem::remove(path);
+}
+
+TEST(Commands, ChordSymbolsAreUnderstoodAndVoicedAsMuseScoreDoes)
+{
+    chords::ParsedChord p;
+    ASSERT_TRUE(p.parse("maj7(#11)"));
+    EXPECT_EQ(p.quality, "major");
+    EXPECT_EQ(p.extension, "7");
+    EXPECT_EQ(p.modifiers, std::vector<std::string>({ "#11" }));
+    ASSERT_TRUE(p.parse("7sus4"));
+    EXPECT_EQ(p.quality, "dominant");
+    EXPECT_EQ(p.modifiers, std::vector<std::string>({ "sus4" }));
+    ASSERT_TRUE(p.parse("m7b5"));
+    EXPECT_EQ(p.quality, "minor");
+    EXPECT_EQ(p.modifiers, std::vector<std::string>({ "b5" }));
+    // C7 in close position over its root; G7 before C adds a ninth in the jazz reading (literal off)
+    p.parse("7");
+    std::string close;
+    for (const auto& [pitch, tpc] : chords::generateNotes(p, 14, -9, true, chords::Voicing::Close, 0, {})) {
+        close += std::to_string(pitch) + " ";
+    }
+    EXPECT_EQ(close, "36 60 64 67 70 ");
+    chords::Next next;
+    next.present = true;
+    next.rootTpc = 14;
+    next.chord.parse("");
+    std::string jazz;
+    for (const auto& [pitch, tpc] : chords::generateNotes(p, 15, -9, false, chords::Voicing::Close, 0, next)) {
+        jazz += std::to_string(pitch) + " ";
+    }
+    EXPECT_EQ(jazz, "43 62 65 67 69 71 ");   // G B D F and A in the octave above middle C, over G
+}
+
+TEST(Commands, RealizingChordSymbolsWritesThemAsNotesUntilTheNext)
+{
+    // C7 on beat 1 and G on beat 3: C7 for a half note, G until the end of the score (tied over the barline)
+    Doc d;
+    d.edit("Chord symbols", [&](Transaction& tx) {
+        Id flow;
+        for (Id c : d.model.find(d.model.score())->children()) {
+            flow = d.model.find(c)->kind() == Kind::Flow ? c : flow;
+        }
+        for (auto [t, root, name] : { std::tuple<Fraction, int64_t, const char*> { Fraction(0, 1), 14, "7" }, { Fraction(1, 2), 15, "" } }) {
+            create(tx, d.ids, flow, { Kind::FlowItem, { { F::SUBKIND, model::Text("harmony") }, { F::ANCHOR, d.flute.staff },
+                                                       { F::TIME, t }, { F::TEXT, model::Text(name) }, { F::INT_VALUE, root } } },
+                   Placement::ByTime);
+        }
+    });
+    std::vector<Id> hs;
+    for (const auto& cs : d.cmd.chordSymbols()) {
+        hs.push_back(cs.item);
+    }
+    ASSERT_EQ(hs.size(), 2u);
+    Commands::RealizeOptions o;
+    o.override = true;
+    o.voicing = int(chords::Voicing::Close);
+    int made = 0;
+    d.edit("Realize chord symbols", [&](Transaction& tx) { made = d.cmd.realizeChordSymbols(tx, hs, o, true); });
+    EXPECT_EQ(made, 2);
+    EXPECT_EQ(d.voice(d.flute.voice), "0/1 1/2 36 60 64 67 70\n1/2 1/2 43~ 62~ 67~ 71~\n1/1 1/1 43 62 67 71\n");
+    d.consistent();
+    d.undoRedo();
+    d.roundTrip();
 }

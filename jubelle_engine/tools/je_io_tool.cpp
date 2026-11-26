@@ -33,6 +33,7 @@
 #include <malloc.h>
 #endif
 
+#include "edit/chordsymbol.h"
 #include "edit/commands.h"
 #include "edit/history.h"
 #include "edit/links.h"
@@ -1071,6 +1072,56 @@ int tsedit(const std::string& folder, const std::string& outDir, int index, int 
     return 0;
 }
 
+//! Every corpus score's chord symbols as the engine understands and realizes them (edit/chordsymbol), one line each
+//! in the reference listing's JUBELLE_REFERENCE_HARMONY form, written to <out>/<name>.txt: for comparing with MuseScore
+int chordlist(const std::string& folder, const std::string& outDir)
+{
+    int scores = 0;
+    forEachScore(folder, [&](const std::string& rel, const fs::path&, model::Model& m, IdGenerator& ids) {
+        edit::Operations ops(m, ids);
+        edit::Commands cmd(ops);
+        const auto hs = cmd.chordSymbols();
+        std::ostringstream out;
+        for (size_t i = 0; i < hs.size(); ++i) {
+            const auto& h = hs[i];
+            if (h.inFretDiagram || h.polychord || h.root < -8) {
+                continue;   // (MuseScore's listing: the realizable chord symbols by themselves)
+            }
+            edit::chords::ParsedChord p;
+            p.parse(h.name);
+            edit::chords::Next next;
+            for (size_t j = i + 1; j < hs.size() && !next.present; ++j) {
+                if (hs[j].track == h.track && h.time < hs[j].time) {
+                    next.present = true;
+                    next.rootTpc = hs[j].root;
+                    next.chord.parse(hs[j].name);
+                }
+            }
+            out << "# harmony " << h.time.toString() << " " << h.track << " " << h.root << "/" << h.bass << " " << h.name << " | "
+                << p.quality << " " << p.extension << " [";
+            for (const std::string& mod : p.modifiers) {
+                out << " " << mod;
+            }
+            out << " ]" << (p.understandable ? "" : " ?");
+            for (int literal = 1; literal >= 0; --literal) {
+                for (int v = 0; v <= 6; ++v) {
+                    out << (v ? " " : " |");
+                    for (const auto& [pitch, tpc] : edit::chords::generateNotes(p, h.root, h.bass, literal, edit::chords::Voicing(v), 0, next)) {
+                        out << pitch << ":" << tpc << ",";
+                    }
+                }
+            }
+            out << "\n";
+        }
+        const fs::path f = fs::path(outDir) / (rel + ".txt");
+        fs::create_directories(f.parent_path());
+        std::ofstream(f) << out.str();
+        ++scores;
+    });
+    std::cout << scores << " scores\n";
+    return 0;
+}
+
 //! Every corpus score with measures split (split <index>: at the middle of that measure, where a chord or rest
 //! starts) or joined (join <first> <last>) by the engine, its listing next to each saved file headed "# measures
 //! changed|unchanged|refused", for comparing with MuseScore's SplitJoinMeasure (JUBELLE_REFERENCE_SPLIT / _JOIN)
@@ -1107,6 +1158,35 @@ int measedit(const std::string& folder, const std::string& outDir, const std::st
                     const Fraction from = ops.measureStart(ms[size_t(c)]), to = ops.measureEnd(ms[size_t(d)]);
                     ok = op == "explode" ? cmd.explode(tx, size_t(a), size_t(b), from, to) >= 0
                                          : cmd.implode(tx, size_t(a), size_t(b), from, to);
+                }
+            } else if (op == "realize" && size_t(c) < ms.size() && size_t(d) < ms.size()) {
+                // the chord symbols of staves a … b-1, measures c … d; JE_REALIZE="voicing duration literal" overrides
+                // their own settings (MuseScore's dialog)
+                const std::vector<Id> all = cmd.stavesInOrder();
+                if (a < b && size_t(b) <= all.size()) {
+                    label = "unchanged";
+                    const Fraction from = ops.measureStart(ms[size_t(c)]), to = ops.measureEnd(ms[size_t(d)]);
+                    edit::Commands::RealizeOptions o;
+                    if (const char* spec = std::getenv("JE_REALIZE")) {
+                        std::istringstream in(spec);
+                        int lit = 1;
+                        in >> o.voicing >> o.duration >> lit;
+                        o.literal = lit != 0;
+                        o.override = true;
+                    }
+                    bool concert = false;
+                    for (const auto& [name, value] : model::unpackPairs(m.find(m.score())->text(F::STYLE))) {
+                        concert = concert || (name == "concertPitch" && value == "1");
+                    }
+                    std::vector<Id> hs;
+                    for (const auto& h : cmd.chordSymbols()) {
+                        const Id st = m.find(h.item)->idOr(F::ANCHOR);
+                        if (from <= h.time && h.time < to
+                            && std::find(all.begin() + a, all.begin() + b, st) != all.begin() + b) {
+                            hs.push_back(h.item);
+                        }
+                    }
+                    ok = cmd.realizeChordSymbols(tx, hs, o, concert) > 0;
                 }
             } else if ((op == "slashfill" || op == "slashrhythm") && size_t(c) < ms.size() && size_t(d) < ms.size()) {
                 // staves a … b-1, measures c … d selected
@@ -1229,8 +1309,18 @@ int main(int argc, char** argv)
     if (a.size() == 4 && a[0] == "linkedit" && a[2] == "--out") {
         return linkedit(a[1], a[3]);
     }
+    if (a.size() == 4 && a[0] == "chordlist" && a[2] == "--out") {
+        return chordlist(a[1], a[3]);
+    }
     if (a.size() >= 6 && a[0] == "measedit" && a[2] == "--out") {
         auto arg = [&a](size_t i) { return a.size() > i ? std::atoi(a[i].c_str()) : 0; };
+        if (a[4] == "realize" && a.size() >= 12) {   // voicing, duration, literal given: instead of each symbol's own
+#ifdef _WIN32
+            _putenv_s("JE_REALIZE", (a[9] + " " + a[10] + " " + a[11]).c_str());
+#else
+            setenv("JE_REALIZE", (a[9] + " " + a[10] + " " + a[11]).c_str(), 1);
+#endif
+        }
         return measedit(a[1], a[3], a[4], arg(5), arg(6), arg(7), arg(8));
     }
     if (a.size() == 7 && a[0] == "tsedit" && a[2] == "--out") {

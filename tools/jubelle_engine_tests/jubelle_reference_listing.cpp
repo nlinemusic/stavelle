@@ -32,7 +32,9 @@
 #include "engraving/compat/mscxcompat.h"
 #include "engraving/compat/scoreaccess.h"
 #include "engraving/dom/chord.h"
+#include "engraving/dom/chordlist.h"
 #include "engraving/dom/harmony.h"
+#include "engraving/dom/realizedharmony.h"
 #include "engraving/dom/masterscore.h"
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
@@ -234,6 +236,40 @@ std::string listing(MasterScore* s)
             }
         }
     }
+    // JUBELLE_REFERENCE_HARMONY=1: every chord symbol as MuseScore understands it (quality, extension, modifiers) and
+    // realizes it in each voicing, literal and jazz (RealizedHarmony::generateNotes, in concert pitch)
+    if (std::getenv("JUBELLE_REFERENCE_HARMONY")) {
+        for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
+            for (EngravingItem* a : seg->annotations()) {
+                if (!a->isHarmony() || toHarmony(a)->chords().size() != 1 || !toHarmony(a)->isRealizable() || !toHarmony(a)->parsedForm()) {
+                    continue;
+                }
+                Harmony* h = toHarmony(a);
+                const ParsedChord* p = h->parsedForm();
+                out << "# harmony " << frac(seg->tick()) << " " << a->track() << " " << h->rootTpc() << "/" << h->bassTpc() << " "
+                    << h->chords().front()->textName().toStdString() << " | " << p->quality().toStdString() << " "
+                    << p->extension().toStdString() << " [";
+                for (const String& m : p->modifierList()) {
+                    out << " " << m.toStdString();
+                }
+                out << " ]" << (p->understandable() ? "" : " ?");
+                if (std::getenv("JUBELLE_REFERENCE_DEBUG")) {
+                    const Harmony* next = h->findNext();
+                    out << " next=" << (next ? frac(next->tick()) + ":" + std::to_string(next->rootTpc()) + ":" + std::to_string(next->track()) : "none");
+                }
+                for (int literal = 1; literal >= 0; --literal) {
+                    for (int v = 0; v <= 6; ++v) {
+                        out << (v ? " " : " |");
+                        const auto notes = h->realizedHarmony().generateNotes(h->rootTpc(), h->bassTpc(), literal, Voicing(v), 0);
+                        for (const auto& [pitch, tpc] : notes) {
+                            out << pitch << ":" << tpc << ",";
+                        }
+                    }
+                }
+                out << "\n";
+            }
+        }
+    }
     if (std::getenv("JUBELLE_REFERENCE_DETAIL")) {
         std::vector<std::string> spanners;
         for (const auto& [tick, sp] : s->spanner()) {
@@ -335,10 +371,11 @@ TEST(Jubelle_Reference, MusicListing)
             const char* implode = std::getenv("JUBELLE_REFERENCE_IMPLODE");
             const char* slashFill = std::getenv("JUBELLE_REFERENCE_SLASHFILL");
             const char* slashRhythm = std::getenv("JUBELLE_REFERENCE_SLASHRHYTHM");
-            if (explode || implode || slashFill || slashRhythm) {
+            const char* realize = std::getenv("JUBELLE_REFERENCE_REALIZE");
+            if (explode || implode || slashFill || slashRhythm || realize) {
                 // "<first staff> <last staff (exclusive)> <first measure> <last measure>": that range selected, then
                 // Score::cmdExplode / cmdImplode / cmdSlashFill / cmdSlashRhythm
-                if (slashFill || slashRhythm) {
+                if (slashFill || slashRhythm || realize) {
                     // measures as they are: a selection ending in a multimeasure rest would take in the whole rest
                     // (the selection is the interface's matter, not the command's)
                     s->style().set(Sid::createMultiMeasureRests, false);
@@ -346,9 +383,11 @@ TEST(Jubelle_Reference, MusicListing)
                 s->setLayoutAll();
                 s->doLayout();
                 const std::string before = listing(s);
-                std::istringstream spec(explode ? explode : (implode ? implode : (slashFill ? slashFill : slashRhythm)));
+                std::istringstream spec(explode ? explode : (implode ? implode : (slashFill ? slashFill : (slashRhythm ? slashRhythm : realize))));
                 int s0 = 0, s1 = 1, m0 = 0, m1 = 0;
                 spec >> s0 >> s1 >> m0 >> m1;
+                int voicing = -1, duration = -1, literal = 1;   // realize: the chord symbols' own settings unless given
+                spec >> voicing >> duration >> literal;
                 auto measureAt = [s](int index) {
                     Measure* mm = s->firstMeasure();
                     for (int i = 0; mm && i < index; ++i) {
@@ -369,8 +408,10 @@ TEST(Jubelle_Reference, MusicListing)
                         s->cmdImplode();
                     } else if (slashFill) {
                         s->cmdSlashFill();
-                    } else {
+                    } else if (slashRhythm) {
                         s->cmdSlashRhythm();
+                    } else {
+                        s->cmdRealizeChordSymbols(literal != 0, Voicing(voicing), HDuration(duration));
                     }
                     s->endCmd();
                 }

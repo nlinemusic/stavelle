@@ -16,6 +16,19 @@ import os
 import subprocess
 import sys
 
+try:
+    import resource
+except ImportError:   # Windows
+    resource = None
+
+
+def limited():
+    # no core files (a crash would otherwise write one the size of the test binary's memory), and a memory limit,
+    # so that a command that runs away fails by itself instead of taking the machine down
+    if resource:
+        resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+        resource.setrlimit(resource.RLIMIT_AS, (6 << 30, 6 << 30))
+
 
 def main(argv):
     if len(argv) < 7:
@@ -43,8 +56,14 @@ def main(argv):
     while todo:
         with open(env["JUBELLE_REFERENCE_LIST"], "w", encoding="utf-8") as f:
             f.write("\n".join(todo) + "\n")
-        subprocess.run([ref, "--gtest_filter=Jubelle_Reference.*"], env=env, capture_output=True, cwd=work)
+        try:
+            subprocess.run([ref, "--gtest_filter=Jubelle_Reference.*"], env=env, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, cwd=work, timeout=1800, preexec_fn=limited if resource else None)
+        except subprocess.TimeoutExpired:
+            print(f"{op} {spec}: MuseScore's command still running after 30 minutes; skipped", file=sys.stderr)
         rest = [r for r in todo if not os.path.exists(os.path.join(theirs, r + ".txt"))]
+        if rest:
+            print(f"{op} {spec}: MuseScore stopped at {rest[0]}", file=sys.stderr)
         if rest:
             crashed.append(rest[0])
             rest = rest[1:]
