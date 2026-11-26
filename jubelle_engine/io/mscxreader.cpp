@@ -1365,13 +1365,34 @@ private:
         } else if (n == "Dynamic" || n == "Fermata" || n == "Breath") {
             f.push_back({ F::TEXT, Text(e.childText("subtype")) });
         } else if (n == "Harmony") {
-            std::string name = e.childText("name");
-            if (name.empty()) {
+            // the chord's root, name and bass: directly in the element before 4.60, in its <harmonyInfo> from 4.60
+            // (a polychord, with several, is kept as written)
+            const Node* info = nullptr;
+            int infos = 0;
+            for (const Node& c : e.children) {
+                if (c.name == "harmonyInfo") {
+                    info = infos++ ? info : &c;
+                }
+            }
+            const Node& from = infos == 1 ? *info : e;
+            std::string name = from.childText("name");
+            if (name.empty() && infos != 1) {
                 name = e.childText("harmonyType");
             }
             f.push_back({ F::TEXT, Text(name) });
-            if (!e.childText("root").empty()) {
-                f.push_back({ F::INT_VALUE, toInt(e.childText("root")) });
+            if (infos <= 1 && !from.childText("root").empty()) {
+                f.push_back({ F::INT_VALUE, toInt(from.childText("root")) });
+            }
+            const char* bassTag = infos == 1 ? "bass" : "base";   // MuseScore's tag before 4.60
+            if (infos <= 1 && !from.childText(bassTag).empty()) {
+                f.push_back({ F::BASS, toInt(from.childText(bassTag)) });
+            }
+            if (infos == 1) {
+                f.push_back({ F::VALUE_TAG, Text(std::string("harmonyInfo")) });
+                const std::string rest = unmodelled(*info, { "name", "root", "bass" });   // its chord description id
+                if (!rest.empty()) {
+                    f.push_back({ F::DETAILS_2, Text(rest) });
+                }
             }
         } else if (n == "InstrumentChange") {
             if (const Node* in = e.child("Instrument")) {
@@ -1388,11 +1409,13 @@ private:
         static const std::map<std::string, std::vector<const char*> > modelled {
             { "Clef", { "concertClefType", "clefType" } }, { "KeySig", { "concertKey", "accidental", "mode" } },
             { "TimeSig", { "sigN", "sigD" } }, { "Tempo", { "tempo", "text" } }, { "Dynamic", { "subtype" } },
-            { "Fermata", { "subtype" } }, { "Breath", { "subtype" } }, { "Harmony", { "name", "root" } },
+            { "Fermata", { "subtype" } }, { "Breath", { "subtype" } }, { "Harmony", { "name", "root", "base" } },
             { "InstrumentChange", { "text" } },
         };
         auto it = modelled.find(n);
-        if (it != modelled.end()) {
+        if (n == "Harmony" && std::count_if(e.children.begin(), e.children.end(), [](const Node& c) { return c.name == "harmonyInfo"; }) == 1) {
+            withDetails(f, e, { "harmonyInfo" });   // modelled, with its details apart (DETAILS_2)
+        } else if (it != modelled.end()) {
             withDetails(f, e, it->second);
         } else {
             withDetails(f, e, { "text" });

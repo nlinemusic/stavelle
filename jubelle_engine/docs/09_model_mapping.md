@@ -52,7 +52,7 @@ round-trip.
 | ARTICULATION, ORNAMENT, FERMATA, BREATH, ARPEGGIO, CHORDLINE, CHORD_BRACKET, TREMOLO_SINGLECHORD, TREMOLO_TWOCHORD, BEND, TREMOLOBAR, STICKING, BAGPIPE_EMBELLISHMENT, FINGERING, TAPPING, PARENTHESIS | **Attachment** on event or note | two-chord tremolo spans two events (relation) |
 | DYNAMIC, EXPRESSION | Attachment at a time (player, voice optional) | |
 | LYRICS | Attachment (verse, syllable, hyphen/extender) | |
-| HARMONY, FRET_DIAGRAM, HARP_DIAGRAM | Attachment at a time (player or score) | chord realisation derived |
+| HARMONY, FRET_DIAGRAM, HARP_DIAGRAM | Attachment at a time (player or score) | chord realisation derived; a chord symbol's root (`INT_VALUE`), bass (`BASS`) and name (`TEXT`) are modelled (from 4.60 read from and written to `<harmonyInfo>`) |
 | FIGURED_BASS, FIGURED_BASS_ITEM | Attachment (time, duration) | |
 | STAFF_TEXT, SYSTEM_TEXT, TEMPO_TEXT, REHEARSAL_MARK, PLAYTECH_ANNOTATION, CAPO, STRING_TUNINGS, TRIPLET_FEEL, SOUND_FLAG, PLAY_COUNT_TEXT | Flow item or Attachment (by scope) | tempo text also writes the tempo map |
 | MARKER, JUMP | Flow item | playback order derived |

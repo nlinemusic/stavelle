@@ -270,6 +270,7 @@ std::string_view fieldName(Field field)
     case TIE_MARK: return "tieMark";
     case LINE_DETAILS: return "lineDetails";
     case INLINE_PART: return "inlinePart";
+    case BASS: return "bass";
     case FRETS: return "frets";
     case STRING_TUNING: return "stringTuning";
     default: break;

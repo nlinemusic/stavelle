@@ -32,6 +32,7 @@
 #include "engraving/compat/mscxcompat.h"
 #include "engraving/compat/scoreaccess.h"
 #include "engraving/dom/chord.h"
+#include "engraving/dom/harmony.h"
 #include "engraving/dom/masterscore.h"
 #include "engraving/dom/note.h"
 #include "engraving/dom/part.h"
@@ -245,7 +246,13 @@ std::string listing(MasterScore* s)
         }
         for (Segment* seg = s->firstSegment(SegmentType::All); seg; seg = seg->next1()) {
             for (EngravingItem* a : seg->annotations()) {
-                out << "# annotation " << a->typeName() << " " << frac(seg->tick()) << " " << a->track() << "\n";
+                out << "# annotation " << a->typeName() << " " << frac(seg->tick()) << " " << a->track();
+                if (a->isHarmony() && !toHarmony(a)->chords().empty()) {
+                    // a chord symbol's root, bass and name, as read (a polychord: its first chord)
+                    const Harmony* h = toHarmony(a);
+                    out << " " << h->rootTpc() << "/" << h->bassTpc() << " " << h->chords().front()->textName().toStdString();
+                }
+                out << "\n";
             }
         }
     }

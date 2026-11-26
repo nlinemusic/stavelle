@@ -8,6 +8,7 @@
 #include <set>
 #include <stdexcept>
 
+#include "model/detailskey.h"
 #include "model/pitch.h"
 
 namespace F = je::model::fields;
@@ -1070,7 +1071,16 @@ void Operations::transposeRange(Transaction& tx, const std::vector<Id>& staves, 
         }
         const Fraction t = it->fractionOr(F::TIME, Fraction());
         if (t0 <= t && t < t1 && std::find(staves.begin(), staves.end(), it->idOr(F::ANCHOR)) != staves.end()) {
-            tx.set(x, F::INT_VALUE, model::transposeTpc(it->intOr(F::INT_VALUE, 14), diatonic, chromatic));
+            // a chord symbol's look doesn't depend on its root: details that fit stay in step (D-E27)
+            const bool fit = it->has(F::DETAILS_KEY) && it->intOr(F::DETAILS_KEY, 0) == model::detailsKey(*it);
+            const int64_t root = it->intOr(F::INT_VALUE, 14), bass = it->intOr(F::BASS, -1);
+            tx.set(x, F::INT_VALUE, model::transposeTpc(root, diatonic, chromatic));
+            if (bass >= 0) {   // "C7/E": the bass with it
+                tx.set(x, F::BASS, model::transposeTpc(bass, diatonic, chromatic));
+            }
+            if (fit) {
+                tx.set(x, F::DETAILS_KEY, model::detailsKey(*obj(x)));
+            }
         }
     }
 }

@@ -2307,11 +2307,37 @@ private:
                 }
                 name = name.substr(i);
             }
-            if (root >= 0) {
-                n.children.push_back(leaf("root", std::to_string(root)));
-            }
-            if (!name.empty()) {
-                n.children.push_back(leaf("name", xml::encode(name)));
+            const int64_t bass = it.intOr(F::BASS, -1);
+            if (modern && (it.text(F::VALUE_TAG) == "harmonyInfo" || !detailsFit(it) || it.text(F::DETAILS).find("<harmonyInfo>") == std::string::npos)) {
+                // from 4.60 the chord is in a <harmonyInfo> (MuseScore's order: description id, name, root, bass)
+                Node info = elem("harmonyInfo");
+                addDetails(info, it, F::DETAILS_2);
+                if (!name.empty()) {
+                    info.children.push_back(leaf("name", xml::encode(name)));
+                }
+                if (root >= 0) {
+                    info.children.push_back(leaf("root", std::to_string(root)));
+                }
+                if (bass >= 0) {
+                    info.children.push_back(leaf("bass", std::to_string(bass)));
+                }
+                // after the properties MuseScore writes before it
+                auto at = n.children.begin();
+                while (at != n.children.end() && (at->name == "eid" || at->name == "harmonyType" || at->name == "play"
+                                                  || at->name == "rootCase" || at->name == "bassCase")) {
+                    ++at;
+                }
+                n.children.insert(at, std::move(info));
+            } else if (!modern || it.text(F::DETAILS).find("<harmonyInfo>") == std::string::npos) {
+                if (root >= 0) {
+                    n.children.push_back(leaf("root", std::to_string(root)));
+                }
+                if (!name.empty()) {
+                    n.children.push_back(leaf("name", xml::encode(name)));
+                }
+                if (bass >= 0) {
+                    n.children.push_back(leaf("base", std::to_string(bass)));
+                }
             }
         } else if (tag == "InstrumentChange") {
             if (!it.has(F::DETAILS) || it.has(F::DETAILS_KEY) && detailsKey(it) != it.intOr(F::DETAILS_KEY, 0)) {

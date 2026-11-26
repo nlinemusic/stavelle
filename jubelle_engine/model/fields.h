@@ -168,6 +168,7 @@ constexpr Field LINE_DETAILS = ENGINE_BASE + 147;    // string: a note's lines t
 constexpr Field TIE_GENERATED = ENGINE_BASE + 149;   // bool, on a note: its tie was made by rewriting measures (a time
                                                        // signature change); such pieces join again in a later rewrite,
                                                        // as in MuseScore (not saved: MuseScore doesn't keep it either)
+constexpr Field BASS = ENGINE_BASE + 150;            // int64: a chord symbol's bass note (TPC), "C7/E"
 constexpr Field INLINE_PART = ENGINE_BASE + 148;     // bool: a part layout written inside the main score (a plain .mscx's parts)
 constexpr Field LINKED_TO = ENGINE_BASE + 143;       // Id: on an element of a linked staff made by Jubelle, its original on
                                                      // the main staff (written as MuseScore's link)

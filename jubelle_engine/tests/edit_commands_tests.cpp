@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,7 @@
 #include "edit/scorebuilder.h"
 #include "io/mscxreader.h"
 #include "io/mscxwriter.h"
+#include "model/detailskey.h"
 #include "model/invariants.h"
 #include "model/notation.h"
 
@@ -1041,4 +1043,68 @@ TEST(Commands, ASplitChordKeepsGraceNotesBeforeItsFirstPieceAndAfterItsLast)
     d.consistent();
     d.undoRedo();
     d.roundTrip();
+}
+
+TEST(Commands, AppearanceDetailsStayWhenTheMusicMovesInTime)
+{
+    // a chord's kept appearance (a stem direction read from the file) is written again after a measure is inserted
+    // before it: its place in time isn't part of its details' fingerprint
+    Doc d;
+    const Id c = d.chord(d.flute.voice, 4, { 72 });
+    d.edit("Details", [&](Transaction& tx) {
+        tx.set(c, F::DETAILS, model::Text("<x>\n<StemDirection>up</StemDirection>\n</x>\n"));
+        tx.set(c, F::DETAILS_KEY, model::detailsKey(*d.o(c)));
+    });
+    d.edit("Insert", [&](Transaction& tx) { d.ops.insertMeasures(tx, 0, 1, 4, 4); });
+    EXPECT_EQ(d.o(c)->fractionOr(F::TIME, Fraction()), Fraction(2, 1));
+    const auto path = std::filesystem::temp_directory_path() / "je_details_in_time.mscx";
+    std::string error;
+    ASSERT_TRUE(io::saveScore(d.model.snapshot(), path.string(), error)) << error;
+    std::ifstream in(path);
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    EXPECT_NE(text.find("<StemDirection>up</StemDirection>"), std::string::npos);
+    std::filesystem::remove(path);
+}
+
+TEST(Commands, ChordSymbolsKeepTheirBassAndLookWhenTransposed)
+{
+    // "C7/E" up a tone is "D7/F♯"; its kept look (an offset read from the file) stays; from 4.60 it is written in a
+    // <harmonyInfo>, as MuseScore reads it
+    Doc d;
+    Id harmony;
+    d.edit("Chord symbol", [&](Transaction& tx) {
+        Id flow;
+        for (Id c : d.model.find(d.model.score())->children()) {
+            flow = d.model.find(c)->kind() == Kind::Flow ? c : flow;
+        }
+        harmony = create(tx, d.ids, flow, { Kind::FlowItem, { { F::SUBKIND, model::Text("harmony") }, { F::ANCHOR, d.flute.staff },
+                                                             { F::TIME, Fraction(0, 1) }, { F::TEXT, model::Text("7") },
+                                                             { F::INT_VALUE, int64_t(14) }, { F::BASS, int64_t(18) } } },
+                         Placement::ByTime);
+        tx.set(harmony, F::DETAILS, model::Text("<x>\n<offset x=\"0\" y=\"-3\"/>\n</x>\n"));
+        tx.set(harmony, F::DETAILS_KEY, model::detailsKey(*d.o(harmony)));
+    });
+    d.edit("Transpose", [&](Transaction& tx) {
+        d.ops.transposeRange(tx, { d.flute.staff }, Fraction(0, 1), Fraction(1, 1), 1, 2);
+    });
+    EXPECT_EQ(d.o(harmony)->intOr(F::INT_VALUE, -1), 16);   // D
+    EXPECT_EQ(d.o(harmony)->intOr(F::BASS, -1), 20);        // F♯
+    const auto path = std::filesystem::temp_directory_path() / "je_chord_symbol.mscx";
+    std::string error;
+    ASSERT_TRUE(io::saveScore(d.model.snapshot(), path.string(), error)) << error;
+    std::ifstream in(path);
+    const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    EXPECT_NE(text.find("<offset x=\"0\" y=\"-3\"/>"), std::string::npos);
+    EXPECT_NE(text.find("<harmonyInfo>"), std::string::npos);
+    model::Model back;
+    IdGenerator backIds { 1 };
+    ASSERT_TRUE(io::openScore(path.string(), back, backIds, error)) << error;
+    bool found = false;
+    back.snapshot().forEachObject([&](const model::Object& o) {
+        if (o.text(F::SUBKIND) == "harmony") {
+            found = o.intOr(F::INT_VALUE, -1) == 16 && o.intOr(F::BASS, -1) == 20 && o.text(F::TEXT) == "7";
+        }
+    });
+    EXPECT_TRUE(found);
+    std::filesystem::remove(path);
 }
