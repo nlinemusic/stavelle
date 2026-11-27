@@ -2,12 +2,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Compares the Jubelle engine's chord shaping (je_io_tool chordshapes) with MuseScore's chord layout (the reference
 tool's Jubelle_Reference.ChordLayout, with JUBELLE_REALISTIC_METRICS=2), chord by chord: each note's staff line,
-notehead and accidental (S7's first shaping stage; positions follow as the engine places them).
+notehead and accidental, which chords are beamed together and each chord's stem direction (S7's first shaping
+stages; positions follow as the engine places them).
 
     je_layout_reference.py <je_io_tool> <reference tool> <repository> <score list> <work folder> [--reuse-reference]
 
 Chords are matched by kind (grace before, chord, grace after), staff, voice, time and order. Chords on drum and
-tablature staves are left out (not shaped yet); a notehead the engine marks as not yet known is not compared.
+tablature staves are left out (not shaped yet); a notehead or stem direction the engine marks as not yet known
+(cross-staff beams, beams placed by hand, two-note tremolos) is not compared.
 Prints the kinds of differences with examples and exits 1 if any score differs.
 """
 import os
@@ -86,7 +88,7 @@ def main():
     kinds = Counter()
     examples = {}
     bad = Counter()
-    total = notes_compared = 0
+    total = notes_compared = stems_compared = 0
     for rel in [l for l in open(lst, encoding='utf-8').read().splitlines() if l]:
         rp, jp = os.path.join(ref_out, rel + '.chords'), os.path.join(je_out, rel + '.chords')
         if not os.path.exists(rp) or not os.path.exists(jp):
@@ -115,6 +117,10 @@ def main():
                 laid_out = any(n['line'] != -10000 for n in rc['notes'])
                 if laid_out and rc.get('beam') != jc.get('beam'):
                     diff('beam', f'{key}: MuseScore {rc.get("beam")}, engine {jc.get("beam")}')
+                if laid_out and 'up' in jc:
+                    stems_compared += 1
+                if laid_out and 'up' in jc and rc.get('up') != jc['up']:
+                    diff('stem direction', f'{key}: MuseScore {"up" if rc.get("up") == "1" else "down"}, engine {"up" if jc["up"] == "1" else "down"}')
                 up = rc.get('up') == '1'
                 for rn, jn in zip(rc['notes'], jc['notes']):
                     if rn['line'] == -10000:
@@ -136,7 +142,7 @@ def main():
     for k, n in kinds.most_common():
         print(f'{n:6}  {k}   e.g. {examples[k]}')
     unexplained = [rel for rel in bad if rel not in known]
-    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes compared); '
+    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes and {stems_compared} stem directions compared); '
           f'{len(bad) - len(unexplained)} known differences, **{len(unexplained)} others**')
     for rel, n in bad.most_common():
         print(f'   {n:5}  {rel}' + (f'  ({known[rel]})' if rel in known else '  UNEXPLAINED'))

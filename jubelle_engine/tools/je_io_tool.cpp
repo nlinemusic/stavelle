@@ -53,6 +53,7 @@
 #include "style/style.h"
 #include "layout/context.h"
 #include "layout/beams.h"
+#include "layout/stems.h"
 #include "layout/notes.h"
 
 namespace fs = std::filesystem;
@@ -1749,11 +1750,13 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         }
         const model::Snapshot snap = m.snapshot();
         const layout::ScoreContext ctx(snap);
-        const std::vector<layout::ChordLayout> chords = layout::layoutNotes(ctx);
+        std::vector<layout::ChordLayout> chords = layout::layoutNotes(ctx);
+        const std::vector<layout::Beam> beams = layout::layoutBeams(ctx, chords);
+        layout::layoutStemDirections(ctx, chords, beams);
         // Fraction::ticks: rounded to the nearest tick
         auto ticks = [](const Fraction& t) { return (t.numerator() * 1920 + t.denominator() / 2) / t.denominator(); };
         std::map<Id, std::string> beamOf;
-        for (const layout::Beam& b : layout::layoutBeams(ctx, chords)) {
+        for (const layout::Beam& b : beams) {
             const model::Object* first = snap.find(b.elements.front());
             const std::string text = std::to_string(b.staff * 4 + b.voice) + ":" + std::to_string(ticks(first->fractionOr(model::fields::TIME, Fraction())))
                                      + ":" + std::to_string(b.elements.size()) + (b.grace ? "g" : "");
@@ -1763,6 +1766,9 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         }
         for (const layout::ChordLayout& c : chords) {
             o << c.kind << " " << c.staff << " " << c.voice << " " << ticks(c.tick) << (c.standard && c.shown ? "" : " nonstandard");
+            if (c.upKnown) {
+                o << " up=" << (c.up ? 1 : 0);
+            }
             if (const auto it = beamOf.find(c.chord); it != beamOf.end() && !c.stemless) {   // ChordRest::beam: none shown in a stemless measure
                 o << " beam=" << it->second;
             }

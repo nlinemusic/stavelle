@@ -140,6 +140,7 @@ add_library(je_layout STATIC
     layout/context.h
     layout/notes.cpp
     layout/beams.cpp
+    layout/stems.cpp
     layout/notes.h
 )
 target_include_directories(je_layout PUBLIC ${JE_ROOT})

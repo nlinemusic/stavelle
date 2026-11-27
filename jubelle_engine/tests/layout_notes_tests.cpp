@@ -11,6 +11,7 @@
 #include "edit/structure.h"
 #include "layout/beams.h"
 #include "layout/context.h"
+#include "layout/stems.h"
 #include "layout/notes.h"
 #include "model/fields.h"
 #include "model/model.h"
@@ -81,6 +82,26 @@ struct Score {
                                                        { F::DETAILS, model::Value(model::Text(std::string("<x>\n<stemless>1</stemless>\n</x>\n"))) } } },
                Placement::ByTime);
         tx.commit();
+    }
+    //! A chord in another voice of the flute's staff (1: voice 2)
+    void noteInVoice(int number, const Fraction& t, int pitch, const Fraction& value = Fraction(1, 4))
+    {
+        Operations ops(m, ids);
+        Transaction tx(m, "Note");
+        const Id v = ops.voice(tx, ops.staffOf(voice), number);
+        ops.enterChord(tx, v, t, { value, 0 }, { pitch });
+        tx.commit();
+    }
+    //! Each chord's stem direction (true: up), in order
+    std::vector<bool> stems()
+    {
+        auto chords = layout();
+        layout::layoutStemDirections(*ctx, chords, layout::layoutBeams(*ctx, chords));
+        std::vector<bool> out;
+        for (const auto& c : chords) {
+            out.push_back(c.up);
+        }
+        return out;
     }
     //! The beams as the number of chords and rests in each, in order
     std::vector<size_t> beams()
@@ -199,4 +220,36 @@ TEST(LayoutBeams, AStemlessMeasureShowsNoBeams)
     for (const auto& c : chords) {
         EXPECT_TRUE(c.stemless);   // ChordRest::beam shows none there
     }
+}
+
+TEST(LayoutStems, StemsFollowTheNotesAroundTheMiddleLine)
+{
+    Score s;
+    s.note(Fraction(0, 1), 64);   // E4, below the middle line: up
+    s.note(Fraction(1, 4), 71);   // B4, on it: down
+    s.note(Fraction(2, 4), 76);   // E5: down
+    s.note(Fraction(3, 4), 60);   // C4: up
+    EXPECT_EQ(s.stems(), (std::vector<bool> { true, false, false, true }));
+}
+
+TEST(LayoutStems, ABeamTakesOneDirectionForAllItsChords)
+{
+    Score s;
+    s.note(Fraction(0, 1), 64, Fraction(1, 8));   // E4 alone would be up
+    s.note(Fraction(1, 8), 79, Fraction(1, 8));   // G5 alone would be down
+    s.note(Fraction(2, 8), 81, Fraction(1, 8));
+    s.note(Fraction(3, 8), 81, Fraction(1, 8));
+    // MuseScore: the beam's distinct note lines balanced from the outside in (E4 and A5: A5 is further away)
+    EXPECT_EQ(s.stems(), (std::vector<bool> { false, false, false, false }));
+}
+
+TEST(LayoutStems, VoicesOneAndTwoGoUpAndDown)
+{
+    Score s;
+    s.note(Fraction(0, 1), 79);                      // G5 would be down on its own
+    s.noteInVoice(1, Fraction(0, 1), 60);            // C4 in voice 2 would be up
+    const auto up = s.stems();
+    ASSERT_EQ(up.size(), 2u);
+    EXPECT_TRUE(up[0]);
+    EXPECT_FALSE(up[1]);
 }

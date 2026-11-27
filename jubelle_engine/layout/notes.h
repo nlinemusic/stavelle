@@ -39,6 +39,8 @@ struct ChordLayout {
     int durationType = 4;
     int dots = 0;
     int crossMeasure = 0;
+    bool up = true;          // the stem up (layoutStemDirections; also the notehead side for up and down heads)
+    bool upKnown = true;     // false where the direction depends on positions not worked out yet
     bool stemless = false;   // in a stemless measure of its staff: no stem, and no beam shown (ChordRest::beam)
     std::vector<NoteLayout> notes;   // in MuseScore's order (Chord::sortNotes: from the bottom)
 };

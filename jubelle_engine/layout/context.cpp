@@ -115,6 +115,17 @@ ScoreContext::ScoreContext(const model::Snapshot& s)
             info.shown = model::fragment::value(player->text(F::DETAILS), "show") != "0";
             info.drumset = model::fragment::value(player->text(F::DETAILS_2), "useDrumset") == "1"
                            || model::fragment::value(player->text(F::DETAILS), "useDrumset") == "1";
+            {
+                // the staff type (MuseScore's StaffType): its lines and step offset
+                const std::string& d = staff->text(F::DETAILS);
+                const std::string lines = model::fragment::anyValue(d, "lines"), step = model::fragment::anyValue(d, "stepOffset");
+                if (!lines.empty()) {
+                    info.lines = std::atoi(lines.c_str());
+                }
+                if (!step.empty()) {
+                    info.stepOffset = std::atoi(step.c_str());
+                }
+            }
             info.voices.assign(4, Id());
             for (Id v : staff->children()) {
                 const Object* voice = s.find(v);
@@ -159,6 +170,7 @@ void ScoreContext::buildTimelines()
 {
     const size_t n = m_staves.size();
     m_clefs.assign(n, {});
+    m_staffTypes.assign(n, {});
     m_keys.assign(n, {});
     m_transpositions.assign(n, {});
     m_defaultClef.assign(n, "G");
@@ -215,10 +227,17 @@ void ScoreContext::buildTimelines()
         const std::string& kind = item->text(F::SUBKIND);
         const Fraction t = item->fractionOr(F::TIME, Fraction());
         if (kind == "measureDetail") {
-            const std::string v = model::fragment::value(item->text(F::DETAILS), "stemless");
+            const std::string& d = item->text(F::DETAILS);
+            const std::string v = model::fragment::value(d, "stemless");
             const int st = staffIndex(item->idOr(F::ANCHOR));
             if (st >= 0 && !v.empty() && v != "0" && v != "false") {
                 m_stemless.insert({ st, t });
+            }
+            if (st >= 0 && model::fragment::has(d, "StaffTypeChange")) {
+                // a new staff type from here (MuseScore reads it as a fresh StaffType: 5 lines unless it says)
+                const std::string change = model::fragment::value(d, "StaffTypeChange");
+                const std::string lines = model::fragment::anyValue(change, "lines"), step = model::fragment::anyValue(change, "stepOffset");
+                m_staffTypes[size_t(st)][t] = { lines.empty() ? 5 : std::atoi(lines.c_str()), step.empty() ? 0 : std::atoi(step.c_str()) };
             }
         } else if (kind == "clef") {
             const int st = staffIndex(item->idOr(F::ANCHOR));
@@ -318,6 +337,22 @@ ScoreContext::Transposition ScoreContext::transpositionAt(int staff, const Fract
 }
 
 namespace je::layout {
+int ScoreContext::middleLine(int staff, const Fraction& t) const
+{
+    const StaffInfo& st = m_staves[size_t(staff)];
+    int lines = st.lines, step = st.stepOffset;
+    if (size_t(staff) < m_staffTypes.size()) {
+        const auto& m = m_staffTypes[size_t(staff)];
+        auto it = m.upper_bound(t);
+        if (it != m.begin()) {
+            --it;
+            lines = it->second.first;
+            step = it->second.second;
+        }
+    }
+    return lines - 1 - step;
+}
+
 bool ScoreContext::stemlessMeasure(int staff, const Fraction& t) const
 {
     if (m_stemless.empty()) {
