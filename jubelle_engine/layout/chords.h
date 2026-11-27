@@ -21,4 +21,9 @@ void layoutMirrors(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
 //! Sets each chord's `mag` and each note's place in its chord (layoutChords3: x by its side of the stem, y by its line);
 //! after layoutMirrors
 void layoutNotePositions(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
+
+//! Sets each chord's `x`: chords of voices with stems up and down at one time moved apart where their notes would
+//! collide, and centred where their noteheads are wider or narrower than a black one (centreChords,
+//! calculateChordOffsets, applyChordOffsets); after layoutStemLengths
+void layoutChordOffsets(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
 }

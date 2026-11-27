@@ -8,8 +8,11 @@
 #include "chords.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <map>
+#include <set>
+#include <string>
 
 #include "model/fields.h"
 #include "model/fragment.h"
@@ -242,5 +245,504 @@ void layoutNotePositions(const ScoreContext& ctx, std::vector<ChordLayout>& chor
             }
         }
     }
+}
+}
+
+namespace je::layout {
+namespace {
+//! MuseScore's NoteHeadType of a value: 0 whole, 1 half, 2 quarter, 3 breve (and longer)
+int headTypeOf(int durationType)
+{
+    return durationType <= 1 ? 3 : durationType == 2 ? 0 : durationType == 3 ? 1 : 2;
+}
+
+int userHeadType(const Object* note)
+{
+    const std::string v = valueOf(note, "headType");
+    return v == "whole" ? 0 : v == "half" ? 1 : v == "quarter" ? 2 : v == "breve" ? 3 : -1;   // -1: auto
+}
+
+struct Offsets {
+    const ScoreContext& ctx;
+    const style::Style& st;
+    const style::MusicFont& font;
+    const double unit;
+
+    explicit Offsets(const ScoreContext& c)
+        : ctx(c), st(c.style()), font(c.font()), unit(style::Style::def(Sid::spatium).a)
+    {
+    }
+
+    struct N {
+        NoteLayout* note;
+        ChordLayout* chord;
+        int line() const { return note->line; }
+        int track() const { return chord->staff * 4 + chord->voice; }
+    };
+
+    bool combines(const ChordLayout& c) const
+    {
+        const std::string v = valueOf(ctx.obj(c.chord), "combineVoice");
+        return v == "on" || v == "1" || ((v.empty() || v == "auto") && st.boolean(Sid::combineVoice));
+    }
+    bool small(const Object* o) const
+    {
+        const std::string v = valueOf(o, "small");
+        return v == "1" || v == "true";
+    }
+    double noteMag(const N& n) const { return small(ctx.obj(n.note->note)) ? n.chord->mag * st.value(Sid::smallNoteMag) : n.chord->mag; }
+    SymId head(const N& n) const { return n.chord->up ? n.note->headUp : n.note->headDown; }
+    bool visible(const N& n) const
+    {
+        const std::string v = valueOf(ctx.obj(n.note->note), "visible");
+        return !(v == "0" || v == "false");
+    }
+
+    //! The stem's bounding height (TLayout::layoutStem), in the score's spaces
+    double stemHeight(const ChordLayout& c, double staffMag) const
+    {
+        const NoteLayout& start = c.up ? c.notes.front() : c.notes.back();
+        const double up = c.up ? -1.0 : 1.0;
+        const double m = small(ctx.obj(start.note)) ? c.mag * st.value(Sid::smallNoteMag) : c.mag;
+        double ax = 0.0, ay = 0.0;
+        const SymId h = c.up ? start.headUp : start.headDown;
+        const bool useUpAnchor = (c.up && !start.mirror) || (!c.up && start.mirror);
+        font.anchor(h, useUpAnchor ? style::SmuflAnchor::stemUpSE : style::SmuflAnchor::stemDownNW, m, ax, ay);
+        const double y1 = ay / unit;
+        double y2 = up * c.stemLength * staffMag;
+        if (c.hook && !c.beamed) {
+            double hx = 0.0, hy = 0.0;
+            font.anchor(c.hookSym, c.up ? style::SmuflAnchor::stemUpNW : style::SmuflAnchor::stemDownSW, c.mag, hx, hy);
+            y2 += hy / unit;
+        }
+        if (c.beamed) {
+            y2 -= up * st.value(Sid::beamWidth) * staffMag * 0.5 * (small(ctx.obj(c.chord)) ? st.value(Sid::smallNoteMag) : 1.0);
+        }
+        return std::abs(y2 - y1);
+    }
+
+    void segment(std::vector<ChordLayout*>& list, const std::map<ChordLayout*, bool>& graceBefore) const
+    {
+        for (ChordLayout* c : list) {
+            c->x = 0.0;
+            c->xKnown = false;
+        }
+        for (ChordLayout* c : list) {
+            if (!c->standard || !c->upKnown || !c->mirrorKnown || (c->hasStem && !c->defaultStemKnown)) {
+                return;   // depends on what isn't worked out yet
+            }
+            for (const NoteLayout& n : c->notes) {
+                if (!n.headKnown) {
+                    return;
+                }
+            }
+        }
+        const int staff = list.front()->shownStaff;
+        const Fraction tick = list.front()->tick;
+        const double staffMag = ctx.staffMag(staff, tick);
+        const double sp = staffMag;   // the staff's space, in the score's
+        const int lines = ctx.staffType(staff, tick).lines;
+
+        // calculateChordPosInfo
+        int upVoices = 0, downVoices = 0, upDots = 0, downDots = 0;
+        double maxUpMag = 0.0, maxDownMag = 0.0;
+        const ChordLayout* upHooks = nullptr;
+        const ChordLayout* downHooks = nullptr;
+        bool upGrace = false, downGrace = false;
+        std::vector<N> upNotes, downNotes;
+        for (ChordLayout* c : list) {
+            const bool gb = graceBefore.count(c) && graceBefore.at(c);
+            if (c->up) {
+                ++upVoices;
+                for (NoteLayout& n : c->notes) {
+                    upNotes.push_back({ &n, c });
+                }
+                upDots = std::max(upDots, c->dots);
+                maxUpMag = std::max(maxUpMag, c->mag);
+                if (!upHooks && !c->beamed && c->hook) {
+                    upHooks = c;
+                }
+                upGrace = upGrace || gb;
+            } else {
+                ++downVoices;
+                for (NoteLayout& n : c->notes) {
+                    downNotes.push_back({ &n, c });
+                }
+                downDots = std::max(downDots, c->dots);
+                maxDownMag = std::max(maxDownMag, c->mag);
+                if (!downHooks && !c->beamed && c->hook) {
+                    downHooks = c;
+                }
+                downGrace = downGrace || gb;
+            }
+        }
+        // calculateMaxNoteWidths (the widths of the noteheads left unmirrored: layoutChords2's result)
+        const double noteHeadWidth = font.width(SymId::noteheadBlack) / unit;
+        const double nominal = noteHeadWidth * staffMag;
+        double maxUpWidth = nominal * maxUpMag, maxDownWidth = nominal * maxDownMag;
+        auto byLine = [](const N& a, const N& b) { return a.line() > b.line(); };
+        if (upVoices > 1) {
+            std::sort(upNotes.begin(), upNotes.end(), byLine);
+        }
+        if (downVoices > 1) {
+            std::sort(downNotes.begin(), downNotes.end(), byLine);
+        }
+        auto widest = [&](const std::vector<N>& notes) {
+            double w = 0.0;
+            for (const N& n : notes) {
+                if (!n.note->mirror) {
+                    w = std::max(w, font.bbox(head(n), noteMag(n)).right() / unit);
+                }
+            }
+            return w;
+        };
+        if (upVoices) {
+            maxUpWidth = std::max(maxUpWidth, widest(upNotes));
+        }
+        if (downVoices) {
+            maxDownWidth = std::max(maxDownWidth, widest(downNotes));
+        }
+
+        // centreChords
+        double centerUp = 0, centerDown = 0, centerAdjustUp = 0, centerAdjustDown = 0, oversizeUp = 0;
+        double upOffset = 0, downOffset = 0, dotAdjust = 0, dotAdjustThreshold = 0;
+        std::set<int> tracksToAdjust;
+        const double threshold = 0.01 * sp;
+        {
+            double headDiff = maxUpWidth - nominal;
+            const double headDiff2 = maxUpWidth - nominal * (maxUpMag / staffMag);
+            if (headDiff > threshold) {
+                centerUp = headDiff * -0.5;
+                maxUpWidth += centerUp;
+                if (headDiff2 > threshold) {
+                    centerUp += headDiff2;
+                    oversizeUp = headDiff2;
+                }
+            } else if (-headDiff > threshold) {
+                centerUp = -headDiff * 0.5;
+                if (headDiff2 > threshold) {
+                    centerUp += headDiff2;
+                    oversizeUp = headDiff2;
+                }
+                centerAdjustDown = centerUp;
+            }
+            headDiff = maxDownWidth - nominal;
+            if (headDiff > threshold) {
+                centerDown = headDiff * -0.5;
+                maxDownWidth = nominal - centerDown;
+            } else if (-headDiff > threshold) {
+                centerDown = -headDiff * 0.5;
+                centerAdjustUp = centerDown;
+            }
+        }
+
+        // calculateChordOffsets: a chord with its stem up against one with its stem down
+        int separation = 0;
+        if (upVoices && downVoices) {
+            const N bottomUp = upNotes.front();
+            const N topDown = downNotes.back();
+            separation = topDown.line() - bottomUp.line();
+            const double stemWidth = st.value(Sid::stemWidth);
+            if (separation == 1) {
+                if (upDots && !downDots) {
+                    upOffset = maxDownWidth + 0.1 * sp;
+                    tracksToAdjust.insert(bottomUp.track());
+                } else {
+                    downOffset = maxUpWidth;
+                    if (topDown.chord->hasStem && bottomUp.chord->hasStem) {
+                        downOffset -= stemWidth * topDown.chord->mag;
+                    } else if (headTypeOf(topDown.chord->durationType) != 3 && headTypeOf(bottomUp.chord->durationType) != 3) {
+                        downOffset -= stemWidth * topDown.chord->mag;
+                    }
+                    tracksToAdjust.insert(topDown.track());
+                }
+            } else if (separation < 1) {
+                std::vector<N> overlap;
+                for (const N& n : upNotes) {
+                    if (n.line() >= topDown.line() - 1) {
+                        overlap.push_back(n);
+                    } else {
+                        break;
+                    }
+                }
+                for (size_t i = downNotes.size(); i > 0; --i) {
+                    if (downNotes[i - 1].line() <= bottomUp.line() + 1) {
+                        overlap.push_back(downNotes[i - 1]);
+                    } else {
+                        break;
+                    }
+                }
+                std::sort(overlap.begin(), overlap.end(), byLine);
+                bool shareHeads = true, matchPending = false, conflictUnison = false;
+                bool secondUpHigher = false, secondDownHigher = false;
+                int lastLine = 1000;
+                int lastTrack = -1;
+                N p = overlap[0];
+                for (const N& n : overlap) {
+                    if (n.note->mirror && separation < 0) {
+                        shareHeads = false;
+                        continue;
+                    }
+                    const int d = lastLine - n.line();
+                    if (d == 0) {
+                        conflictUnison = true;
+                        matchPending = false;
+                        const Object* no = ctx.obj(n.note->note);
+                        const Object* po = ctx.obj(p.note->note);
+                        const int nUser = userHeadType(no), pUser = userHeadType(po);
+                        const int nHead = nUser < 0 ? headTypeOf(n.chord->durationType) : nUser;
+                        const int pHead = pUser < 0 ? headTypeOf(p.chord->durationType) : pUser;
+                        const bool nSmall = small(ctx.obj(n.chord->chord)), pSmall = small(ctx.obj(p.chord->chord));
+                        if (valueOf(no, "head") != valueOf(po, "head") || n.note->tpc != p.note->tpc || n.note->mirror || p.note->mirror
+                            || (nSmall != pSmall && (nHead != 2 || pHead != 2))) {
+                            shareHeads = false;
+                        } else if ((n.chord->dots != p.chord->dots || !n.chord->hasStem || !p.chord->hasStem || nHead != pHead
+                                    || small(no) || small(po))
+                                   && ((nUser < 0 && pUser < 0) || nHead != pHead) && visible(n) == visible(p)) {
+                            shareHeads = false;
+                        }
+                    } else if (d == 1) {
+                        if (separation < 0) {
+                            (n.chord->up ? secondUpHigher : secondDownHigher) = true;
+                            shareHeads = false;
+                        }
+                    } else {
+                        if (matchPending) {
+                            shareHeads = false;
+                        }
+                        matchPending = true;
+                    }
+                    if (!shareHeads) {
+                        tracksToAdjust.insert(n.track());
+                        tracksToAdjust.insert(lastTrack);
+                    }
+                    p = n;
+                    lastLine = n.line();
+                    lastTrack = n.track();
+                }
+                if (matchPending) {
+                    shareHeads = false;
+                }
+                const bool conflict = conflictUnison || secondDownHigher || secondUpHigher;
+                bool ledgerBelow = false, ledgerAbove = false;
+                const double ledgerGap = 0.15 * sp;
+                const double ledgerLen = st.value(Sid::ledgerLineLength) * sp;
+                const int firstLedgerBelow = lines * 2;
+                int topDownStemLen = 0;
+                // a beamed chord's stem is laid out again once its beam is placed (a later stage), and MuseScore lays
+                // the chords out again with it: where its length decides, the offsets aren't known yet
+                bool beamedStemDecides = false;
+                if (!conflictUnison && topDown.chord->hasStem && topDown.chord->beamed && bottomUp.line() > firstLedgerBelow - 1
+                    && topDown.line() < bottomUp.line()) {
+                    beamedStemDecides = true;
+                }
+                if (!conflictUnison && bottomUp.chord->hasStem && bottomUp.chord->beamed && topDown.line() < -1
+                    && topDown.line() < bottomUp.line()) {
+                    beamedStemDecides = true;
+                }
+                if (!conflictUnison && topDown.chord->hasStem && topDown.chord->beamed && downHooks) {
+                    beamedStemDecides = true;
+                }
+                if (beamedStemDecides) {
+                    return;
+                }
+                if (!conflictUnison && topDown.chord->hasStem) {
+                    topDownStemLen = int(std::round(stemHeight(*topDown.chord, staffMag) / sp * 2));
+                    if (bottomUp.line() > firstLedgerBelow - 1 && topDown.line() < bottomUp.line()
+                        && topDown.line() + topDownStemLen >= firstLedgerBelow) {
+                        ledgerBelow = true;
+                    }
+                }
+                const int firstLedgerAbove = -2;
+                if (!conflictUnison && bottomUp.chord->hasStem) {
+                    const int bottomUpStemLen = int(std::round(stemHeight(*bottomUp.chord, staffMag) / sp * 2));
+                    if (topDown.line() < -1 && topDown.line() < bottomUp.line() && bottomUp.line() - bottomUpStemLen <= firstLedgerAbove) {
+                        ledgerAbove = true;
+                    }
+                }
+                auto hookWidth = [&](const ChordLayout* c) { return c && c->hook ? font.width(c->hookSym, c->mag) / unit : 0.0; };
+                if (shareHeads) {
+                    for (int i = int(overlap.size()) - 1; i >= 1; i -= 2) {
+                        const N& prev = overlap[size_t(i - 1)];
+                        const N& n = overlap[size_t(i)];
+                        if (!userOffset(prev.chord->chord).first.empty() || !userOffset(n.chord->chord).first.empty()) {
+                            continue;   // a chord moved by hand (isNudged)
+                        }
+                        const bool prevSmall = small(ctx.obj(prev.chord->chord)), nSmall = small(ctx.obj(n.chord->chord));
+                        const ChordLayout* smallChord = nSmall ? n.chord : prevSmall ? prev.chord : nullptr;
+                        if (smallChord && !(prevSmall && nSmall)) {
+                            if (smallChord->up) {
+                                centerUp *= 2;
+                            } else {
+                                centerDown = 0;
+                            }
+                        }
+                    }
+                } else if (conflict && (upDots && !downDots)) {
+                    upOffset = maxDownWidth + 0.1 * sp;
+                } else if (conflictUnison && separation == 0 && (!downGrace || upGrace)) {
+                    downOffset = maxUpWidth + 0.15 * sp;
+                } else if (conflictUnison) {
+                    upOffset = maxDownWidth + 0.15 * sp;
+                } else if (secondUpHigher) {
+                    upOffset = maxDownWidth + 0.15 * sp;
+                } else if ((downHooks && !upHooks) && !(upDots && !downDots)) {
+                    const double adj = (ledgerAbove || ledgerBelow) ? ledgerGap + ledgerLen : 0.3 * sp;
+                    downOffset = maxUpWidth + adj;
+                } else if (secondDownHigher) {
+                    if (downDots && !upDots) {
+                        const double adj = (ledgerAbove || ledgerBelow) ? ledgerGap + ledgerLen : 0.2 * sp;
+                        downOffset = maxUpWidth + adj;
+                    } else {
+                        const double adj = (topDown.line() <= firstLedgerAbove || bottomUp.line() >= firstLedgerBelow)
+                                           ? ledgerLen - ledgerGap - 0.2 * sp : -0.2 * sp;
+                        upOffset = maxDownWidth + adj;
+                        if (downHooks) {
+                            const bool needsHookSpace = ledgerBelow || ledgerAbove;
+                            upOffset = needsHookSpace ? hookWidth(topDown.chord) + ledgerLen + ledgerGap : upOffset + 0.3 * sp;
+                        }
+                    }
+                } else {
+                    // no direct conflict: the stems only need to clear the other noteheads and ledger lines
+                    double clearLeft = 0.0, clearRight = 0.0;
+                    const double padding = 0.3 * sp;
+                    if (topDown.chord->hasStem) {
+                        clearLeft += ledgerBelow ? ledgerLen + ledgerGap + stemWidth * topDown.chord->mag : stemWidth * topDown.chord->mag + padding;
+                    }
+                    if (bottomUp.chord->hasStem) {
+                        if (ledgerAbove) {
+                            clearRight += maxDownWidth + ledgerLen + ledgerGap - maxUpWidth + stemWidth * bottomUp.chord->mag;
+                        } else {
+                            clearRight += stemWidth * bottomUp.chord->mag + std::max(maxDownWidth - maxUpWidth, 0.0) + padding;
+                        }
+                    } else {
+                        downDots = 0;
+                    }
+                    upOffset = std::max(clearLeft, clearRight);
+                    const N topUp = upNotes.back();
+                    const int pad = st.boolean(Sid::useStraightNoteFlags) ? 2 : 1;
+                    const bool overlapsFlag = topDown.line() + topDownStemLen + pad > topUp.line();
+                    if (downHooks && (ledgerBelow || overlapsFlag)) {
+                        const double hw = hookWidth(topDown.chord);
+                        if (ledgerBelow) {
+                            upOffset = hw + ledgerLen + ledgerGap;
+                        }
+                        upOffset = std::max(upOffset, maxDownWidth + 0.1 * sp);
+                        dotAdjustThreshold = maxUpWidth - 0.3 * sp;
+                    }
+                    if (centerDown > 0.0) {
+                        centerDown = 0.0;
+                        centerAdjustUp = 0.0;
+                        dotAdjustThreshold = (upOffset - maxDownWidth) + maxUpWidth - 0.3 * sp;
+                    }
+                }
+            }
+            // dots of one direction only go between the chords
+            if ((upDots && !downDots) || (downDots && !upDots)) {
+                const int dots = upDots ? upDots : downDots;
+                const double mag = upDots ? maxUpMag : maxDownMag;
+                dotAdjust = st.value(Sid::dotNoteDistance) + font.width(SymId::augmentationDot) / unit;
+                if (dots > 1) {
+                    dotAdjust += st.value(Sid::dotDotDistance) * (dots - 1);
+                }
+                dotAdjust *= mag;
+                dotAdjust = std::max(dotAdjust - dotAdjustThreshold, 0.0);
+            }
+            if (separation == 1) {
+                dotAdjust += 0.1 * sp;
+            }
+        }
+
+        // applyChordOffsets
+        for (ChordLayout* c : list) {
+            double x = 0.0;
+            const int track = c->staff * 4 + c->voice;
+            if (!combines(*c) && !tracksToAdjust.count(track)) {
+                x = c->up ? centerUp : centerDown;
+            } else if (c->up) {
+                if (upOffset != 0.0) {
+                    x = upOffset + centerAdjustUp + oversizeUp;
+                    if (downDots && !upDots) {
+                        x += dotAdjust;
+                    }
+                } else {
+                    x = centerUp;
+                }
+            } else {
+                if (downOffset != 0.0) {
+                    x = downOffset + centerAdjustDown;
+                    if (upDots && !downDots) {
+                        x += dotAdjust;
+                    }
+                } else {
+                    x = centerDown;
+                }
+            }
+            c->x = x / staffMag;
+            const auto user = userOffset(c->chord);
+            if (!user.first.empty()) {
+                c->x += std::atof(user.first.c_str());
+            }
+            c->xKnown = true;
+        }
+    }
+
+    //! A chord's own <offset x="…" y="…"/> (x and y as written; empty when it has none)
+    std::pair<std::string, std::string> userOffset(Id id) const
+    {
+        const Object* o = ctx.obj(id);
+        for (const std::string* d : { &o->text(F::DETAILS), &o->text(F::DETAILS_AFTER) }) {
+            size_t b = 0, e = 0;
+            std::vector<model::fragment::Child> kids;
+            if (!model::fragment::children(*d, b, e, kids)) {
+                continue;
+            }
+            for (const model::fragment::Child& k : kids) {
+                if (k.name != "offset") {
+                    continue;
+                }
+                const std::string tag = d->substr(k.begin, d->find('>', k.begin) - k.begin);
+                auto attr = [&](const char* name) {
+                    const std::string key = std::string(" ") + name + "=\"";
+                    const size_t a = tag.find(key);
+                    if (a == std::string::npos) {
+                        return std::string("0");
+                    }
+                    const size_t z = tag.find('"', a + key.size());
+                    return tag.substr(a + key.size(), z - a - key.size());
+                };
+                return { attr("x"), attr("y") };
+            }
+        }
+        return {};
+    }
+
+    void run(std::vector<ChordLayout>& chords) const
+    {
+        std::map<std::pair<Fraction, int>, std::vector<ChordLayout*> > segments;
+        std::map<ChordLayout*, bool> graceBefore;
+        bool pending = false;
+        for (ChordLayout& c : chords) {
+            if (c.kind == 'G') {
+                pending = true;
+            } else if (c.kind == 'C') {
+                graceBefore[&c] = pending;
+                pending = false;
+                segments[{ c.tick, c.shownStaff }].push_back(&c);
+            }
+        }
+        for (auto& [key, list] : segments) {
+            std::stable_sort(list.begin(), list.end(), [](const ChordLayout* a, const ChordLayout* b) {
+                return a->staff * 4 + a->voice < b->staff * 4 + b->voice;
+            });
+            segment(list, graceBefore);
+        }
+    }
+};
+}
+
+void layoutChordOffsets(const ScoreContext& ctx, std::vector<ChordLayout>& chords)
+{
+    Offsets(ctx).run(chords);
 }
 }

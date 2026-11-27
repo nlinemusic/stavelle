@@ -380,6 +380,7 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
         const bool hasBeam = beamed.count(c.chord) && !c.stemless;
         const bool tremoloTwo = co->has(F::EXPLICIT_DURATION);
         c.hasStem = c.durationType >= 3 && c.durationType <= 12 && detail("noStem") != "1" && !c.stemless;
+        c.beamed = hasBeam;
         c.hook = c.hasStem && hooksOf(c.durationType) > 0 && !hasBeam && !tremoloTwo;
         if (c.hook) {
             static const SymId up[8] = { SymId::flag8thUp, SymId::flag16thUp, SymId::flag32ndUp, SymId::flag64thUp, SymId::flag128thUp,
@@ -401,9 +402,11 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
             const Object* ao = ctx.obj(a);
             tremoloOne = tremoloOne || (ao && ao->kind() == Kind::Attachment && ao->text(F::SUBKIND) == "tremoloSingleChord");
         }
-        if (!c.standard || hasBeam || tremoloTwo || tremoloOne || !c.upKnown) {
-            continue;   // a beam or tremolo decides the length (later stages)
+        if (!c.standard || tremoloTwo || tremoloOne || !c.upKnown) {
+            continue;   // a tremolo's length isn't ported yet
         }
+        // a beamed chord's default length (its beam moves the stem's end later); the beams it would carry
+        const int beamCount = hasBeam ? hooksOf(c.durationType) : 0;
         const StaffTypeInfo& type = ctx.staffType(c.staff, c.tick);
         const bool small = detail("small") == "1";
         const double intrinsic = (small ? st.value(Sid::smallNoteMag) : 1.0) * (c.kind != 'C' ? st.value(Sid::graceNoteMag) : 1.0);
@@ -418,7 +421,9 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
         const double extraHeight = ay / unit;   // in the staff's spaces, without the chord's own size
 
         // all in quarter spaces, in integers, as MuseScore works it out
-        const int defaultStem = int(st.value(Sid::stemLength) * 4);   // no beam: no addition
+        // StemLayout::stemLengthBeamAddition
+        const int addition = c.hook || beamCount <= 2 ? 0 : beamCount == 3 ? 2 : (beamCount - 3) * (wide ? 4 : 3);
+        const int defaultStem = int(st.value(Sid::stemLength) * 4) + addition;
         const int shortestStem = wide ? 12 : int((st.value(Sid::shortestStem) + std::abs(extraHeight)) * 4);
         const int qspl = int(std::floor(type.lineDistance * 2));
         const int upLine = top.line, downLine = bottom.line;
@@ -426,24 +431,56 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
         const int lines = type.lines;
         const int shortStemStart = st.integer(Sid::shortStemStartLocation) * qspl + 1;
         const bool fullSize = !(c.kind != 'C' || small);
-        const int middleLine = minStaffOverlap(c.up, lines, 0, c.hook, wide ? 4 : 3, wide, fullSize);
-        // StemLayout::maxReduction, without beams
+        const int middleLine = minStaffOverlap(c.up, lines, beamCount, c.hook, wide ? 4 : 3, wide, fullSize);
+        // StemLayout::calcMinStemLength (beams; tremolos are left out above)
+        int minStem = 0;
+        if (hasBeam) {
+            static const int inner[4] = { 10, 9, 8, 7 };
+            minStem = inner[std::min(beamCount, 3)] + beamCount * (wide ? 4 : 3) - 1;
+            const int noteLine = c.up ? upLine : downLine;
+            const bool inStaff = (c.up && noteLine > 0) || (!c.up && noteLine < (lines - 1) * 2);
+            if (beamCount >= 4 && inStaff) {
+                ++minStem;
+            }
+        }
+        // StemLayout::stemOpticalAdjustment
+        auto optical = [&](int end) {
+            if ((c.hook && !hasBeam) || beamCount == 0 || beamCount > 2) {
+                return 0;
+            }
+            return std::fmod(double(end + 4), 4.0) == 2.0 ? 1 : 0;
+        };
+        // StemLayout::maxReduction
         auto maxReduction = [&](int extensionOutsideStaff) {
             if (!st.boolean(Sid::shortenStem)) {
                 return 0;
             }
-            static const int reductions[5] = { 1, 2, 3, 4, 4 };   // 0 beams (a flag counts as none here)
+            static const int reductions[4][5] = { { 1, 2, 3, 4, 4 }, { 0, 1, 2, 3, 3 }, { 0, 1, 1, 1, 1 }, { 0, 0, 0, 1, 1 } };
+            int bc = c.hook ? 0 : beamCount;
             const bool tradHook = c.hook && !straight;
+            if (c.hook && !tradHook) {
+                bc = std::min(bc, 2);
+            }
+            if (bc >= 4) {
+                return 0;
+            }
             const int halfSpaces = std::min(int(std::floor(extensionOutsideStaff / 2.0)), 4);
-            int r = reductions[halfSpaces];
+            int r = reductions[bc][halfSpaces];
             if (intrinsic < 1) {
                 if (tradHook) {
                     r = std::min(r, 1);
                 }
-            } else if (tradHook) {
-                r = std::min(r, 1);
-            } else if (c.hook && hooksOf(c.durationType) > 2) {
-                r += 1;
+            } else {
+                if (bc == 1 && halfSpaces < 2) {
+                    r = 2;
+                } else if (bc == 3 && halfSpaces == 3) {
+                    r = 0;
+                }
+                if (tradHook) {
+                    r = std::min(r, 1);
+                } else if (c.hook && hooksOf(c.durationType) > 2) {
+                    r += 1;
+                }
             }
             return r;
         };
@@ -455,7 +492,7 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
                 ideal = std::max(ideal - maxReduction(std::abs(int(std::floor(endMag)) + shortStemStart)), shortestStem);
             } else if (end > middleLine) {
             } else {
-                ideal = std::max(ideal, shortestStem);   // no optical adjustment without beams
+                ideal = std::max(ideal - optical(end), shortestStem);
             }
         } else {
             const int end = downLine * qspl + defaultStem;
@@ -465,10 +502,25 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
                 ideal = std::max(ideal - maxReduction(std::abs(int(std::ceil(endMag)) - downShortStemStart)), shortestStem);
             } else if (end < middleLine) {
             } else {
-                ideal = std::max(ideal, shortestStem);
+                ideal = std::max(ideal - optical(end), shortestStem);
             }
         }
-        const int stemLength = std::max(ideal, 0);   // the minimum: tremolos and beams only
+        int stemLength = std::max(ideal, minStem);
+        if (beamCount == 4 && !c.hook) {
+            // StemLayout::calc4BeamsException
+            const int staffLines = (lines - 1) * 2;
+            int difference = 0;
+            if (c.up && top.line > staffLines) {
+                difference = top.line - staffLines;
+            } else if (!c.up && bottom.line < 0) {
+                difference = std::abs(bottom.line);
+            }
+            if (difference == 2) {
+                stemLength = std::max(stemLength, 21);
+            } else if (difference == 3 || difference == 4) {
+                stemLength = std::max(stemLength, 23);
+            }
+        }
         double length = chordHeight / 4.0 + stemLength / 4.0 * intrinsic;
         const NoteLayout& start = c.up ? bottom : top;
         const Object* startObj = ctx.obj(start.note);
@@ -507,7 +559,8 @@ void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords
             length += std::atof(user.c_str());
         }
         c.stemLength = length;
-        c.stemLengthKnown = c.hasStem;
+        c.defaultStemKnown = true;
+        c.stemLengthKnown = c.hasStem && !hasBeam;   // a beam moves a beamed stem's end (S7's beam stage)
     }
 }
 }

@@ -326,3 +326,29 @@ TEST(LayoutStems, StemLengthsReachTheMiddleLine)
     EXPECT_DOUBLE_EQ(chords[2].stemLength, 4.0);   // from line 12, 6 spaces down, to the middle line, 2 spaces down
     EXPECT_FALSE(chords[0].hook);
 }
+
+TEST(LayoutChords, VoicesASecondApartAreMovedSideBySide)
+{
+    Score s;
+    s.note(Fraction(0, 1), 74);                 // D5 in voice 1, stem up
+    s.noteInVoice(1, Fraction(0, 1), 72);       // C5 in voice 2, stem down, a second below
+    s.note(Fraction(1, 4), 79);                 // G5 and
+    s.noteInVoice(1, Fraction(1, 4), 64);       // E4: far apart, nothing moves
+    auto chords = s.layout();
+    const auto beams = layout::layoutBeams(*s.ctx, chords);
+    layout::layoutStemDirections(*s.ctx, chords, beams);
+    layout::layoutMirrors(*s.ctx, chords);
+    layout::layoutNotePositions(*s.ctx, chords);
+    layout::layoutStemLengths(*s.ctx, chords, beams);
+    layout::layoutChordOffsets(*s.ctx, chords);
+    ASSERT_EQ(chords.size(), 4u);
+    for (const auto& c : chords) {
+        EXPECT_TRUE(c.xKnown);
+    }
+    // MuseScore: the lower voice goes to the right, its stem against the upper voice's (a notehead less a stem)
+    EXPECT_NEAR(chords[0].x, 0.0, 1e-9);
+    EXPECT_GT(chords[1].x, 1.0);
+    EXPECT_LT(chords[1].x, 1.3);
+    EXPECT_NEAR(chords[2].x, 0.0, 1e-9);
+    EXPECT_NEAR(chords[3].x, 0.0, 1e-9);
+}

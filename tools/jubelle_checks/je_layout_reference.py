@@ -93,7 +93,7 @@ def main():
     kinds = Counter()
     examples = {}
     bad = Counter()
-    total = notes_compared = stems_compared = positions_compared = lengths_compared = 0
+    total = notes_compared = stems_compared = positions_compared = lengths_compared = offsets_compared = 0
     for rel in [l for l in open(lst, encoding='utf-8').read().splitlines() if l]:
         rp, jp = os.path.join(ref_out, rel + '.chords'), os.path.join(je_out, rel + '.chords')
         if not os.path.exists(rp) or not os.path.exists(jp):
@@ -127,6 +127,10 @@ def main():
                     lengths_compared += 1
                     if 'stem' not in rc or abs(float(rc['stem']) - float(jc['stem'])) > 0.002:
                         diff('stem length', f'{key}: MuseScore {rc.get("stem")}, engine {jc["stem"]}')
+                if laid_out and 'x' in jc:
+                    offsets_compared += 1
+                    if abs(float(rc.get('x', 0)) - float(jc['x'])) > 0.002:
+                        diff('chord offset', f'{key}: MuseScore {rc.get("x")}, engine {jc["x"]}')
                 if laid_out and 'up' in jc and rc.get('hook') != jc.get('hook'):
                     diff('flag', f'{key}: MuseScore {rc.get("hook")}, engine {jc.get("hook")}')
                 if laid_out and 'up' in jc:
@@ -161,7 +165,7 @@ def main():
     for k, n in kinds.most_common():
         print(f'{n:6}  {k}   e.g. {examples[k]}')
     unexplained = [rel for rel in bad if rel not in known]
-    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes, {stems_compared} stem directions, {lengths_compared} stem lengths and {positions_compared} note positions compared); '
+    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes, {stems_compared} stem directions, {lengths_compared} stem lengths, {offsets_compared} chord offsets and {positions_compared} note positions compared); '
           f'{len(bad) - len(unexplained)} known differences, **{len(unexplained)} others**')
     for rel, n in bad.most_common():
         print(f'   {n:5}  {rel}' + (f'  ({known[rel]})' if rel in known else '  UNEXPLAINED'))
