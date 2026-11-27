@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-only
 """Compares the Jubelle engine's chord shaping (je_io_tool chordshapes) with MuseScore's chord layout (the reference
 tool's Jubelle_Reference.ChordLayout, with JUBELLE_REALISTIC_METRICS=2), chord by chord: each note's staff line,
-notehead and accidental, which chords are beamed together and each chord's stem direction (S7's first shaping
+notehead and accidental, which chords are beamed together, each chord's stem direction and which noteheads are
+mirrored (S7's first shaping
 stages; positions follow as the engine places them).
 
     je_layout_reference.py <je_io_tool> <reference tool> <repository> <score list> <work folder> [--reuse-reference]
@@ -69,6 +70,8 @@ def parse(path, engine):
             for x in f[2:]:
                 if x.startswith('acc='):
                     n['acc'] = x[4:].split('@')[0]
+                elif x == 'mirror':
+                    n['mirror'] = True
             notes.append(n)
         info['notes'] = notes
         chords[key].append(info)
@@ -133,6 +136,8 @@ def main():
                         hu, hd = heads.split('/')
                         if rn['head'] != (hu if up else hd):
                             diff('notehead', f'{key}: MuseScore {rn["head"]}, engine {hu if up else hd}')
+                    if jc.get('mirror') != '?' and rn.get('mirror', False) != jn.get('mirror', False):
+                        diff('mirrored notehead', f'{key} line {rn["line"]}: MuseScore {rn.get("mirror", False)}, engine {jn.get("mirror", False)}')
                     if rn.get('acc') != jn.get('acc'):
                         diff('accidental', f'{key} line {rn["line"]}: MuseScore {rn.get("acc")}, engine {jn.get("acc")}')
         for key, jchords in j.items():

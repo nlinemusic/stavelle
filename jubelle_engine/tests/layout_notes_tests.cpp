@@ -10,6 +10,7 @@
 #include "edit/scorebuilder.h"
 #include "edit/structure.h"
 #include "layout/beams.h"
+#include "layout/chords.h"
 #include "layout/context.h"
 #include "layout/stems.h"
 #include "layout/notes.h"
@@ -100,6 +101,28 @@ struct Score {
         std::vector<bool> out;
         for (const auto& c : chords) {
             out.push_back(c.up);
+        }
+        return out;
+    }
+    void chord(const Fraction& t, const std::vector<int>& pitches, const Fraction& value = Fraction(1, 4))
+    {
+        Operations ops(m, ids);
+        Transaction tx(m, "Chord");
+        ops.enterChord(tx, voice, t, { value, 0 }, pitches);
+        tx.commit();
+    }
+    //! Each chord's notes as mirrored (true) or not, bottom up
+    std::vector<std::vector<bool> > mirrors()
+    {
+        auto chords = layout();
+        layout::layoutStemDirections(*ctx, chords, layout::layoutBeams(*ctx, chords));
+        layout::layoutMirrors(*ctx, chords);
+        std::vector<std::vector<bool> > out;
+        for (const auto& c : chords) {
+            out.emplace_back();
+            for (const auto& n : c.notes) {
+                out.back().push_back(n.mirror);
+            }
         }
         return out;
     }
@@ -252,4 +275,17 @@ TEST(LayoutStems, VoicesOneAndTwoGoUpAndDown)
     ASSERT_EQ(up.size(), 2u);
     EXPECT_TRUE(up[0]);
     EXPECT_FALSE(up[1]);
+}
+
+TEST(LayoutChords, ASecondPutsOneNoteheadOnTheOtherSideOfTheStem)
+{
+    Score s;
+    s.chord(Fraction(0, 1), { 60, 62 });       // C4 D4, stem up: D4 goes to the right
+    s.chord(Fraction(1, 4), { 81, 83 });       // A5 B5, stem down: A5 goes to the left
+    s.chord(Fraction(2, 4), { 60, 64, 65 });   // C4 E4 F4: only F4, a second above E4
+    const auto m = s.mirrors();
+    ASSERT_EQ(m.size(), 3u);
+    EXPECT_EQ(m[0], (std::vector<bool> { false, true }));
+    EXPECT_EQ(m[1], (std::vector<bool> { true, false }));
+    EXPECT_EQ(m[2], (std::vector<bool> { false, false, true }));
 }

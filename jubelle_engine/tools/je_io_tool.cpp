@@ -54,6 +54,7 @@
 #include "layout/context.h"
 #include "layout/beams.h"
 #include "layout/stems.h"
+#include "layout/chords.h"
 #include "layout/notes.h"
 
 namespace fs = std::filesystem;
@@ -1753,6 +1754,7 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         std::vector<layout::ChordLayout> chords = layout::layoutNotes(ctx);
         const std::vector<layout::Beam> beams = layout::layoutBeams(ctx, chords);
         layout::layoutStemDirections(ctx, chords, beams);
+        layout::layoutMirrors(ctx, chords);
         // Fraction::ticks: rounded to the nearest tick
         auto ticks = [](const Fraction& t) { return (t.numerator() * 1920 + t.denominator() / 2) / t.denominator(); };
         std::map<Id, std::string> beamOf;
@@ -1769,6 +1771,9 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
             if (c.upKnown) {
                 o << " up=" << (c.up ? 1 : 0);
             }
+            if (!c.upKnown || !c.mirrorKnown) {
+                o << " mirror=?";
+            }
             if (const auto it = beamOf.find(c.chord); it != beamOf.end() && !c.stemless) {   // ChordRest::beam: none shown in a stemless measure
                 o << " beam=" << it->second;
             }
@@ -1777,6 +1782,9 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
                   << (n.headKnown ? "" : "?");
                 if (n.accidental != style::SymId::noSym) {
                     o << " acc=" << style::SYMBOL_CODES[int(n.accidental)].name;
+                }
+                if (n.mirror && c.upKnown && c.mirrorKnown) {
+                    o << " mirror";
                 }
             }
             o << "\n";
