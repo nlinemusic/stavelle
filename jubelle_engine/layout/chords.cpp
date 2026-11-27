@@ -13,12 +13,14 @@
 #include <map>
 #include <set>
 #include <string>
+#include <tuple>
 
 #include "model/fields.h"
 #include "model/fragment.h"
 
 namespace je::layout {
 namespace F = model::fields;
+using model::Kind;
 using model::Object;
 
 namespace {
@@ -202,6 +204,7 @@ void layoutNotePositions(const ScoreContext& ctx, std::vector<ChordLayout>& chor
         } else {
             stemX = ax / unit - (c.up ? bodyWidth(ref) - noteHeadWidth : 0.0);
         }
+        c.stemX = stemX / staffMag;
         // the stem's width overlaps a mirrored notehead (none without a stem, but for a whole note's)
         const std::string noStem = valueOf(co, "noStem");
         const bool hasStem = c.durationType >= 3 && c.durationType <= 12 && noStem != "1" && !c.stemless;
@@ -744,5 +747,438 @@ struct Offsets {
 void layoutChordOffsets(const ScoreContext& ctx, std::vector<ChordLayout>& chords)
 {
     Offsets(ctx).run(chords);
+}
+}
+
+namespace je::layout {
+namespace {
+struct Dots {
+    const ScoreContext& ctx;
+    const style::Style& st;
+    const style::MusicFont& font;
+    const double unit;
+    std::map<std::tuple<Fraction, int, int>, ChordLayout*> mainAt;   // (time, staff, voice)
+
+    explicit Dots(const ScoreContext& c)
+        : ctx(c), st(c.style()), font(c.font()), unit(style::Style::def(Sid::spatium).a)
+    {
+    }
+
+    struct N {
+        NoteLayout* note;
+        ChordLayout* chord;
+        int dotPosition = 0;   // MuseScore's DirectionV: 0 auto, 1 up, 2 down
+    };
+
+    bool combines(const ChordLayout& c) const
+    {
+        const std::string v = valueOf(ctx.obj(c.chord), "combineVoice");
+        return v == "on" || v == "1" || ((v.empty() || v == "auto") && st.boolean(Sid::combineVoice));
+    }
+    bool visible(const NoteLayout& n) const
+    {
+        const std::string v = valueOf(ctx.obj(n.note), "visible");
+        return !(v == "0" || v == "false");
+    }
+    bool small(const Object* o) const
+    {
+        const std::string v = valueOf(o, "small");
+        return v == "1" || v == "true";
+    }
+
+    //! Whether voices 2–4 of the staff have anything at all in [t, t + len) of the measure (hasVoices, invisible too)
+    bool anyOtherVoice(int staff, const Fraction& t, const Fraction& len) const
+    {
+        const auto& ms = ctx.measures();
+        auto it = std::upper_bound(ms.begin(), ms.end(), t, [](const Fraction& x, const MeasureInfo& m) { return x < m.start; });
+        if (it == ms.begin()) {
+            return false;
+        }
+        const MeasureInfo& m = *std::prev(it);
+        const StaffInfo& si = ctx.staves()[size_t(staff)];
+        for (int vn = 1; vn < 4; ++vn) {
+            const Object* voice = ctx.obj(si.voices[size_t(vn)]);
+            if (!voice) {
+                continue;
+            }
+            for (Id e : voice->children()) {
+                const Object* ev = ctx.obj(e);
+                if (!ev || (ev->kind() != Kind::Chord && ev->kind() != Kind::Rest) || ev->has(F::GRACE)) {
+                    continue;
+                }
+                const Fraction et = ev->fractionOr(F::TIME, Fraction());
+                if (et < m.start || et >= m.end() || et >= t + len) {
+                    continue;
+                }
+                if (et + ev->fractionOr(F::DURATION, Fraction()) > t) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    //! getNoteListForDots: the notes on lines whose dots go up (top down) or down (bottom up), and the dots' fixed spaces
+    void noteLists(ChordLayout& c, std::vector<NoteLayout*>& topDown, std::vector<NoteLayout*>& bottomUp, std::vector<int>& anchored) const
+    {
+        const Object* co = ctx.obj(c.chord);
+        const int vStaff = c.shownStaff;
+        const bool voices = anyOtherVoice(vStaff, c.tick, co->fractionOr(F::DURATION, Fraction()));
+        const StaffInfo& si = ctx.staves()[size_t(c.staff)];
+        const int partTop = si.partStaves.empty() ? c.staff : si.partStaves.front();
+        const int partBottom = si.partStaves.empty() ? c.staff + 1 : si.partStaves.back() + 1;   // endTrack / VOICES
+        int startTrack = c.staff * 4;
+        int lastTrack = std::min(vStaff + 2, partBottom) * 4;
+        bool upperCross = false, lowerCross = false;
+        auto chordAt = [&](int track) -> ChordLayout* {
+            auto it = mainAt.find({ c.tick, track / 4, track % 4 });
+            return it == mainAt.end() ? nullptr : it->second;
+        };
+        if (partTop != vStaff) {
+            for (int i = partTop * 4; i < (partTop + 1) * 4; ++i) {
+                if (ChordLayout* vc = chordAt(i); vc && vc->shownStaff == vStaff) {
+                    upperCross = true;
+                    startTrack = i;
+                    break;
+                }
+            }
+        }
+        if (partBottom != vStaff) {
+            for (int i = (vStaff + 1) * 4; i < lastTrack; ++i) {
+                if (ChordLayout* vc = chordAt(i); vc && vc->shownStaff == vStaff) {
+                    lowerCross = true;
+                    break;
+                }
+            }
+        }
+        if (!voices && !(upperCross || lowerCross)) {
+            for (NoteLayout& n : c.notes) {
+                if (n.line & 1) {
+                    int offset = 0;
+                    const bool adjustDown = (c.voice & 1) && !c.up;
+                    if (!anchored.empty() && anchored.back() == n.line) {
+                        if (anchored.size() >= 2 && anchored[anchored.size() - 2] == n.line + (adjustDown ? 2 : -2)) {
+                            offset = adjustDown ? -2 : 2;
+                        } else {
+                            offset = adjustDown ? 2 : -2;
+                        }
+                    }
+                    anchored.push_back(n.line + offset);
+                } else {
+                    topDown.push_back(&n);
+                }
+            }
+        } else {
+            lastTrack = lowerCross ? lastTrack : (vStaff + 1) * 4;
+            for (int i = startTrack; i < lastTrack; ++i) {
+                ChordLayout* vc = chordAt(i);
+                if (!vc || vc->shownStaff != vStaff) {
+                    continue;
+                }
+                const int move = int(ctx.obj(vc->chord)->intOr(F::STAFF_MOVE, 0));
+                const bool fromTop = !((vc->voice & 1) && !vc->up) && move != -1;
+                for (NoteLayout& n : vc->notes) {
+                    if (n.line & 1) {
+                        anchored.push_back(n.line);
+                    } else {
+                        (fromTop ? topDown : bottomUp).push_back(&n);
+                    }
+                }
+            }
+        }
+        std::sort(topDown.begin(), topDown.end(), [](const NoteLayout* a, const NoteLayout* b) { return a->line < b->line; });
+        std::sort(bottomUp.begin(), bottomUp.end(), [](const NoteLayout* a, const NoteLayout* b) { return a->line > b->line; });
+    }
+
+    void segment(std::vector<ChordLayout*>& list) const
+    {
+        for (ChordLayout* c : list) {
+            for (NoteLayout& n : c->notes) {
+                n.dotKnown = false;
+            }
+            if (!c->xKnown) {
+                return;
+            }
+            for (const NoteLayout& n : c->notes) {
+                if (valueOf(ctx.obj(n.note), "NoteDot").find("<visible>0") != std::string::npos) {
+                    return;   // invisible dots are laid out apart (not yet)
+                }
+            }
+        }
+        const int staff = list.front()->shownStaff;
+        const double staffMag = ctx.staffMag(staff, list.front()->tick);
+        const StaffTypeInfo& type = ctx.staffType(staff, list.front()->tick);
+        // the notes as applyChordOffsets passes them: stems up, then down, each sorted when it has several voices
+        std::vector<N> up, down;
+        int upVoices = 0, downVoices = 0;
+        for (ChordLayout* c : list) {
+            ++(c->up ? upVoices : downVoices);
+            for (NoteLayout& n : c->notes) {
+                (c->up ? up : down).push_back({ &n, c });
+            }
+        }
+        auto byLine = [](const N& a, const N& b) { return a.note->line > b.note->line; };
+        if (upVoices > 1) {
+            std::sort(up.begin(), up.end(), byLine);
+        }
+        if (downVoices > 1) {
+            std::sort(down.begin(), down.end(), byLine);
+        }
+        std::vector<N> notes = up;
+        notes.insert(notes.end(), down.begin(), down.end());
+        if (upVoices + downVoices > 1) {
+            std::sort(notes.begin(), notes.end(), byLine);
+        }
+        // layoutChords3: each note's dot direction
+        const int nNotes = int(notes.size());
+        for (int i = nNotes - 1; i >= 0; --i) {
+            N& n = notes[size_t(i)];
+            const std::string user = valueOf(ctx.obj(n.note->note), "dotPosition");
+            int pos = user == "up" ? 1 : user == "down" ? 2 : 0;
+            if (n.chord->dots && pos == 0 && nNotes > 1 && visible(*n.note)) {
+                const int line = n.note->line;
+                N* above = i < nNotes - 1 ? &notes[size_t(i + 1)] : nullptr;
+                if (above && (!visible(*above->note) || above->chord->dots == 0 || !(combines(*n.chord) && combines(*above->chord)))) {
+                    above = nullptr;
+                }
+                const int intervalAbove = above ? line - above->note->line : 1000;
+                N* below = i > 0 ? &notes[size_t(i - 1)] : nullptr;
+                if (below && (!visible(*below->note) || below->chord->dots == 0 || !(combines(*n.chord) && combines(*below->chord)))) {
+                    below = nullptr;
+                }
+                const int intervalBelow = below ? below->note->line - line : 1000;
+                if ((line & 1) == 0) {
+                    if (intervalAbove == 1 && intervalBelow != 1) {
+                        pos = 2;
+                    } else if (intervalBelow == 1 && intervalAbove != 1) {
+                        pos = 1;
+                    } else if (intervalAbove == 0 || intervalBelow == 0) {
+                        pos = 0;
+                    }
+                } else if (intervalAbove == 0 && above->chord->dots) {
+                    if (!(n.chord->voice & 1)) {
+                        pos = 1;
+                    } else if (!(above->chord->voice & 1)) {
+                        above->dotPosition = 1;
+                    } else {
+                        pos = 2;
+                    }
+                }
+            }
+            if (pos == 0) {
+                pos = (n.chord->voice & 1) ? 2 : 1;
+            }
+            n.dotPosition = pos;
+        }
+        std::map<const NoteLayout*, int> dotPos;
+        for (const N& n : notes) {
+            dotPos[n.note] = n.dotPosition;
+        }
+        // placeDots
+        ChordLayout* dotted = nullptr;
+        for (ChordLayout* c : list) {
+            if (c->dots > 0) {
+                dotted = c;
+                break;
+            }
+            for (NoteLayout& n : c->notes) {
+                n.dotLine = 0;
+            }
+        }
+        if (dotted) {
+            std::vector<NoteLayout*> topDown, bottomUp;
+            std::vector<int> anchored;
+            noteLists(*dotted, topDown, bottomUp, anchored);
+            for (N& n : notes) {
+                NoteLayout& note = *n.note;
+                if (!(note.line & 1)) {
+                    std::map<int, NoteLayout*> added;
+                    bool finished = false;
+                    for (NoteLayout* other : bottomUp) {
+                        if (visible(*other) != visible(note)) {
+                            continue;
+                        }
+                        int move = dotPos[other] == 1 ? -1 : 1;
+                        const int loc = other->line + move;
+                        const bool was = added.count(loc);
+                        if (!was && std::find(anchored.begin(), anchored.end(), loc) != anchored.end()) {
+                            move = -move;
+                        } else if (was && added[loc] != other) {
+                            move = -move;
+                        }
+                        if (&note == other) {
+                            note.dotLine = move;
+                            finished = true;
+                            anchored.push_back(note.line + move);
+                            added[other->line + move] = other;
+                            break;
+                        }
+                    }
+                    if (!finished) {
+                        added.clear();
+                        for (NoteLayout* other : topDown) {
+                            if (visible(*other) != visible(note)) {
+                                continue;
+                            }
+                            int move = dotPos[other] == 2 ? 1 : -1;
+                            const int loc = other->line + move;
+                            const bool was = added.count(loc);
+                            if (!was && std::find(anchored.begin(), anchored.end(), loc) != anchored.end()) {
+                                move = -move;
+                            } else if (was && added[loc] != other) {
+                                move = -move;
+                            }
+                            if (&note == other) {
+                                note.dotLine = move;
+                                finished = true;
+                                anchored.push_back(note.line + move);
+                                break;
+                            }
+                            if (!was) {
+                                added[other->line + move] = other;
+                            }
+                        }
+                    }
+                    if (!finished) {
+                        note.dotLine = 0;
+                    }
+                } else {
+                    for (const NoteLayout& other : n.chord->notes) {
+                        if (&note == &other) {
+                            note.dotLine = 0;
+                            break;
+                        }
+                        if (note.line == other.line) {
+                            const bool adjustDown = (n.chord->voice & 1) && !n.chord->up;
+                            note.dotLine = adjustDown ? 2 : -2;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        // the chords' dot positions (layoutChords3), in the score's spaces
+        double upDotPosX = 0.0, downDotPosX = 0.0;
+        std::map<int, double> trackDotPos;   // MuseScore's dotPos, by staff and voice
+        std::map<ChordLayout*, double> own;
+        for (ChordLayout* c : list) {
+            double minDotPosX = 0.0;
+            for (const NoteLayout& n : c->notes) {
+                const double m = small(ctx.obj(n.note)) ? c->mag * st.value(Sid::smallNoteMag) : c->mag;
+                const style::RectF b = font.bbox(c->up ? n.headUp : n.headDown, m);
+                const double body = (b.width() + 2 * b.left()) / unit;
+                const double dotX = n.x * staffMag + body + c->x * staffMag;
+                if (c->dots) {
+                    const int idx = (c->staff - staff + 1) * 4 + c->voice;
+                    trackDotPos[idx] = std::max(trackDotPos[idx], dotX);
+                }
+                minDotPosX = std::max(minDotPosX, dotX);
+            }
+            own[c] = minDotPosX;
+            if (c->dots) {
+                (c->up ? upDotPosX : downDotPosX) = std::max(c->up ? upDotPosX : downDotPosX, minDotPosX);
+            }
+        }
+        // setDotX
+        std::set<int> combineConflicts, separateConflicts;
+        auto track = [](const ChordLayout* c) { return c->staff * 4 + c->voice; };
+        for (ChordLayout* a : list) {
+            for (ChordLayout* b : list) {
+                if (a == b) {
+                    continue;
+                }
+                const int aUp = a->notes.back().line, aDown = a->notes.front().line;   // upNote, downNote lines
+                const int bUp = b->notes.back().line, bDown = b->notes.front().line;
+                const bool both = combines(*a) && combines(*b);
+                if (((a->up && !b->up && bUp - aDown < 2) || (!a->up && b->up && aUp - bDown < 2)) && both) {
+                    combineConflicts.insert(track(a));
+                    combineConflicts.insert(track(b));
+                } else if (((a->up && b->up && aUp - bDown < 2) || (!a->up && !b->up && aUp - bDown < 2)) && !both) {
+                    separateConflicts.insert(track(a));
+                    separateConflicts.insert(track(b));
+                }
+            }
+        }
+        const double maxPosX = std::max(upDotPosX, downDotPosX);
+        std::map<ChordLayout*, double> dotPosX;
+        for (ChordLayout* c : list) {
+            const int idx = (c->staff - staff + 1) * 4 + c->voice;
+            const double mine = trackDotPos.count(idx) ? trackDotPos[idx] : 0.0;
+            double x;
+            if (!combineConflicts.empty()) {
+                x = combineConflicts.count(track(c)) ? maxPosX : (combines(*c) ? maxPosX : mine);
+            } else if (combines(*c)) {
+                x = separateConflicts.count(track(c)) ? mine : (c->up ? upDotPosX : downDotPosX);
+            } else {
+                x = mine;
+            }
+            dotPosX[c] = x;
+        }
+        // layoutNote2: each dot from its note
+        const double sp = staffMag;
+        for (ChordLayout* c : list) {
+            if (!c->dots) {
+                continue;
+            }
+            const double chordX = c->x * staffMag;
+            double hookRight = 0.0, hookBottom = 0.0;
+            const bool hookCheck = c->up && c->hook;
+            if (hookCheck) {
+                if (!c->stemLengthKnown) {
+                    continue;   // the flag's place isn't known
+                }
+                const style::RectF hb = font.bbox(c->hookSym, c->mag);
+                const double hookX = c->stemX * staffMag - st.value(Sid::stemWidth) * c->mag;
+                const NoteLayout& start = c->notes.front();
+                const double startY = (start.line + type.stepOffset) * 0.5 * type.lineDistance * staffMag;
+                const double hookY = startY - c->stemLength * staffMag;
+                hookRight = hb.width() / unit + hookX + chordX;
+                hookBottom = hb.height() / unit + hookY + 0.25 * sp;
+            }
+            for (NoteLayout& n : c->notes) {
+                const bool many = c->notes.size() > 1;
+                const double nm = small(ctx.obj(n.note)) ? c->mag * st.value(Sid::smallNoteMag) : c->mag;
+                const double correctMag = many ? c->mag : nm;
+                double d = st.value(Sid::dotNoteDistance) * correctMag;
+                double x = dotPosX[c] - n.x * staffMag - chordX;
+                if (nm != c->mag && many) {
+                    const double rel = nm / c->mag;
+                    x += font.width(SymId::augmentationDot, nm) / unit * (1 / rel - 1) / 2;
+                }
+                if (hookCheck) {
+                    const NoteLayout& top = c->notes.back();
+                    const double dotY = top.y * staffMag + top.dotLine / 2.0 * sp * type.lineDistance;
+                    if (dotPosX[c] < hookRight && dotY < hookBottom) {
+                        d = font.width(c->hookSym, c->mag) / unit;
+                    }
+                }
+                n.dotX = (x + d) / staffMag;
+                n.dotKnown = true;
+            }
+        }
+    }
+
+    void run(std::vector<ChordLayout>& chords)
+    {
+        std::map<std::pair<Fraction, int>, std::vector<ChordLayout*> > segments;
+        for (ChordLayout& c : chords) {
+            if (c.kind == 'C') {
+                segments[{ c.tick, c.shownStaff }].push_back(&c);
+                mainAt[{ c.tick, c.staff, c.voice }] = &c;
+            }
+        }
+        for (auto& [key, list] : segments) {
+            std::stable_sort(list.begin(), list.end(), [](const ChordLayout* a, const ChordLayout* b) {
+                return a->staff * 4 + a->voice < b->staff * 4 + b->voice;
+            });
+            segment(list);
+        }
+    }
+};
+}
+
+void layoutDots(const ScoreContext& ctx, std::vector<ChordLayout>& chords)
+{
+    Dots(ctx).run(chords);
 }
 }

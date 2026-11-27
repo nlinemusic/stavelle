@@ -25,6 +25,9 @@ struct NoteLayout {
     bool courtesy = false;  // shown only as a Jubelle courtesy accidental
     bool mirror = false;    // on the other side of the stem (layoutMirrors)
     double x = 0.0, y = 0.0; // its place in the chord, in its staff's spaces, with the user's offset (layoutNotePositions)
+    int dotLine = 0;         // (layoutDots) its dots' line relative to its own (-1 the space above, 1 below)
+    double dotX = 0.0;       // its first dot's x from the note, in its staff's spaces
+    bool dotKnown = false;
 };
 
 struct ChordLayout {
@@ -45,6 +48,7 @@ struct ChordLayout {
     bool upKnown = true;     // false where the direction depends on positions not worked out yet
     bool mirrorKnown = true; // false where a chord shown with it has a direction not known yet
     double mag = 1.0;        // its size (Chord::mag: the staff's, small and grace notes')
+    double stemX = 0.0;      // (layoutNotePositions) StemLayout::stemPosX, in its staff's spaces
     bool hasStem = false;    // (layoutStemLengths) Chord::shouldHaveStem
     bool beamed = false;     // in a beam (ChordRest::beam: none in a stemless measure)
     bool hook = false;       // a flag on the stem (not beamed)

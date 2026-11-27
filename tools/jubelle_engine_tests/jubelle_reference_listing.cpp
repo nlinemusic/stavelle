@@ -1567,7 +1567,7 @@ void chordLayout(std::ostream& o, Chord* c, const std::string& kind)
             o << " acc=" << SymNames::nameForSymId(a->symId()).ascii() << "@" << sp(a->pos().x(), s);
         }
         if (!n->dots().empty()) {
-            o << " dot=" << sp(n->dots().front()->pos().x(), s);
+            o << " dot=" << sp(n->dots().front()->pos().x(), s) << " doty=" << sp(n->dots().front()->pos().y(), s);
         }
     }
     o << "\n";

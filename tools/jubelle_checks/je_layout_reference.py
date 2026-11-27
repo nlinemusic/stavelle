@@ -70,6 +70,10 @@ def parse(path, engine):
             for x in f[2:]:
                 if x.startswith('acc='):
                     n['acc'] = x[4:].split('@')[0]
+                elif x.startswith('dot='):
+                    n['dot'] = float(x[4:])
+                elif x.startswith('doty='):
+                    n['doty'] = float(x[5:])
                 elif x == 'mirror':
                     n['mirror'] = True
                 elif x.startswith('x=') or x.startswith('y='):
@@ -93,7 +97,7 @@ def main():
     kinds = Counter()
     examples = {}
     bad = Counter()
-    total = notes_compared = stems_compared = positions_compared = lengths_compared = offsets_compared = 0
+    total = notes_compared = stems_compared = positions_compared = lengths_compared = offsets_compared = dots_compared = 0
     for rel in [l for l in open(lst, encoding='utf-8').read().splitlines() if l]:
         rp, jp = os.path.join(ref_out, rel + '.chords'), os.path.join(je_out, rel + '.chords')
         if not os.path.exists(rp) or not os.path.exists(jp):
@@ -156,6 +160,12 @@ def main():
                             positions_compared += 1
                             if abs(rn[axis] - jn[axis]) > 0.002:
                                 diff(f'note {axis}', f'{key} line {rn["line"]}: MuseScore {rn[axis]}, engine {jn[axis]}')
+                    if 'dot' in jn:
+                        dots_compared += 1
+                        if 'dot' not in rn or abs(rn['dot'] - jn['dot']) > 0.002:
+                            diff('dot', f'{key} line {rn["line"]}: MuseScore {rn.get("dot")}, engine {jn["dot"]}')
+                        elif 'doty' in rn and abs(rn['doty'] - jn['doty']) > 0.002:
+                            diff('dot line', f'{key} line {rn["line"]}: MuseScore {rn["doty"]}, engine {jn["doty"]}')
                     if rn.get('acc') != jn.get('acc'):
                         diff('accidental', f'{key} line {rn["line"]}: MuseScore {rn.get("acc")}, engine {jn.get("acc")}')
         for key, jchords in j.items():
@@ -165,7 +175,7 @@ def main():
     for k, n in kinds.most_common():
         print(f'{n:6}  {k}   e.g. {examples[k]}')
     unexplained = [rel for rel in bad if rel not in known]
-    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes, {stems_compared} stem directions, {lengths_compared} stem lengths, {offsets_compared} chord offsets and {positions_compared} note positions compared); '
+    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes, {stems_compared} stem directions, {lengths_compared} stem lengths, {offsets_compared} chord offsets, {dots_compared} dots and {positions_compared} note positions compared); '
           f'{len(bad) - len(unexplained)} known differences, **{len(unexplained)} others**')
     for rel, n in bad.most_common():
         print(f'   {n:5}  {rel}' + (f'  ({known[rel]})' if rel in known else '  UNEXPLAINED'))

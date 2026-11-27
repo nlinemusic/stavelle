@@ -26,4 +26,8 @@ void layoutNotePositions(const ScoreContext& ctx, std::vector<ChordLayout>& chor
 //! collide, and centred where their noteheads are wider or narrower than a black one (centreChords,
 //! calculateChordOffsets, applyChordOffsets); after layoutStemLengths
 void layoutChordOffsets(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
+
+//! Sets each dotted note's dot line and dot x (layoutChords3's dot positions, placeDots, setDotX and layoutNote2's dots:
+//! dots of voices at one time kept apart, aligned where voices are combined, clear of a flag); after layoutChordOffsets
+void layoutDots(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
 }

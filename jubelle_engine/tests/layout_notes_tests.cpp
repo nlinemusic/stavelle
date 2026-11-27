@@ -352,3 +352,32 @@ TEST(LayoutChords, VoicesASecondApartAreMovedSideBySide)
     EXPECT_NEAR(chords[2].x, 0.0, 1e-9);
     EXPECT_NEAR(chords[3].x, 0.0, 1e-9);
 }
+
+TEST(LayoutChords, DotsGoInTheSpaceBesideTheNotehead)
+{
+    Score s;
+    {
+        Operations ops(s.m, s.ids);
+        Transaction tx(s.m, "Dotted");
+        ops.enterChord(tx, s.voice, Fraction(0, 1), { Fraction(1, 4), 1 }, { 72 });   // C5, in a space: the dot beside it
+        ops.enterChord(tx, s.voice, Fraction(3, 8), { Fraction(1, 4), 1 }, { 71 });   // B4, on a line: the dot in the space above
+        tx.commit();
+    }
+    auto chords = s.layout();
+    const auto beams = layout::layoutBeams(*s.ctx, chords);
+    layout::layoutStemDirections(*s.ctx, chords, beams);
+    layout::layoutMirrors(*s.ctx, chords);
+    layout::layoutNotePositions(*s.ctx, chords);
+    layout::layoutStemLengths(*s.ctx, chords, beams);
+    layout::layoutChordOffsets(*s.ctx, chords);
+    layout::layoutDots(*s.ctx, chords);
+    ASSERT_GE(chords.size(), 2u);
+    const auto& c5 = chords[0].notes[0];
+    const auto& b4 = chords[1].notes[0];
+    ASSERT_TRUE(c5.dotKnown);
+    ASSERT_TRUE(b4.dotKnown);
+    EXPECT_EQ(c5.dotLine, 0);
+    EXPECT_EQ(b4.dotLine, -1);
+    EXPECT_GT(c5.dotX, 1.5);   // past the notehead by the dot distance
+    EXPECT_LT(c5.dotX, 2.0);
+}
