@@ -7,7 +7,7 @@ change of direction is recorded here (and in detail in `jubelle_engine/docs/`) i
 |---|---|
 | Last updated | 27 Nov 2026 |
 | Goal | **A complete, independent Jubelle engine** (D-E22): MuseScore's engine isn't responsible for editing, playback, audio, drawing, layout or files in the finished app |
-| Current work | **S7 layout** (style, fonts and the first chord shaping stages done: notes, beams, stems, mirroring, note positions; voice offsets next), then S8 drawing, with S5 playback and S6 audio alongside (S1 model, S2 file handling, S3 editing and S4 undo, autosave and crash recovery done; follow-ups listed in §15) |
+| Current work | **S7 layout** (style, fonts and the first chord shaping stages done: notes, beams, stems and flags, mirroring, note positions; voice offsets next), then S8 drawing, with S5 playback and S6 audio alongside (S1 model, S2 file handling, S3 editing and S4 undo, autosave and crash recovery done; follow-ups listed in §15) |
 | Next testing release | **only when the complete engine passes the gates on Windows and macOS** (`docs/14_full_engine_roadmap.md` §5); a long timeline is accepted |
 | Branch | `engine/next` (development area: `jubelle_engine/`) |
 | Stable release | **Jubelle v4.7.7.261118230**, https://github.com/nlinemusic/stavelle/releases/tag/v4.7.7.261118230 |
@@ -270,6 +270,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
 | 27 Nov 2026 | **S7 stem directions** (`layout/stems`, ported from MuseScore's `ChordLayout::computeUp`, the beam direction of `BeamLayout::layout1`, `Measure::hasVoices` and `Chord::noteDistances`): a chord's own direction, its beam's (set on the beam, by moved chords, by the voices, or from the beam's distinct note lines), voices 1 and 3 up and 2 and 4 down where other voices show something, grace notes up, chords moved to another staff, otherwise the notes' balance around the middle line, with **staff type changes** (a 14-line staff from bar 11: its own middle line). **Against MuseScore's layout: 55,980 stem directions compared, every one the same** (2,101 of 2,118 scores, the same 17 known as above). Not yet known, and so not compared: cross-staff beams, beams placed by hand and two-note tremolos (974 chords), which need positions. 175 tests |
 | 27 Nov 2026 | **S7 mirrored noteheads** (`layout/chords`, ported from MuseScore's `layoutChords1` and `layoutChords2`): which noteheads go on the other side of the stem, for seconds within a chord and between voices whose stems go the same way (with the combine-voice setting), grace chords on their own, and the user's choice per note. **Against MuseScore's layout: every mirrored notehead the same** on the 2,101 scores (where a chord at the same time has a direction not known yet, its neighbours' are not compared either). 176 tests |
 | 27 Nov 2026 | **S7 note positions within a chord** (`layoutNotePositions`, MuseScore's `layoutChords3`, `StemLayout::stemPosX`, `Note::headBodyWidth`, `Chord::mag`): each note's x by its side of the stem (the font's stem anchors and notehead widths, the stem's width over a mirrored head) and y by its line, staff type (line distance, step offset) and the user's offset, for small staves, small and grace notes. **Against MuseScore's layout: 127,585 note positions compared, every one within 0.002 spaces.** Not compared yet: chords whose noteheads aren't known yet (shape and pitch-name schemes), and chord offsets between voices (next). 177 tests |
+| 27 Nov 2026 | **S7 stems and flags** (`layoutStemLengths`, MuseScore's `StemLayout::calcDefaultStemLength`, `maxReduction`, `minStaffOverlap`, `Hook::symIdForHookIndex`): which chords have a stem and a flag (traditional or straight), and the length of every stem no beam decides: shortened outside the staff, lengthened to the middle line, for small and grace notes, other line distances and the user's length. **Against MuseScore's layout: 41,748 stem lengths compared, all within 0.002 spaces; every flag the same.** Not yet: beamed stems (the beam's position decides them) and one-chord tremolos (their minimum length). 178 tests |
 
 ## 15. Outstanding work
 - **S2** follow-ups: part-only content (texts and positions that exist only in a part); the 9 reference differences
@@ -282,7 +283,7 @@ MuseScore's engine from the app → full testing on Windows and macOS → the fi
   to S10.
 - **S7 layout** (now): style values, music fonts and what each note shows (lines, noteheads, accidentals) done
   (§14), beam grouping, stem directions, mirrored noteheads and note positions in a chord. Next, against MuseScore's
-  positions (the reference tool's chord layout listing): voice offsets, accidental and dot placement, stem lengths. Not yet in
+  positions (the reference tool's chord layout listing): voice offsets, accidental and dot placement, beams' positions (and their stems). Not yet in
   the notes stage: drum staves (the drum set's lines and noteheads), tablature (fretting is in `edit/tablature`),
   shape-note and pitch-name notehead schemes, ornaments' notes (an ornament's accidental restating its line), an
   instrument change between a drum set and a pitched instrument.

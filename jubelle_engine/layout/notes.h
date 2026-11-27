@@ -45,6 +45,11 @@ struct ChordLayout {
     bool upKnown = true;     // false where the direction depends on positions not worked out yet
     bool mirrorKnown = true; // false where a chord shown with it has a direction not known yet
     double mag = 1.0;        // its size (Chord::mag: the staff's, small and grace notes')
+    bool hasStem = false;    // (layoutStemLengths) Chord::shouldHaveStem
+    bool hook = false;       // a flag on the stem (not beamed)
+    SymId hookSym = SymId::noSym;   // its symbol (Hook::symIdForHookIndex)
+    double stemLength = 0.0; // in its staff's spaces, the user's length added
+    bool stemLengthKnown = false;   // false for beamed chords (their beam sets it) and what isn't ported yet
     bool stemless = false;   // in a stemless measure of its staff: no stem, and no beam shown (ChordRest::beam)
     std::vector<NoteLayout> notes;   // in MuseScore's order (Chord::sortNotes: from the bottom)
 };

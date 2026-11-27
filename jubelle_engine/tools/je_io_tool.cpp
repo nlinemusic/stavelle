@@ -1756,6 +1756,7 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         layout::layoutStemDirections(ctx, chords, beams);
         layout::layoutMirrors(ctx, chords);
         layout::layoutNotePositions(ctx, chords);
+        layout::layoutStemLengths(ctx, chords, beams);
         // Fraction::ticks: rounded to the nearest tick
         auto ticks = [](const Fraction& t) { return (t.numerator() * 1920 + t.denominator() / 2) / t.denominator(); };
         std::map<Id, std::string> beamOf;
@@ -1774,6 +1775,14 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
             }
             if (!c.upKnown || !c.mirrorKnown) {
                 o << " mirror=?";
+            }
+            if (c.hook && c.upKnown) {
+                o << " hook=" << style::SYMBOL_CODES[int(c.hookSym)].name;
+            }
+            if (c.stemLengthKnown) {
+                char sl[32];
+                std::snprintf(sl, sizeof(sl), " stem=%.3f", c.stemLength);
+                o << sl;
             }
             if (const auto it = beamOf.find(c.chord); it != beamOf.end() && !c.stemless) {   // ChordRest::beam: none shown in a stemless measure
                 o << " beam=" << it->second;

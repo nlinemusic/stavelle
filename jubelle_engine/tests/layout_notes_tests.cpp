@@ -307,3 +307,22 @@ TEST(LayoutChords, NotesArePlacedByTheirLineAndSideOfTheStem)
     EXPECT_GT(n[1].x, 1.0);           // past the stem: about a notehead's width, less the stem's
     EXPECT_LT(n[1].x, 1.4);
 }
+
+TEST(LayoutStems, StemLengthsReachTheMiddleLine)
+{
+    Score s;
+    s.note(Fraction(0, 1), 64);   // E4, stem up inside the staff: the standard 3.5 spaces
+    s.note(Fraction(1, 4), 72);   // C5, stem down ending just below the staff: shortened by a quarter space
+    s.note(Fraction(2, 4), 57);   // A3, two ledger lines below, stem up: lengthened to the middle line
+    auto chords = s.layout();
+    const auto beams = layout::layoutBeams(*s.ctx, chords);
+    layout::layoutStemDirections(*s.ctx, chords, beams);
+    layout::layoutMirrors(*s.ctx, chords);
+    layout::layoutNotePositions(*s.ctx, chords);
+    layout::layoutStemLengths(*s.ctx, chords, beams);
+    ASSERT_EQ(chords.size(), 3u);
+    EXPECT_DOUBLE_EQ(chords[0].stemLength, 3.5);
+    EXPECT_DOUBLE_EQ(chords[1].stemLength, 3.25);
+    EXPECT_DOUBLE_EQ(chords[2].stemLength, 4.0);   // from line 12, 6 spaces down, to the middle line, 2 spaces down
+    EXPECT_FALSE(chords[0].hook);
+}

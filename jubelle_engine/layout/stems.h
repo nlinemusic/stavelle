@@ -19,4 +19,8 @@
 namespace je::layout {
 //! Sets each chord's `up` (and `upKnown`); `beams` from layoutBeams on the same chords
 void layoutStemDirections(const ScoreContext& ctx, std::vector<ChordLayout>& chords, const std::vector<Beam>& beams);
+
+//! Sets each chord's stem, flag and, where no beam decides it, stem length (StemLayout::calcDefaultStemLength);
+//! after layoutNotePositions
+void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords, const std::vector<Beam>& beams);
 }

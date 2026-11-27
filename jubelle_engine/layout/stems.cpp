@@ -9,6 +9,8 @@
 #include "stems.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <map>
 #include <set>
 
@@ -327,5 +329,185 @@ void layoutStemDirections(const ScoreContext& ctx, std::vector<ChordLayout>& cho
 {
     Stems s(ctx, chords, beams);
     s.run();
+}
+
+namespace {
+//! MuseScore's DurationType::hooks for the shown value (0 longa … 12 1024th)
+int hooksOf(int durationType)
+{
+    return durationType >= 5 && durationType <= 12 ? durationType - 4 : 0;
+}
+
+//! StemLayout::minStaffOverlap
+int minStaffOverlap(bool up, int staffLines, int beamCount, bool hasHook, double beamSpacing, bool useWideBeams, bool isFullSize)
+{
+    int beamOverlap = 8;
+    if (isFullSize) {
+        if (beamCount == 3 && !hasHook) {
+            beamOverlap = 12;
+        } else if (beamCount >= 4 && !hasHook) {
+            beamOverlap = int((beamCount - 4) * beamSpacing + (useWideBeams ? 16 : 14));
+        }
+    }
+    const int staffLineOffset = isFullSize ? 1 : 4;
+    const int staffOverlap = std::min(beamOverlap, (staffLines - staffLineOffset) * 4);
+    return up ? (staffLines - 1) * 4 - staffOverlap : staffOverlap;
+}
+}
+
+void layoutStemLengths(const ScoreContext& ctx, std::vector<ChordLayout>& chords, const std::vector<Beam>& beams)
+{
+    const style::Style& st = ctx.style();
+    const style::MusicFont& font = ctx.font();
+    const double unit = style::Style::def(Sid::spatium).a;
+    std::set<Id> beamed;
+    for (const Beam& b : beams) {
+        for (Id e : b.elements) {
+            beamed.insert(e);
+        }
+    }
+    const bool wide = st.boolean(Sid::useWideBeams);
+    const bool straight = st.boolean(Sid::useStraightNoteFlags);
+    for (ChordLayout& c : chords) {
+        if (c.notes.empty()) {
+            continue;
+        }
+        const Object* co = ctx.obj(c.chord);
+        auto detail = [&](const std::string& tag) {
+            std::string v = model::fragment::value(co->text(F::DETAILS), tag);
+            return v.empty() ? model::fragment::value(co->text(F::DETAILS_AFTER), tag) : v;
+        };
+        const bool hasBeam = beamed.count(c.chord) && !c.stemless;
+        const bool tremoloTwo = co->has(F::EXPLICIT_DURATION);
+        c.hasStem = c.durationType >= 3 && c.durationType <= 12 && detail("noStem") != "1" && !c.stemless;
+        c.hook = c.hasStem && hooksOf(c.durationType) > 0 && !hasBeam && !tremoloTwo;
+        if (c.hook) {
+            static const SymId up[8] = { SymId::flag8thUp, SymId::flag16thUp, SymId::flag32ndUp, SymId::flag64thUp, SymId::flag128thUp,
+                                         SymId::flag256thUp, SymId::flag512thUp, SymId::flag1024thUp };
+            static const SymId down[8] = { SymId::flag8thDown, SymId::flag16thDown, SymId::flag32ndDown, SymId::flag64thDown,
+                                           SymId::flag128thDown, SymId::flag256thDown, SymId::flag512thDown, SymId::flag1024thDown };
+            static const SymId upS[8] = { SymId::flag8thUpStraight, SymId::flag16thUpStraight, SymId::flag32ndUpStraight,
+                                          SymId::flag64thUpStraight, SymId::flag128thUpStraight, SymId::flag256thUpStraight,
+                                          SymId::flag512thUpStraight, SymId::flag1024thUpStraight };
+            static const SymId downS[8] = { SymId::flag8thDownStraight, SymId::flag16thDownStraight, SymId::flag32ndDownStraight,
+                                            SymId::flag64thDownStraight, SymId::flag128thDownStraight, SymId::flag256thDownStraight,
+                                            SymId::flag512thDownStraight, SymId::flag1024thDownStraight };
+            const int i = hooksOf(c.durationType) - 1;
+            c.hookSym = straight ? (c.up ? upS[i] : downS[i]) : (c.up ? up[i] : down[i]);
+        }
+        // a one-chord tremolo sets a minimum length (not ported yet); before 4.20 files call it <Tremolo>
+        bool tremoloOne = model::fragment::has(co->text(F::DETAILS), "Tremolo") || model::fragment::has(co->text(F::DETAILS_AFTER), "Tremolo");
+        for (Id a : co->children()) {
+            const Object* ao = ctx.obj(a);
+            tremoloOne = tremoloOne || (ao && ao->kind() == Kind::Attachment && ao->text(F::SUBKIND) == "tremoloSingleChord");
+        }
+        if (!c.standard || hasBeam || tremoloTwo || tremoloOne || !c.upKnown) {
+            continue;   // a beam or tremolo decides the length (later stages)
+        }
+        const StaffTypeInfo& type = ctx.staffType(c.staff, c.tick);
+        const bool small = detail("small") == "1";
+        const double intrinsic = (small ? st.value(Sid::smallNoteMag) : 1.0) * (c.kind != 'C' ? st.value(Sid::graceNoteMag) : 1.0);
+        const NoteLayout& top = c.notes.back();      // upNote
+        const NoteLayout& bottom = c.notes.front();  // downNote
+        const NoteLayout& ref = c.up ? top : bottom;
+        double ax = 0.0, ay = 0.0;
+        const Object* refObj = ctx.obj(ref.note);
+        const bool refSmall = model::fragment::value(refObj->text(F::DETAILS), "small") == "1";
+        font.anchor(c.up ? ref.headUp : ref.headDown, c.up ? style::SmuflAnchor::stemUpSE : style::SmuflAnchor::stemDownNW,
+                    refSmall ? st.value(Sid::smallNoteMag) : 1.0, ax, ay);
+        const double extraHeight = ay / unit;   // in the staff's spaces, without the chord's own size
+
+        // all in quarter spaces, in integers, as MuseScore works it out
+        const int defaultStem = int(st.value(Sid::stemLength) * 4);   // no beam: no addition
+        const int shortestStem = wide ? 12 : int((st.value(Sid::shortestStem) + std::abs(extraHeight)) * 4);
+        const int qspl = int(std::floor(type.lineDistance * 2));
+        const int upLine = top.line, downLine = bottom.line;
+        const int chordHeight = (downLine - upLine) * qspl;
+        const int lines = type.lines;
+        const int shortStemStart = st.integer(Sid::shortStemStartLocation) * qspl + 1;
+        const bool fullSize = !(c.kind != 'C' || small);
+        const int middleLine = minStaffOverlap(c.up, lines, 0, c.hook, wide ? 4 : 3, wide, fullSize);
+        // StemLayout::maxReduction, without beams
+        auto maxReduction = [&](int extensionOutsideStaff) {
+            if (!st.boolean(Sid::shortenStem)) {
+                return 0;
+            }
+            static const int reductions[5] = { 1, 2, 3, 4, 4 };   // 0 beams (a flag counts as none here)
+            const bool tradHook = c.hook && !straight;
+            const int halfSpaces = std::min(int(std::floor(extensionOutsideStaff / 2.0)), 4);
+            int r = reductions[halfSpaces];
+            if (intrinsic < 1) {
+                if (tradHook) {
+                    r = std::min(r, 1);
+                }
+            } else if (tradHook) {
+                r = std::min(r, 1);
+            } else if (c.hook && hooksOf(c.durationType) > 2) {
+                r += 1;
+            }
+            return r;
+        };
+        int ideal = defaultStem;
+        if (c.up) {
+            const int end = upLine * qspl - defaultStem;
+            const double endMag = double(upLine) * qspl - defaultStem * intrinsic;
+            if (endMag <= -shortStemStart) {
+                ideal = std::max(ideal - maxReduction(std::abs(int(std::floor(endMag)) + shortStemStart)), shortestStem);
+            } else if (end > middleLine) {
+            } else {
+                ideal = std::max(ideal, shortestStem);   // no optical adjustment without beams
+            }
+        } else {
+            const int end = downLine * qspl + defaultStem;
+            const double endMag = double(downLine) * qspl + defaultStem * intrinsic;
+            const int downShortStemStart = (lines - 1) * (2 * qspl) + shortStemStart;
+            if (endMag >= downShortStemStart) {
+                ideal = std::max(ideal - maxReduction(std::abs(int(std::ceil(endMag)) - downShortStemStart)), shortestStem);
+            } else if (end < middleLine) {
+            } else {
+                ideal = std::max(ideal, shortestStem);
+            }
+        }
+        const int stemLength = std::max(ideal, 0);   // the minimum: tremolos and beams only
+        double length = chordHeight / 4.0 + stemLength / 4.0 * intrinsic;
+        const NoteLayout& start = c.up ? bottom : top;
+        const Object* startObj = ctx.obj(start.note);
+        const std::string fixed = model::fragment::value(startObj->text(F::DETAILS_AFTER), "fixed").empty()
+                                      ? model::fragment::value(startObj->text(F::DETAILS), "fixed")
+                                      : model::fragment::value(startObj->text(F::DETAILS_AFTER), "fixed");
+        if (fixed != "1") {
+            // a small chord's stem would end short of the middle line: lengthen it to there
+            const double up = c.up ? -1.0 : 1.0;
+            const double stemStart = (start.line + type.stepOffset) * 0.5 * type.lineDistance;
+            const double endMag = stemStart + length * up;
+            const double ld = type.lineDistance;
+            const double bottomLine = ld * (lines - 1.0);
+            const double midLine = middleLine / 4.0 * ld;
+            double target;
+            if (ld >= 1.0 - 1e-9) {
+                if (bottomLine < 2) {
+                    target = c.up ? 0.0 : bottomLine;
+                } else {
+                    const double twoIn = c.up ? bottomLine - 2 : 2;
+                    target = std::abs(ld - 1.0) < 1e-9 ? midLine : twoIn;
+                }
+            } else {
+                target = lines < 3 ? (c.up ? 0.0 : bottomLine) : (c.up ? bottomLine - 2 * ld : 2 * ld);
+            }
+            if (c.up && endMag > target) {
+                length += endMag - target;
+            } else if (!c.up && endMag < target) {
+                length += target - endMag;
+            }
+        }
+        // the user's length (<Stem><userLen>)
+        const std::string stem = detail("Stem");
+        const std::string user = model::fragment::anyValue("<x>" + stem + "</x>", "userLen");
+        if (!user.empty()) {
+            length += std::atof(user.c_str());
+        }
+        c.stemLength = length;
+        c.stemLengthKnown = c.hasStem;
+    }
 }
 }
