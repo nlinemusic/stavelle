@@ -24,6 +24,7 @@ struct NoteLayout {
     bool userAccidental = false;
     bool courtesy = false;  // shown only as a Jubelle courtesy accidental
     bool mirror = false;    // on the other side of the stem (layoutMirrors)
+    double x = 0.0, y = 0.0; // its place in the chord, in its staff's spaces, with the user's offset (layoutNotePositions)
 };
 
 struct ChordLayout {
@@ -43,6 +44,7 @@ struct ChordLayout {
     bool up = true;          // the stem up (layoutStemDirections; also the notehead side for up and down heads)
     bool upKnown = true;     // false where the direction depends on positions not worked out yet
     bool mirrorKnown = true; // false where a chord shown with it has a direction not known yet
+    double mag = 1.0;        // its size (Chord::mag: the staff's, small and grace notes')
     bool stemless = false;   // in a stemless measure of its staff: no stem, and no beam shown (ChordRest::beam)
     std::vector<NoteLayout> notes;   // in MuseScore's order (Chord::sortNotes: from the bottom)
 };

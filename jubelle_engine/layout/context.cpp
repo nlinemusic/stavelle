@@ -63,6 +63,28 @@ int transposeKey(int key, int diatonic, int chromatic, PreferSharpFlat prefer)
 }
 
 namespace {
+//! The values of a <StaffType> (anywhere in the fragment) that layout uses; MuseScore's defaults otherwise
+StaffTypeInfo staffTypeOf(const std::string& d)
+{
+    StaffTypeInfo t;
+    const std::string lines = model::fragment::anyValue(d, "lines"), step = model::fragment::anyValue(d, "stepOffset");
+    const std::string dist = model::fragment::anyValue(d, "lineDistance"), mag = model::fragment::anyValue(d, "mag");
+    const std::string small = model::fragment::anyValue(d, "small");
+    if (!lines.empty()) {
+        t.lines = std::atoi(lines.c_str());
+    }
+    if (!step.empty()) {
+        t.stepOffset = std::atoi(step.c_str());
+    }
+    if (!dist.empty()) {
+        t.lineDistance = std::atof(dist.c_str());
+    }
+    if (!mag.empty()) {
+        t.userMag = std::atof(mag.c_str());
+    }
+    t.small = small == "1" || small == "true";
+    return t;
+}
 SymId symByName(const std::string& n)
 {
     static const std::map<std::string, SymId> names = [] {
@@ -115,17 +137,7 @@ ScoreContext::ScoreContext(const model::Snapshot& s)
             info.shown = model::fragment::value(player->text(F::DETAILS), "show") != "0";
             info.drumset = model::fragment::value(player->text(F::DETAILS_2), "useDrumset") == "1"
                            || model::fragment::value(player->text(F::DETAILS), "useDrumset") == "1";
-            {
-                // the staff type (MuseScore's StaffType): its lines and step offset
-                const std::string& d = staff->text(F::DETAILS);
-                const std::string lines = model::fragment::anyValue(d, "lines"), step = model::fragment::anyValue(d, "stepOffset");
-                if (!lines.empty()) {
-                    info.lines = std::atoi(lines.c_str());
-                }
-                if (!step.empty()) {
-                    info.stepOffset = std::atoi(step.c_str());
-                }
-            }
+            info.type = staffTypeOf(staff->text(F::DETAILS));
             info.voices.assign(4, Id());
             for (Id v : staff->children()) {
                 const Object* voice = s.find(v);
@@ -234,10 +246,8 @@ void ScoreContext::buildTimelines()
                 m_stemless.insert({ st, t });
             }
             if (st >= 0 && model::fragment::has(d, "StaffTypeChange")) {
-                // a new staff type from here (MuseScore reads it as a fresh StaffType: 5 lines unless it says)
-                const std::string change = model::fragment::value(d, "StaffTypeChange");
-                const std::string lines = model::fragment::anyValue(change, "lines"), step = model::fragment::anyValue(change, "stepOffset");
-                m_staffTypes[size_t(st)][t] = { lines.empty() ? 5 : std::atoi(lines.c_str()), step.empty() ? 0 : std::atoi(step.c_str()) };
+                // a new staff type from here (MuseScore reads it as a fresh StaffType: its defaults unless it says)
+                m_staffTypes[size_t(st)][t] = staffTypeOf(model::fragment::value(d, "StaffTypeChange"));
             }
         } else if (kind == "clef") {
             const int st = staffIndex(item->idOr(F::ANCHOR));
@@ -337,20 +347,22 @@ ScoreContext::Transposition ScoreContext::transpositionAt(int staff, const Fract
 }
 
 namespace je::layout {
-int ScoreContext::middleLine(int staff, const Fraction& t) const
+const StaffTypeInfo& ScoreContext::staffType(int staff, const Fraction& t) const
 {
-    const StaffInfo& st = m_staves[size_t(staff)];
-    int lines = st.lines, step = st.stepOffset;
     if (size_t(staff) < m_staffTypes.size()) {
         const auto& m = m_staffTypes[size_t(staff)];
         auto it = m.upper_bound(t);
         if (it != m.begin()) {
-            --it;
-            lines = it->second.first;
-            step = it->second.second;
+            return std::prev(it)->second;
         }
     }
-    return lines - 1 - step;
+    return m_staves[size_t(staff)].type;
+}
+
+double ScoreContext::staffMag(int staff, const Fraction& t) const
+{
+    const StaffTypeInfo& st = staffType(staff, t);
+    return (st.small ? m_style.value(Sid::smallStaffMag) : 1.0) * st.userMag;
 }
 
 bool ScoreContext::stemlessMeasure(int staff, const Fraction& t) const

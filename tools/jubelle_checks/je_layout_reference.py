@@ -72,6 +72,8 @@ def parse(path, engine):
                     n['acc'] = x[4:].split('@')[0]
                 elif x == 'mirror':
                     n['mirror'] = True
+                elif x.startswith('x=') or x.startswith('y='):
+                    n[x[0]] = float(x[2:])
             notes.append(n)
         info['notes'] = notes
         chords[key].append(info)
@@ -91,7 +93,7 @@ def main():
     kinds = Counter()
     examples = {}
     bad = Counter()
-    total = notes_compared = stems_compared = 0
+    total = notes_compared = stems_compared = positions_compared = 0
     for rel in [l for l in open(lst, encoding='utf-8').read().splitlines() if l]:
         rp, jp = os.path.join(ref_out, rel + '.chords'), os.path.join(je_out, rel + '.chords')
         if not os.path.exists(rp) or not os.path.exists(jp):
@@ -138,6 +140,11 @@ def main():
                             diff('notehead', f'{key}: MuseScore {rn["head"]}, engine {hu if up else hd}')
                     if jc.get('mirror') != '?' and rn.get('mirror', False) != jn.get('mirror', False):
                         diff('mirrored notehead', f'{key} line {rn["line"]}: MuseScore {rn.get("mirror", False)}, engine {jn.get("mirror", False)}')
+                    for axis in 'xy':
+                        if axis in jn and axis in rn:
+                            positions_compared += 1
+                            if abs(rn[axis] - jn[axis]) > 0.002:
+                                diff(f'note {axis}', f'{key} line {rn["line"]}: MuseScore {rn[axis]}, engine {jn[axis]}')
                     if rn.get('acc') != jn.get('acc'):
                         diff('accidental', f'{key} line {rn["line"]}: MuseScore {rn.get("acc")}, engine {jn.get("acc")}')
         for key, jchords in j.items():
@@ -147,7 +154,7 @@ def main():
     for k, n in kinds.most_common():
         print(f'{n:6}  {k}   e.g. {examples[k]}')
     unexplained = [rel for rel in bad if rel not in known]
-    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes and {stems_compared} stem directions compared); '
+    print(f'chord shaping: {total - len(bad)} of {total} scores the same as MuseScore ({notes_compared} notes, {stems_compared} stem directions and {positions_compared} note positions compared); '
           f'{len(bad) - len(unexplained)} known differences, **{len(unexplained)} others**')
     for rel, n in bad.most_common():
         print(f'   {n:5}  {rel}' + (f'  ({known[rel]})' if rel in known else '  UNEXPLAINED'))

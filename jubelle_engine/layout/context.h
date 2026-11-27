@@ -36,6 +36,16 @@ struct KeyEvent {
     std::vector<CustDef> defs;
 };
 
+//! A staff type's values that layout uses (MuseScore's StaffType)
+struct StaffTypeInfo {
+    int lines = 5;
+    int stepOffset = 0;
+    double lineDistance = 1.0;   // in spaces
+    double userMag = 1.0;
+    bool small = false;
+    int middleLine() const { return lines - 1 - stepOffset; }
+};
+
 struct StaffInfo {
     Id id;
     Id player;
@@ -45,8 +55,7 @@ struct StaffInfo {
     std::vector<int> partStaves; // the indexes of its instrument's staves, in order
     bool drumset = false;        // its instrument plays a drum set (MuseScore's Instrument::useDrumset)
     bool shown = true;           // its instrument is shown (MuseScore's Part::show; a hidden one isn't laid out)
-    int lines = 5;               // its staff type's lines and step offset (StaffType::middleLine: lines - 1 - stepOffset)
-    int stepOffset = 0;
+    StaffTypeInfo type;          // its staff type at the start (changes: ScoreContext::staffType)
 };
 
 struct MeasureInfo {
@@ -71,8 +80,12 @@ public:
     int staffIndex(Id staff) const;
     //! Whether a staff's measure at this time is stemless (Measure::stemless: its chords show no stems or beams)
     bool stemlessMeasure(int staff, const Fraction& t) const;
-    //! The staff type's middle line at a time (StaffType::middleLine, with the staff type changes)
-    int middleLine(int staff, const Fraction& t) const;
+    //! The staff type at a time (with the staff type changes)
+    const StaffTypeInfo& staffType(int staff, const Fraction& t) const;
+    //! The staff type's middle line at a time (StaffType::middleLine)
+    int middleLine(int staff, const Fraction& t) const { return staffType(staff, t).middleLine(); }
+    //! Staff::staffMag: a small staff's and the staff type's own magnification
+    double staffMag(int staff, const Fraction& t) const;
     const model::Object* obj(Id id) const { return m_s.find(id); }
 
     //! The clef in force at t on a staff, by MuseScore's name ("G", "F8vb"…), as shown (a transposing clef unless
@@ -99,7 +112,7 @@ private:
     bool m_concertPitch = false;
     int m_version = 470;
     std::set<std::pair<int, Fraction> > m_stemless;   // (staff, measure start)
-    std::vector<std::map<Fraction, std::pair<int, int> > > m_staffTypes;   // per staff: time → (lines, step offset)
+    std::vector<std::map<Fraction, StaffTypeInfo> > m_staffTypes;   // per staff: the staff type changes
     std::vector<StaffInfo> m_staves;
     std::map<Id, int> m_staffIndex;
     std::vector<MeasureInfo> m_measures;

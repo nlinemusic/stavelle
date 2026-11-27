@@ -1755,6 +1755,7 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         const std::vector<layout::Beam> beams = layout::layoutBeams(ctx, chords);
         layout::layoutStemDirections(ctx, chords, beams);
         layout::layoutMirrors(ctx, chords);
+        layout::layoutNotePositions(ctx, chords);
         // Fraction::ticks: rounded to the nearest tick
         auto ticks = [](const Fraction& t) { return (t.numerator() * 1920 + t.denominator() / 2) / t.denominator(); };
         std::map<Id, std::string> beamOf;
@@ -1785,6 +1786,17 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
                 }
                 if (n.mirror && c.upKnown && c.mirrorKnown) {
                     o << " mirror";
+                }
+                if (c.upKnown && c.mirrorKnown) {
+                    // x only where every notehead of the chord is known (their widths place the notes)
+                    char xy[64];
+                    const bool heads = std::all_of(c.notes.begin(), c.notes.end(), [](const layout::NoteLayout& k) { return k.headKnown; });
+                    if (heads) {
+                        std::snprintf(xy, sizeof(xy), " x=%.3f y=%.3f", n.x + 0.0, n.y + 0.0);
+                    } else {
+                        std::snprintf(xy, sizeof(xy), " y=%.3f", n.y + 0.0);
+                    }
+                    o << xy;
                 }
             }
             o << "\n";

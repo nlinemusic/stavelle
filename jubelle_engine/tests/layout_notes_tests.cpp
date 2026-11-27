@@ -289,3 +289,21 @@ TEST(LayoutChords, ASecondPutsOneNoteheadOnTheOtherSideOfTheStem)
     EXPECT_EQ(m[1], (std::vector<bool> { true, false }));
     EXPECT_EQ(m[2], (std::vector<bool> { false, false, true }));
 }
+
+TEST(LayoutChords, NotesArePlacedByTheirLineAndSideOfTheStem)
+{
+    Score s;
+    s.chord(Fraction(0, 1), { 60, 62 });   // C4 D4, stem up: D4 on the right of the stem
+    auto chords = s.layout();
+    layout::layoutStemDirections(*s.ctx, chords, layout::layoutBeams(*s.ctx, chords));
+    layout::layoutMirrors(*s.ctx, chords);
+    layout::layoutNotePositions(*s.ctx, chords);
+    ASSERT_EQ(chords.size(), 1u);
+    const auto& n = chords[0].notes;
+    ASSERT_EQ(n.size(), 2u);
+    EXPECT_DOUBLE_EQ(n[0].y, 5.0);    // C4: the first ledger line below, line 10, half a space per line
+    EXPECT_DOUBLE_EQ(n[1].y, 4.5);
+    EXPECT_NEAR(n[0].x, 0.0, 1e-9);   // a black notehead on the left of an up stem
+    EXPECT_GT(n[1].x, 1.0);           // past the stem: about a notehead's width, less the stem's
+    EXPECT_LT(n[1].x, 1.4);
+}

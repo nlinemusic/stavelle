@@ -17,4 +17,8 @@
 namespace je::layout {
 //! Sets each note's `mirror`; the chords' stem directions (layoutStemDirections) must be known
 void layoutMirrors(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
+
+//! Sets each chord's `mag` and each note's place in its chord (layoutChords3: x by its side of the stem, y by its line);
+//! after layoutMirrors
+void layoutNotePositions(const ScoreContext& ctx, std::vector<ChordLayout>& chords);
 }
