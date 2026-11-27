@@ -96,7 +96,7 @@ jobs:
         if [ ! -f jubelle_engine/edit/journal.cpp ]; then exit 0; fi
         T=build-je/je_io_tool; [ -f build-je/Release/je_io_tool.exe ] && T=build-je/Release/je_io_tool.exe
         "$T" journal . --work "$RUNNER_TEMP/journal" > je_journal.out 2> je_journal.err; rc=$?
-        { echo "### ${{ matrix.os }}"; grep -E '^(FAIL|skipped)' je_journal.out; cat je_journal.err; } >> "$GITHUB_STEP_SUMMARY"
+        { echo "### ${{ matrix.os }}"; grep -E '^(FAIL|skipped)' je_journal.out || true; cat je_journal.err; } >> "$GITHUB_STEP_SUMMARY"
         exit $rc
     - name: Files (S2) - reading and writing the large orchestra score (informational)
       shell: bash
@@ -234,7 +234,7 @@ jobs:
           echo "chord shaping against MuseScore's layout ($(date +%T))"
           timeout 1800 python3 tools/jubelle_checks/je_layout_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
             "$PWD/v4_scores.txt" "$RUNNER_TEMP/layout" > je_layout_reference.txt || { echo "::error::check failed at workflow line 236"; rc=1; }
-          { echo; echo '```'; grep -v '^ ' je_layout_reference.txt | tail -20; grep 'UNEXPLAINED' je_layout_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          { echo; echo '```'; grep -v '^ ' je_layout_reference.txt | tail -20; grep 'UNEXPLAINED' je_layout_reference.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         fi
         exit $rc
     - name: Upload the comparison
