@@ -140,21 +140,21 @@ jobs:
         cat je_reference.md >> "$GITHUB_STEP_SUMMARY"
         # S3, linked staves while editing: every score with a linked staff is edited on both staves by the engine and
         # saved (outside the repository, before the regenerated copies are made in it)
-        ./build-je/je_io_tool linkedit . --out "$RUNNER_TEMP/linkedit" > linkedit.log || rc=1
+        ./build-je/je_io_tool linkedit . --out "$RUNNER_TEMP/linkedit" > linkedit.log || { echo "::error::check failed at workflow line 143"; rc=1; }
         # S3, editing commands: every score edited with them (respell, accidentals, intervals, articulations, graces,
         # lines, voices), saved with the edited model's listing next to it
-        ./build-je/je_io_tool cmdedit . --out "$RUNNER_TEMP/cmdedit" > cmdedit.log || rc=1
+        ./build-je/je_io_tool cmdedit . --out "$RUNNER_TEMP/cmdedit" > cmdedit.log || { echo "::error::check failed at workflow line 146"; rc=1; }
         if grep -q PROBLEMS cmdedit.log; then echo "::error::the editing commands left the model inconsistent"; rc=1; fi
         # and a time signature change (5/8 from the second measure: the music rewritten as MuseScore rewrites it)
-        ./build-je/je_io_tool tsedit . --out "$RUNNER_TEMP/tsedit" 1 5 8 > tsedit.log || rc=1
+        ./build-je/je_io_tool tsedit . --out "$RUNNER_TEMP/tsedit" 1 5 8 > tsedit.log || { echo "::error::check failed at workflow line 149"; rc=1; }
         if grep -q PROBLEMS tsedit.log; then echo "::error::the time signature change left the model inconsistent"; rc=1; fi
         # the same scores written from the Jubelle model, read by MuseScore's engine: as it reads the originals
-        ./build-je/je_io_tool regenerate . --out generated > /dev/null || rc=1
+        ./build-je/je_io_tool regenerate . --out generated > /dev/null || { echo "::error::check failed at workflow line 152"; rc=1; }
         (cd generated && find . -name '*.mscz' | sed 's|^\./||' | sort) > generated.txt
         JUBELLE_REFERENCE_ROOT=$PWD/generated JUBELLE_REFERENCE_LIST=$PWD/generated.txt JUBELLE_REFERENCE_OUT=$PWD/gen_listings \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_listings ref_listings je_generated.md \
-          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+          --expected jubelle_engine/corpus/reference_differences.txt || { echo "::error::check failed at workflow line 157"; rc=1; }
         cat je_generated.md >> "$GITHUB_STEP_SUMMARY"
         # and in detail (ties, slurs and other lines, articulations, spellings, annotations, lyrics and texts) and as MuseScore plays it
         # (its MIDI rendering)
@@ -164,7 +164,7 @@ jobs:
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         cat jubelle_engine/corpus/reference_differences.txt jubelle_engine/corpus/generated_playback_differences.txt > playback_expected.txt
         python3 tools/jubelle_checks/je_generated_compare.py generated generated.txt gen_detail ref_detail je_generated_detail.md \
-          --expected playback_expected.txt || rc=1
+          --expected playback_expected.txt || { echo "::error::check failed at workflow line 167"; rc=1; }
         { echo; echo "### In detail"; cat je_generated_detail.md; } >> "$GITHUB_STEP_SUMMARY"
         # MuseScore's engine must read the same music on both linked staves and link the copies as in the original
         grep '^edited:' linkedit.log | sed 's/^edited: //; s/ (format.*//' > linked_originals.txt
@@ -173,31 +173,31 @@ jobs:
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         JUBELLE_REFERENCE_LINKS=1 JUBELLE_REFERENCE_ROOT="$RUNNER_TEMP/linkedit" JUBELLE_REFERENCE_LIST=$PWD/linkedit.txt JUBELLE_REFERENCE_OUT=$PWD/linkedit_ref \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
-        python3 tools/jubelle_checks/je_linked_compare.py linkedit.log linked_ref linkedit_ref je_linked.md || rc=1
+        python3 tools/jubelle_checks/je_linked_compare.py linkedit.log linked_ref linkedit_ref je_linked.md || { echo "::error::check failed at workflow line 176"; rc=1; }
         { echo; cat je_linked.md; } >> "$GITHUB_STEP_SUMMARY"
         # MuseScore's engine must read the commands' edits as the edited model holds them
         (cd "$RUNNER_TEMP/cmdedit" && find . -name '*.mscz' | sed 's|^\./||' | sort) > cmdedit.txt
         JUBELLE_REFERENCE_ROOT="$RUNNER_TEMP/cmdedit" JUBELLE_REFERENCE_LIST=$PWD/cmdedit.txt JUBELLE_REFERENCE_OUT=$PWD/cmdedit_ref \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         python3 tools/jubelle_checks/je_command_compare.py "$RUNNER_TEMP/cmdedit" cmdedit.txt cmdedit_ref je_commands.md \
-          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+          --expected jubelle_engine/corpus/reference_differences.txt || { echo "::error::check failed at workflow line 183"; rc=1; }
         { echo; cat je_commands.md; } >> "$GITHUB_STEP_SUMMARY"
         (cd "$RUNNER_TEMP/tsedit" && find . -name '*.mscz' | sed 's|^\./||' | sort) > tsedit.txt
         JUBELLE_REFERENCE_ROOT="$RUNNER_TEMP/tsedit" JUBELLE_REFERENCE_LIST=$PWD/tsedit.txt JUBELLE_REFERENCE_OUT=$PWD/tsedit_ref \
           ./build-et/jubelle_engine_tests --gtest_filter='Jubelle_Reference.*'
         python3 tools/jubelle_checks/je_command_compare.py "$RUNNER_TEMP/tsedit" tsedit.txt tsedit_ref je_timesig.md \
-          --expected jubelle_engine/corpus/reference_differences.txt || rc=1
+          --expected jubelle_engine/corpus/reference_differences.txt || { echo "::error::check failed at workflow line 189"; rc=1; }
         { echo; echo "### Time signature change"; cat je_timesig.md; } >> "$GITHUB_STEP_SUMMARY"
         # and against MuseScore's own command (Score::cmdAddTimeSig) on the originals: the same music expected
         mkdir -p "$RUNNER_TEMP/tsref"
         echo "against MuseScore's own command: timesig 1 5 8 ($(date +%T), $(df -h --output=avail . | tail -1) free)"
         timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-          "$RUNNER_TEMP/tsref" timesig 1 5 8 > je_timesig_reference.txt || rc=1
+          "$RUNNER_TEMP/tsref" timesig 1 5 8 > je_timesig_reference.txt || { echo "::error::check failed at workflow line 195"; rc=1; }
         for spec in "split 1" "join 1 2" "explode 0 1 0 1" "implode 0 1 0 1" "implode 0 2 0 1" "slashfill 0 1 0 1" "slashfill 0 2 1 2" \
                     "slashrhythm 0 1 0 1" "realize 0 1 0 3" "realize 0 1 0 3 3 1 0" "movestaff 0 1 0 1 1" "movestaff 1 2 0 1 0"; do
           echo "against MuseScore's own command: $spec ($(date +%T), $(df -h --output=avail . | tail -1) free)"
           timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
+            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || { echo "::error::check failed at workflow line 200"; rc=1; }
           rm -rf "$RUNNER_TEMP/mref_${spec// /_}/jubelle"   # the saved copies (the listings stay)
         done
         # text added (Score::addText) and lyrics typed (NotationInteraction's lyric entry) as MuseScore does them
@@ -205,7 +205,7 @@ jobs:
                     "addtext 0 1 fingering 3"; do
           echo "against MuseScore's own command: $spec ($(date +%T))"
           timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || rc=1
+            "$RUNNER_TEMP/mref_${spec// /_}" $spec >> je_timesig_reference.txt || { echo "::error::check failed at workflow line 208"; rc=1; }
           rm -rf "$RUNNER_TEMP/mref_${spec// /_}/jubelle"
         done
         n=0
@@ -213,27 +213,27 @@ jobs:
           n=$((n+1)); where="${keys%%|*}"; typed="${keys#*|}"
           echo "against MuseScore's own lyric entry: $where \"$typed\" ($(date +%T))"
           timeout 2400 python3 tools/jubelle_checks/je_measures_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-            "$RUNNER_TEMP/lyrics_$n" lyrics $where "$typed" >> je_timesig_reference.txt || rc=1
+            "$RUNNER_TEMP/lyrics_$n" lyrics $where "$typed" >> je_timesig_reference.txt || { echo "::error::check failed at workflow line 216"; rc=1; }
           rm -rf "$RUNNER_TEMP/lyrics_$n/jubelle"
         done
         { echo; echo '```'; cat je_timesig_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         # the play order (repeats, endings, jumps) against MuseScore's RepeatList: its 72 repeat tests and the corpus
         echo "play order against MuseScore's ($(date +%T))"
         timeout 2400 python3 tools/jubelle_checks/je_repeats_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-          "$RUNNER_TEMP/repeats" > je_repeats_reference.txt || rc=1
+          "$RUNNER_TEMP/repeats" > je_repeats_reference.txt || { echo "::error::check failed at workflow line 223"; rc=1; }
         { echo; echo '```'; cat je_repeats_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         # every score's style values as MuseScore reads them (S7)
         if [ -f tools/jubelle_checks/je_style_reference.py ]; then
           echo "styles against MuseScore's reading ($(date +%T))"
           timeout 1200 python3 tools/jubelle_checks/je_style_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-            "$PWD/v4_scores.txt" "$RUNNER_TEMP/styles" > je_style_reference.txt || rc=1
+            "$PWD/v4_scores.txt" "$RUNNER_TEMP/styles" > je_style_reference.txt || { echo "::error::check failed at workflow line 229"; rc=1; }
           { echo; echo '```'; tail -20 je_style_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         fi
         # every chord's notes as shaped (lines, noteheads, accidentals) against MuseScore's layout (S7)
         if [ -f tools/jubelle_checks/je_layout_reference.py ]; then
           echo "chord shaping against MuseScore's layout ($(date +%T))"
           timeout 1800 python3 tools/jubelle_checks/je_layout_reference.py build-je/je_io_tool "$PWD/build-et/jubelle_engine_tests" "$PWD" \
-            "$PWD/v4_scores.txt" "$RUNNER_TEMP/layout" > je_layout_reference.txt || rc=1
+            "$PWD/v4_scores.txt" "$RUNNER_TEMP/layout" > je_layout_reference.txt || { echo "::error::check failed at workflow line 236"; rc=1; }
           { echo; echo '```'; grep -v '^ ' je_layout_reference.txt | tail -20; grep 'UNEXPLAINED' je_layout_reference.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
         fi
         exit $rc
