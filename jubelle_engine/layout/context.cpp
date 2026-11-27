@@ -214,7 +214,13 @@ void ScoreContext::buildTimelines()
         }
         const std::string& kind = item->text(F::SUBKIND);
         const Fraction t = item->fractionOr(F::TIME, Fraction());
-        if (kind == "clef") {
+        if (kind == "measureDetail") {
+            const std::string v = model::fragment::value(item->text(F::DETAILS), "stemless");
+            const int st = staffIndex(item->idOr(F::ANCHOR));
+            if (st >= 0 && !v.empty() && v != "0" && v != "false") {
+                m_stemless.insert({ st, t });
+            }
+        } else if (kind == "clef") {
             const int st = staffIndex(item->idOr(F::ANCHOR));
             if (st < 0) {
                 continue;
@@ -308,5 +314,20 @@ ScoreContext::Transposition ScoreContext::transpositionAt(int staff, const Fract
         return Transposition();
     }
     return std::prev(it)->second;
+}
+}
+
+namespace je::layout {
+bool ScoreContext::stemlessMeasure(int staff, const Fraction& t) const
+{
+    if (m_stemless.empty()) {
+        return false;
+    }
+    auto it = std::upper_bound(m_measures.begin(), m_measures.end(), t, [](const Fraction& x, const MeasureInfo& m) { return x < m.start; });
+    if (it == m_measures.begin()) {
+        return false;
+    }
+    --it;
+    return m_stemless.count({ staff, it->start }) != 0;
 }
 }

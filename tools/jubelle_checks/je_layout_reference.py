@@ -30,6 +30,8 @@ KNOWN = {
     'src/engraving/tests/changevisibility_data/changevisibility.mscx': 'ornaments (as above)',
     'vtest/scores/instrument-change-to-pitched.mscz': 'an instrument change from a drum set to a pitched instrument '
                                                        '(the staff is taken as a drum staff throughout, not yet per time)',
+    'src/importexport/mnx/tests/data/project_examples/beamsOverBarlines_ref.mscx': 'a beam across a system break: MuseScore '
+                                                       'splits it (no beams across systems); systems come later in S7',
 }
 
 
@@ -110,6 +112,9 @@ def main():
                 if len(rc['notes']) != len(jc['notes']):
                     diff('note count', f'{key}: MuseScore {len(rc["notes"])}, engine {len(jc["notes"])}')
                     continue
+                laid_out = any(n['line'] != -10000 for n in rc['notes'])
+                if laid_out and rc.get('beam') != jc.get('beam'):
+                    diff('beam', f'{key}: MuseScore {rc.get("beam")}, engine {jc.get("beam")}')
                 up = rc.get('up') == '1'
                 for rn, jn in zip(rc['notes'], jc['notes']):
                     if rn['line'] == -10000:

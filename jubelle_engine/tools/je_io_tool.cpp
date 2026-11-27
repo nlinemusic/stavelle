@@ -52,6 +52,7 @@
 #include "edit/session.h"
 #include "style/style.h"
 #include "layout/context.h"
+#include "layout/beams.h"
 #include "layout/notes.h"
 
 namespace fs = std::filesystem;
@@ -1748,11 +1749,23 @@ int chordshapes(const std::string& root, const std::string& list, const std::str
         }
         const model::Snapshot snap = m.snapshot();
         const layout::ScoreContext ctx(snap);
-        for (const layout::ChordLayout& c : layout::layoutNotes(ctx)) {
-            // Fraction::ticks: rounded to the nearest tick
-            const int64_t n = c.tick.numerator(), d = c.tick.denominator();
-            o << c.kind << " " << c.staff << " " << c.voice << " " << (n * 1920 + d / 2) / d
-              << (c.standard && c.shown ? "" : " nonstandard");
+        const std::vector<layout::ChordLayout> chords = layout::layoutNotes(ctx);
+        // Fraction::ticks: rounded to the nearest tick
+        auto ticks = [](const Fraction& t) { return (t.numerator() * 1920 + t.denominator() / 2) / t.denominator(); };
+        std::map<Id, std::string> beamOf;
+        for (const layout::Beam& b : layout::layoutBeams(ctx, chords)) {
+            const model::Object* first = snap.find(b.elements.front());
+            const std::string text = std::to_string(b.staff * 4 + b.voice) + ":" + std::to_string(ticks(first->fractionOr(model::fields::TIME, Fraction())))
+                                     + ":" + std::to_string(b.elements.size()) + (b.grace ? "g" : "");
+            for (Id e : b.elements) {
+                beamOf[e] = text;
+            }
+        }
+        for (const layout::ChordLayout& c : chords) {
+            o << c.kind << " " << c.staff << " " << c.voice << " " << ticks(c.tick) << (c.standard && c.shown ? "" : " nonstandard");
+            if (const auto it = beamOf.find(c.chord); it != beamOf.end() && !c.stemless) {   // ChordRest::beam: none shown in a stemless measure
+                o << " beam=" << it->second;
+            }
             for (const layout::NoteLayout& n : c.notes) {
                 o << " | " << n.line << " " << style::SYMBOL_CODES[int(n.headUp)].name << "/" << style::SYMBOL_CODES[int(n.headDown)].name
                   << (n.headKnown ? "" : "?");

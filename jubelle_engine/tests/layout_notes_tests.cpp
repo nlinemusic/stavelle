@@ -8,6 +8,8 @@
 #include "edit/changeset.h"
 #include "edit/operations.h"
 #include "edit/scorebuilder.h"
+#include "edit/structure.h"
+#include "layout/beams.h"
 #include "layout/context.h"
 #include "layout/notes.h"
 #include "model/fields.h"
@@ -46,6 +48,49 @@ struct Score {
         Transaction tx(m, "Note");
         ops.enterChord(tx, voice, t, { value, 0 }, { pitch });
         tx.commit();
+    }
+    void rest(const Fraction& t, const Fraction& value)
+    {
+        Operations ops(m, ids);
+        Transaction tx(m, "Rest");
+        ops.enterRest(tx, voice, t, { value, 0 });
+        tx.commit();
+    }
+    //! Sets a chord's or rest's beam mode as a file gives it (MuseScore's <BeamMode>)
+    void beamMode(Id event, const std::string& mode)
+    {
+        Transaction tx(m, "Beam mode");
+        tx.set(event, F::DETAILS, model::Value(model::Text("<x>\n<BeamMode>" + mode + "</BeamMode>\n</x>\n")));
+        tx.commit();
+    }
+    //! The measure at `t` made stemless on the flute's staff (MuseScore's <stemless>, kept as a measure detail)
+    void stemless(const Fraction& t)
+    {
+        const model::Snapshot sn = m.snapshot();
+        Id flow, staff;
+        sn.forEachObject([&](const model::Object& o) {
+            if (o.kind() == model::Kind::Flow && !flow.isValid()) {
+                flow = o.id();
+            } else if (o.kind() == model::Kind::Staff && !staff.isValid()) {
+                staff = o.id();
+            }
+        });
+        Transaction tx(m, "Stemless");
+        create(tx, ids, flow, { model::Kind::FlowItem, { { F::SUBKIND, model::Value(model::Text(std::string("measureDetail"))) },
+                                                       { F::ANCHOR, model::Value(staff) }, { F::TIME, model::Value(t) },
+                                                       { F::DETAILS, model::Value(model::Text(std::string("<x>\n<stemless>1</stemless>\n</x>\n"))) } } },
+               Placement::ByTime);
+        tx.commit();
+    }
+    //! The beams as the number of chords and rests in each, in order
+    std::vector<size_t> beams()
+    {
+        const auto chords = layout();
+        std::vector<size_t> out;
+        for (const layout::Beam& b : layout::layoutBeams(*ctx, chords)) {
+            out.push_back(b.elements.size());
+        }
+        return out;
     }
     void style(const std::vector<std::pair<std::string, std::string> >& values)
     {
@@ -110,4 +155,48 @@ TEST(LayoutNotes, NoteheadsFollowTheValue)
     EXPECT_EQ(chords[1].notes[0].headUp, SymId::noteheadHalf);
     EXPECT_EQ(chords[2].notes[0].headDown, SymId::noteheadBlack);
     EXPECT_EQ(chords[0].notes[0].line, 3);   // C5: the third space
+}
+
+TEST(LayoutBeams, EighthsAreBeamedByTheTimeSignaturesGroups)
+{
+    Score s;
+    for (int i = 0; i < 8; ++i) {
+        s.note(Fraction(i, 8), 72, Fraction(1, 8));
+    }
+    // MuseScore's 4/4 default: eighths in two groups of four; a quarter is never beamed
+    EXPECT_EQ(s.beams(), (std::vector<size_t> { 4, 4 }));
+    s.note(Fraction(1, 1), 72, Fraction(1, 4));
+    s.note(Fraction(5, 4), 72, Fraction(1, 8));
+    s.note(Fraction(11, 8), 72, Fraction(1, 8));
+    EXPECT_EQ(s.beams(), (std::vector<size_t> { 4, 4, 2 }));
+}
+
+TEST(LayoutBeams, ABeamIntoTheNextMeasureDoesNotStartOnAnUnbeamedRest)
+{
+    Score s;
+    s.note(Fraction(0, 1), 72, Fraction(1, 2));
+    s.rest(Fraction(1, 2), Fraction(1, 2));   // the bar ends with a half rest
+    s.note(Fraction(1, 1), 72, Fraction(1, 16));
+    s.note(Fraction(17, 16), 72, Fraction(1, 16));
+    auto chords = s.layout();
+    ASSERT_GE(chords.size(), 2u);
+    s.beamMode(chords[1].chord, "mid");   // the next bar's first chord asks to continue a beam
+    // MuseScore's vtest beams-2: the beam starts on that chord, not on the half rest before it
+    const auto b = s.beams();
+    ASSERT_EQ(b.size(), 1u);
+    EXPECT_EQ(b[0], 2u);
+}
+
+TEST(LayoutBeams, AStemlessMeasureShowsNoBeams)
+{
+    Score s;
+    for (int i = 0; i < 4; ++i) {
+        s.note(Fraction(i, 8), 72, Fraction(1, 8));
+    }
+    s.stemless(Fraction(0, 1));
+    const auto chords = s.layout();
+    ASSERT_EQ(chords.size(), 4u);
+    for (const auto& c : chords) {
+        EXPECT_TRUE(c.stemless);   // ChordRest::beam shows none there
+    }
 }

@@ -34,6 +34,12 @@ struct ChordLayout {
     Fraction tick;          // the chord's time (a grace chord's: its chord's)
     bool standard = true;   // on a standard staff (drum and tablature staves are worked out differently)
     bool shown = true;      // its instrument is shown (MuseScore lays out no other)
+    // the value shown (MuseScore's durationType: 0 longa, 1 breve, 2 whole … 12 1024th) and its dots; a cross-measure
+    // chord (crossMeasureValues) shows its whole length: 1 the first of the two, 2 the second
+    int durationType = 4;
+    int dots = 0;
+    int crossMeasure = 0;
+    bool stemless = false;   // in a stemless measure of its staff: no stem, and no beam shown (ChordRest::beam)
     std::vector<NoteLayout> notes;   // in MuseScore's order (Chord::sortNotes: from the bottom)
 };
 

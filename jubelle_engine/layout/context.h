@@ -10,6 +10,7 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -61,9 +62,13 @@ public:
     const style::Style& style() const { return m_style; }
     const style::MusicFont& font() const { return *m_font; }
     bool concertPitch() const { return m_concertPitch; }
+    //! The file's MuseScore version (470 for 4.70), for readings that changed between versions
+    int version() const { return m_version; }
     const std::vector<StaffInfo>& staves() const { return m_staves; }
     const std::vector<MeasureInfo>& measures() const { return m_measures; }
     int staffIndex(Id staff) const;
+    //! Whether a staff's measure at this time is stemless (Measure::stemless: its chords show no stems or beams)
+    bool stemlessMeasure(int staff, const Fraction& t) const;
     const model::Object* obj(Id id) const { return m_s.find(id); }
 
     //! The clef in force at t on a staff, by MuseScore's name ("G", "F8vb"…), as shown (a transposing clef unless
@@ -89,6 +94,7 @@ private:
     std::shared_ptr<const style::MusicFont> m_font;
     bool m_concertPitch = false;
     int m_version = 470;
+    std::set<std::pair<int, Fraction> > m_stemless;   // (staff, measure start)
     std::vector<StaffInfo> m_staves;
     std::map<Id, int> m_staffIndex;
     std::vector<MeasureInfo> m_measures;

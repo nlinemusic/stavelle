@@ -51,6 +51,8 @@
 #include "engraving/dom/notedot.h"
 #include "engraving/dom/stem.h"
 #include "engraving/dom/hook.h"
+#include "engraving/dom/beam.h"
+#include "engraving/dom/system.h"
 #include "engraving/types/symnames.h"
 #include "engraving/dom/part.h"
 #include "engraving/dom/rest.h"
@@ -1552,6 +1554,12 @@ void chordLayout(std::ostream& o, Chord* c, const std::string& kind)
     if (c->hook()) {
         o << " hook=" << SymNames::nameForSymId(c->hook()->sym()).ascii();
     }
+    if (c->beam() && c->beam()->elements().size() > 1) {
+        // the beam: where it starts (track and time of its first chord or rest) and how many it joins
+        const ChordRest* first = c->beam()->elements().front();
+        o << " beam=" << first->track() << ":" << first->tick().ticks() << ":" << c->beam()->elements().size()
+          << (first->isGrace() ? "g" : "");
+    }
     for (Note* n : c->notes()) {
         o << " | " << n->line() << " " << SymNames::nameForSymId(n->noteHead()).ascii() << " x=" << sp(n->pos().x(), s)
           << " y=" << sp(n->pos().y(), s) << (n->ldata()->mirror() ? " mirror" : "");
@@ -1594,6 +1602,9 @@ TEST(Jubelle_Reference, ChordLayout)
         }
         s->doLayout();
         for (Measure* m = s->firstMeasure(); m; m = m->nextMeasure()) {
+            if (std::getenv("JUBELLE_REFERENCE_DEBUG") && m->system() && m->system()->firstMeasure() == m) {
+                std::cerr << rel << ": a system starts at " << m->tick().ticks() << "\n";
+            }
             for (Segment* seg = m->first(SegmentType::ChordRest); seg; seg = seg->next(SegmentType::ChordRest)) {
                 for (track_idx_t t = 0; t < s->ntracks(); ++t) {
                     EngravingItem* e = seg->element(t);

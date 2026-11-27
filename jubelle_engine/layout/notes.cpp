@@ -264,6 +264,7 @@ struct Builder {
                         }
                     }
                     cw.out.shown = st.shown;
+                    cw.out.stemless = ctx.stemlessMeasure(st.index, cw.out.tick);
                     {
                         // Chord::cmdUpdateNotes: tablature is fretted, a drum set's notes come from it
                         const StaffInfo& shown = ctx.staves()[size_t(cw.out.shownStaff)];
@@ -661,14 +662,15 @@ struct Builder {
         return v;
     }
 
-    //! A length as one note value (toDurationList with up to 4 dots gives one value); its undotted value
-    static bool singleValue(const Fraction& l, Fraction& base)
+    //! A length as one note value (toDurationList with up to 4 dots gives one value); its undotted value and dots
+    static bool singleValue(const Fraction& l, Fraction& base, int& dotsOut)
     {
         for (Fraction b(4, 1); b >= Fraction(1, 1024); b = b * Fraction(1, 2)) {
             Fraction v = b, add = b;
             for (int dots = 0; dots <= 4; ++dots) {
                 if (v == l) {
                     base = b;
+                    dotsOut = dots;
                     return true;
                 }
                 add = add * Fraction(1, 2);
@@ -676,6 +678,17 @@ struct Builder {
             }
         }
         return false;
+    }
+
+public:
+    //! MuseScore's DurationType of a note value (0 longa, 1 breve, 2 whole … 12 1024th)
+    static int durationTypeOf(const Fraction& base)
+    {
+        int i = 0;
+        for (Fraction b(4, 1); b > base && i < 14; b = b * Fraction(1, 2)) {
+            ++i;
+        }
+        return i;
     }
 
     size_t measureOf(const Fraction& t) const
@@ -702,20 +715,37 @@ struct Builder {
         }
         for (ChordWork& c : chords) {
             const Object* chord = ctx.obj(c.out.chord);
-            Fraction base = chord->fractionOr(F::BASE_DURATION, chord->fractionOr(F::DURATION, Fraction(1, 4)));
-            if (crossMeasure && c.out.kind == 'C' && c.notes.size() == 1 && c.notes[0]->note->has(F::TIE_TO)) {
+            c.out.dots = int(chord->intOr(F::DOTS, 0));
+            c.out.durationType = durationTypeOf(chord->fractionOr(F::BASE_DURATION, chord->fractionOr(F::DURATION, Fraction(1, 4))));
+        }
+        if (crossMeasure) {
+            for (ChordWork& c : chords) {
+                const Object* chord = ctx.obj(c.out.chord);
+                if (c.out.kind != 'C' || c.notes.size() != 1 || !c.notes[0]->note->has(F::TIE_TO) || c.out.crossMeasure == 2) {
+                    continue;
+                }
                 const auto it = chordOfNote.find(c.notes[0]->note->idOr(F::TIE_TO));
-                if (it != chordOfNote.end()) {
-                    const ChordWork& tied = chords[it->second];
-                    Fraction combined;
-                    if (tied.notes.size() == 1 && measureOf(tied.out.tick) != measureOf(c.out.tick)
-                        && singleValue(written(chord) + written(ctx.obj(tied.out.chord)), combined)) {
-                        base = combined;
+                if (it == chordOfNote.end()) {
+                    continue;
+                }
+                ChordWork& tied = chords[it->second];
+                Fraction combined;
+                int dots = 0;
+                if (tied.notes.size() == 1 && measureOf(tied.out.tick) != measureOf(c.out.tick)) {
+                    if (singleValue(written(chord) + written(ctx.obj(tied.out.chord)), combined, dots)) {
+                        c.out.crossMeasure = 1;
+                        c.out.durationType = durationTypeOf(combined);
+                        c.out.dots = dots;
+                        tied.out.crossMeasure = 2;
                     }
                 }
             }
+        }
+        for (ChordWork& c : chords) {
+            const Object* chord = ctx.obj(c.out.chord);
+            const int dt = c.out.durationType;
             // TDuration::headType: breve and longa a breve, whole (and a measure) a whole, half a half, else a quarter
-            int type = base >= Fraction(2, 1) ? 3 : base >= Fraction(1, 1) ? 0 : base >= Fraction(1, 2) ? 1 : 2;
+            int type = dt <= 1 ? 3 : dt == 2 ? 0 : dt == 3 ? 1 : 2;
             if (chord->has(F::MEASURE_REST)) {
                 type = 0;
             }
